@@ -1,0 +1,52 @@
+   Date: Mon, 7 Apr 2003 02:01:59 +0000 (UTC)
+   From: Miciah Dashiel Butler Masters <gcgs-gnu-screen@m.gmane.org>
+Subject: Re: HOWTO: emulate vim's :help in a screen window
+
+In article <20030406193514.4b43c6ba.mramos@adinet.com.uy>, Marcelo Ramos wrote:
+> Something interesting and useful developed with Miciah's help a few minutes
+> ago in the #screen channel (irc.debian.org):
+> 
+> 1) Create a shell script "showman": 
+> 
+>       echo -n "What manpage?"; read X; man $X; screen -X eval 'focus bottom' remove 
+> 
+> 2) Put the following in your.screenrc: 
+> 
+>       bindkey "^B" eval split "focus bottom" "screen /path/to/showman" 
+> 
+> 3) Now press ^B and enjoy :-)
+> 
+> (^B or the key you prefer)
+
+You inspired to write a couple of scripts to generalise this process:
+
+screen-run-program-in-region:
+    #!/bin/sh
+    
+    eval "$*"
+    echo -n Press any key to close this region...
+    read throwaway_variable
+    screen -X eval 'focus bottom' remove
+
+screen-open-region-with-program:
+    #!/bin/sh
+    
+    screen -X eval \
+        "focus bottom" \
+        split \
+        "focus bottom" \
+        "screen screen-run-program-in-region $*"
+
+Note that enabling zombie-mode will interfere with this script's
+operation -- to kill the zombie window, screen-run-program-in-region
+would need to also send Screen the 'kill' command. Unfortunately, if you
+_disable_ zombie-mode then the 'kill' command would probably kill a
+program that you _don't_ want killed.  This is why we need a per-window
+zombie-setting (*nudge* *nudge*). A way to silence the kill command
+would also be nice.
+
+BTW, I know that 'echo -n' is not portable. Please forgive me. You can
+feel free to remove the '-n'.
+
+ -- Miciah <miciah@myrealbox.com>
+
