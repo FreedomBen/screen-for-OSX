@@ -1,0 +1,44 @@
+--- screen-4.0.2/fileio.c.xx	2005-04-08 13:37:18.823774606 +0200
++++ screen-4.0.2/fileio.c	2005-04-08 13:37:25.948324113 +0200
+@@ -779,7 +779,7 @@
+ #ifdef SIGPIPE
+       signal(SIGPIPE, SIG_DFL);
+ #endif
+-      execl("/bin/sh", "sh", "-c", cmd, 0);
++      execl("/bin/sh", "sh", "-c", cmd, (char*)0);
+       Panic(errno, "/bin/sh");
+     default:
+       break;
+--- screen-4.0.2/utmp.c.orig	2005-10-28 22:01:14.105418912 +0000
++++ screen-4.0.2/utmp.c	2005-10-28 22:02:30.065801507 +0000
+@@ -604,6 +604,7 @@ struct utmp *u;
+ char *line, *user;
+ int pid;
+ {
++  time_t t;
+   u->ut_type = USER_PROCESS;
+   strncpy(u->ut_user, user, sizeof(u->ut_user));
+   /* Now the tricky part... guess ut_id */
+@@ -618,7 +619,8 @@ int pid;
+ #endif /* sgi */
+   strncpy(u->ut_line, line, sizeof(u->ut_line));
+   u->ut_pid = pid;
+-  (void)time((time_t *)&u->ut_time);
++  (void)time(&t);
++  u->ut_time = t;
+ }
+ 
+ static slot_t
+@@ -726,9 +728,11 @@ struct utmp *u;
+ char *line, *user;
+ int pid;
+ {
++  time_t t;
+   strncpy(u->ut_line, line, sizeof(u->ut_line));
+   strncpy(u->ut_name, user, sizeof(u->ut_name));
+-  (void)time((time_t *)&u->ut_time);
++  (void)time(&t);
++  u->ut_time = t;
+ }
+ 
+ static slot_t

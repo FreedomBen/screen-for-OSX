@@ -1,0 +1,29 @@
+--- screenrc
++++ screenrc	2000/09/01 14:38:23
+@@ -0,0 +1,4 @@
++# this is the global screenrc file. Handle with care.
++
++termcapinfo xterm* G0:is=\E[?4l\E>:ti@:te@
++termcapinfo linux me=\E[m:AX
+--- ./configure.in.orig	2004-02-16 14:48:22.000000000 +0000
++++ ./configure.in	2004-02-16 14:49:11.000000000 +0000
+@@ -93,7 +93,7 @@
+ 	AC_MSG_RESULT(yes)
+ 	AC_MSG_CHECKING(for the socket dir)
+ 	SOCKDIR="(eff_uid ? \"/tmp/uscreens\" : \"/tmp/screens\")"
+-	AC_ARG_WITH(socket-dir, [  --with-socket-dir=path  where to put the per-user sockets], [ SOCKDIR="\"${withval}\"" ])
++	AC_ARG_WITH(socket-dir, [  --with-socket-dir=path  where to put the per-user sockets], [ SOCKDIR="${withval}" ])
+ 	AC_MSG_RESULT(${SOCKDIR})
+ 	AC_DEFINE_UNQUOTED(SOCKDIR, $SOCKDIR)
+     ]
+--- ./configure.orig	2004-02-16 14:48:27.000000000 +0000
++++ ./configure	2004-02-16 14:49:26.000000000 +0000
+@@ -3012,7 +3012,7 @@
+ # Check whether --with-socket-dir or --without-socket-dir was given.
+ if test "${with_socket_dir+set}" = set; then
+   withval="$with_socket_dir"
+-   SOCKDIR="\"${withval}\""
++   SOCKDIR="${withval}"
+ fi;
+ 	echo "$as_me:$LINENO: result: ${SOCKDIR}" >&5
+ echo "${ECHO_T}${SOCKDIR}" >&6

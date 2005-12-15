@@ -1,0 +1,10 @@
+--- screen.h	2004/09/12 07:24:26	1.1
++++ screen.h	2004/09/12 07:24:36
+@@ -25,6 +25,7 @@
+ 
+ #include "os.h"
+ 
++#undef __P
+ #if defined(__STDC__)
+ # ifndef __P
+ #  define __P(a) a
