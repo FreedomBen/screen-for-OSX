@@ -22,7 +22,7 @@
  *	Patrick Wolfe (pat@kai.com, kailand!pat)
  *	Bart Schaefer (schaefer@cse.ogi.edu)
  *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
- *	Larry W. Virden (lvirden@cas.org)
+ *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
  *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
  *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
  *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
@@ -31,10 +31,14 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
+#ifndef lint
+  static char rcs_id[] = "$Id$ FAU";
+#endif
 
 #include "config.h"
+#if defined(MIPS) || defined(GOULD_NP1) || defined(B43)
+extern int errno;
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #ifndef sgi
@@ -76,49 +80,65 @@ RCS_ID("$Id$ FAU")
 #endif
 
 extern char *RcFileName, *extra_incap, *extra_outcap;
-extern ServerSocket, real_uid, real_gid, eff_uid, eff_gid;
-extern int dflag, rflag, lsflag, quietflag, wipeflag, xflag;
-extern char *attach_tty, *LoginName, HostName[];
-extern struct display *display, *displays;
-extern struct win *fore, *console_window, *windows;
-extern struct NewWindow nwin_undef;
+extern WinList, Detached, ServerSocket, real_uid, real_gid, eff_uid, eff_gid;
+#ifdef BSDJOBS
+extern int Suspended;
+#endif
+extern AttacherPid, dflag, rflag, lsflag, quietflag, wipeflag;
+extern char HostName[];
+extern struct mode OldMode, NewMode;
+extern char display_tty[];
+extern struct win *wtab[], *fore;
 #ifdef NETHACK
 extern nethackflag;
-#endif
-#ifdef MULTIUSER
-extern char *multi;
 #endif
 
 #ifdef PASSWORD
 extern int CheckPassword;
 extern char Password[];
 #endif
+#if defined(BSDJOBS) && !(defined(POSIX) || defined(SYSV))
+extern DevTty;
+#endif
 extern char *getenv();
 
 char SockPath[MAXPATH];
 char *SockNamePtr, *SockName;
 
-#ifdef MULTI_USER
-# define SOCKMODE (S_IWRITE | S_IREAD | (displays ? S_IEXEC : 0) | (multi ? 1 : 0))
-#else
-# define SOCKMODE (S_IWRITE | S_IREAD | (displays ? S_IEXEC : 0))
-#endif
-
-int
-RecoverSocket()
+char *strdup(str)
+const char *str;
 {
-#ifndef NOREUID
-  setreuid(eff_uid, real_uid);
-  setregid(eff_gid, real_gid);
-#endif
+  char *ret;
+
+  if ((ret = (char *) malloc(strlen(str) + 1)) == 0)
+    {
+      Msg_nomem;
+      return (0);
+    }
+  (void) strcpy(ret, str);
+  return (ret);
+}
+
+int RecoverSocket()
+{
+  int s = 0, d;
+
   (void) unlink(SockPath);
-#ifndef NOREUID
-  setreuid(real_uid, eff_uid);
-  setregid(real_gid, eff_gid);
-#endif
-  close(ServerSocket);
-  if ((ServerSocket = MakeServerSocket()) < 0)
-    return 0;
+  s = MakeServerSocket();
+  if (s != ServerSocket)
+    {
+      debug2("Oh, Serversocket was %d, now %d, let's dup!\n", ServerSocket, s);
+      d = dup2(s, ServerSocket);
+      close(s);
+      if (d != ServerSocket)
+	{
+	  debug2("Hmm, dup2() failed, Serversocket was %d, now %d, bye\n",
+		 ServerSocket, d);
+	  return 0;
+	}
+    }
+  if (Detached)
+    (void) chmod(SockPath, /* S_IFSOCK | */ 0600); /* Flag detached-ness */
   return 1;
 }
 
@@ -128,14 +148,12 @@ RecoverSocket()
  * back with a SockPath set to it and open it in a fd pointed to by fdp.
  * If fdp == 0 we simply produce a list if all sockets.
  */
-/* ARGSUSED */
-int
-FindSocket(how, fdp)
+int FindSocket(how, fdp)
 int how;
 int *fdp;
 {
   register int s, lasts = 0, found = 0, deadcount = 0, wipecount = 0;
-  register int l = 0;
+  register int l;
   register DIR *dirp;
   register struct dirent *dp;
   register char *Name;
@@ -159,9 +177,8 @@ int *fdp;
 #endif
     }
 
-#ifndef NOREUID
+#ifdef NFS_HACK
   setreuid(eff_uid, real_uid);
-  setregid(eff_gid, real_gid);
 #endif
   debug1("FindSock searching... '%s'\n", SockPath);
   /*
@@ -171,7 +188,7 @@ int *fdp;
   *SockNamePtr = '\0';
   if ((dirp = opendir(SockPath)) == NULL)
     {
-      Panic(0, "Cannot opendir %s", SockPath);
+      Msg(0, "Cannot opendir %s", SockPath);
       /* NOTREACHED */
     }
   *SockNamePtr = found;
@@ -185,11 +202,11 @@ int *fdp;
        */
       if (Name[0] == '.')
 	continue;
+      debug2("Attach found: '%s', needed '%s'\n", Name, SockName);
       if (SockName && l)
 	{
 	  register char *n = Name;
 
-	  debug2("Attach found: '%s', needed '%s'\n", Name, SockName);
 	  /*
 	   * The SockNames "hf", "ttyhf", "1", "12345.tty", "12345.ttyhf.medusa"
 	   * all match the Name "12345.ttyhf.medusa".
@@ -219,59 +236,19 @@ int *fdp;
       strcpy(SockNamePtr, Name);
       if (stat(SockPath, &st))
 	continue;
-#ifndef SOCK_NOT_IN_FS
-# ifdef NAMEDPIPE
-      if (!S_ISFIFO(st.st_mode))
-	{
-	  debug1("'%s' is not a pipe, ignored\n", SockPath);
-	  continue;
-	}
-# else /* NAMEDPIPE */
-#  ifdef S_ISSOCK
-      if (!S_ISSOCK(st.st_mode))
-	{
-	  debug1("'%s' is not a socket, ignored\n", SockPath);
-	  continue;
-	}
-#  endif
-# endif /* NAMEDPIPE */
-#endif
       if (st.st_uid != real_uid)
 	continue;
-      s = st.st_mode & 0777;
-#ifdef MULTIUSER
-      if ((s & 0677) == (multi ? 0600 : 0601))
-	continue;
-#endif
-      foundsock[foundsockcount].name = SaveStr(Name);
-#ifdef MULTIUSER
-      foundsock[foundsockcount].mode = s ^ (multi ? 1 : 0);
-#else
-      foundsock[foundsockcount].mode = s;
-#endif
+      foundsock[foundsockcount].name = strdup(Name);
+      foundsock[foundsockcount].mode = s = st.st_mode & 0777;
       debug2("FindSocket: %s has mode %04o...\n", Name, s);
-      if ((s & 0677) == 0600)
+      if (s == 0700 || s == 0600)
 	{
-	  /* 
-	   * marc parses the socketname again
-	   */
-	  int sockmpid = 0;
-	  char *nam = Name;
-
-	  while (*nam)
-	    {
-	      if (*nam > '9' || *nam < '0')
-		break;
-	      sockmpid = 10 * sockmpid + *nam - '0';
-	      nam++;
-	    }
 	  /*
 	   * We try to connect through the socket. If successfull, 
 	   * thats o.k. Otherwise we record that mode as -1.
 	   * MakeClientSocket() must be careful not to block forever.
 	   */
-	  if ( ((sockmpid > 2) && kill(sockmpid, 0) == -1 && errno == ESRCH) ||
-	      (s = MakeClientSocket(0, Name)) == -1)
+	  if ((s = MakeClientSocket(0, Name)) == -1)
 	    { 
 	      foundsock[foundsockcount].mode = -1;
 	      deadcount++;
@@ -283,6 +260,9 @@ int *fdp;
 	break;
     }
   closedir(dirp);
+#ifdef NFS_HACK
+  setreuid(real_uid, eff_uid);
+#endif
 
   if (wipeflag)
     {
@@ -291,7 +271,7 @@ int *fdp;
 	  if (foundsock[s].mode == -1)
 	    {
               strcpy(SockNamePtr, foundsock[s].name);
-	      debug1("wiping '%s'\n", SockPath);
+	      debug1("wiping '%d'\n", SockPath);
 	      if (unlink(SockPath) == 0)
 	        {
 		  foundsock[s].mode = -2;
@@ -301,8 +281,7 @@ int *fdp;
 	}
     }
   for (s = 0; s < foundsockcount; s++)
-    if ((foundsock[s].mode) == (dflag ? 0700 : 0600)
-        || (xflag && foundsock[s].mode == 0700)) 
+    if ((foundsock[s].mode) == (dflag ? 0700 : 0600)) 
       {
 	found++;
 	lasts = s;
@@ -375,14 +354,6 @@ int *fdp;
 	    case 0600:
 	      printf("\t%s\t(Detached)\n", foundsock[s].name);
 	      break;
-#ifdef MULTIUSER
-	    case 0701:
-	      printf("\t%s\t(Multi, attached)\n", foundsock[s].name);
-	      break;
-	    case 0601:
-	      printf("\t%s\t(Multi, detached)\n", foundsock[s].name);
-	      break;
-#endif
 	    case -1:
 #if defined(__STDC__) || defined(_AIX)
 	      printf("\t%s\t(Dead ??\?)\n", foundsock[s].name);
@@ -427,10 +398,6 @@ int *fdp;
     Free(foundsock[s].name);
   if (found == 1 && fdp)
     *fdp = lasts;
-#ifndef NOREUID
-  setreuid(real_uid, eff_uid);
-  setregid(real_gid, eff_gid);
-#endif
   if (fdp)
     return found;
   return foundsockcount - wipecount;
@@ -445,70 +412,55 @@ MakeServerSocket()
   struct stat st;
 
   strcpy(SockNamePtr, SockName);
-# ifdef NAME_MAX
+#ifdef NAME_MAX
   if (strlen(SockNamePtr) > NAME_MAX)
     {
       debug2("MakeClientSocket: '%s' truncated to %d chars\n",
 	     SockNamePtr, NAME_MAX);
       SockNamePtr[NAME_MAX] = '\0';
     }
-# endif /* NAME_MAX */
+#endif
 
-# ifndef NOREUID
-  setreuid(eff_uid, real_uid);
-  setregid(eff_gid, real_gid);
-# endif /* NOREUID */
   if ((s = open(SockPath, O_WRONLY | O_NDELAY)) >= 0)
     {
       debug("huii, my fifo already exists??\n");
       if (quietflag)
 	{
-	  Kill(d_userpid, SIG_BYE);
+	  Kill(AttacherPid, SIG_BYE);
 	  eexit(11);
 	}
       printf("There is already a screen running on %s.\n",
 	     Filename(SockPath));
       if (stat(SockPath, &st) == -1)
-	Panic(errno, "stat");
+	Msg(errno, "stat");
       if (st.st_uid != real_uid)
-	Panic(0, "Unfortunatelly you are not its owner.");
+	Msg(0, "Unfortunatelly you are not its owner.");
       if ((st.st_mode & 0700) == 0600)
-	Panic(0, "To resume it, use \"screen -r\"");
+	Msg(0, "To resume it, use \"screen -r\"");
       else
-	Panic(0, "It is not detached.");
+	Msg(0, "It is not detached.");
       /* NOTREACHED */
     }
-# ifndef NOREUID
   (void) unlink(SockPath);
-  if (mknod(SockPath, S_IFIFO | SOCKMODE, 0))
-    Panic(0, "mknod fifo %s failed", SockPath);
-#  ifdef BROKEN_PIPE
-  if ((s = open(SockPath, O_RDWR | O_NDELAY, 0)) < 0)
-#  else
-  if ((s = open(SockPath, O_RDONLY | O_NDELAY, 0)) < 0)
-#  endif
-    Panic(errno, "open fifo %s", SockPath);
-  setreuid(real_uid, eff_uid);
-  setregid(real_gid, eff_gid);
-  return s;
-# else /* NOREUID */
   if (UserContext() > 0)
     {
-      (void) unlink(SockPath);
-      if (mknod(SockPath, S_IFIFO | SOCKMODE, 0))
+#if defined(_POSIX_SOURCE) && defined(ISC)
+      if (mknod(SockPath, 0010700, 0))
+#else
+      if (mknod(SockPath, S_IFIFO | S_IEXEC | S_IWRITE | S_IREAD, 0))
+#endif
 	UserReturn(0);
       UserReturn(1);
     }
   if (UserStatus() <= 0)
-    Panic(0, "mknod fifo %s failed", SockPath);
-#  ifdef BROKEN_PIPE
+    Msg(0, "mknod fifo %s failed", SockPath);
+  /*
+   * MUST be RDWR because otherwise we will get EOF's if
+   * nobody has opened the pipe for writing
+   */
   if ((s = secopen(SockPath, O_RDWR | O_NDELAY, 0)) < 0)
-#  else
-  if ((s = secopen(SockPath, O_RDONLY | O_NDELAY, 0)) < 0)
-#  endif
-    Panic(errno, "open fifo %s", SockPath);
+    Msg(errno, "open fifo %s", SockPath);
   return s;
-# endif /* NOREUID */
 }
 
 
@@ -520,14 +472,14 @@ char *name;
   register int s = 0;
 
   strcpy(SockNamePtr, name);
-# ifdef NAME_MAX
+#ifdef NAME_MAX
   if (strlen(SockNamePtr) > NAME_MAX)
     {
       debug2("MakeClientSocket: '%s' truncated to %d chars\n",
 	     SockNamePtr, NAME_MAX);
       SockNamePtr[NAME_MAX] = '\0';
     }
-# endif /* NAME_MAX */
+#endif
   
   if ((s = secopen(SockPath, O_WRONLY | O_NDELAY, 0)) >= 0)
     {
@@ -535,8 +487,14 @@ char *name;
       return s;
     }
   if (err)
-    Msg(errno, "open: %s (but continuing...)", SockPath);
-  debug1("MakeClientSocket() open %s failed\n", SockPath);
+    {
+      Msg(errno, "open: %s (but continuing...)", SockPath);
+      debug1("MakeClientSocket() open %s failed\n", SockPath);
+    }
+  else
+    {
+      debug1("MakeClientSocket() open %s failed\n", SockPath);
+    }
   return -1;
 }
 
@@ -550,29 +508,25 @@ MakeServerSocket()
   struct stat st;
 
   if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
-    Panic(errno, "socket");
+    Msg(errno, "socket");
   a.sun_family = AF_UNIX;
   strcpy(SockNamePtr, SockName);
-# ifdef NAME_MAX
+#ifdef NAME_MAX
   if (strlen(SockNamePtr) > NAME_MAX)
     {
       debug2("MakeServerSocket: '%s' truncated to %d chars\n",
 	     SockNamePtr, NAME_MAX);
       SockNamePtr[NAME_MAX] = '\0';
     }
-# endif /* NAME_MAX */
+#endif
 
   strcpy(a.sun_path, SockPath);
-# ifndef NOREUID
-  setreuid(eff_uid, real_uid);
-  setregid(eff_gid, real_gid);
-# endif /* NOREUID */
   if (connect(s, (struct sockaddr *) & a, strlen(SockPath) + 2) != -1)
     {
       debug("oooooh! socket already is alive!\n");
       if (quietflag)
 	{ 
-	  Kill(d_userpid, SIG_BYE);
+	  Kill(AttacherPid, SIG_BYE);
 	  /* 
 	   * oh, well. nobody receives that return code. papa 
 	   * dies by signal.
@@ -582,46 +536,35 @@ MakeServerSocket()
       printf("There is already a screen running on %s.\n",
 	     Filename(SockPath));
       if (stat(SockPath, &st) == -1)
-	Panic(errno, "stat");
+	Msg(errno, "stat");
       if (st.st_uid != real_uid)
-	Panic(0, "Unfortunatelly you are not its owner.");
+	Msg(0, "Unfortunatelly you are not its owner.");
       if ((st.st_mode & 0700) == 0600)
-	Panic(0, "To resume it, use \"screen -r\"");
+	Msg(0, "To resume it, use \"screen -r\"");
       else
-	Panic(0, "It is not detached.");
+	Msg(0, "It is not detached.");
       /* NOTREACHED */
     }
-#if defined(m88k) || defined(m68k)
-  close(s);	/* we get bind: Invalid argument if this is not done */
-  if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
-    Panic(errno, "reopen socket");
-#endif
   (void) unlink(SockPath);
+#ifndef NOREUID
+  setreuid(eff_uid, real_uid);
+  setregid(eff_gid, real_gid);
+#endif
   if (bind(s, (struct sockaddr *) & a, strlen(SockPath) + 2) == -1)
-    Panic(errno, "bind (%s)", SockPath);
-#ifdef SOCK_NOT_IN_FS
-    {
-      int f;
-      if (f = secopen(SockPath, O_RDWR | O_CREAT, SOCKMODE) < 0)
-        Panic(errno, "shadow socket open");
-      close(f);
-    }
-#else
-  chmod(SockPath, SOCKMODE);
-# ifdef NOREUID
+    Msg(errno, "bind");
+  (void) chmod(SockPath, /* S_IFSOCK | */ 0700);
+#ifdef NOREUID
   chown(SockPath, real_uid, real_gid);
-# endif /* NOREUID */
-#endif /* SOCK_NOT_IN_FS */
-  if (listen(s, 5) == -1)
-    Panic(errno, "listen");
-# ifdef F_SETOWN
-  fcntl(s, F_SETOWN, getpid());
-  debug1("Serversocket owned by %d\n", fcntl(s, F_GETOWN, 0));
-# endif /* F_SETOWN */
-# ifndef NOREUID
+#else
   setreuid(real_uid, eff_uid);
   setregid(real_gid, eff_gid);
-# endif /* NOREUID */
+#endif
+  if (listen(s, 5) == -1)
+    Msg(errno, "listen");
+#ifdef F_SETOWN
+  fcntl(s, F_SETOWN, getpid());
+  debug1("Serversocket owned by %d\n", fcntl(s, F_GETOWN, 0));
+#endif /* F_SETOWN */
   return s;
 }
 
@@ -634,94 +577,88 @@ char *name;
   struct sockaddr_un a;
 
   if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
-    Panic(errno, "socket");
+    Msg(errno, "socket");
   a.sun_family = AF_UNIX;
   strcpy(SockNamePtr, name);
-# ifdef NAME_MAX
+#ifdef NAME_MAX
   if (strlen(SockNamePtr) > NAME_MAX)
     {
       debug2("MakeClientSocket: '%s' truncated to %d chars\n",
 	     SockNamePtr, NAME_MAX);
       SockNamePtr[NAME_MAX] = '\0';
     }
-# endif /* NAME_MAX */
+#endif
 
   strcpy(a.sun_path, SockPath);
-# ifndef NOREUID
+#ifndef NOREUID
   setreuid(eff_uid, real_uid);
   setregid(eff_gid, real_gid);
-# else /* NOREUID */
+#else
   if (access(SockPath, W_OK))
     {
       if (err)
 	Msg(errno, "%s", SockPath);
-      debug2("MakeClientSocket: access(%s): %d.\n", SockPath, errno);
+      else
+	debug2("MakeClientSocket: access(%s): %d.\n", SockPath, errno);
       close(s);
       return -1;
     }
-# endif /* NOREUID */
+#endif
   if (connect(s, (struct sockaddr *) & a, strlen(SockPath) + 2) == -1)
     {
       if (err)
 	Msg(errno, "%s: connect", SockPath);
-      debug("MakeClientSocket: connect failed.\n");
+      else
+	debug("MakeClientSocket: connect failed.\n");
       close(s);
       s = -1;
     }
-# ifndef NOREUID
+#ifndef NOREUID
   setreuid(real_uid, eff_uid);
   setregid(real_gid, eff_gid);
-# endif /* NOREUID */
+#endif
   return s;
 }
-#endif /* NAMEDPIPE */
+#endif
 
 
 void
-SendCreateMsg(s, nwin)
-int s;
-struct NewWindow *nwin;
+SendCreateMsg(s, ac, av, aflag, flowflag, lflag, histheight, sterm)
+int s, ac, aflag, flowflag, lflag, histheight;
+char **av;
+char *sterm;
 {
   struct msg m;
   register char *p;
   register int len, n;
-  char **av = nwin->args;
 
   debug1("SendCreateMsg() to '%s'\n", SockPath);
-  bzero((char *)&m, sizeof(m));
   m.type = MSG_CREATE;
-  strcpy(m.m_tty, attach_tty);
   p = m.m.create.line;
-  n = 0;
-  if (nwin->args != nwin_undef.args)
-    for (av = nwin->args; *av && n < MAXARGS - 1; ++av, ++n)
-      {
-        len = strlen(*av) + 1;
-        if (p + len >= m.m.create.line + MAXPATH - 1)
-	  break;
-        strcpy(p, *av);
-        p += len;
-      }
-  if (nwin->aka != nwin_undef.aka && p + strlen(nwin->aka) + 1 < m.m.create.line + MAXPATH)
-    strcpy(p, nwin->aka);
+  for (n = 0; ac > 0 && n < MAXARGS - 1; ++av, --ac, ++n)
+    {
+      len = strlen(*av) + 1;
+      if (p + len >= m.m.create.line + MAXPATH - 1)
+	break;
+      strcpy(p, *av);
+      p += len;
+    }
+  if (!ac && *av && p + strlen(*av) + 1 < m.m.create.line + MAXPATH)
+    strcpy(p, *av);
   else
     *p = '\0';
   m.m.create.nargs = n;
-  m.m.create.aflag = nwin->aflag;
-  m.m.create.flowflag = nwin->flowflag;
-  m.m.create.lflag = nwin->lflag;
-  m.m.create.hheight = nwin->histheight;
+  m.m.create.aflag = aflag;
+  m.m.create.flowflag = flowflag;
+  m.m.create.lflag = lflag;
+  m.m.create.hheight = histheight;
 #ifdef SYSV
   if (getcwd(m.m.create.dir, sizeof(m.m.create.dir)) == 0)
 #else
-  if (getwd(m.m.create.dir) == 0)
+    if (getwd(m.m.create.dir) == 0)
 #endif
-    {
-      Msg(errno, "%s", m.m.create.dir);
-      return;
-    }
-  if (nwin->term != nwin_undef.term)
-    strncpy(m.m.create.screenterm, nwin->term, 19);
+      Msg(0, "%s", m.m.create.dir);
+  strncpy(m.m.create.screenterm, sterm, 19);
   m.m.create.screenterm[19] = '\0';
   debug1("SendCreateMsg writing '%s'\n", m.m.create.line);
   if (write(s, (char *) &m, sizeof m) != sizeof m)
@@ -733,51 +670,47 @@ void
 /*VARARGS1*/
 # if defined(__STDC__)
 SendErrorMsg(char *fmt, ...)
-# else /* __STDC__ */
+# else
 SendErrorMsg(fmt, va_alist)
 char *fmt;
 va_dcl
-# endif /* __STDC__ */
+#endif
 { /* } */
-  static va_list ap;
-#else /* USEVARARGS */
+  static va_list ap = 0;
+#else
 /*VARARGS1*/
 SendErrorMsg(fmt, p1, p2, p3, p4, p5, p6)
 char *fmt;
 unsigned long p1, p2, p3, p4, p5, p6;
 {
-#endif /* USEVARARGS */
+#endif
   register int s;
   struct msg m;
 
+  s = MakeClientSocket(1, SockName);
+  debug1("SendErrorMsg() to '%s'\n", SockPath);
+  m.type = MSG_ERROR;
 #ifdef USEVARARGS
 # if defined(__STDC__)
   va_start(ap, fmt);
-# else /* __STDC__ */
+# else
   va_start(ap);
-# endif /* __STDC__ */
+# endif
   (void) vsprintf(m.m.message, fmt, ap);
   va_end(ap);
-#else /* USEVARARGS */
+#else
   sprintf(m.m.message, fmt, p1, p2, p3, p4, p5, p6);
-#endif /* USEVARARGS */
-  debug1("SendErrorMsg: '%s'\n", m.m.message);
-  if (display == 0)
-    return;
-  s = MakeClientSocket(1, SockName);
-  m.type = MSG_ERROR;
-  strcpy(m.m_tty, d_usertty);
-  debug1("SendErrorMsg(): writing to '%s'\n", SockPath);
+#endif
+  debug1("SendErrorMsg writing '%s'\n", m.m.message);
   (void) write(s, (char *) &m, sizeof m);
   close(s);
   sleep(2);
 }
 
 #ifdef PASSWORD
-static int
-CheckPasswd(pwd, pid, utty)
+static int CheckPasswd(pwd, pid, tty)
 int pid;
-char *pwd, *utty;
+char *pwd, *tty;
 {
   if (CheckPassword && 
       strcmp(crypt(pwd, (strlen(Password) > 1) ? Password : "JW"),
@@ -785,12 +718,12 @@ char *pwd, *utty;
     {
       if (*pwd)
 	{
-# ifdef NETHACK
+#ifdef NETHACK
           if (nethackflag)
-	    Msg(0, "'%s' tries to explode in the sky, but fails. (%s)", utty, pwd);
+	    Msg(0, "'%s' tries to explode in the sky, but fails. (%s)", tty, pwd);
           else
-# endif /* NETHACK */
-	  Msg(0, "Illegal reattach attempt from terminal %s, \"%s\"", utty, pwd);
+#endif
+	  Msg(0, "Illegal reattach attempt from terminal %s, \"%s\"", tty, pwd);
 	}
       debug1("CheckPass() wrong password kill(%d, SIG_PW_FAIL)\n", pid);
       Kill(pid, SIG_PW_FAIL);
@@ -802,42 +735,30 @@ char *pwd, *utty;
 }
 #endif	/* PASSWORD */
 
-static void
-ExecCreate(mp)
+static void ExecCreate(mp)
 struct msg *mp;
 {
-  struct NewWindow nwin;
   char *args[MAXARGS];
   register int n;
   register char **pp = args, *p = mp->m.create.line;
 
-  nwin = nwin_undef;
   for (n = mp->m.create.nargs; n > 0; --n)
     {
       *pp++ = p;
       p += strlen(p) + 1;
     }
   *pp = 0;
-  if (*p)
-    nwin.aka = p;
-  if (*args)
-    nwin.args = args;
-  nwin.aflag = mp->m.create.aflag;
-  nwin.flowflag = mp->m.create.flowflag;
-  if (*mp->m.create.dir)
-    nwin.dir = mp->m.create.dir;
-  nwin.lflag = mp->m.create.lflag;
-  nwin.histheight = mp->m.create.hheight;
-  if (*mp->m.create.screenterm)
-    nwin.term =  mp->m.create.screenterm;
-  MakeWindow(&nwin);
+  if (!*p)
+    p = 0;
+  MakeWindow(p, args, mp->m.create.aflag, mp->m.create.flowflag,
+		      0, mp->m.create.dir, mp->m.create.lflag,
+		      mp->m.create.hheight, mp->m.create.screenterm);
 }
 
 static int
 CheckPid(pid)
 int pid;
 {
-  debug1("Checking pid %d\n", pid);
   if (pid < 2)
     return(-1);
   if (eff_uid == real_uid)
@@ -850,107 +771,102 @@ int pid;
 }
 
 void
-ReceiveMsg()
+ReceiveMsg(s)
+int s;
 {
   int left, len, i;
   static struct msg m;
   char *p;
-  int ns = ServerSocket;
-  struct display *next;
-  struct mode Mode;
-#ifdef UTMPOK
-  struct win *wi;
-#endif
-
+  static char lbuf[20], cbuf[20]; /* static for later putenv()'s */
 #ifdef NAMEDPIPE
+  /*
+   * we may be called if there are no pending messages, so we will have to
+   * block on first read.
+   */
   debug("Ha, there was someone knocking on my fifo??\n");
-  if (fcntl(ServerSocket, F_SETFL, 0) == -1)
-    Panic(errno, "DELAY fcntl");
+  if (fcntl(s, F_SETFL, 0) == -1)
+    {
+      Msg(errno, "fcntl no O_NDELAY");
+      exit(1);
+    }
+  p = (char *) &m;
+  left = sizeof(m);
+  while (left > 0 && (len = read(s, p, left)) > 0)
+    {
+      /*		if (p == (char *)&m)
+       *		{	if (fcntl(s, F_SETFL, O_NDELAY) == -1)
+       *			{	Msg(errno, "fcntl O_NDELAY !");
+       *				return;
+       *			}
+       *		}
+       */
+      p += len;
+      left -= len;
+    }
+# ifdef DEBUG
+  if (len == 0)
+    debug("ReceiveMsg: Yucc! Got an EOF !!\n");
+# endif
 #else
+  register int ns;
   struct sockaddr_un a;
 
-  len = sizeof(a);
+  len = sizeof(struct sockaddr_un);
   debug("Ha, there was someone knocking on my socket??\n");
-  if ((ns = accept(ns, (struct sockaddr *) &a, &len)) < 0)
+  if ((ns = accept(s, (struct sockaddr *) & a, &len)) == -1)
     {
       Msg(errno, "accept");
       return;
     }
-#endif				/* NAMEDPIPE */
-
   p = (char *) &m;
-  left = sizeof(m);
-  while (left > 0)
+  left = sizeof m;
+  while (left > 0 && (len = read(ns, p, left)) > 0)
     {
-      len = read(ns, p, left);
-      if (len < 0 && errno == EINTR)
-	continue;
-      if (len <= 0)
-	break;
       p += len;
       left -= len;
     }
-
-#ifdef NAMEDPIPE
-# ifndef BROKEN_PIPE
-  /* Reopen pipe to prevent EOFs at the select() call */
-  close(ServerSocket);
-  if ((ServerSocket = secopen(SockPath, O_RDONLY | O_NDELAY, 0)) < 0)
-    Panic(errno, "reopen fifo %s", SockPath);
-# endif
-#else
   close(ns);
-#endif
+#endif				/* NAMEDPIPE */
 
-  if (len < 0)
-    {
-      Msg(errno, "read");
-      return;
-    }
+  if (len == -1)
+    Msg(errno, "read");
   if (left > 0)
-    {
-      if (left != sizeof(m))
-        Msg(0, "Message %d of %d bytes too small", left, sizeof(m));
-      else
-	debug("No data on socket.\n");
-      return;
-    }
-  debug2("*** RecMsg: type %d tty %s\n", m.type, m.m_tty);
-  for (display = displays; display; display = display->_d_next)
-    if (strcmp(d_usertty, m.m_tty) == 0)
-      break;
-  debug2("display: %s %sfound\n", m.m_tty, display ? "" : "not ");
-  if (!display)
-    {
-      struct win *w;
-
-      for (w = windows; w; w = w->w_next)
-        if (!strcmp(m.m_tty, w->w_tty))
-	  {
-            display = w->w_display;
-	    debug2("but window %s %sfound.\n", m.m_tty, display ? "" : "deatached (ignoring) ");
-	    break;
-          }
-    }
-
-  /* Remove the d_status to prevent garbage on the screen */
-  if (display && d_status)
-    RemoveStatus();
-
+    return;
+  debug1("RecMsg: type %d !, ", m.type);
   switch (m.type)
     {
     case MSG_WINCH:
-      if (display)
-        CheckScreenSize(1); /* Change fore */
+      /* Already processed in screen.c */
+#ifdef notdef
+      CheckScreenSize(1); /* Change fore */
+#endif
       break;
     case MSG_CREATE:
-      if (display)
+      if (!Detached)
 	ExecCreate(&m);
       break;
     case MSG_CONT:
-	if (display && d_userpid != 0 && kill(d_userpid, 0) == 0)
+      debug3("RecMsg: apid=%d,was %d, Detached=%d\n", m.m.attach.apid,
+             AttacherPid, Detached);
+
+#ifdef SECURE_MSG_CONT
+      if (m.m.attach.apid != AttacherPid || !Detached)
+	/*
+	 * now we realize, that there is something strange happening.
+	 * First, there was some idiot who said "CONT" and thought
+	 * "ATTACH". This is, when we have (AttacherPid == 0). Harmless.
+	 * Let him in. Second, we are waiting for a certain AttacherPid,
+	 * and not for "any" attacher. This is when (AttacherPid != 0).
+	 * But Darwin's rule says "survival of the fittest", thus: Look
+	 * weather "our" AttacherPid is still alive and well, and let the
+	 * new one only in, if the old Attacher has been killed. jw.
+	 */
+	if (AttacherPid != 0 && kill(AttacherPid, 0) == 0)
 	  break;		/* Intruder Alert */
-      debug2("RecMsg: apid=%d,was %d\n", m.m.attach.apid, display ? d_userpid : 0);
+	else
+#endif				/* SECURE_MSG_CONT */
+	  AttacherPid = 0;	/* we dont want to kill ourselves
+				 * later. jw. */
       /* FALLTHROUGH */
     case MSG_ATTACH:
       if (CheckPid(m.m.attach.apid))
@@ -959,77 +875,152 @@ ReceiveMsg()
 	  Msg(0, "Attach attempt with bad pid(%d) !", m.m.attach.apid);
           break;
 	}
-      if ((i = secopen(m.m_tty, O_RDWR | O_NDELAY, 0)) < 0)
-	{
-	  debug1("ALERT: Cannot open %s!\n", m.m_tty);
-#ifdef NETHACK
-          if (nethackflag)
-	    Msg(errno, 
-	        "You can't open (%s). Perhaps there's a Monster behind it",
-	        m.m_tty);
-          else
-#endif
-	  Msg(errno, "Attach: Could not open %s", m.m_tty);
-	  Kill(m.m.attach.apid, SIG_BYE);
-	  break;
-	}
 #ifdef PASSWORD
-      if (!CheckPasswd(m.m.attach.password, m.m.attach.apid, m.m_tty))
+      if (!CheckPasswd(m.m.attach.password, m.m.attach.apid, m.m.attach.tty))
 	{
 	  debug3("RcvMsg:Checkpass(%s,%d,%s) failed\n",
-		 m.m.attach.password, m.m.attach.apid, m.m_tty);
-	  close(i);
+		 m.m.attach.password, m.m.attach.apid, m.m.attach.tty);
 	  break;
 	}
-#else
-# ifdef MULTIUSER
-      Kill(m.m.attach.apid, SIGCONT);
-# endif
 #endif				/* PASSWORD */
-      if (display)
+      if (!Detached)
 	{
 	  debug("RecMsg: hey, why you disturb, we are not detached. hangup!\n");
-	  close(i);
 	  Kill(m.m.attach.apid, SIG_BYE);
 	  Msg(0, "Attach msg ignored: We are not detached.");
 	  break;
 	}
-
-#ifdef MULTIUSER
-      if (strcmp(m.m.attach.auser, LoginName))
-        if (findacl(m.m.attach.auser) == 0)
-	  {
-              write(i, "Access to session denied.\n", 26);
-	      close(i);
-	      Kill(m.m.attach.apid, SIG_BYE);
-	      Msg(0, "Attach: access denied for d_user %s", m.m.attach.auser);
-	      break;
-	  }
+      if ((i = secopen(m.m.attach.tty, O_RDWR | O_NDELAY, 0)) < 0)
+	{
+	  debug1("ALERT: Cannot open %s!\n", m.m.attach.tty);
+#ifdef NETHACK
+          if (nethackflag)
+	    Msg(errno, 
+	        "You can't open (%s). Perhaps there's a Monster behind it.",
+	        m.m.attach.tty);
+          else
 #endif
-
-      errno = 0;
-      debug2("RecMsg: apid %d is o.k. and we just opened '%s'\n", m.m.attach.apid, m.m_tty);
-
-      /* create new display */
-      GetTTY(i, &Mode);
-      if (MakeDisplay(m.m.attach.auser, m.m_tty, m.m.attach.envterm, i, m.m.attach.apid, &Mode) == 0)
-        {
-	  write(i, "Could not make display.\n", 24);
-	  close(i);
-	  Msg(errno, "Attach: could not make display for d_user %s", m.m.attach.auser);
+	  Msg(errno, "Attach: Could not open %s", m.m.attach.tty);
 	  Kill(m.m.attach.apid, SIG_BYE);
 	  break;
-        }
-#if defined(pyr) || defined(xelos) || defined(sequent)
-      /*
-       * Kludge for systems with braindamaged termcap routines,
-       * which evaluate $TERMCAP, regardless weather it describes
-       * the correct terminal type or not.
-       */
-      debug("unsetenv(TERMCAP) in case of a different terminal");
-      unsetenv("TERMCAP");
+	}
+      errno = 0;
+      if (i)
+	{
+	  debug("PANIC: open did not return fd 0!\n");
+	  close(0);
+	  dup(i);
+	  close(i);
+	  close(1);
+	  close(2);
+	}
+      debug2("RecMsg: apid %d is o.k. and we just opened '%s'\n", m.m.attach.apid, m.m.attach.tty);
+
+#ifdef hpux_and_it_still_does_not_work
+      {
+	int pgrp, zero = 0;
+
+	if (ioctl(0, TIOCGPGRP, &pgrp) == -1)
+	  debug1("tcgetpgrp: %d\n", errno);	/* save old pgrp from tty */
+
+	if (ioctl(0, TIOCSPGRP, &zero) == -1)
+	  debug1("tcsetpgrp: %d\n", errno);	/* detach tty from proc grp */
+#ifdef hpux
+	setpgrp();
+#else
+	if (setpgrp(0, getpid()) == -1)
+	  debug1("setpgrp: %d\n", errno);	/* make me proc group leader */
 #endif
-    
+
+	close(0);	/* reopen tty, now we should get it as our tty */
+	(void)secopen(m.m.attach.tty, O_RDWR | O_NDELAY, 0);	/* */
+
+#ifdef hpux
+	setpgrp2(0, pgrp);
+#else
+	setpgrp(0, pgrp);
+#endif
+	ioctl(0, TIOCSPGRP, &pgrp);
+      }
+#endif  /* hpux_and_it_still_does_not_work */
+
+      (void) dup(0);
+      (void) dup(0);
+      GetTTY(0, &OldMode);
+#if defined(BSDJOBS) && !(defined(POSIX) || defined(SYSV))
+      if ((DevTty = open("/dev/tty", O_RDWR | O_NDELAY)) == -1)
+	{
+	  debug1("DevTty not opened: %d.\n", errno);
+	  Msg(errno, "/dev/tty");
+	}
+#endif
+      signal(SIGHUP, SigHup);
+#ifdef BSDJOBS
+      if (Suspended && m.type == MSG_ATTACH)
+	if (kill(AttacherPid, SIG_BYE) == 0)
+	  kill(AttacherPid, SIGCONT);
+#endif
+
+      AttacherPid = m.m.attach.apid;
+      strcpy(display_tty, m.m.attach.tty);
+#ifdef UTMPOK
+      /*
+       * we set the Utmp slots again, if we were detached normally
+       * and if we were detached by ^Z.
+       */
+      ReInitUtmp();
+      for (i = WinList; i != -1; i = wtab[i]->WinLink)
+	if (wtab[i]->slot != (slot_t) -1)
+	  SetUtmp(wtab[i], i);
+#endif
+      (void) chmod(SockPath, /* S_IFSOCK | */ 0700);
+      Detached = 0;
+#ifdef BSDJOBS
+      Suspended = 0;
+#endif
+      /*
+       * we like to have always the valid termcap, even if we are
+       * reattached from a different tty type. thus attacher had to
+       * tell us, what TERM we have. The attacher has correct env
+       * setting. we (the backend may be wrong).
+       */
+      if (*m.m.attach.envterm)
+	{
+#if defined(pyr) || defined(xelos) || defined(sequent)
+	  /*
+	   * Kludge for systems with braindamaged termcap routines,
+	   * which evaluate $TERMCAP, regardless weather it describes
+	   * the correct terminal type or not.
+	   */
+	  if (strcmp(getenv("TERM"), m.m.attach.envterm + 5))
+	    {
+	      debug("a different terminal, so unsetenv(TERMCAP)");
+	      unsetenv("TERMCAP");
+	    }
+#endif
+	
+#if !defined(sequent) && !defined(MIPS)
+	  putenv(m.m.attach.envterm);
+#else
+	  setenv("TERM", m.m.attach.envterm + 5, 1);
+#endif
+	}
+#if !defined(sequent) && !defined(MIPS)
+      sprintf(lbuf, "LINES=%d", m.m.attach.lines);
+      if (m.m.attach.lines > 0 || getenv("LINES"))
+        putenv(lbuf);
+      sprintf(cbuf, "COLUMNS=%d", m.m.attach.columns);
+      if (m.m.attach.columns > 0 || getenv("COLUMNS"))
+        putenv(cbuf);
+#else
+      sprintf(lbuf, "%d", m.m.attach.lines);
+      if (m.m.attach.lines > 0 || getenv("LINES"))
+        setenv("LINES", lbuf, 1);
+      sprintf(cbuf, "%d", m.m.attach.columns);
+      if (m.m.attach.columns > 0 || getenv("COLUMNS"))
+        setenv("COLUMNS", cbuf, 1);
+#endif
+      
       /*
        * We reboot our Terminal Emulator. Forget all we knew about
        * the old terminal, reread the termcap entries in .screenrc
@@ -1038,11 +1029,9 @@ ReceiveMsg()
        * and /etc/screenrc, and initialise anew.
        */
       if (extra_outcap)
-	free(extra_outcap);
+	Free(extra_outcap);
       if (extra_incap)
-	free(extra_incap);
-      extra_incap = extra_outcap = 0;
-      debug2("Message says size (%dx%d)\n", m.m.attach.columns, m.m.attach.lines);
+	Free(extra_incap);
 #ifdef ETCSCREENRC
       if ((p = getenv("SYSSCREENRC")) == NULL)
 	StartRc(ETCSCREENRC);
@@ -1050,65 +1039,36 @@ ReceiveMsg()
 	StartRc(p);
 #endif
       StartRc(RcFileName);
-      if (InitTermcap(m.m.attach.columns, m.m.attach.lines))
-	{
-	  FreeDisplay();
-	  Kill(m.m.attach.apid, SIG_BYE);
-	  break;
-	}
+      InitTermcap();
       InitTerm(m.m.attach.adaptflag);
-      if (displays->_d_next == 0)
-        (void) chsock();
-      signal(SIGHUP, SigHup);
-#ifdef UTMPOK
-      /*
-       * we set the Utmp slots again, if we were detached normally
-       * and if we were detached by ^Z.
-       */
-      RemoveLoginSlot();
-      if (displays->_d_next == 0)
-        for (wi = windows; wi; wi = wi->w_next)
-	  if (wi->w_slot != (slot_t) -1)
-	    SetUtmp(wi);
-#endif
-      SetMode(&d_OldMode, &d_NewMode);
-      SetTTY(d_userfd, &d_NewMode);
-      if (fore && fore->w_display == 0)
-        SetForeWindow(fore);
-      else
-        d_fore = 0;
+      SetMode(&OldMode, &NewMode);
+      SetTTY(0, &NewMode);
+      fore->active = 1;
       Activate(0);
-      if (displays->_d_next == 0 && console_window)
-	{
-	  if (TtyGrabConsole(console_window->w_ptyfd, 1, "reattach") == 0)
-	    Msg(0, "console %s is on window %d", HostName, console_window->w_number);
-	}
       debug("activated...\n");
       break;
     case MSG_ERROR:
       Msg(0, "%s", m.m.message);
       break;
     case MSG_HANGUP:
-      SigHup(SIGARG);
-      break;
 #ifdef REMOTE_DETACH
     case MSG_DETACH:
 # ifdef POW_DETACH
     case MSG_POW_DETACH:
 # endif				/* POW_DETACH */
-      for (display = displays; display; display = next)
-	{
-	  next = display->_d_next;
-# ifdef POW_DETACH
-	  if (m.type == MSG_POW_DETACH)
-	    Detach(D_REMOTE_POWER);
-	  else
-# endif				/* POW_DETACH */
-	  if (m.type == MSG_DETACH)
-	    Detach(D_REMOTE);
-	}
-      break;
 #endif
+#ifdef REMOTE_DETACH
+# ifdef POW_DETACH
+      if (m.type == MSG_POW_DETACH)
+	Detach(D_REMOTE_POWER);
+      else
+# endif				/* POW_DETACH */
+      if (m.type == MSG_DETACH)
+	Detach(D_REMOTE);
+      else
+#endif
+      SigHup(SIGARG);
+      break;
     default:
       Msg(0, "Invalid message (type %d).", m.type);
     }
@@ -1117,10 +1077,6 @@ ReceiveMsg()
 #if defined(_SEQUENT_) && !defined(NAMEDPIPE)
 #undef connect
 
-/*
- *  sequent_ptx socket emulation must have mode 000 on the socket!
- */
-int
 sconnect(s, sapp, len)
 int s, len;
 struct sockaddr *sapp;
@@ -1130,7 +1086,7 @@ struct sockaddr *sapp;
   int x;
 
   sap = (struct sockaddr_un *)sapp;
-  if (stat(sap->sun_path, &st))
+  if (stat(sap->sun_path,&st))
     return -1;
   chmod(sap->sun_path, 0);
   x = connect(s, (struct sockaddr *) sap, len);
@@ -1138,19 +1094,3 @@ struct sockaddr *sapp;
   return x;
 }
 #endif
-
-int
-chsock()
-{
-  int r, euid = geteuid();
-  if (euid != real_uid)
-    {
-      if (UserContext() <= 0)
-        return UserStatus();
-    }
-  r = chmod(SockPath, SOCKMODE);
-  if (euid != real_uid)
-    UserReturn(r);
-  return r;
-}
-

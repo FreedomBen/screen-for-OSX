@@ -1,0 +1,65 @@
+*** screen.c.orig	Thu Feb 20 17:53:29 1992
+--- screen.c	Thu Feb 20 21:06:43 1992
+***************
+*** 1351,1359 ****
+  		{
+  #ifdef EWOULDBLOCK
+  		  if (errno == EWOULDBLOCK)
+! 		    len = 0;
+  #endif
+  		}
+  #if defined(TIOCPKT) && !defined(sgi)
+  	      if (buf[0])
+  		{
+--- 1351,1363 ----
+  		{
+  #ifdef EWOULDBLOCK
+  		  if (errno == EWOULDBLOCK)
+! 		    continue;
+  #endif
++ 		  debug2("Window %d: errno %d\n", n, errno);
++ 		  continue;
+  		}
++ 	      if (len == 0)
++ 		continue;
+  #if defined(TIOCPKT) && !defined(sgi)
+  	      if (buf[0])
+  		{
+***************
+*** 1573,1580 ****
+--- 1577,1587 ----
+  	      else
+  #endif
+  		KillWindow(n);
++ 	      break;
+  	    }
+  	}
++       if (n == -1)
++ 	debug1("pid %d not found - hope that's ok\n", pid);
+      }
+  }
+  
+***************
+*** 2915,2920 ****
+--- 2922,2942 ----
+  	    {
+  	      q[0] = *l;
+  	      q[1] = *d;
++ #ifdef sun
++ 	      /* Hack to ensure that the slave side of the pty is
++ 	       * unused. May not work in anything other than SunOS4.1
++ 	       */
++ 		{
++ 		  int pgrp;
++ 
++ 		  /* tcgetpgrp does not work (uses TIOCGETPGRP)! */
++ 		  if (ioctl(f, TIOCGPGRP, &pgrp) != -1 || errno != EIO)
++ 		    {
++ 		      close(f);
++ 		      continue;
++ 		    }
++ 		}
++ #endif
+  #ifdef O_NOCTTY
+  	      if ((tf = open(TtyName, O_RDWR | O_NOCTTY)) != -1)
+  #else

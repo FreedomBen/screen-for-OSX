@@ -13,7 +13,7 @@
 #define SIGVOID 
 #define DIRENT
 #define SUIDROOT
-#define UTMPOK
+#undef UTMPOK
 #define LOGINDEFAULT	1
 #define GETUTENT
 #undef UTHOST
@@ -29,7 +29,7 @@
 
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
-#  define SOCKDIR "/local.stand/screens"
+#  define SOCKDIR "/local/screens"
 # else
 #  define SOCKDIR "/tmp/screens"
 # endif
@@ -37,7 +37,7 @@
 #undef USEBCOPY
 #undef TOPSTAT
 #undef USEVARARGS
-#define NAMEDPIPE
+#undef NAMEDPIPE /* it should work with sockets too, ... */
 #define LOCK
 #define PASSWORD
 #define COPY_PASTE
@@ -45,5 +45,3 @@
 #define POW_DETACH
 #undef NETHACK 
 #define ETCSCREENRC "/local/etc/screenrc"
-#define NAME_MAX 14
-#define BROKEN_PIPE

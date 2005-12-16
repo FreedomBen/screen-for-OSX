@@ -1,4 +1,5 @@
 /* 
+ * From: Kimmo Roponen <ksr@vipunen.hut.fi>
  ****************************************************************
  * $Id$ FAU
  */
@@ -8,40 +9,39 @@
 #define BSDJOBS
 #define TERMIO
 #define TERMINFO
-#define SYSV
+#undef SYSV
 #define SIGVOID 
 #define DIRENT
-#define SUIDROOT
+#undef SUIDROOT
 #define UTMPOK
-#define LOGINDEFAULT	1
-#define GETUTENT
-#define UTHOST
+#define LOGINDEFAULT	0
+#undef GETUTENT
+#undef UTHOST
 #undef USRLIMIT
 #undef LOCKPTY
-#undef NOREUID
+#define NOREUID
 #undef  LOADAV_3DOUBLES
 #undef  LOADAV_3LONGS
 #undef  LOADAV_4LONGS
 #undef GETTTYENT
 #undef NFS_HACK
-#define LOCALSOCKDIR
+#undef LOCALSOCKDIR
 
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
-#  define SOCKDIR "/tmp/screens"
+#  define SOCKDIR "/local/screens"
 # else
-#  define SOCKDIR "/tmp/testscreens"
+#  define SOCKDIR "/tmp/screens"
 # endif
 #endif
-#define USEBCOPY
-#define bcopy(s, d, l) memmove(d, s, l) /* bcopy() by Marc Boucher */
+#undef USEBCOPY
 #undef TOPSTAT
-#define USEVARARGS
+#undef USEVARARGS
 #define NAMEDPIPE
-#define LOCK
-#define PASSWORD
-#define COPY_PASTE
-#define REMOTE_DETACH
-#define POW_DETACH
+#undef LOCK
+#undef PASSWORD
+#undef COPY_PASTE
+#undef REMOTE_DETACH
+#undef POW_DETACH
 #define NETHACK
-#define ETCSCREENRC "/local/etc/screenrc"
+#undef ETCSCREENRC "/local/etc/screenrc"

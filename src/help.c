@@ -22,7 +22,7 @@
  *	Patrick Wolfe (pat@kai.com, kailand!pat)
  *	Bart Schaefer (schaefer@cse.ogi.edu)
  *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
- *	Larry W. Virden (lvirden@cas.org)
+ *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
  *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
  *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
  *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
@@ -31,22 +31,37 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
+#ifndef lint
+  static char rcs_id[] = "$Id$ FAU";
+#endif
 
+#include "config.h"
 #include <stdio.h>
 #include <sys/types.h>
 
-#include "config.h"
+#ifdef BSDI
+# include <sys/signal.h>
+#endif /* BSDI */
 
 #include "screen.h"
+#include "ansi.h"
 #include "extern.h"
+#include "patchlevel.h"
 
-char version[40];      /* initialised by main() */
+int help_page = 0;
+int command_search, command_bindings = 0;
 extern char Esc, MetaEsc;
-extern struct display *display;
-extern char *noargs[];
+extern char *KeyNames[];
+extern struct key ktab[];
+extern int screenwidth, screenheight;
+extern char *blank, *null, *CE;
+extern struct win *fore;
 
+static void centerline __P((char *));
+static void HelpRedisplayLine __P((int, int, int, int));
+static void process_help_input __P((char **, int *));
+static void AbortHelp __P((void));
+static void add_key_to_buf __P((char *, int));
 
 void
 exit_with_usage(myname)
@@ -54,177 +69,50 @@ char *myname;
 {
   printf("Use: %s [-opts] [cmd [args]]\n", myname);
   printf(" or: %s -r [host.tty]\n\nOptions:\n", myname);
-  printf("-a           Force all capabilities into each window's termcap.\n");
-  printf("-A -[r|R]    Adapt all windows to the new display width & height.\n");
-  printf("-c file      Read configuration file instead of '.screenrc'.\n");
+  printf("-a           Force all capabilities into each window's termcap\n");
+  printf("-A -[r|R]    Adapt all windows to the new display width & height\n");
+  printf("-c file      Read configuration file instead of .screenrc\n");
 #ifdef REMOTE_DETACH
-  printf("-d (-r)      Detach the elsewhere running screen (and reattach here).\n");
-  printf("-D (-r)      Detach and logout remote (and reattach here).\n");
+  printf("-d (-r)      Detach the elsewhere running screen (and reattach here)\n");
+  printf("-D (-r)      Detach and logout remote (and reattach here)\n");
 #endif
-  printf("-e xy        Change command characters.\n");
-  printf("-f           Flow control on, -fn = off, -fa = auto.\n");
-  printf("-h lines     Set the size of the scrollback history buffer.\n");
-  printf("-i           Interrupt output sooner when flow control is on.\n");
-  printf("-l           Login mode on (update %s), -ln = off.\n", UTMPFILE);
-  printf("-list        or -ls. Do nothing, just list our SockDir.\n");
-  printf("-L           Terminal's last character can be safely updated.\n");
-  printf("-m           ignore $STY variable, do create a new screen session.\n");
-  printf("-O           Choose optimal output rather than exact vt100 emulation.\n");
-  printf("-q           Quiet startup. Exits with non-zero return code if unsuccessful.\n");
-  printf("-r           Reattach to a detached screen process.\n");
-  printf("-R           Reattach if possible, otherwise start a new session.\n");
-  printf("-s shell     Shell to execute rather than $SHELL.\n");
-  printf("-S sockname  Name this session <pid>.sockname instead of <pid>.<tty>.<host>\n.");
-  printf("-t title     Set command's a.k.a. (window title)\n.");
-  printf("-T term      Use term as $TERM for windows, rather than \"screen\"\n.");
-  printf("-v           Print \"Screen version %s\".\n", version);
-  printf("-wipe        Do nothing, just clean up SockDir.\n");
-#ifdef MULTI
-  printf("-x           Attach to a not detached screen. (Multi display mode).\n");
-#endif /* MULTI */
+  printf("-e xy        Change command characters\n");
+  printf("-f           Flow control on, -fn = off, -fa = auto\n");
+  printf("-h lines     Set the size of the scrollback history buffer\n");
+  printf("-i           Interrupt output sooner when flow control is on\n");
+  printf("-l           Login mode on (update %s), -ln = off\n", UTMPFILE);
+  printf("-list        or -ls. Do nothing, just list our SockDir\n");
+  printf("-L           Terminal's last character can be safely updated\n");
+  printf("-O           Choose optimal output rather than exact vt100 emulation\n");
+  printf("-q           Quiet startup. Sets $status if unsuccessful.\n");
+  printf("-r           Reattach to a detached screen process\n");
+  printf("-R           Reattach if possible, otherwise start a new session\n");
+  printf("-s shell     Shell to execute rather than $SHELL\n");
+  printf("-T term      Use term as $TERM for windows, rather than \"screen\"\n");
+  printf("-t title     Set command's a.k.a. (window title)\n");
+  printf("-wipe        Do nothing, just clean up SockDir\n");
   exit(1);
 }
 
-
-/*
-**   Here come the help page routines
-*/
-
-extern struct comm comms[];
-extern struct action ktab[];
-
-static void HelpProcess __P((char **, int *));
-static void HelpAbort __P((void));
-static void HelpRedisplayLine __P((int, int, int, int));
-static void HelpSetCursor __P((void));
-static void add_key_to_buf __P((char *, int));
-static int  helppage __P((void));
-
-struct helpdata
-{
-  int	maxrow, grow, numcols, numrows, num_names;
-  int	numskip, numpages;
-  int	command_search, command_bindings;
-  int   refgrow, refcommand_search;
-  int   inter, mcom, mkey;
-  int   nact[RC_LAST + 1];
-};
-
-#define MAXKLEN 256
-
-static struct LayFuncs HelpLf =
-{
-  HelpProcess,
-  HelpAbort,
-  HelpRedisplayLine,
-  DefClearLine,
-  DefRewrite,
-  HelpSetCursor,
-  DefResize,
-  DefRestore
-};
-
-
-void
-display_help()
-{
-  int i, n, key, mcom, mkey, l;
-  struct helpdata *helpdata;
-  int used[RC_LAST + 1];
-
-  if (d_height < 6)
-    {
-      Msg(0, "Window d_height too small for help page");
-      return;
-    }
-  if (InitOverlayPage(sizeof(*helpdata), &HelpLf, 0))
-    return;
-
-  helpdata = (struct helpdata *)d_lay->l_data;
-  helpdata->num_names = helpdata->command_bindings = 0;
-  helpdata->command_search = 0;
-  for (n = 0; n <= RC_LAST; n++)
-    used[n] = 0;
-  mcom = 0;
-  mkey = 0;
-  for (key = 0; key < 256; key++)
-    {
-      n = ktab[key].nr;
-      if (n == RC_ILLEGAL)
-	continue;
-      if (ktab[key].args == noargs)
-	{
-          used[n] += (key <= ' ' || key == 0x7f) ? 3 :
-                     (key > 0x7f) ? 5 : 2;
-	}
-      else
-	helpdata->command_bindings++;
-    }
-  for (n = i = 0; n <= RC_LAST; n++)
-    if (used[n])
-      {
-	l = strlen(comms[n].name);
-	if (l > mcom)
-	  mcom = l;
-	if (used[n] > mkey)
-	  mkey = used[n];
-        helpdata->nact[i++] = n;
-      }
-  debug1("help: %d commands bound to keys with no arguments\n", i);
-  debug2("mcom: %d  mkey: %d\n", mcom, mkey);
-  helpdata->num_names = i;
-
-  if (mkey > MAXKLEN)
-    mkey = MAXKLEN;
-  helpdata->numcols = (d_width - !CLP)/(mcom + mkey + 1);
-  if (helpdata->numcols == 0)
-    {
-      HelpAbort();
-      Msg(0, "Width too small");
-      return;
-    }
-  helpdata->inter = (d_width - !CLP - (mcom + mkey) * helpdata->numcols) / (helpdata->numcols + 1);
-  if (helpdata->inter <= 0)
-    helpdata->inter = 1;
-  debug1("inter: %d\n", helpdata->inter);
-  helpdata->mcom = mcom;
-  helpdata->mkey = mkey;
-  helpdata->numrows = (helpdata->num_names + helpdata->numcols - 1) / helpdata->numcols;
-  debug1("Numrows: %d\n", helpdata->numrows);
-  helpdata->numskip = d_height-5 - (2 + helpdata->numrows);
-  while (helpdata->numskip < 0)
-    helpdata->numskip += d_height-5;
-  helpdata->numskip %= d_height-5;
-  debug1("Numskip: %d\n", helpdata->numskip);
-  if (helpdata->numskip > d_height/3 || helpdata->numskip > helpdata->command_bindings)
-    helpdata->numskip = 1;
-  helpdata->maxrow = 2 + helpdata->numrows + helpdata->numskip + helpdata->command_bindings;
-  helpdata->grow = 0;
-
-  helpdata->numpages = (helpdata->maxrow + d_height-6) / (d_height-5);
-  helppage();
-}
-
+/* Esc-char is not consumed. All others are. Esc-char, space, and return end */
 static void
-HelpSetCursor()
-{
-  GotoPos(0, d_height - 1);
-}
-
-static void
-HelpProcess(ppbuf, plen)
+process_help_input(ppbuf, plen)
 char **ppbuf;
 int *plen;
 {
   int done = 0;
 
-  GotoPos(0, d_height-1);
+  if (ppbuf == 0)
+    {
+      AbortHelp();
+      return;
+    }
   while (!done && *plen > 0)
     {
       switch (**ppbuf)
 	{
 	case ' ':
-	  if (helppage() == 0)
+	  if (display_help() == 0)
             break;
 	  /* FALLTHROUGH */
 	case '\r':
@@ -232,100 +120,149 @@ int *plen;
 	  done = 1;
 	  break;
 	default:
+	  if (**ppbuf == Esc)
+	    {
+	      done = 1;
+	      continue;
+	    }
 	  break;
 	}
       ++*ppbuf;
       --*plen;
     }
   if (done)
-    HelpAbort();
+    AbortHelp();
 }
 
 static void
-HelpAbort()
+AbortHelp()
 {
-  LAY_CALL_UP(Activate(0));
+  help_page = 0;
   ExitOverlayPage();
+  Activate(0);
 }
 
+static int maxrow, grow, numcols, numrows, num_names;
+static int numskip, numpages;
 
-static int
-helppage()
+int
+display_help()
 {
-  struct helpdata *helpdata;
-  int col, crow, n, key;
-  char buf[MAXKLEN], Esc_buf[5], cbuf[256];
+  int col, crow, n, key = 0;
+  enum keytype typ = ktab[0].type;
+  char buf[256], Esc_buf[5], cbuf[256];
 
-  helpdata = (struct helpdata *)d_lay->l_data;
+  if (!help_page++)
+    {
+      if (screenwidth < 26 || screenheight < 6)
+        {
+	  Msg(0, "Window size too small for help page");
+	  help_page = 0;
+	  return -1;
+        }
+      InitOverlayPage(process_help_input, HelpRedisplayLine, (int (*)())0, 0);
 
-  if (helpdata->grow >= helpdata->maxrow)
+      command_bindings = 0;
+      for (key = 0; key < 256; key++)
+        if ((typ = ktab[key].type) == KEY_CREATE
+	    || typ == KEY_SCREEN
+	    || typ == KEY_SET
+	    || (typ == KEY_AKA && ktab[key].args))
+	  command_bindings++;
+      debug1("help: command_bindings counted: %d\n",command_bindings);
+      for (n = 0; KeyNames[n] != NULL; n++)
+	; /* we dont know "sizeof * KeyNames" */
+      num_names = n - 1;
+      debug1("help: we find %d named keys (+1).\n", num_names);
+      command_search = 0;
+
+      numcols = screenwidth/26;
+      if (numcols == 0)
+        numcols = 1;
+      numrows = (num_names + numcols -1) / numcols;
+      debug1("Numrows: %d\n", numrows);
+      numskip = screenheight-5 - (2 + numrows);
+      while (numskip < 0)
+	numskip += screenheight-5;
+      numskip %= screenheight-5;
+      debug1("Numskip: %d\n", numskip);
+      if (numskip > screenheight/3 || numskip > command_bindings)
+	numskip = 1;
+      maxrow = 2 + numrows + numskip + command_bindings;
+      grow = 0;
+
+      numpages = (maxrow + screenheight-6) / (screenheight-5);
+    }
+
+  if (grow >= maxrow)
     { 
       return(-1);
     }
-  helpdata->refgrow = helpdata->grow;
-  helpdata->refcommand_search = helpdata->command_search;
 
   /* Clear the help screen */
-  SetAttrFont(0, ASCII);
   ClearDisplay();
   
-  sprintf(cbuf,"Screen key bindings, page %d of %d.", helpdata->grow / (d_height-5) + 1, helpdata->numpages);
+  sprintf(cbuf,"Screen key bindings, page %d of %d.", help_page, numpages);
   centerline(cbuf);
-  AddChar('\n');
+  printf("\n");
   crow = 2;
 
   *Esc_buf = '\0';
   add_key_to_buf(Esc_buf, Esc);
+  Esc_buf[strlen(Esc_buf) - 1] = '\0';
 
-  for (; crow < d_height - 3; crow++)
+  for (; crow < screenheight - 3; crow++)
     {
-      if (helpdata->grow < 1)
+      if (grow < 1)
         {
    	  *buf = '\0';
           add_key_to_buf(buf, MetaEsc);
+          buf[strlen(buf) - 1] = '\0';
           sprintf(cbuf,"Command key:  %s   Literal %s:  %s", Esc_buf, Esc_buf, buf);
           centerline(cbuf);
-	  helpdata->grow++;
+	  grow++;
         }
-      else if (helpdata->grow >= 2 && helpdata->grow-2 < helpdata->numrows)
+      else if (grow >= 2 && grow-2 < numrows)
 	{
-	  for (col = 0; col < helpdata->numcols && (n = helpdata->numrows * col + (helpdata->grow-2)) < helpdata->num_names; col++)
+	  for (col = 0; col < numcols && (n = numrows * col + (grow-2)) < num_names; col++)
 	    {
-	      AddStrn("", helpdata->inter - !col);
-	      n = helpdata->nact[n];
 	      debug1("help: searching key %d\n", n);
 	      buf[0] = '\0';
-	      for (key = 0; key < 256; key++)
-		if (ktab[key].nr == n && ktab[key].args == noargs)
-		  {
-		    strcat(buf, " ");
-		    add_key_to_buf(buf, key);
-		  }
-	      AddStrn(comms[n].name, helpdata->mcom);
-	      AddStrn(buf, helpdata->mkey);
+	      for (key = 0; key < 128; key++)
+		if (ktab[key].type == (enum keytype) (n + 2)
+		    && ((enum keytype) (n + 2) != KEY_AKA || !ktab[key].args) )
+		  add_key_to_buf(buf, key);
+	      buf[14] = '\0';
+	      /*
+	       * Format is up to 10 chars of name, 1 spaces, 14 chars of key
+	       * bindings, and a space.
+	       */
+	      printf("%-10.10s %-14.14s ", KeyNames[n + 1], buf);
 	    }
-	  AddStr("\r\n");
-          helpdata->grow++;
+	  printf("\r\n");
+          grow++;
         }
-      else if (helpdata->grow-2-helpdata->numrows >= helpdata->numskip 
-               && helpdata->grow-2-helpdata->numrows-helpdata->numskip < helpdata->command_bindings)
+      else if (grow-2-numrows >= numskip 
+               && grow-2-numrows-numskip < command_bindings)
         {
           char **pp, *cp;
 
-	  while ((n = ktab[helpdata->command_search].nr) == RC_ILLEGAL
-		 || ktab[helpdata->command_search].args == noargs)
-	    {
-	      if (++helpdata->command_search >= 256)
-		return -1;
-	    }
+	  while (command_search < 128
+		 && (typ = ktab[command_search].type) != KEY_CREATE
+		 && typ != KEY_SCREEN
+		 && typ != KEY_SET
+		 && (typ != KEY_AKA || !ktab[command_search].args))
+	    command_search++;
 	  buf[0] = '\0';
-	  add_key_to_buf(buf, helpdata->command_search);
-	  AddStrn(buf, 4);
+	  add_key_to_buf(buf, command_search);
+	  printf("%-4s", buf);
 	  col = 4;
-	  AddStr(comms[n].name);
-	  AddChar(' ');
-	  col += strlen(comms[n].name) + 1;
-	  pp = ktab[helpdata->command_search++].args;
+	  if (typ != KEY_CREATE)
+	    {
+	      col += strlen(KeyNames[(int)typ - 1]) + 1;
+	      printf("%s ", KeyNames[(int)typ - 1]);
+	    }
+	  pp = ktab[command_search++].args;
 	  while (pp && (cp = *pp) != NULL)
 	    {
 	      if (!*cp || (index(cp, ' ') != NULL))
@@ -337,37 +274,36 @@ helppage()
 		  sprintf(buf + 1, "%s%c", cp, *buf);
 		  cp = buf;
 		}
-	      if ((col += strlen(cp) + 1) >= d_width)
+	      if ((col += strlen(cp) + 1) >= screenwidth)
 		{
-		  col = d_width - (col - (strlen(cp) + 1)) - 2;
+		  col = screenwidth - (col - (strlen(cp) + 1)) - 2;
 		  if (col >= 0)
 		    {
 		      n = cp[col];
 		      cp[col] = '\0';
-		      AddStr(*pp);
-		      AddChar('$');
+		      printf("%s$", *pp);
 		      cp[col] = (char) n;
 	  	    }
 	          break;
 	        }
-	      AddStr(cp);
-	      AddChar((d_width - col != 1 || !pp[1]) ? ' ' : '$');
+	      printf("%s%c", cp, (screenwidth - col != 1 || !pp[1]) ? ' ' : '$');
 	      pp++;
 	    }
-	  AddStr("\r\n");
-	  helpdata->grow++;
+	  printf("\r\n");
+	  grow++;
 	}
       else
 	{
-          AddChar('\n');
-	  helpdata->grow++;
+          putchar('\n');
+	  grow++;
 	}
     }
-  AddChar('\n');
-  sprintf(cbuf,"[Press Space %s Return to end.]",
-	 helpdata->grow < helpdata->maxrow ? "for next page;" : "or");
+  printf("\n");
+  sprintf(cbuf,"[Press Space %s Return to end; %s to begin a command.]",
+	 grow < maxrow ? "for next page;" : "or", Esc_buf);
   centerline(cbuf);
-  SetLastPos(0, d_height-1);
+  fflush(stdout);
+  SetLastPos(0, screenheight-1);
   return(0);
 }
 
@@ -377,71 +313,57 @@ char *buf;
 int key;
 {
   debug1("help: key found: %c\n", key);
-  buf += strlen(buf);
-  if (key == ' ')
-    sprintf(buf, "sp");
-  else if (key < ' ' || key == 0x7f)
-    sprintf(buf, "^%c", (key ^ 0x40));
-  else if (key >= 0x80)
-    sprintf(buf, "\\%03o", key);
-  else
-    sprintf(buf, "%c", key);
+  switch (key)
+    {
+    case ' ':
+      strcat(buf, "sp ");
+      break;
+    case 0x7f:
+      strcat(buf, "^? ");
+      break;
+    default:
+      if (key < ' ')
+	sprintf(buf + strlen(buf), "^%c ", (key | 0x40));
+      else
+	sprintf(buf + strlen(buf), "%c ", key);
+      break;
+    }
 }
 
+static void
+centerline(str)
+char *str;
+{
+  int l;
+  l = (screenwidth - 1 + strlen(str)) / 2;
+  if (l > screenwidth - 1)
+    l = screenwidth - 1;
+  printf("%*.*s\r\n", l, l, str);
+}
 
 static void
 HelpRedisplayLine(y, xs, xe, isblank)
 int y, xs, xe, isblank;
 {
-  if (y < 0)
-    {
-      struct helpdata *helpdata;
-
-      helpdata = (struct helpdata *)d_lay->l_data;
-      helpdata->grow = helpdata->refgrow;
-      helpdata->command_search = helpdata->refcommand_search;
-      helppage();
-      return;
-    }
-  if (y != 0 && y != d_height - 1)
-    return;
   if (isblank)
     return;
-  Clear(xs, y, xe, y);
+  if (CE)
+    {
+      GotoPos(xs, y);
+      PutStr(CE);
+      return;
+    }
+  DisplayLine(null, null, null, blank, null, null, y, xs, xe);
 }
 
-
 /*
-**
-**    here is all the copyright stuff 
-**
-*/
+ * here all the copyright stuff 
+ */
 
-static void CopyrightProcess __P((char **, int *));
-static void CopyrightRedisplayLine __P((int, int, int, int));
-static void CopyrightAbort __P((void));
-static void CopyrightSetCursor __P((void));
-static void copypage __P((void));
 
-struct copydata
-{
-  char	*cps, *savedcps;	/* position in the message */
-  char	*refcps, *refsavedcps;	/* backup for redisplaying */
-};
+static char version[40];
 
-static struct LayFuncs CopyrightLf =
-{
-  CopyrightProcess,
-  CopyrightAbort,
-  CopyrightRedisplayLine,
-  DefClearLine,
-  DefRewrite,
-  CopyrightSetCursor,
-  DefResize,
-  DefRestore
-};
-
-static const char cpmsg[] = "\
+static char cpmsg[] = "\
 \n\
 iScreen version %v\n\
 \n\
@@ -465,29 +387,30 @@ along with this program (see the file COPYING); if not, write to the \
 Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.\n";
 
 
+static void process_copyright_input __P((char **, int *));
+static void AbortCopyright __P((void));
+static void copypage __P((void));
+
+static char *cps, *savedcps;
 
 static void
-CopyrightSetCursor()
-{
-  GotoPos(0, d_height - 1);
-}
-
-static void
-CopyrightProcess(ppbuf, plen)
+process_copyright_input(ppbuf, plen)
 char **ppbuf;
 int *plen;
 {
   int done = 0;
-  struct copydata *copydata;
 
-  copydata = (struct copydata *)d_lay->l_data;
-  GotoPos(0, d_height - 1);
+  if (ppbuf == 0)
+    {
+      AbortCopyright();
+      return;
+    }
   while (!done && *plen > 0)
     {
       switch (**ppbuf)
 	{
 	case ' ':
-          if (*copydata->cps)
+          if (*cps)
 	    {
 	      copypage();
 	      break;
@@ -495,7 +418,7 @@ int *plen;
 	  /* FALLTHROUGH */
 	case '\r':
 	case '\n':
-	  CopyrightAbort();
+	  AbortCopyright();
 	  done = 1;
 	  break;
 	default:
@@ -507,27 +430,24 @@ int *plen;
 }
 
 static void
-CopyrightAbort()
+AbortCopyright()
 {
-  LAY_CALL_UP(Activate(0));
   ExitOverlayPage();
+  Activate(0);
 }
 
 void
 display_copyright()
 {
-  struct copydata *copydata;
-
-  if (d_width < 10 || d_height < 5)
+  if (screenwidth < 10 || screenheight < 5)
     {
       Msg(0, "Window size too small for copyright page");
       return;
     }
-  if (InitOverlayPage(sizeof(*copydata), &CopyrightLf, 0))
-    return;
-  copydata = (struct copydata *)d_lay->l_data;
-  copydata->cps = (char *)cpmsg;
-  copydata->savedcps = 0;
+  InitOverlayPage(process_copyright_input, HelpRedisplayLine, (int (*)())0, 0);
+  sprintf(version, "%d.%.2d.%.2d%s (%s) %s", REV, VERS, PATCHLEVEL, STATE, ORIGIN, DATE);
+  cps = cpmsg;
+  savedcps = 0;
   copypage();
 }
 
@@ -535,95 +455,65 @@ display_copyright()
 static void
 copypage()
 {
-  register char *cps;
   char *ws;
   int x, y, l;
   char cbuf[80];
-  struct copydata *copydata;
 
-  copydata = (struct copydata *)d_lay->l_data;
-  SetAttrFont(0, ASCII);
   ClearDisplay();
   x = y = 0;
-  cps = copydata->cps;
-  copydata->refcps = cps;
-  copydata->refsavedcps = copydata->savedcps;
-  while (*cps && y < d_height - 3)
+  while(*cps)
     {
       ws = cps;
       while (*cps == ' ')
 	cps++;
       if (strncmp(cps, "%v", 2) == 0)
 	{
-	  copydata->savedcps = cps + 2;
-	  cps = version;
-	  continue;
+	  savedcps = cps + 2;
+	  ws = cps = version;
 	}
       while (*cps && *cps != ' ' && *cps != '\n')
 	cps++;
       l = cps - ws;
       cps = ws;
-      if (l > d_width - 1)
-	l = d_width - 1;
-      if (x && x + l >= d_width - 2)
+      if (l > screenwidth - 1)
+	l = screenwidth - 1;
+      if (x && x + l >= screenwidth - 2)
 	{
-	  AddStr("\r\n");
+	  printf("\r\n");
 	  x = 0;
-	  y++;
-	  continue;
+	  if (++y > screenheight - 4)
+            break;
 	}
       if (x)
 	{
-	  AddChar(' ');
+	  putchar(' ');
 	  x++;
 	}
       if (l)
-        AddStrn(ws, l);
+        printf("%*.*s", l, l, ws);
       x += l;
       cps += l;
-      if (*cps == 0 && copydata->savedcps)
+      if (*cps == 0 && savedcps)
 	{
-	  cps = copydata->savedcps;
-	  copydata->savedcps = 0;
+	  cps = savedcps;
+	  savedcps = 0;
 	}
       if (*cps == '\n')
 	{
-	  AddStr("\r\n");
+	  printf("\r\n");
 	  x = 0;
-	  y++;
+	  if (++y > screenheight - 4)
+            break;
 	}
       if (*cps == ' ' || *cps == '\n')
 	cps++;
     }
-  while (*cps == '\n')
-    cps++;
-  while (y++ < d_height - 2)
-    AddStr("\r\n");
+  while (y++ < screenheight - 2)
+    printf("\r\n");
   sprintf(cbuf,"[Press Space %s Return to end.]",
 	 *cps ? "for next page;" : "or");
   centerline(cbuf);
-  SetLastPos(0, d_height-1);
-  copydata->cps = cps;
+  fflush(stdout);
+  SetLastPos(0, screenheight-1);
 }
-
-static void
-CopyrightRedisplayLine(y, xs, xe, isblank)
-int y, xs, xe, isblank;
-{
-  if (y < 0)
-    {
-      struct copydata *copydata;
-
-      copydata = (struct copydata *)d_lay->l_data;
-      copydata->cps = copydata->refcps;
-      copydata->savedcps = copydata->refsavedcps;
-      copypage();
-      return;
-    }
-  if (y != 0 && y != d_height - 1)
-    return;
-  if (isblank)
-    return;
-  Clear(xs, y, xe, y);
-}
-
+  

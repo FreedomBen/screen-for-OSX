@@ -4,13 +4,13 @@
  ****************************************************************
  * $Id$ FAU
  */
-#define POSIX
+#undef POSIX
 #define BSDJOBS
-#define TERMIO
+#undef TERMIO
 #undef TERMINFO
 #undef SYSV
-#define SIGVOID 
-#define DIRENT
+#undef SIGVOID 
+#undef DIRENT
 #define SUIDROOT
 #define UTMPOK
 #define LOGINDEFAULT	1
@@ -19,24 +19,25 @@
 #undef USRLIMIT
 #undef LOCKPTY
 #undef NOREUID
-#undef  LOADAV_3DOUBLES
-#define LOADAV_3LONGS
-#undef  LOADAV_4LONGS
-#undef GETTTYENT
+#undef LOADAV_3DOUBLES
+#undef LOADAV_3LONGS
+#undef LOADAV_4LONGS
+#define LOADAV_NEXT
+#define GETTTYENT
 #undef NFS_HACK
 #define LOCALSOCKDIR
 
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
-#  define SOCKDIR "/tmp/screens"
+#  define SOCKDIR "/local/screens"
 # else
-#  define SOCKDIR "/tmp/testscreens"
+#  define SOCKDIR "/tmp/screens"
 # endif
 #endif
-#undef USEBCOPY
+#define USEBCOPY
 #undef TOPSTAT
-#undef USEVARARGS
-#define NAMEDPIPE
+#define USEVARARGS
+#undef NAMEDPIPE
 #define LOCK
 #define PASSWORD
 #define COPY_PASTE

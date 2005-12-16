@@ -44,9 +44,5 @@
 #define COPY_PASTE
 #define REMOTE_DETACH
 #define POW_DETACH
-#define NETHACK 
+#undef NETHACK 
 #define ETCSCREENRC "/local/etc/screenrc"
-#define SHADOWPW
-#define MULTI
-#define AUTO_NUKE
-#define MULTIUSER

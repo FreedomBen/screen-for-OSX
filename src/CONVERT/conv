@@ -1,9 +1,0 @@
-#!/bin/sh
-
-if [ $# != 1 ] ; then
-  echo "conv <convfile>"
-  exit
-fi
-
-sed < $1 -e 's@^\([^ 	]*\)[ 	]*\([^ 	]*\)$@s/\\([^a-zA-Z0-9_]\\)\1\\([^a-zA-Z0-9_]\\)/\\1\2\\2/g@' > sedtmp
-sed -f sedtmp

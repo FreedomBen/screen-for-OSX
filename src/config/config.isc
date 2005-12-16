@@ -1,12 +1,10 @@
-/****************************************************************
- * this config file was contributed by Marc Boucher <marc@CAM.ORG>
- * it supports System V Release 4.0
+/*
+ * This file is by Allen D. Ball (ball@witchcraft.com)
+ * It was done for Interactive's System V3.2 (2.2). Thanx.
+ *
  ********************************************************** 
  * $Id$ FAU
  */
-
-#define SVR4			/* special SVR4 entry */
-
 #define POSIX
 #define BSDJOBS
 #define TERMIO
@@ -18,18 +16,17 @@
 #define UTMPOK
 #define LOGINDEFAULT	1
 #define GETUTENT
-#define UTHOST
+#undef UTHOST
 #undef USRLIMIT
-#define BUGGYGETLOGIN		/* special SVR4 entry */
-#define SHADOWPW
 #undef LOCKPTY
 #define NOREUID
-#undef LOADAV_3DOUBLES
+#undef  LOADAV_3DOUBLES
 #define  LOADAV_3LONGS
 #undef  LOADAV_4LONGS
 #undef GETTTYENT
 #undef NFS_HACK
 #define LOCALSOCKDIR
+
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
 #  define SOCKDIR "/tmp/screens"
@@ -37,25 +34,24 @@
 #  define SOCKDIR "/tmp/testscreens"
 # endif
 #endif
-#define USEBCOPY
-#define bcopy(s, d, l) memmove(d, s, l) /* special SVR4 entry */
+#undef USEBCOPY
 #undef TOPSTAT
-#define USEVARARGS
+#undef USEVARARGS
 #define NAMEDPIPE
 #define LOCK
 #define PASSWORD
 #define COPY_PASTE
 #define REMOTE_DETACH
 #define POW_DETACH
-#define NETHACK
-#define ETCSCREENRC "/local/etc/screenrc"
+#define NETHACK 
+#define ETCSCREENRC "/usr/local/etc/screenrc"
+
 
 /* These get seen in screen.h, extern.h and other places to avoid conflicts
  * with the definitions and declarations in /usr/include/...
+ * on BSD/386 from BSD, Inc.
  */
-
 #define SETPGID_DECLARED
-#define GETHOSTNAME_DECLARED
-#define NLIST_DECLARED
-#define VPRNT_DECLARED
-
+#ifdef _POSIX_SOURCE
+# define KILLSTUFF_DECLARED
+#endif

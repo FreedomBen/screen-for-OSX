@@ -22,7 +22,7 @@
  *	Patrick Wolfe (pat@kai.com, kailand!pat)
  *	Bart Schaefer (schaefer@cse.ogi.edu)
  *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
- *	Larry W. Virden (lvirden@cas.org)
+ *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
  *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
  *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
  *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
@@ -31,8 +31,9 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
+#ifndef lint
+  static char rcs_id[] = "$Id$ FAU";
+#endif
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -40,6 +41,9 @@ RCS_ID("$Id$ FAU")
 #ifndef sun
 #include <sys/ioctl.h>
 #endif
+#ifdef BSDI
+# include <string.h>
+#endif /* BSDI */
 
 #ifdef ISC
 # include <sys/tty.h>
@@ -47,27 +51,31 @@ RCS_ID("$Id$ FAU")
 # include <sys/pty.h>
 #endif
 
+#ifdef MIPS
+extern int errno;
+#endif
+
 #include "config.h"
 #include "screen.h"
 #include "extern.h"
 
 static void FreeScrollback __P((struct win *));
-static void CheckMaxSize __P((int));
 
 static int ResizeHistArray __P((struct win *, char ***, int, int, int));
 static int ResizeScreenArray __P((struct win *, char ***, int, int, int));
 static void FreeArray __P((char ***, int));
 
+extern TermcapCOLS, TermcapROWS;
 extern int maxwidth;
-extern struct display *display, *displays;
+extern int default_width, default_height, screenwidth, screenheight;
 extern char *blank, *null, *OldImage, *OldAttr;
-extern char *OldFont;
-extern struct win *windows;
+extern char *OldFont, *LastMsg;
+extern struct win *wtab[], *fore;
+extern int WinList, ForeNum;
+extern char *Z0, *Z1, *WS;
 extern int Z0width, Z1width;
 
-#ifdef NETHACK
-extern int nethackflag;
-#endif
+extern int Detached;
 
 #if defined(TIOCGWINSZ) || defined(TIOCSWINSZ)
   struct winsize glwz;
@@ -75,7 +83,7 @@ extern int nethackflag;
 
 /*
  * ChangeFlag:   0: try to modify no window
- *               1: modify fore (and try to modify no d_other) + redisplay
+ *               1: modify fore (and try to modify no other)
  *               2: modify all windows
  *
  * Note: Activate() is only called if change_flag == 1
@@ -86,145 +94,114 @@ void
 CheckScreenSize(change_flag)
 int change_flag;
 {
-  int wi, he;
+  int width, height, n;
   struct win *p;
-  struct layer *oldlay;
 
-  if (display == 0)
+  if (Detached)
     {
-      debug("CheckScreenSize: No display -> no check.\n");
+      debug("CheckScreenSize: Detached -> No check.\n");
       return;
     }
-  oldlay = d_lay;
 #ifdef TIOCGWINSZ
-  if (ioctl(d_userfd, TIOCGWINSZ, &glwz) != 0)
+  if (ioctl(0, TIOCGWINSZ, &glwz) != 0)
     {
-      debug2("CheckScreenSize: ioctl(%d, TIOCGWINSZ) errno %d\n", d_userfd, errno);
-      wi = CO;
-      he = LI;
+      debug1("CheckScreenSize: ioctl(0, TIOCGWINSZ) errno %d\n", errno);
+      width = TermcapCOLS;
+      height = TermcapROWS;
     }
   else
     {
-      wi = glwz.ws_col;
-      he = glwz.ws_row;
-      if (wi == 0)
-        wi = CO;
-      if (he == 0)
-        he = LI;
+      width = glwz.ws_col;
+      height = glwz.ws_row;
+      if (width == 0)
+        width = TermcapCOLS;
+      if (height == 0)
+        height = TermcapROWS;
     }
 #else
-  wi = CO;
-  he = LI;
+  width = TermcapCOLS;
+  height = TermcapROWS;
 #endif
   
-  debug2("CheckScreenSize: screen is (%d,%d)\n", wi, he);
+  debug2("CheckScreenSize: screen is (%d,%d)\n", width, height);
 
   if (change_flag == 2)
     {
-      debug("Trying to adapt all windows (-A)\n");
-      for (p = windows; p; p = p->w_next)
-	if (p->w_display == 0 || p->w_display == display)
-          ChangeWindowSize(p, wi, he);
+      for (n = WinList; n != -1; n = p->WinLink)
+        {
+          p = wtab[n];
+          ChangeWindowSize(p, width, height);
+	}
     }
-  if (d_width == wi && d_height == he)
+  if (screenwidth == width && screenheight == height)
     {
       debug("CheckScreenSize: No change -> return.\n");
       return;
     }
-  ChangeScreenSize(wi, he, change_flag);
-  if (change_flag == 1)
-    Activate(d_fore ? d_fore->w_norefresh : 0);
-  if (d_lay != oldlay)
-    {
-#ifdef NETHACK
-      if (nethackflag)
-	Msg(0, "KAABLAMM!!!  You triggered a land mine!");
-      else
-#endif
-      Msg(0, "Aborted because of window size change.");
-    }
+  ChangeScreenSize(width, height, change_flag);
+  if (change_flag == 1 && WinList != -1)	/* was HasWindow */
+    Activate(fore->norefresh);
 }
 
 void
-ChangeScreenSize(wi, he, change_fore)
-int wi, he;
+ChangeScreenSize(width, height, change_fore)
+int width, height;
 int change_fore;
 {
   struct win *p;
-  int wwi;
+  int n, wwi;
 
-  if (d_width == wi && d_height == he)
+  if (screenwidth == width && screenheight == height)
     {
       debug("ChangeScreenSize: no change\n");
       return;
     }
-  debug2("ChangeScreenSize from (%d,%d) ", d_width, d_height);
-  debug3("to (%d,%d) (change_fore: %d)\n",wi, he, change_fore);
-  d_width = wi;
-  d_height = he;
+  debug3("ChangeScreenSize to (%d,%d) (change_fore: %d)\n",width, height, change_fore);
+  screenwidth = width;
+  screenheight = height;
 
-  CheckMaxSize(wi);
-  if (CWS)
+  if (WS)
     {
-      d_defwidth = CO;
-      d_defheight = LI;
+      default_width = TermcapCOLS;
+      default_height = TermcapROWS;
     }
   else
     {
-      if (CZ0 && (wi == Z0width || wi == Z1width) &&
-          (CO == Z0width || CO == Z1width))
-        d_defwidth = CO;
+      if (Z0 && (width == Z0width || width == Z1width) &&
+          (TermcapCOLS == Z0width || TermcapCOLS == Z1width))
+        default_width = TermcapCOLS;
       else
-        d_defwidth = wi;
-      d_defheight = he;
+        default_width = width;
+      default_height = height;
     }
-  debug2("Default size: (%d,%d)\n", d_defwidth, d_defheight);
+  debug2("Default size: (%d,%d)\n",default_width, default_height);
   if (change_fore)
-    DoResize(wi, he);
-  if (CWS == NULL && displays->_d_next == 0)
     {
-      /* adapt all windows  -  to be removed ? */
-      for (p = windows; p; p = p->w_next)
+      if (WinList != -1 && change_fore) /* was HasWindow */
         {
-          debug1("Trying to change window %d.\n", p->w_number);
-          wwi = wi;
-          if (CZ0 && (wi == Z0width || wi == Z1width))
+          debug("Trying to change fore.\n");
+          ChangeWindowSize(fore, width, height);
+        }
+    }
+  if (WS == NULL)
+    {
+      /* We have to adapt all windows */
+      for (n = WinList; n != -1; n = p->WinLink)
+        {
+          p = wtab[n];
+          debug1("Trying to change window %d.\n",n);
+          wwi = width;
+          if (Z0 && (width==Z0width || width==Z1width))
 	    {
-	      if (p->w_width > (Z0width + Z1width) / 2)
+	      if (p->width > (Z0width + Z1width) / 2)
 		wwi = Z0width;
 	      else
 		wwi = Z1width;
 	    }
-          ChangeWindowSize(p, wwi, he);
+          ChangeWindowSize(p, wwi, height);
         }
     }
 }
-
-void
-DoResize(wi, he)
-int wi, he;
-{
-  struct layer *oldlay;
-  int q = 0;
-
-  for(;;)
-    {
-      oldlay = d_lay;
-      for (; d_lay; d_lay = d_lay->l_next)
-	{
-	  d_layfn = d_lay->l_layfn;
-	  if ((q = Resize(wi, he)))
-	    break;
-	}
-      d_lay = oldlay;
-      d_layfn = d_lay->l_layfn;
-      if (q == 0)
-	break;
-      ExitOverlayPage();
-    }
-}
-
-#ifdef COPY_PASTE
 
 int
 ChangeScrollback(p, histheight, histwidth)
@@ -234,7 +211,7 @@ int histheight, histwidth;
   if (histheight > MAXHISTHEIGHT)
     histheight = MAXHISTHEIGHT;
   debug2("ChangeScrollback(..., %d, %d)\n", histheight, histwidth);
-  debug2("  was %d, %d\n", p->w_histheight, p->w_width);
+  debug2("  was %d, %d\n", p->histheight, p->width);
 
   if (histheight == 0)
     {
@@ -242,30 +219,29 @@ int histheight, histwidth;
       return 0;
     }
 
-  if (ResizeHistArray(p, &p->w_ihist, histwidth, histheight, 1)
-      || ResizeHistArray(p, &p->w_ahist, histwidth, histheight, 0)
-      || ResizeHistArray(p, &p->w_fhist, histwidth, histheight, 0))
+  if (ResizeHistArray(p, &p->ihist, histwidth, histheight, 1)
+      || ResizeHistArray(p, &p->ahist, histwidth, histheight, 0)
+      || ResizeHistArray(p, &p->fhist, histwidth, histheight, 0))
     {
       debug("   failed, removing all histbuf\n");
       FreeScrollback(p);
-      Msg(0, strnomem);
-      return -1;
+      Msg_nomem;
+      return (-1);
     }
-  if (p->w_histheight != histheight)
-    p->w_histidx = 0;
-  p->w_histheight = histheight;
+  if (p->histheight != histheight)
+    p->histidx = 0;
+  p->histheight = histheight;
 
-  return 0;
+  return(0);
 }
 
-static void
-FreeScrollback(p)
+static void FreeScrollback(p)
 struct win *p;
 {
-  FreeArray(&p->w_ihist, p->w_histheight);
-  FreeArray(&p->w_ahist, p->w_histheight);
-  FreeArray(&p->w_fhist, p->w_histheight);
-  p->w_histheight = 0;
+  FreeArray(&p->ihist, p->histheight);
+  FreeArray(&p->ahist, p->histheight);
+  FreeArray(&p->fhist, p->histheight);
+  p->histheight = 0;
 }
 
 static int
@@ -277,66 +253,64 @@ int wi, hi, fillblank;
   char **narr, **np, **onp, **onpe;
   int t, x, first;
 
-  if (p->w_width == wi && p->w_histheight == hi)
+  if (p->width == wi && p->histheight == hi)
     return(0);
-  if (p->w_histheight != hi)
+  if (p->histheight != hi)
     {
       if ((narr = (char **)calloc(sizeof(char *), hi)) == NULL)
 	{
-	  FreeArray(arr, p->w_histheight);
+	  FreeArray(arr, p->histheight);
 	  return(-1);
 	}
       np = narr;
-      onp = (*arr) + p->w_histidx;
-      onpe = (*arr) + p->w_histheight;
-      first = p->w_histheight - hi;
-      if (first < 0)
-	 np -= first;
-      for(t = 0; t < p->w_histheight; t++)
+      onp = (*arr) + p->histidx;
+      onpe = (*arr) + p->histheight;
+      first = p->histheight - hi;
+      if (first<0)
+	 np-=first;
+      for(t=0; t<p->histheight; t++)
 	{
-	  ASSERT(*onp);
-          if (t - first >= 0 && t - first < hi)
+          if (t-first >=0 && t-first < hi)
 	    *np++ = *onp;
 	  else
-	    free(*onp);
+	    Free(*onp);
 	  if (++onp == onpe)
 	    onp = *arr;
 	}
       if (*arr)
-	free(*arr);
+	Free(*arr);
     }
   else
     narr = *arr;
  
-  for (t=0, np=narr; t < hi; t++, np++)
+  for (t=0, np=narr; t<hi; t++, np++)
     {
-      x = p->w_width;
+      x = p->width;
       if (*np == 0)
 	{
-	  *np = (char *)malloc(wi + 1);
+	  *np = (char *)malloc(wi);
           x = 0;
 	}
-      else if (p->w_width != wi)
+      else if (p->width != wi)
 	{
-	  *np = (char *)xrealloc(*np, wi + 1);
+	  *np = (char *)xrealloc(*np, wi);
 	}
       if (*np == 0)
 	{
 	  FreeArray(&narr, hi);
-	  return -1;
+	  return(-1);
 	}
-      if (x < wi)
+      if (x<wi)
 	{
 	  if (fillblank)
-	    bclear(*np + x, wi + 1 - x);
+	    bclear(*np+x, wi-x);
 	  else
-	    bzero(*np + x, wi + 1 - x);
+	    bzero(*np+x, wi-x);
 	}
     }
   *arr = narr;
-  return 0;
+  return(0);
 }
-#endif /* COPY_PASTE */
       
 
 static int
@@ -348,59 +322,58 @@ int wi, hi, fillblank;
   int minr;
   char **cp;
 
-  if (p->w_width == wi && p->w_height == hi)
+  if (p->width == wi && p->height == hi)
     return(0);
 
-  if (hi > p->w_height)
-    minr = p->w_height;
+  if (hi > p->height)
+    minr = p->height;
   else
     minr = hi;
 
-  if (p->w_height > hi)
+  if (p->height > hi)
     {
-      for (cp = *arr; cp < *arr + (p->w_height - hi); cp++)
-	free(*cp);
-      bcopy((char *)(*arr + (p->w_height - hi)), (char *)(*arr),
+      for (cp = *arr; cp < *arr + (p->height - hi); cp++)
+	Free(*cp);
+      bcopy((char *)(*arr + (p->height - hi)), (char *)(*arr),
 	    hi * sizeof(char *));
     }
-  if (*arr && p->w_width != wi)
+  if (*arr && p->width != wi)
     for (cp = *arr; cp < *arr + minr; cp++)
       {
-	if ((*cp = (char *)xrealloc(*cp, (unsigned) wi + 1)) == 0)
+	if ((*cp = (char *)xrealloc(*cp, (unsigned) wi)) == 0)
 	  {
-	    FreeArray(arr, p->w_height);
+	    FreeArray(arr, p->height);
 	    return(-1);
 	  }
-	if (wi > p->w_width)
+	if (wi > p->width)
 	  {
 	    if (fillblank)
-	      bclear(*cp + p->w_width, wi + 1 - p->w_width);
+	      bclear(*cp + p->width, wi - p->width);
 	    else
-	      bzero(*cp + p->w_width, wi + 1 - p->w_width);
+	      bzero(*cp + p->width, wi - p->width);
 	  }
       }
   if (*arr)
     *arr = (char **) xrealloc((char *) *arr, (unsigned) hi * sizeof(char *));
   else
     *arr = (char **) malloc((unsigned) hi * sizeof(char *));
-  if (*arr == NULL)
-    return -1;
-  for (cp = *arr + p->w_height; cp < *arr + hi; cp++)
+  if (*arr == 0)
+    return(-1);
+  for (cp = *arr + p->height; cp < *arr + hi; cp++)
     {
-      if ((*cp = malloc((unsigned) wi + 1)) == 0)
+      if ((*cp = malloc((unsigned) wi)) == 0)
 	{
 	  while (--cp >= *arr)
-	    free(*cp);
-	  free(*arr);
-	  *arr = NULL;
-          return -1;
+	    Free(*cp);
+	  Free(*arr);
+          return(-1);
 	}
       if (fillblank)
-	bclear(*cp, wi + 1);
+	bclear(*cp, wi);
       else
-	bzero(*cp, wi + 1);
+	bzero(*cp, wi);
     }
-  return 0;
+  return(0);
 }
 
 static void
@@ -415,156 +388,147 @@ int hi;
     return;
   for (t = hi, p = *arr; t--; p++)
     if (*p)
-      free(*p);
-  free(*arr);
-  *arr = 0;
-}
-
-
-static void
-CheckMaxSize(wi)
-int wi;
-{
-  if (wi + 1 <= maxwidth)
-    return;
-  maxwidth = wi + 1;
-  debug1("New maxwidth: %d\n", maxwidth);
-  if (blank == 0)
-    blank = malloc((unsigned) maxwidth);
-  else
-    blank = xrealloc(blank, (unsigned) maxwidth);
-  if (null == 0)
-    null = malloc((unsigned) maxwidth);
-  else
-    null = xrealloc(null, (unsigned) maxwidth);
-  if (OldImage == 0)
-    OldImage = malloc((unsigned) maxwidth);
-  else
-    OldImage = xrealloc(OldImage, (unsigned) maxwidth);
-  if (OldAttr == 0)
-    OldAttr = malloc((unsigned) maxwidth);
-  else
-    OldAttr = xrealloc(OldAttr, (unsigned) maxwidth);
-  if (OldFont == 0)
-    OldFont = malloc((unsigned) maxwidth);
-  else
-    OldFont = xrealloc(OldFont, (unsigned) maxwidth);
-  if (!(blank && null && OldImage && OldAttr && OldFont))
-    {
-      Panic(0, "Out of memory -> Game over!!");
-      /*NOTREACHED*/
-    }
-  MakeBlankLine(blank, maxwidth);
-  bzero(null, maxwidth);
+      Free(*p);
+  Free(*arr);
 }
 
 
 int
-ChangeWindowSize(p, wi, he)
+ChangeWindowSize(p, width, height)
 struct win *p;
-int wi, he;
+int width, height;
 {
   int t, scr;
   
-  CheckMaxSize(wi);
+  if (width > maxwidth)
+    {
+      maxwidth = width;
+      debug1("New maxwidth: %d\n", maxwidth);
+      if (blank == 0)
+        blank = malloc((unsigned) maxwidth);
+      else
+        blank = xrealloc(blank, (unsigned) maxwidth);
+      if (null == 0)
+        null = malloc((unsigned) maxwidth);
+      else
+        null = xrealloc(null, (unsigned) maxwidth);
+      if (OldImage == 0)
+        OldImage = malloc((unsigned) maxwidth);
+      else
+        OldImage = xrealloc(OldImage, (unsigned) maxwidth);
+      if (OldAttr == 0)
+        OldAttr = malloc((unsigned) maxwidth);
+      else
+        OldAttr = xrealloc(OldAttr, (unsigned) maxwidth);
+      if (OldFont == 0)
+        OldFont = malloc((unsigned) maxwidth);
+      else
+        OldFont = xrealloc(OldFont, (unsigned) maxwidth);
+      if (LastMsg == 0)
+        {
+          LastMsg = malloc((unsigned) maxwidth + 1);
+          *LastMsg = 0;
+        }
+      else
+        LastMsg = xrealloc(LastMsg, (unsigned) maxwidth + 1);
+      LastMsg[maxwidth]=0;
+      if (!(blank && null && OldImage && OldAttr && OldFont && LastMsg))
+	{
+nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) 
+	    ;
+	  if (t >= 0)
+	    KillWindow(t);
+	  Msg(0, "Out of memory -> Window destroyed !!");
+	  return(-1);
+	}
+      MakeBlankLine(blank, maxwidth);
+      bzero(null, maxwidth);
+    }
   
-  if (wi == p->w_width && he == p->w_height)
+  if (width == p->width && height == p->height)
     {
       debug("ChangeWindowSize: No change.\n");
-      return 0;
+      return(0);
     }
 
-  debug2("ChangeWindowSize from (%d,%d) to ", p->w_width, p->w_height);
-  debug2("(%d,%d)\n", wi, he);
-  if (p->w_lay != &p->w_winlay)
+  debug2("ChangeWindowSize from (%d,%d) to ", p->width, p->height);
+  debug2("(%d,%d)\n", width, height);
+
+  if (width == 0 && height == 0)
     {
-      debug("ChangeWindowSize: No resize because of overlay.\n");
-      return -1;
-    }
-  if (wi == 0 && he == 0)
-    {
-      FreeArray(&p->w_image, p->w_height);
-      FreeArray(&p->w_attr, p->w_height);
-      FreeArray(&p->w_font, p->w_height);
-      if (p->w_tabs)
-	free(p->w_tabs);
-      p->w_tabs = NULL;
-      p->w_width = 0;
-      p->w_height = 0;
-#ifdef COPY_PASTE
+      FreeArray(&p->image, p->height);
+      FreeArray(&p->attr, p->height);
+      FreeArray(&p->font, p->height);
+      if (p->tabs)
+	Free(p->tabs);
+      p->width = 0;
+      p->height = 0;
       FreeScrollback(p);
-#endif
-      return 0;
+      return(0);
     }
 
   /* when window gets smaller, scr is the no. of lines we scroll up */
-  scr = p->w_height - he;
+  scr = p->height - height;
   if (scr < 0)
     scr = 0;
-#ifdef COPY_PASTE
   for (t = 0; t < scr; t++)
-    AddLineToHist(p, p->w_image+t, p->w_attr+t, p->w_font+t); 
-#endif
-  if (ResizeScreenArray(p, &p->w_image, wi, he, 1)
-      || ResizeScreenArray(p, &p->w_attr, wi, he, 0)
-      || ResizeScreenArray(p, &p->w_font, wi, he, 0))
+    AddLineToHist(p, p->image+t, p->attr+t, p->font+t); 
+  if (ResizeScreenArray(p, &p->image, width, height, 1)
+      || ResizeScreenArray(p, &p->attr, width, height, 0)
+      || ResizeScreenArray(p, &p->font, width, height, 0))
     {
-nomem:	  KillWindow(p);
-      Msg(0, "Out of memory -> Window destroyed !!");
-      return -1;
+      goto nomem;
     }
-  /* this won't change the d_height of the scrollback history buffer, but
-   * it will check the d_width of the lines.
+  /* this won't change the height of the scrollback history buffer, but
+   * it will check the width of the lines.
    */
-#ifdef COPY_PASTE
-  ChangeScrollback(p, p->w_histheight, wi);
-#endif
+  ChangeScrollback(p, p->histheight, width);
 
-  if (p->w_tabs == 0)
+  if (p->tabs == 0)
     {
-      /* tabs get d_width+1 because 0 <= x <= wi */
-      if ((p->w_tabs = malloc((unsigned) wi + 1)) == 0)
+      /* tabs get width+1 because 0 <= x <= width */
+      if ((p->tabs = malloc((unsigned) width + 1)) == 0)
         goto nomem;
       t = 8;
     }
   else
     {
-      if ((p->w_tabs = xrealloc(p->w_tabs, (unsigned) wi + 1)) == 0)
+      if ((p->tabs = xrealloc(p->tabs, (unsigned) width + 1)) == 0)
         goto nomem;
-      t = p->w_width;
+      t = p->width;
     }
-  for (t = (t + 7) & 8; t < wi; t += 8)
-    p->w_tabs[t] = 1; 
-  p->w_height = he;
-  p->w_width = wi;
-  if (p->w_x >= wi)
-    p->w_x = wi - 1;
-  if ((p->w_y -= scr) < 0)
-    p->w_y = 0;
-  if (p->w_Saved_x >= wi)
-    p->w_Saved_x = wi - 1;
-  if ((p->w_Saved_y -= scr) < 0)
-    p->w_Saved_y = 0;
-  if (p->w_autoaka > 0) 
-    if ((p->w_autoaka -= scr) < 1)
-      p->w_autoaka = 1;
-  p->w_top = 0;
-  p->w_bot = he - 1;
+  for (t = (t + 7) & 8; t < width; t += 8)
+    p->tabs[t] = 1; 
+  p->height = height;
+  p->width = width;
+  if (p->x >= width)
+    p->x = width - 1;
+  if ((p->y -= scr) < 0)
+    p->y = 0;
+  if (p->Saved_x >= width)
+    p->Saved_x = width - 1;
+  if ((p->Saved_y -= scr) < 0)
+    p->Saved_y = 0;
+  if (p->autoaka > 0) 
+    if ((p->autoaka -= scr) < 1)
+      p->autoaka = 1;
+  p->top = 0;
+  p->bot = height - 1;
 #ifdef TIOCSWINSZ
-  if (p->w_ptyfd && p->w_pid)
+  if (p->ptyfd && p->wpid)
     {
-      glwz.ws_col = wi;
-      glwz.ws_row = he;
+      glwz.ws_col = width;
+      glwz.ws_row = height;
       debug("Setting pty winsize.\n");
-      if (ioctl(p->w_ptyfd, TIOCSWINSZ, &glwz))
-	debug2("SetPtySize: errno %d (fd:%d)\n", errno, p->w_ptyfd);
+      if (ioctl(p->ptyfd, TIOCSWINSZ, &glwz))
+	debug2("SetPtySize: errno %d (fd:%d)\n", errno, p->ptyfd);
 # if defined(STUPIDTIOCSWINSZ) && defined(SIGWINCH)
 #  ifdef POSIX
-      pgrp = tcgetpgrp(p->w_ptyfd);
-#  else /* POSIX */
-      if (ioctl(p->w_ptyfd, TIOCGPGRP, &pgrp))
+      pgrp = tcgetpgrp(p->ptyfd);
+#  else
+      if (ioctl(p->ptyfd, TIOCGPGRP, &pgrp))
 	pgrp = 0;
-#  endif /* POSIX */
+#  endif
       if (pgrp)
 	{
 	  debug1("Sending SIGWINCH to pgrp %d.\n", pgrp);
@@ -575,10 +539,53 @@ nomem:	  KillWindow(p);
 	debug1("Could not get pgrp: errno %d\n", errno);
 # endif /* STUPIDTIOCSWINSZ */
     }
-#endif /* TIOCSWINSZ */
-  return 0;
+#endif
+  return(0);
 }
 
+
+void
+ResizeScreen(wi)
+struct win *wi;
+{
+  int width, height;
+
+  if (wi)
+    {
+      width = wi->width;
+      height = wi->height;
+    }
+  else
+    {
+      width = default_width;
+      height = default_height;
+    }
+  if (screenwidth == width && screenheight == height)
+    {
+      debug("ResizeScreen: No change\n");
+      return;
+    }
+  debug2("ResizeScreen: to (%d,%d).\n", width, height);
+  if (WS)
+    {
+      debug("ResizeScreen: using WS\n");
+      WSresize(width, height);
+      ChangeScreenSize(width, height, 0);
+    }
+  else if (Z0 && (width == Z0width || width == Z1width))
+    {
+      debug("ResizeScreen: using Z0/Z1\n");
+      PutStr(width == Z0width ? Z0 : Z1);
+      ChangeScreenSize(width, screenheight, 0);
+    }
+  if (screenwidth != width || screenheight != height)
+    {
+      debug2("BUG: Cannot resize from (%d,%d)",screenwidth, screenheight);
+      debug2(" to (%d,%d) !!\n", width, height);
+      if (wi)
+	ChangeWindowSize(wi, screenwidth, screenheight);
+    }
+}
 
 char *
 xrealloc(mem, len)
@@ -587,7 +594,7 @@ int len;
 {
   register char *nmem;
 
-  if ((nmem = realloc(mem, len)))
+  if (nmem = realloc(mem, len))
     return(nmem);
   free(mem);
   return((char *)0);

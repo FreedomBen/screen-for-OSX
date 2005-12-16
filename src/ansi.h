@@ -22,7 +22,7 @@
  *	Patrick Wolfe (pat@kai.com, kailand!pat)
  *	Bart Schaefer (schaefer@cse.ogi.edu)
  *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
- *	Larry W. Virden (lvirden@cas.org)
+ *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
  *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
  *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
  *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
@@ -49,35 +49,7 @@
 #define A_BL	(1<<ATTR_BL)
 #define A_MAX	(1<<(NATTR-1))
 
-/*
- *  Parser state
- */
-enum state_t 
-{
-  LIT,				/* Literal input */
-  ESC,				/* Start of escape sequence */
-  ASTR,				/* Start of control string */
-  STRESC,			/* ESC seen in control string */
-  CSI,				/* Reading arguments in "CSI Pn ;...*/
-  PRIN,				/* Printer mode */
-  PRINESC,			/* ESC seen in printer mode */
-  PRINCSI,			/* CSI seen in printer mode */
-  PRIN4				/* CSI 4 seen in printer mode */
-};
-
-enum string_t 
-{
-  NONE,
-  DCS,				/* Device control string */
-  OSC,				/* Operating system command */
-  APC,				/* Application program command */
-  PM,				/* Privacy message */
-  AKA				/* a.k.a. for current screen */
-};
-
-/*
- *  Types of movement used by GotoPos()
- */
+/* Types of movement used by GotoPos() */
 enum move_t {
 	M_NONE,
 	M_UP,
@@ -104,6 +76,6 @@ enum move_t {
 #ifdef TOPSTAT
 #define STATLINE	 (0)
 #else
-#define STATLINE	 (d_height-1)
+#define STATLINE	 (screenheight-1)
 #endif
 

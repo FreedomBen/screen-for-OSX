@@ -22,7 +22,7 @@
  *	Patrick Wolfe (pat@kai.com, kailand!pat)
  *	Bart Schaefer (schaefer@cse.ogi.edu)
  *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
- *	Larry W. Virden (lvirden@cas.org)
+ *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
  *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
  *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
  *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
@@ -31,65 +31,63 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
+#ifndef lint
+  static char rcs_id[] = "$Id$ FAU";
+#endif
 
 #include <sys/types.h>
 
+#ifdef BSDI
+# include <sys/signal.h>
+#endif /* BSDI */
+
 #include "config.h"
 #include "screen.h"
-#include "mark.h"
+#include "ansi.h"	/* here we find A_SO, ASCII, EXPENSIVE */
 #include "extern.h"
 
-#ifdef COPY_PASTE
-
-static int  is_letter __P((int));
+static int is_letter __P((int));
 static void nextword __P((int *, int *, int, int));
-static int  linestart __P((int));
-static int  lineend __P((int));
-static int  rem __P((int, int , int , int , int , char *, int));
-static int  eq __P((int, int ));
-static int  MarkScrollDownDisplay __P((int));
-static int  MarkScrollUpDisplay __P((int));
-
-static void MarkProcess __P((char **, int *));
-static void MarkAbort __P((void));
+static int linestart __P((int));
+static int lineend __P((int));
+static int rem __P((int, int , int , int , int , char *, int));
+static int eq __P((int, int ));
+static void revto __P((int, int));
+static void revto_line __P((int, int, int));
 static void MarkRedisplayLine __P((int, int, int, int));
-static int  MarkRewrite __P((int, int, int, int));
-static void MarkSetCursor __P((void));
+static int MarkRewrite __P((int, int, int, int));
+static void process_mark_input __P((char **, int *));
+static void AbortMarkRoutine __P((void));
+static int MarkScrollDownDisplay __P((int));
+static int MarkScrollUpDisplay __P((int));
 
-extern struct win *fore;
-extern struct display *display;
+int join_with_cr =  0;
+extern struct win *fore, *wtab[];
+extern int screenwidth, screenheight;
+extern int screentop, screenbot;
+extern char GlobalAttr, GlobalCharset;
+extern int in_ovl;
+extern int HS;
+extern int LP;
 extern char *null, *blank;
-extern char Esc, MetaEsc;
 
 #ifdef NETHACK
 extern nethackflag;
 #endif
 
-static struct LayFuncs MarkLf =
-{
-  MarkProcess,
-  MarkAbort,
-  MarkRedisplayLine,
-  DefClearLine,
-  MarkRewrite,
-  MarkSetCursor,
-  DefResize,
-  DefRestore
-};
-
-int join_with_cr =  0;
+char *copybuffer = NULL;
+int copylen = 0;
 char mark_key_tab[256]; /* this array must be initialised first! */
 
-static struct markdata *markdata;
+static int in_mark;	/* mark routine active */
+static int left_mar, right_mar, nonl;
+static int x1, y1, second; /* y1 is in terms of WIN coordinates, not DISPLAY */
+static int cx, cy;	/* Cursor Position in WIN coords*/
+static rep_cnt;		/* no. of repeats are rep_cnt+1. jw. */
+static int append_mode;	/* shall we overwrite or append to copybuffer */
+static write_buffer;	/* shall we do a KEY_WRITE_EXCHANGE right away? */
+static hist_offset;
 
-
-/*
- * VI like is_letter: 0 - whitespace
- *                    1 - letter
- *		      2 - other
- */
 static int is_letter(c)
 char c;
 {
@@ -107,6 +105,25 @@ char c;
   return 0;
 }
 
+/*
+ * iWIN gives us a reference to line y of the *whole* image 
+ * where line 0 is the oldest line in our history.
+ * y must be in WIN coordinate system, not in display.
+ */
+#define iWIN(y) ((y < fore->histheight) ? fore->ihist[(fore->histidx + y)\
+		% fore->histheight] : fore->image[y - fore->histheight])
+#define aWIN(y) ((y < fore->histheight) ? fore->ahist[(fore->histidx + y)\
+		% fore->histheight] : fore->attr[y - fore->histheight])
+#define fWIN(y) ((y < fore->histheight) ? fore->fhist[(fore->histidx + y)\
+		% fore->histheight] : fore->font[y - fore->histheight])
+/*
+ * hist_offset tells us, how many lines there are on top of the
+ * visible screen.
+ */
+
+#define W2D(y) ((y)-hist_offset)
+#define D2W(y) ((y)+hist_offset)
+
 static int
 linestart(y)
 int y;
@@ -114,11 +131,11 @@ int y;
   register int x;
   register char *i;
 
-  for (x = markdata->left_mar, i = iWIN(y) + x; x < d_width - 1; x++)
+  for (x = left_mar, i = iWIN(y) + x; x < screenwidth-1; x++)
     if (*i++ != ' ')
       break;
-  if (x == d_width - 1)
-    x = markdata->left_mar;
+  if (x == screenwidth-1)
+    x = left_mar;
   return(x);
 }
 
@@ -129,11 +146,11 @@ int y;
   register int x;
   register char *i;
 
-  for (x = markdata->right_mar, i = iWIN(y) + x; x >= 0; x--)
+  for (x = right_mar, i = iWIN(y) + x; x >= 0; x--)
     if (*i-- != ' ')
       break;
   if (x < 0)
-    x = markdata->left_mar;
+    x = left_mar;
   return(x);
 }
 
@@ -143,18 +160,18 @@ int y;
  *  If the cursor is on a word, it counts as the first.
  *  NW_BACK:		search backward
  *  NW_ENDOFWORD:	find the end of the word
- *  NW_MUSTMOVE:	move at least one char
+ *  NW_MUSTMOVE:	move even if the position is correct.
  */
 
-#define NW_BACK		(1<<0)
-#define NW_ENDOFWORD	(1<<1)
-#define NW_MUSTMOVE	(1<<2)
+#define NW_BACK		1
+#define NW_ENDOFWORD	2
+#define NW_MUSTMOVE	4
 
 static void
 nextword(xp, yp, flags, num)
 int *xp, *yp, flags, num;
 {
-  int xx = d_width, yy = fore->w_histheight + d_height;
+  int xx = screenwidth, yy = fore->histheight + screenheight;
   register int sx, oq, q, x, y;
 
   x = *xp;
@@ -206,8 +223,7 @@ int *xp, *yp, flags, num;
  *		2  -  count + copy, don't redisplay
  */
 
-static int
-rem(x1, y1, x2, y2, redisplay, pt, yend)
+static int rem(x1, y1, x2, y2, redisplay, pt, yend)
 int x1, y1, x2, y2, redisplay, yend;
 char *pt;
 {
@@ -215,7 +231,7 @@ char *pt;
   int l = 0;
   char *im;
 
-  markdata->second = 0;
+  second = 0;
   if (y2 < y1 || ((y2 == y1) && (x2 < x1)))
     {
       i = y2;
@@ -225,7 +241,7 @@ char *pt;
       x2 = x1;
       x1 = i;
     }
-  ry = y1 - markdata->hist_offset;
+  ry = y1 - hist_offset;
   
   i = y1;
   if (redisplay != 2 && pt == 0 && ry <0)
@@ -238,15 +254,15 @@ char *pt;
       if (redisplay != 2 && pt == 0 && ry > yend)
 	break;
       from = (i == y1) ? x1 : 0;
-      if (from < markdata->left_mar)
-	from = markdata->left_mar;
-      for (to = d_width, im = iWIN(i) + to; to >= 0; to--)
+      if (from < left_mar)
+	from = left_mar;
+      for (to = screenwidth-1, im = iWIN(i)+to; to>=0; to--)
         if (*im-- != ' ')
 	  break;
       if (i == y2 && x2 < to)
 	to = x2;
-      if (to > markdata->right_mar)
-	to = markdata->right_mar;
+      if (to > right_mar)
+	to = right_mar;
       if (redisplay == 1 && from <= to && ry >=0 && ry <= yend)
 	MarkRedisplayLine(ry, from, to, 0);
       if (redisplay != 2 && pt == 0)	/* don't count/copy */
@@ -257,12 +273,12 @@ char *pt;
 	    *pt++ = *im++;
 	  l++;
 	}
-      if (i != y2 && (to != d_width - 1 || iWIN(i)[to + 1] == ' '))
+      if (i != y2)
 	{
 	  /* 
 	   * this code defines, what glues lines together
 	   */
-	  switch (markdata->nonl)
+	  switch (nonl)
 	    {
 	    case 0:		/* lines separated by newlines */
 	      if (join_with_cr)
@@ -288,12 +304,7 @@ char *pt;
   return(l);
 }
 
-/* Check if two chars are identical. All digits are treatened
- * as same. Used for GetHistory()
- */
-
-static int
-eq(a, b)
+static int eq(a, b)
 int a, b;
 {
   if (a == b)
@@ -305,120 +316,127 @@ int a, b;
   return 0;
 }
 
+static int crazychar = 0;
+static int crazy_y = -1;
+static int crazy_x = -1;
 
-int
-GetHistory()	/* return value 1 if d_copybuffer changed */
+int MarkRoutine(flag)	/* return value 1 when copybuffer changed; */
+int flag;
 {
-  int i = 0, q = 0, xx, yy, x, y;
-  char *linep;
-
-  x = fore->w_x;
-  if (x >= d_width)
-    x = d_width - 1;
-  y = fore->w_y + fore->w_histheight;
-  debug2("cursor is at x=%d, y=%d\n", x, y);
-  for (xx = x - 1, linep = iWIN(y) + xx; xx >= 0; xx--)
-    if ((q = *linep--) != ' ' )
-      break;
-  debug3("%c at (%d,%d)\n", q, xx, y);
-  for (yy = y - 1; yy >= 0; yy--)
+  int x, y, i;
+ 
+  hist_offset = fore->histheight;
+ 
+  if (!fore->active)
     {
-      linep = iWIN(yy);
-      if (xx < 0 || eq(linep[xx], q))
-	{		/* line is matching... */
-	  for (i = d_width - 1, linep += i; i >= x; i--)
-	    if (*linep-- != ' ')
-	      break;
-	  if (i >= x)
-	    break;
-	}
-    }
-  if (yy < 0)
-    return 0;
-  if (d_copybuffer != NULL)
-    free(d_copybuffer);
-  if ((d_copybuffer = malloc((unsigned) (i - x + 2))) == NULL)
-    {
-      Msg(0, "Not enough memory... Sorry.");
+      Msg(0, "Fore window is not active !!!");
       return 0;
     }
-  bcopy(linep - i + x + 1, d_copybuffer, i - x + 1);
-  d_copylen = i - x + 1;
-  return 1;
-}
 
-void
-MarkRoutine()
-{
-  int x, y;
- 
-  ASSERT(fore->w_active);
-  if (InitOverlayPage(sizeof(*markdata), &MarkLf, 1))
-    return;
-  markdata = (struct markdata *)d_lay->l_data;
-  markdata->second = 0;
-  markdata->rep_cnt = 0;
-  markdata->append_mode = 0;
-  markdata->write_buffer = 0;
-  markdata->nonl = 0;
-  markdata->left_mar  = 0;
-  markdata->right_mar = d_width - 1;
-  markdata->hist_offset = fore->w_histheight;
-  x = fore->w_x;
-  y = D2W(fore->w_y);
-  if (x >= d_width)
-    x = d_width - 1;
+  second = 0;
+  rep_cnt = 0;
+  append_mode = 0;
+  write_buffer = 0;
+  nonl = left_mar = 0;
+  right_mar = screenwidth-1;
+  x = fore->x;
+  y = D2W(fore->y);
+  if (x >= screenwidth)
+    x = screenwidth-1;
 
+  if (flag == CRAZY && crazychar != 0 && crazy_x != -1 && crazy_y != -1)
+    {
+      Msg(0, "CRAZY mode not impl.\n");
+    }
+  crazychar = 0;
+  crazy_y = -1;
+  crazy_x = -1;
+  if (flag == TRICKY)
+    {
+      int f, q = 0, xx, yy;
+      char *linep;
+
+      debug2("cursor is at x=%d, y=%d\n", fore->x, D2W(fore->y));
+      for (xx = fore->x - 1, linep = iWIN(y) + xx; xx >= 0; xx--)
+	if ((q = *linep--) != ' ' )
+	  break;
+      debug3("%c at (%d,%d)\n", q, xx, y);
+      for (yy = D2W(fore->y) - 1; yy >= 0; yy--)
+	if (xx < 0 || eq(iWIN(yy)[xx], q))
+	  {		/* line is matching... */
+	    f = 0;
+	    for (i = fore->x; i < screenwidth-1; i++)
+	      {
+		if (iWIN(yy)[i] != ' ')
+		  {
+		    f = 1;
+		    break;
+		  }
+	      }
+	    if (f)
+	      break;
+	  }
+      if (yy < 0)
+	return 0;
+      xx = 0;
+      for (i = screenwidth-1, linep = iWIN(yy)+i; i>0; i--)
+	if (*linep-- != ' ')
+	  break;
+      if (i < x)
+	i = x;
+      if (copybuffer != NULL)
+	Free(copybuffer);
+      if ((copybuffer = malloc((unsigned) (i - x + 2))) == NULL)
+	{
+	  Msg(0, "Not enough memoooh!... Sorry.");
+	  return 0;
+	}
+      rem(x, yy, i, yy, 0, copybuffer, 0);
+      copylen = i - x + 1;
+      return 1;
+    }
+  InitOverlayPage(process_mark_input, MarkRedisplayLine, MarkRewrite, 1);
   GotoPos(x, W2D(y));
 #ifdef NETHACK
   if (nethackflag)
     Msg(0, "Welcome to hacker's treasure zoo - Column %d Line %d(+%d) (%d,%d)",
-	x + 1, W2D(y + 1), fore->w_histheight, d_width, d_height);
+	x+1, W2D(y+1), fore->histheight, fore->width, fore->height);
   else
 #endif
   Msg(0, "Copy mode - Column %d Line %d(+%d) (%d,%d)",
-      x + 1, W2D(y + 1), fore->w_histheight, d_width, d_height);
-  markdata->cx = markdata->x1 = x;
-  markdata->cy = markdata->y1 = y;
+      x+1, W2D(y+1), fore->histheight, fore->width, fore->height);
+  fflush(stdout);
+  cx = x1 = x;
+  cy = y1 = y;
+  in_mark = 1;
+  return 0;
 }
 
-static void
-MarkSetCursor()
-{
-  markdata = (struct markdata *)d_lay->l_data;
-  GotoPos(markdata->cx, W2D(markdata->cy));
-}
-
-static void
-MarkProcess(inbufp,inlenp)
+static void process_mark_input(inbufp,inlenp)
 char **inbufp;
 int *inlenp;
 {
   char *inbuf, *pt;
   int inlen;
-  int cx, cy, x2, y2, j, yend;
+  int x2, y2, i, j, yend;
   int newcopylen = 0, od;
-  int in_mark;
-  int rep_cnt;
- 
 /*
   char *extrap = 0, extrabuf[100];
 */
       
-  markdata = (struct markdata *)d_lay->l_data;
   if (inbufp == 0)
     {
-      MarkAbort();
+      AbortMarkRoutine();
       return;
     }
  
-  GotoPos(markdata->cx, W2D(markdata->cy));
   inbuf= *inbufp;
   inlen= *inlenp;
   pt = inbuf;
-  in_mark = 1;
   while (in_mark && (inlen /* || extrap */))
     {
+      if (!HS)
+	RemoveStatus();
 /*
       if (extrap)
 	{
@@ -429,15 +447,14 @@ int *inlenp;
       else
 */
 	{
-          od = mark_key_tab[(unsigned int)*pt++];
+          od = mark_key_tab[*pt++];
           inlen--;
 	}
-      rep_cnt = markdata->rep_cnt;
       if (od >= '0' && od <= '9')
         {
 	  if (rep_cnt < 1001 && (od != '0' || rep_cnt != 0))
 	    {
-	      markdata->rep_cnt = 10 * rep_cnt + od - '0';
+	      rep_cnt = 10 * rep_cnt + od - '0';
 	      continue;
  	      /*
 	       * Now what is that 1001 here? Well, we have a screen with
@@ -447,12 +464,10 @@ int *inlenp;
 	       * we can place on the screen are 1000 single letter words. Thus 1001
 	       * is sufficient. Users with bigger screens never write in single letter
 	       * words, as they should be more advanced. jw.
-	       * Oh, wrong. We still give even the experienced d_user a factor of ten.
+	       * Oh, wrong. We still give even the experienced user a factor of ten.
 	       */
 	    }
 	}
-      cx = markdata->cx;
-      cy = markdata->cy;
       switch (od)
 	{
 	case '\014':	/* CTRL-L Redisplay */
@@ -475,23 +490,23 @@ int *inlenp;
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
 	  j = cy + rep_cnt;
-	  if (j > fore->w_histheight + d_height - 1)
-	    j = fore->w_histheight + d_height - 1;
+	  if (j > fore->histheight + screenheight - 1)
+	    j = fore->histheight + screenheight - 1;
 	  revto(linestart(j), j);
 	  break;
 	case '-':
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  cy -= rep_cnt;
-	  if (cy < 0)
-	    cy = 0;
-	  revto(linestart(cy), cy);
+	  j = cy - rep_cnt;
+	  if (j < 0)
+	    j = 0;
+	  revto(linestart(j), j);
 	  break;
 	case '^':
 	  revto(linestart(cy), cy);
 	  break;
 	case '\n':
-	  revto(markdata->left_mar, cy + 1);
+	  revto(left_mar, cy + 1);
 	  break;
 	case 'k':
 	case '\020':	/* CTRL-P */
@@ -506,47 +521,39 @@ int *inlenp;
 	  break;
 	case '\001':	/* CTRL-A from tcsh/emacs */
 	case '0':
-	  revto(markdata->left_mar, cy);
+	  revto(left_mar, cy);
 	  break;
 	case '\004':    /* CTRL-D down half screen */
 	  if (rep_cnt == 0)
-	    rep_cnt = (d_height + 1) >> 1;
+	    rep_cnt = (screenheight+1) >> 1;
 	  revto_line(cx, cy + rep_cnt, W2D(cy));
 	  break;
 	case '$':
 	  revto(lineend(cy), cy);
 	  break;
-        case '\022':	/* CTRL-R emacs style backwards search */
-	  ISearch(-1);
-	  in_mark = 0;
-	  break;
-        case '\023':	/* CTRL-S emacs style search */
-	  ISearch(1);
-	  in_mark = 0;
-	  break;
 	case '\025':	/* CTRL-U up half screen */
 	  if (rep_cnt == 0)
-	    rep_cnt = (d_height + 1) >> 1;
+	    rep_cnt = (screenheight+1) >> 1;
 	  revto_line(cx, cy - rep_cnt, W2D(cy));
 	  break;
-	case '\007':	/* CTRL-G show cursorpos */
-	  if (markdata->left_mar == 0 && markdata->right_mar == d_width - 1)
+	case '?':
+	  if (left_mar == 0 && right_mar == screenwidth - 1)
 	    Msg(0, "Column %d Line %d(+%d)", cx+1, W2D(cy)+1,
-		markdata->hist_offset);
+		hist_offset);
 	  else
 	    Msg(0, "Column %d(%d..%d) Line %d(+%d)", cx+1,
-		markdata->left_mar+1, markdata->right_mar+1, W2D(cy)+1, markdata->hist_offset);
+		left_mar+1, right_mar+1, W2D(cy)+1, hist_offset);
 	  break;
 	case '\002':	/* CTRL-B  back one page */
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  rep_cnt *= (d_height-1);
+	  rep_cnt *= (screenheight-1);
 	  revto(cx, cy - rep_cnt);
 	  break;
 	case '\006':	/* CTRL-F  forward one page */
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  rep_cnt *= d_height - 1;
+	  rep_cnt *= (screenheight-1);
 	  revto(cx, cy + rep_cnt);
 	  break;
 	case '\005':	/* CTRL-E  scroll up */
@@ -562,8 +569,8 @@ int *inlenp;
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
 	  rep_cnt = MarkScrollDownDisplay(rep_cnt);
-	  if (cy > D2W(d_height-1))
-            revto(cx, D2W(d_height-1));
+	  if (cy > D2W(screenheight-1))
+            revto(cx, D2W(screenheight-1));
 	  else
             GotoPos(cx, W2D(cy));
 	  break;
@@ -577,7 +584,7 @@ int *inlenp;
 	    rep_cnt = 0;
 	  if (rep_cnt > 100)
 	    rep_cnt = 100;
-	  revto_line(markdata->left_mar, (rep_cnt * (fore->w_histheight + d_height)) / 100, (d_height - 1) / 2);
+	  revto_line(left_mar, (rep_cnt * (fore->histheight + screenheight)) / 100, (screenheight-1)/2);
 	  break;
 	case 'g':
 	  rep_cnt = 1;
@@ -585,48 +592,54 @@ int *inlenp;
 	case 'G':
 	  /* rep_cnt is here the WIN line number */
 	  if (rep_cnt == 0)
-	    rep_cnt = fore->w_histheight + d_height;
-	  revto_line(markdata->left_mar, --rep_cnt, (d_height - 1) / 2);
+	    rep_cnt = fore->histheight + screenheight;
+	  revto_line(left_mar, --rep_cnt, (screenheight-1)/2);
 	  break;
 	case 'H':
-	  revto(markdata->left_mar, D2W(0));
+	  revto(left_mar, D2W(0));
 	  break;
 	case 'M':
-	  revto(markdata->left_mar, D2W((d_height - 1) / 2));
+	  revto(left_mar, D2W((screenheight-1) / 2));
 	  break;
 	case 'L':
-	  revto(markdata->left_mar, D2W(d_height - 1));
+	  revto(left_mar, D2W(screenheight-1));
 	  break;
 	case '|':
 	  revto(--rep_cnt, cy);
 	  break;
 	case 'w':
+	  i = cx;
+	  j = cy;
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  nextword(&cx, &cy, NW_MUSTMOVE, rep_cnt);
-	  revto(cx, cy);
+	  nextword(&i, &j, NW_MUSTMOVE, rep_cnt);
+	  revto(i, j);
 	  break;
 	case 'e':
+	  i = cx;
+	  j = cy;
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  nextword(&cx, &cy, NW_ENDOFWORD|NW_MUSTMOVE, rep_cnt);
-	  revto(cx, cy);
+	  nextword(&i, &j, NW_ENDOFWORD|NW_MUSTMOVE, rep_cnt);
+	  revto(i, j);
 	  break;
 	case 'b':
+	  i = cx;
+	  j = cy;
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  nextword(&cx, &cy, NW_BACK|NW_ENDOFWORD|NW_MUSTMOVE, rep_cnt);
-	  revto(cx, cy);
+	  nextword(&i, &j, NW_BACK|NW_ENDOFWORD|NW_MUSTMOVE, rep_cnt);
+	  revto(i, j);
 	  break;
 	case 'a':
-	  markdata->append_mode = 1 - markdata->append_mode;
-	  debug1("append mode %d--\n", markdata->append_mode);
-	  Msg(0, (markdata->append_mode) ? ":set append" : ":set noappend");
+	  append_mode = 1 - append_mode;
+	  debug1("append mode %d--\n", append_mode);
+	  Msg(0, (append_mode) ? ":set append" : ":set noappend");
 	  break;
 	case 'v':
 	case 'V':
 	  /* this sets start column to column 9 for VI :set nu users */
-	  if (markdata->left_mar == 8)
+	  if (left_mar == 8)
 	    rep_cnt = 1;
 	  else
 	    rep_cnt = 9;
@@ -634,38 +647,39 @@ int *inlenp;
 	case 'c':
 	case 'C':
 	  /* set start column (c) and end column (C) */
-	  if (markdata->second)
+	  if (second)
 	    {
-	      rem(markdata->x1, markdata->y1, cx, cy, 1, (char *)0, d_height-1); /* Hack */
-	      markdata->second = 1;	/* rem turns off second */
+	      rem(x1, y1, cx, cy, 1, (char *)0, screenheight-1); /* Hack */
+	      second = 1;	/* rem turns off second */
 	    }
 	  rep_cnt--;
 	  if (rep_cnt < 0)
 	    rep_cnt = cx;
 	  if (od != 'C')
 	    {
-	      markdata->left_mar = rep_cnt;
-	      if (markdata->left_mar > markdata->right_mar)
-		markdata->left_mar = markdata->right_mar;
+	      left_mar = rep_cnt;
+	      if (left_mar > right_mar)
+		left_mar = right_mar;
 	    }
 	  else
 	    {
-	      markdata->right_mar = rep_cnt;
-	      if (markdata->left_mar > markdata->right_mar)
-		markdata->right_mar = markdata->left_mar;
+	      right_mar = rep_cnt;
+	      if (left_mar > right_mar)
+		right_mar = left_mar;
 	    }
-	  if (markdata->second)
+	  if (second)
 	    {
-	      markdata->cx = markdata->x1; markdata->cy = markdata->y1;
-	      revto(cx, cy);
+	      int x = cx, y = cy;
+	      cx = x1; cy = y1;
+	      revto(x, y);
 	    }
 	  if (od == 'v' || od == 'V')
-	    Msg(0, (markdata->left_mar != 8) ? ":set nonu" : ":set nu");
+	    Msg(0, (left_mar != 8) ? ":set nonu" : ":set nu");
 	  break;
 	case 'J':
 	  /* how do you join lines in VI ? */
-	  markdata->nonl = (markdata->nonl + 1) % 3;
-	  switch (markdata->nonl)
+	  nonl = (nonl + 1) % 3;
+	  switch (nonl)
 	    {
 	    case 0:
 	      if (join_with_cr)
@@ -681,29 +695,18 @@ int *inlenp;
 	      break;
 	    }
 	  break;
-	case '/':
-	  Search(1);
-	  in_mark = 0;
-	  break;
-	case '?':
-	  Search(-1);
-	  in_mark = 0;
-	  break;
-	case 'n':
-	  Search(0);
-	  break;
 	case 'y':
 	case 'Y':
-	  if (markdata->second == 0)
+	  if (!second)
 	    {
 	      revto(linestart(cy), cy);
-	      markdata->second++;
-	      cx = markdata->x1 = markdata->cx;
-	      cy = markdata->y1 = markdata->cy;
+	      second++;
+	      x1 = cx;
+	      y1 = cy;
 	    }
 	  if (--rep_cnt > 0)
 	    revto(cx, cy + rep_cnt);
-	  revto(lineend(markdata->cy), markdata->cy);
+	  revto(lineend(cy), cy);
 	  if (od == 'y')
 	    break;
 	  /* FALLTHROUGH */
@@ -712,193 +715,196 @@ int *inlenp;
 	    {
 	      if (rep_cnt == 0)
 		rep_cnt = 1;
-	      if (!markdata->second)
+	      if (!second)
 		{
-		  nextword(&cx, &cy, NW_BACK|NW_ENDOFWORD, 1);
-		  revto(cx, cy);
-		  markdata->second++;
-		  cx = markdata->x1 = markdata->cx;
-		  cy = markdata->y1 = markdata->cy;
+		  i = cx;
+		  j = cy;
+		  nextword(&i, &j, NW_BACK|NW_ENDOFWORD, 1);
+		  revto(i, j);
+		  second++;
+		  x1 = cx;
+		  y1 = cy;
 		}
-	      nextword(&cx, &cy, NW_ENDOFWORD, rep_cnt);
-	      revto(cx, cy);
+	      i = cx;
+	      j = cy;
+	      nextword(&i, &j, NW_ENDOFWORD, rep_cnt);
+	      revto(i, j);
 	    }
-	  cx = markdata->cx;
-	  cy = markdata->cy;
 	  /* FALLTHROUGH */
 	case 'A':
 	  if (od == 'A')
-	    markdata->append_mode = 1;
+	    append_mode = 1;
 	  /* FALLTHROUGH */
 	case '>':
 	  if (od == '>')
-	    markdata->write_buffer = 1;
+	    write_buffer = 1;
 	  /* FALLTHROUGH */
 	case ' ':
 	case '\r':
-	  if (!markdata->second)
+	  if (!second)
 	    {
-	      markdata->second++;
-	      markdata->x1 = cx;
-	      markdata->y1 = cy;
-	      revto(cx, cy);
+	      second++;
+	      x1 = cx;
+	      y1 = cy;
+	      revto(x1, y1);
 #ifdef NETHACK
 	      if (nethackflag)
 		Msg(0, "You drop a magic marker - Column %d Line %d",
-	    	    cx+1, W2D(cy)+1);
+	    	    cx+1, W2D(cy)+1, hist_offset);
 	      else
 #endif
-	      Msg(0, "First mark set - Column %d Line %d", cx+1, W2D(cy)+1);
+	      Msg(0, "First mark set - Column %d Line %d", cx+1, cy+1);
 	      break;
 	    }
 	  else
 	    {
-	      int append_mode = markdata->append_mode;
-	      int write_buffer = markdata->write_buffer;
-
 	      x2 = cx;
 	      y2 = cy;
-	      newcopylen = rem(markdata->x1, markdata->y1, x2, y2, 2, (char *)0, 0); /* count */
-	      if (d_copybuffer != NULL && !append_mode)
+	      newcopylen = rem(x1, y1, x2, y2, 2, (char *)0, 0); /* count */
+	      if (copybuffer != NULL && !append_mode)
 		{
-		  d_copylen = 0;
-		  free(d_copybuffer);
-		  d_copybuffer = NULL;
+		  copylen = 0;
+		  Free(copybuffer);
 		}
 	      if (newcopylen > 0)
 		{
 		  /* the +3 below is for : cr + lf + \0 */
-		  if (d_copybuffer != NULL)
-		    d_copybuffer = realloc(d_copybuffer,
-			(unsigned) (d_copylen + newcopylen + 3));
+		  if (copybuffer != NULL)
+		    copybuffer = realloc(copybuffer,
+			(unsigned) (copylen + newcopylen + 3));
 		  else
 		    {
-		    d_copylen = 0;
-		    d_copybuffer = malloc((unsigned) (newcopylen + 3));
+		    copylen = 0;
+		    copybuffer = malloc((unsigned) (newcopylen + 3));
 		    }
-		  if (d_copybuffer == NULL)
+		  if (copybuffer == NULL)
 		    {
-		      MarkAbort();
-		      in_mark = 0;
-		      Msg(0, "Not enough memory... Sorry.");
-		      d_copylen = 0;
-		      d_copybuffer = NULL;
+		      AbortMarkRoutine();
+		      Msg(0, "Not enough memoooh!... Sorry.");
+		      copylen = 0;
+		      copybuffer = NULL;
 		      break;
 		    }
 		  if (append_mode)
 		    {
-		      switch (markdata->nonl)
-			{
+		      switch (nonl)
 			/* 
 			 * this code defines, what glues lines together
 			 */
+			{
 			case 0:
 			  if (join_with_cr)
 			    {
-			      d_copybuffer[d_copylen] = '\r';
-			      d_copylen++;
+			      copybuffer[copylen] = '\r';
+			      copylen++;
 			    }
-			  d_copybuffer[d_copylen] = '\n';
-			  d_copylen++;
+			  copybuffer[copylen] = '\n';
+			  copylen++;
 			  break;
 			case 1:
 			  break;
 			case 2:
-			  d_copybuffer[d_copylen] = ' ';
-			  d_copylen++;
+			  copybuffer[copylen] = ' ';
+			  copylen++;
 			  break;
 			}
 		    }
-		  yend = d_height - 1;
-		  if (fore->w_histheight - markdata->hist_offset < d_height)
+		  yend = screenheight - 1;
+		  if (fore->histheight - hist_offset < screenheight)
 		    {
-		      markdata->second = 0;
-		      yend -= MarkScrollUpDisplay(fore->w_histheight - markdata->hist_offset);
+		      second = 0;
+		      yend -= MarkScrollUpDisplay(fore->histheight - hist_offset);
 		    }
-		  d_copylen += rem(markdata->x1, markdata->y1, x2, y2, markdata->hist_offset == fore->w_histheight, d_copybuffer + d_copylen, yend);
+		  copylen += rem(x1, y1, x2, y2, hist_offset == fore->histheight, copybuffer + copylen, yend);
 		}
-	      if (markdata->hist_offset != fore->w_histheight)
-		LAY_CALL_UP(Activate(0));
+	      if (hist_offset != fore->histheight)
+		{
+		  in_ovl = 0;	/* So we can use Activate() */
+		  Activate(0);
+		}
 	      ExitOverlayPage();
 	      if (append_mode)
 		Msg(0, "Appended %d characters to buffer",
 		    newcopylen);
 	      else
-		Msg(0, "Copied %d characters into buffer", d_copylen);
+		Msg(0, "Copied %d characters into buffer", copylen);
 	      if (write_buffer)
 		WriteFile(DUMP_EXCHANGE);
 	      in_mark = 0;
 	      break;
 	    }
 	default:
-	  MarkAbort();
+	  AbortMarkRoutine();
 #ifdef NETHACK
 	  if (nethackflag)
 	    Msg(0, "You escaped the dungeon.");
 	  else
 #endif
 	  Msg(0, "Copy mode aborted");
-	  in_mark = 0;
 	  break;
 	}
-      markdata->rep_cnt = 0;
+      rep_cnt = 0;
     }
+  fflush(stdout);
   *inbufp = pt;
   *inlenp = inlen;
 }
 
-void revto(tx, ty)
+static void revto(tx, ty)
 int tx, ty;
 {
   revto_line(tx, ty, -1);
 }
 
 /* tx, ty: WINDOW,  line: DISPLAY */
-void revto_line(tx, ty, line)
+static void revto_line(tx, ty, line)
 int tx, ty, line;
 {
   int fx, fy;
   int x, y, t, revst, reven, qq, ff, tt, st, en, ce = 0;
-  int ystart = 0, yend = d_height-1;
+  int ystart = 0, yend = screenheight-1;
   int i, ry;
  
   if (tx < 0)
     tx = 0;
-  else if (tx > d_width - 1)
-    tx = d_width -1;
+  else if (tx > screenwidth - 1)
+    tx = screenwidth -1;
   if (ty < 0)
     ty = 0;
-  else if (ty > fore->w_histheight + d_height - 1)
-    ty = fore->w_histheight + d_height - 1;
+  else if (ty > fore->histheight + screenheight - 1)
+    ty = fore->histheight + screenheight - 1;
   
-  fx = markdata->cx; fy = markdata->cy;
-  markdata->cx = tx; markdata->cy = ty;
+  fx = cx; fy = cy;
+  cx = tx; cy = ty;
+/*debug2("revto(%d, %d, ", x1, y1);
+  debug2("%d, %d, ", fx, fy);
+  debug2("%d, %d)\n", tx, ty);*/
  
   /*
    * if we go to a position that is currently offscreen 
    * then scroll the screen
    */
   i = 0;
-  if (line >= 0 && line < d_height)
+  if (line >= 0 && line < screenheight)
     i = W2D(ty) - line;
-  else if (ty < markdata->hist_offset)
-    i = ty - markdata->hist_offset;
-  else if (ty > markdata->hist_offset + (d_height-1))
-    i = ty-markdata->hist_offset-(d_height-1);
+  else if (ty < hist_offset)
+    i = ty - hist_offset;
+  else if (ty > hist_offset + (screenheight-1))
+    i = ty-hist_offset-(screenheight-1);
   if (i > 0)
     yend -= MarkScrollUpDisplay(i);
   else if (i < 0)
     ystart += MarkScrollDownDisplay(-i);
 
-  if (markdata->second == 0)
+  if (second == 0)
     {
-      GotoPos(tx, W2D(ty));
+      GotoPos(tx, W2D(cy));
       return;
     }
   
-  qq = markdata->x1 + markdata->y1 * d_width;
-  ff = fx + fy * d_width; /* "from" offset in WIN coords */
-  tt = tx + ty * d_width; /* "to" offset  in WIN coords*/
+  qq = x1 + y1 * screenwidth;
+  ff = fx + fy * screenwidth; /* "from" offset in WIN coords */
+  tt = tx + ty * screenwidth; /* "to" offset  in WIN coords*/
  
   if (ff > tt)
     {
@@ -925,17 +931,17 @@ int tx, ty, line;
     {
       revst = tt; reven = qq;
     }
-  ry = y - markdata->hist_offset;
+  ry = y - hist_offset;
   if (ry < ystart)
     {
       y += (ystart - ry);
       x = 0;
-      st = y * d_width;
+      st = y * screenwidth;
       ry = ystart;
     }
   for (t = st; t <= en; t++, x++)
     {
-      if (x >= d_width)
+      if (x >= screenwidth)
 	{
 	  x = 0;
 	  y++, ry++;
@@ -944,112 +950,104 @@ int tx, ty, line;
 	break;
       if (t == st || x == 0)
 	{
-	  for (ce = d_width; ce >= 0; ce--)
+	  for (ce = screenwidth-1; ce >= 0; ce--)
 	    if (iWIN(y)[ce] != ' ')
 	      break;
 	}
-      if (x <= ce && x >= markdata->left_mar && x <= markdata->right_mar
-          && (CLP || x < d_width-1 || ry < d_bot))
+      if (x <= ce && x >= left_mar && x <= right_mar
+          && (LP || x < screenwidth-1 || ry < screenbot))
 	{
 	  GotoPos(x, W2D(y));
 	  if (t >= revst && t <= reven)
-	    SetAttrFont(A_SO, ASCII);
+	    SaveSetAttr(A_SO, ASCII);
 	  else
-	    SetAttrFont(aWIN(y)[x], fWIN(y)[x]);
-	  PUTCHARLP(iWIN(y)[x]);
+	    SaveSetAttr(aWIN(y)[x], fWIN(y)[x]);
+	  PUTCHAR(iWIN(y)[x]);
 	}
     }
-  GotoPos(tx, W2D(ty));
+  GotoPos(tx, W2D(cy));
 }
 
-static void
-MarkAbort()
+static void AbortMarkRoutine()
 {
   int yend, redisp;
 
-  debug("MarkAbort\n");
-  markdata = (struct markdata *)d_lay->l_data;
-  yend = d_height - 1;
-  redisp = markdata->second;
-  if (fore->w_histheight - markdata->hist_offset < d_height)
+  yend = screenheight - 1;
+  redisp = second;
+  if (fore->histheight - hist_offset < screenheight)
     {
-      markdata->second = 0;
-      yend -= MarkScrollUpDisplay(fore->w_histheight - markdata->hist_offset);
+      second = 0;
+      yend -= MarkScrollUpDisplay(fore->histheight - hist_offset);
     }
-  if (markdata->hist_offset != fore->w_histheight)
+  if (hist_offset != fore->histheight)
     {
-      LAY_CALL_UP(Activate(0));
+      in_ovl = 0;	/* So we can use Activate() */
+      Activate(0);	/* to do a complete redisplay */
     }
   else
     {
-      rem(markdata->x1, markdata->y1, markdata->cx, markdata->cy, redisp, (char *)0, yend);
+      rem(x1, y1, cx, cy, redisp, (char *)0, yend);
     }
   ExitOverlayPage();
+  in_mark = 0;
 }
 
 
-static void
-MarkRedisplayLine(y, xs, xe, isblank)
-int y;	/* NOTE: y is in DISPLAY coords system! */
+static void MarkRedisplayLine(y, xs, xe, isblank)
+int y; /* NOTE: y is in DISPLAY coords system! */
 int xs, xe;
 int isblank;
 {
   int x, i, rm;
-  int sta, sto, cp;	/* NOTE: these 3 are in WINDOW coords system */
+  int sta, sto, cp; /* NOTE: these 3 are in WINDOW coords system */
   char *wi, *wa, *wf, *oldi;
-
-  if (y < 0)	/* No special full page handling */
-    return;
-
-  markdata = (struct markdata *)d_lay->l_data;
+ 
+  InsertMode(0); /* Not done in DisplayLine() */
 
   wi = iWIN(D2W(y));
   wa = aWIN(D2W(y));
   wf = fWIN(D2W(y));
   oldi = isblank ? blank : null;
  
-  if (markdata->second == 0)
+  if (second == 0)
     {
       DisplayLine(oldi, null, null, wi, wa, wf, y, xs, xe);
       return;
     }
  
-  sta = markdata->y1 * d_width + markdata->x1;
-  sto = markdata->cy * d_width + markdata->cx;
+  sta = y1 * screenwidth + x1;
+  sto = cy * screenwidth + cx;
   if (sta > sto)
     {
       i=sta; sta=sto; sto=i;
     }
-  cp = D2W(y) * d_width + xs;
+  cp = D2W(y) * screenwidth + xs;
  
-  rm = markdata->right_mar;
-  for (x = d_width; x >= 0; x--)
+  rm = right_mar;
+  for (x = screenwidth - 1; x >= 0; x--)
     if (wi[x] != ' ')
       break;
   if (x < rm)
     rm = x;
  
   for (x = xs; x <= xe; x++, cp++)
-    if (cp >= sta && x >= markdata->left_mar)
+    if (cp >= sta && x >= left_mar)
       break;
   if (x > xs)
     DisplayLine(oldi, null, null, wi, wa, wf, y, xs, x-1);
   for (; x <= xe; x++, cp++)
     {
-      if (cp > sto || x > rm || (!CLP && x >= d_width-1 && y == d_bot))
+      if (cp > sto || x > rm || (!LP && x >= screenwidth-1 && y == screenbot))
 	break;
       GotoPos(x, y);
-      SetAttrFont(A_SO, ASCII);
-      PUTCHARLP(wi[x]);
+      SaveSetAttr(A_SO, ASCII);
+      PUTCHAR(wi[x]);
     }
-  if (x <= xe)
+  if (x<=xe)
     DisplayLine(oldi, null, null, wi, wa, wf, y, x, xe);
 }
 
 
-/*
- * This ugly routine is to speed up GotoPos()
- */
 static int
 MarkRewrite(ry, xs, xe, doit)
 int ry, xs, xe, doit;
@@ -1057,47 +1055,46 @@ int ry, xs, xe, doit;
   int dx, x, y, st, en, t, rm;
   char *a, *f, *i;
 
-  markdata = (struct markdata *)d_lay->l_data;
   y = D2W(ry);
   dx = xe - xs;
   if (doit)
     {
       i = iWIN(y) + xs;
       while (dx--)
-        PUTCHARLP(*i++);
+        PUTCHAR(*i++);
       return(0);
     }
   
   a = aWIN(y) + xs,
   f = fWIN(y) + xs;
-  if (markdata->second == 0)
+  if (second == 0)
     st = en = -1;
   else
     {
-      st = markdata->y1 * d_width + markdata->x1;
-      en = markdata->cy * d_width + markdata->cx;
+      st = y1 * screenwidth + x1;
+      en = cy * screenwidth + cx;
       if (st > en)
         {
           t = st; st = en; en = t;
         }
     }
-  t = y * d_width + xs;
-  for (rm=d_width, i=iWIN(y) + d_width; rm>=0; rm--)
+  t = y * screenwidth + xs;
+  for (rm=screenwidth-1, i=iWIN(y) + screenwidth-1; rm>=0; rm--)
     if (*i-- != ' ')
       break;
-  if (rm > markdata->right_mar)
-    rm = markdata->right_mar;
+  if (rm > right_mar)
+    rm = right_mar;
   x = xs;
   while (dx--)
     {
-      if (t >= st && t <= en && x >= markdata->left_mar && x <= rm)
+      if (t >= st && t <= en && x >= left_mar && x <= rm)
         {
-	  if (d_attr != A_SO || d_font != ASCII)
+	  if (GlobalAttr != A_SO || GlobalCharset != ASCII)
 	    return(EXPENSIVE);
         }
       else
         {
-	  if (d_attr != *a || d_font != *f)
+	  if (GlobalAttr != *a || GlobalCharset != *f)
 	    return(EXPENSIVE);
         }
       a++, f++, t++, x++;
@@ -1113,17 +1110,17 @@ static int MarkScrollUpDisplay(n)
 int n;
 {
   int i;
-
+ 
   debug1("MarkScrollUpDisplay(%d)\n", n);
   if (n <= 0)
     return 0;
-  if (n > fore->w_histheight - markdata->hist_offset)
-    n = fore->w_histheight - markdata->hist_offset;
-  i = (n < d_height) ? n : (d_height);
-  ScrollRegion(0, d_height - 1, i);
-  markdata->hist_offset += n;
+  if (n > fore->histheight - hist_offset)
+    n = fore->histheight - hist_offset;
+  i = (n < screenheight) ? n : (screenheight);
+  ScrollRegion(0, screenheight - 1, i);
+  hist_offset += n;
   while (i-- > 0)
-    MarkRedisplayLine(d_height - i - 1, 0, d_width - 1, 1);
+    MarkRedisplayLine(screenheight-i-1, 0, screenwidth-1, 1);
   return n;
 }
 
@@ -1131,18 +1128,17 @@ static int MarkScrollDownDisplay(n)
 int n;
 {
   int i;
-
+ 
   debug1("MarkScrollDownDisplay(%d)\n", n);
   if (n <= 0)
     return 0;
-  if (n > markdata->hist_offset)
-    n = markdata->hist_offset;
-  i = (n < d_height) ? n : (d_height);
-  ScrollRegion(0, d_height - 1, -i);
-  markdata->hist_offset -= n;
+  if (n > hist_offset)
+    n = hist_offset;
+  i = (n < screenheight) ? n : (screenheight);
+  ScrollRegion(0, screenheight - 1, -i);
+  hist_offset -= n;
   while (i-- > 0)
-    MarkRedisplayLine(i, 0, d_width - 1, 1);
+    MarkRedisplayLine(i, 0, screenwidth-1, 1);
   return n;
 }
 
-#endif /* COPY_PASTE */

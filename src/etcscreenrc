@@ -6,29 +6,27 @@
 #       The 'termcap' lines are written in termcap syntax.
 #       The syntax for a terminfo based host is slightly different.
 #
-#echo "-----------------------------------------------------------------------"
-#echo ""
-#echo "     This is iScreen version 3.2.2  -- Enjoy"
-#echo ""
-#echo "     coredumps zu mir! "
-#echo "     -- und in hartnaeckigen Faellen screen.old verwenden"
-#echo ""
-#echo "            Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)"
-#echo "-----------------------------------------------------------------------"
-#echo "       >>>>>>>>>>>> Press RETURN to continue <<<<<<<<<<<<"
-#sleep 5
-startup_message off
+echo "-----------------------------------------------------------------------"
+echo ""
+echo "     This is iScreen version 3.2  -- Enjoy"
+echo ""
+echo "            Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)"
+echo "-----------------------------------------------------------------------"
+sleep 2
 
-#defflow on # will force iScreen to process ^S/^Q
+# startup_message off
 
-deflogin on
-autodetach off
+#flow on # will force iScreen to process ^S/^Q
+
+set vbell on
+set login on
+set autodetach off
 
 # 'vbell on' without the prepended 'set' keyword will change the default for 
 # subsequently opened windows. With the 'set' keyword we would change
 # the setting of the currently active window.
 vbell on
-set vbell_msg "   Wuff  ----  Wuff!!  "
+set vbell_msg "   Wuff,  ----  Wuff!!  "
 
 # all termcap entries are now duplicated as terminfo entries.
 # only difference should be the slightly modified syntax, and check for
@@ -48,7 +46,6 @@ set vbell_msg "   Wuff  ----  Wuff!!  "
 # DL    delete multiple lines
 # ic    insert one char (space)
 # IC    insert multiple chars
-# xo    terminal uses xon/xoff
 
 termcap  facit|vt100|xterm LP:G0
 terminfo facit|vt100|xterm LP:G0
@@ -72,22 +69,15 @@ terminfo sun up=^K:AL=\E[%p1%dL:DL=\E[%p1%dM:UP=\E[%p1%dA:DO=\E[%p1%dB:LE=\E[%p1
 termcap  xterm|fptwist hs@:cs=\E[%i%d;%dr:im=\E[4h:ei=\E[4l
 terminfo xterm|fptwist hs@:cs=\E[%i%p1%d;%p2%dr:im=\E[4h:ei=\E[4l
 
-# xs is xterm's two letter name.
-# story ... in earlier versions I used xterms here ... buggy sequent termcap
-# routines allowes 32 :tc=...: references per lifetime.... gave lots of OOPS
-# at the 32. reattach. ... to avoid that, I added the name Xterm as an alias 
-# to xterm in our termcap file.
-# why I don't take the entry called xterm? well, I own a verion of xterm that
-# allows window resizing. My private .iscreenrc adds WS to this entry.
-
-termcap  xs 'hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%d;%dr:LP:G0:im=\E[4h:ei=\E[4l'
-terminfo xs 'hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%p1%d;%p2%dr:LP:G0:im=\E[4h:ei=\E[4l'
+#xterms is xterm with status line in title bar
+termcap  xterms hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%d;%dr:LP:G0:im=\E[4h:ei=\E[4l
+terminfo xterms hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%p1%d;%p2%dr:LP:G0:im=\E[4h:ei=\E[4l
 
 #make hp700 termcap/info better
-termcap  hp700 'Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@'
-terminfo hp700 'Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@'
+termcap  hp700 Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@
+terminfo hp700 Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@
 
-#wyse-75-42 must have defflow control (xo = "terminal uses xon/xoff")
+#wyse-75-42 must have flow control (xo = "terminal uses xon/xoff")
 #essential to have it here, as this is a slow terminal.
 termcap wy75-42 xo
 terminfo wy75-42 xo
@@ -99,6 +89,6 @@ bind '^\'
 #make them better
 bind '\\' quit
 bind 'K' kill
-bind 'I' login on
-bind 'O' login off
+bind 'I' set login on
+bind 'O' set login off
 bind '}' history

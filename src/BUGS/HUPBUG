@@ -1,0 +1,28 @@
+*** screen.c	Wed Feb 19 23:06:59 1992
+--- s.c	Wed Feb 19 23:09:48 1992
+***************
+*** 1064,1069 ****
+--- 1064,1073 ----
+    signal(SIGTTOU, SIG_IGN);
+  #endif
+    InitKeytab();
++   /* Note: SetMode must be called _before_ FinishRc.
++    */
++   SetMode(&OldMode, &NewMode);
++   SetTTY(0, &NewMode);
+  #ifdef ETCSCREENRC
+    if ((ap = getenv("SYSSCREENRC")) == NULL)
+      FinishRc(ETCSCREENRC);
+***************
+*** 1072,1081 ****
+  #endif
+    FinishRc(RcFileName);
+  
+-   /* Note: SetMode must be called _after_ FinishRc (flow is set there).
+-    */
+-   SetMode(&OldMode, &NewMode);
+-   SetTTY(0, &NewMode);
+    if (loginflag == -1)
+        loginflag = LOGINDEFAULT;
+    if (ac == 0)
+--- 1076,1081 ----
