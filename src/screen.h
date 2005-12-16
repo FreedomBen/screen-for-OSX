@@ -1,11 +1,19 @@
-/* Copyright (c) 1987,1988 Oliver Laumann, Technical University of Berlin.
- * Not derived from licensed software.
+/* screen -- screen manager with VT100/ANSI terminal emulation
+ * Copyright (C) 1987 Oliver Laumann
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the author is not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 enum state_t {

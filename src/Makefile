@@ -1,4 +1,17 @@
-# The following options can be set:
+# Directory where you want to install the files that are needed
+# by screen at runtime:
+#
+LIBPATH= /usr/local/lib/screen
+
+# Directory where you want to install the screen program:
+#
+BINPATH= /usr/local/bin
+
+# Directory where you want to install the manual page for screen:
+#
+MANPATH= /usr/man/man1
+
+# The following compile-time options can be set:
 #
 # -DLOADAV    -- your system maintains a load average like 4.3 BSD does
 #                (an array of three doubles called _avenrun; it is read
@@ -15,10 +28,7 @@
 #                destination.  If USEBCOPY is not set, screen uses its
 #                own version of bcopy.
 #
-# You should install as set-uid with owner root, so that it can read/write
-# /etc/utmp, read /dev/kmem, and chown/chmod the allocated pseudo-ttys.
-
-OPTIONS= -DLOADAV -DSUNLOADAV -DGETTTYENT -DUSEBCOPY
+OPTIONS= -DLOADAV -DUSEBCOPY -DSUNLOADAV -DGETTTYENT -DSUN_NFS_HACK
 
 CFILES= screen.c ansi.c
 OFILES= screen.o ansi.o
@@ -27,7 +37,21 @@ screen: $(OFILES)
 	$(CC) $(CFLAGS) -o screen $(OFILES) -ltermcap
 
 screen.o: screen.c screen.h
-	$(CC) $(OPTIONS) $(CFLAGS) -c screen.c
+	$(CC) $(OPTIONS) -DLIBPATH=\"$(LIBPATH)\" $(CFLAGS) -c screen.c
 
 ansi.o: ansi.c screen.h
 	$(CC) $(CFLAGS) -c ansi.c
+
+# You should install as set-uid with owner root, so that it can read/write
+# /etc/utmp, read /dev/kmem, and chown/chmod the allocated pseudo-ttys.
+#
+install: screen
+	install -c -m 644 COPYING $(LIBPATH)
+	install -c -m 644 HELP $(LIBPATH)
+	install -c -m 644 screen.1 $(MANPATH)
+	install -c screen $(BINPATH)
+	chmod 4755 $(BINPATH)/screen
+	chown root $(BINPATH)/screen
+
+clean:
+	rm -f $(OFILES) screen

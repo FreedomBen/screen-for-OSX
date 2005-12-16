@@ -174,8 +174,12 @@ mode are enabled or not (indicated by a '+' or '-'),
 the currently active character set (\fIG0\fP, \fIG1\fP, \fIG2\fP,
 or \fIG3\fP), and the terminal character sets that are currently
 designated as \fIG0\fP through \fIG3\fP.
-.IP "\fBC-a v\fP or \fBC-a C-v\fP"
-Display the version.
+.IP "\fBC-a r\fP or \fBC-a C-r\fP"
+Repeat the last message line.
+.IP "\fBC-a ?\fP
+Display a command summary in a separate window.
+.IP "\fBC-a /\fP
+Display the copying and distribution conditions in a separate window.
 .IP "\fBC-a a\fP\0\0\0\0\0"
 Send the character \*QC-a\*U to the processes running in the window.
 .IP "\fBC-a s\fP or \fBC-a C-s\fP"
@@ -319,9 +323,11 @@ The \fIfunction\fP argument can be one of the following keywords:
 	suspend	Suspend \fIscreen\fP
 	windows	Display list of window
 	info	Print useful information in the message line
+	repeat	Repeat the last message line
+	help    Display command summary
 	xon	Send Control-q
 	xoff	Send Control-s
-	version	Display the version
+	copyright	Display the copying and distribution conditions
 	select0	Switch to window #0
 	\0\0...
 	select9	Switch to window #9

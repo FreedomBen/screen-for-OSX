@@ -1,0 +1,22 @@
+C-a c  or  C-a C-c     Create new window
+C-a k  or  C-a C-k     Kill current window
+C-a C-\                Kill all windows; terminate
+C-a d  or  C-a C-d     Detach screen
+C-a C-a                Switch to previous window
+C-a 0  ..  C-a 9       Switch to window 0 .. 9
+C-a n  or  C-a C-n  or  C-a space  or  C-a C-space
+		       Switch to next window
+C-a p  or  C-a C-p  or  C-a -
+		       Switch to last window
+C-a l  or  C-a C-l     Redisplay window
+C-a z  or  C-a C-z     Suspend screen
+C-a h  or  C-a C-h     Make hardcopy
+C-a .                  Write ~/.screen/.termcap
+C-a w  or  C-a C-w     Display list of windows in message line
+C-a t  or  C-a C-t     Display useful information in message line
+C-a r  or  C-a C-r     Repeat last message line
+C-a /                  Display copying and distribution terms
+C-a ?                  Display this command summary
+C-a a                  Send C-a to process
+C-a s  or  C-a C-s     Send C-s to process
+C-a q  or  C-a C-q     Send C-q to process

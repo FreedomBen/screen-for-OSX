@@ -1,14 +1,20 @@
-/* Copyright (c) 1987,1988 Oliver Laumann, Technical University of Berlin.
- * Not derived from licensed software.
+/* screen -- screen manager with VT100/ANSI terminal emulation
+ * Copyright (C) 1987 Oliver Laumann
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the author is not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-
-static char ScreenVersion[] = "screen 2.0a 19-Oct-88";
 
 #include <stdio.h>
 #include <sgtty.h>
@@ -52,11 +58,11 @@ extern rows, cols;
 extern ISO2022;
 extern status;
 extern time_t TimeDisplayed;
-extern char AnsiVersion[];
 extern short ospeed;
 extern flowctl;
 extern errno;
 extern sys_nerr;
+extern char *lastmsg;
 extern char *sys_errlist[];
 extern char *index(), *rindex(), *malloc(), *getenv(), *MakeTermcap();
 extern char *getlogin(), *ttyname();
@@ -93,6 +99,8 @@ static char HostName[MAXSTR];
 static Detached;
 static AttacherPid;	/* Non-Zero in child if we have an attacher */
 static DevTty;
+static char *CopyrightCmd;
+static char *HelpCmd;
 #ifdef LOADAV
     static char KmemName[] = "/dev/kmem";
 #ifdef sequent
@@ -140,38 +148,51 @@ static struct win *wtab[MAXWIN];
 #define KEY_KILL           6
 #define KEY_REDISPLAY      7
 #define KEY_WINDOWS        8
-#define KEY_VERSION        9
-#define KEY_OTHER         10
-#define KEY_0             11
-#define KEY_1             12
-#define KEY_2             13
-#define KEY_3             14
-#define KEY_4             15
-#define KEY_5             16
-#define KEY_6             17
-#define KEY_7             18
-#define KEY_8             19
-#define KEY_9             20
-#define KEY_XON           21
-#define KEY_XOFF          22
-#define KEY_INFO          23
-#define KEY_TERMCAP       24
-#define KEY_QUIT          25
-#define KEY_DETACH        26
-#define KEY_CREATE        27
+#define KEY_OTHER          9
+#define KEY_0             10
+#define KEY_1             11
+#define KEY_2             12
+#define KEY_3             13
+#define KEY_4             14
+#define KEY_5             15
+#define KEY_6             16
+#define KEY_7             17
+#define KEY_8             18
+#define KEY_9             19
+#define KEY_XON           20
+#define KEY_XOFF          21
+#define KEY_INFO          22
+#define KEY_TERMCAP       23
+#define KEY_QUIT          24
+#define KEY_DETACH        25
+#define KEY_COPYRIGHT     26
+#define KEY_REPEAT        27
+#define KEY_HELP          28
+#define KEY_CREATE        29
 
 struct key {
     int type;
     char **args;
 } ktab[256];
 
-char *KeyNames[] = {
+static char *KeyNames[] = {
     "hardcopy", "suspend", "shell", "next", "prev", "kill", "redisplay",
-    "windows", "version", "other", "select0", "select1", "select2", "select3",
+    "windows", "other", "select0", "select1", "select2", "select3",
     "select4", "select5", "select6", "select7", "select8", "select9",
-    "xon", "xoff", "info", "termcap", "quit", "detach",
-    0
+    "xon", "xoff", "info", "termcap", "quit", "detach", "copyright",
+    "repeat", "help", 0
 };
+
+static char *CopyrightArgs[] = { "sh", "-c",
+				 "more %s/COPYING; cat >/dev/null", 0 };
+static char *HelpArgs[] =      { "sh", "-c",
+				 "more %s/HELP; cat >/dev/null", 0 };
+
+static char CopyrightNotice[] =
+    "Screen version 2.1a 06-Dec-90, Copyright (C) 1987 Oliver Laumann\n\n\r\
+This is free software, and you are welcome to redistribute it under\n\r\
+certain conditions.  \"screen\" comes with ABSOLUTELY NO WARRANTY.\n\r\
+Type control-a / for details and control-a ? for a command summary.\n\n\r";
 
 main (ac, av) char **av; {
     register n, len;
@@ -179,6 +200,7 @@ main (ac, av) char **av; {
     char *ap;
     int s, r, w, x = 0;
     int aflag = 0;
+    int DefaultStartup = 0;
     struct timeval tv;
     time_t now;
     char buf[IOSIZE], *myname = (ac == 0) ? "screen" : av[0];
@@ -239,14 +261,28 @@ main (ac, av) char **av; {
     if (ac == 0) {
 	ac = 1;
 	av = ShellArgs;
+	DefaultStartup = 1;
     }
+    if ((CopyrightCmd = malloc (strlen (LIBPATH) + 32)) == 0 ||
+	    (HelpCmd = malloc (strlen (LIBPATH) + 32)) == 0)
+	Msg (0, "Out of memory.");
+    sprintf (CopyrightCmd, CopyrightArgs[2], LIBPATH);
+    CopyrightArgs[2] = CopyrightCmd;
+    sprintf (HelpCmd, HelpArgs[2], LIBPATH);
+    HelpArgs[2] = HelpCmd;
     if ((home = getenv ("HOME")) == 0)
 	Msg (0, "$HOME is undefined.");
     sprintf (SockPath, "%s/%s", home, SockDir);
     if (stat (SockPath, &st) == -1) {
 	if (errno == ENOENT) {
+#ifdef SUN_NFS_HACK
+	    SetRealUID ();
+#endif
 	    if (mkdir (SockPath, 0700) == -1)
 		Msg (errno, "Cannot make directory %s", SockPath);
+#ifdef SUN_NFS_HACK
+	    SetEffectiveUID ();
+#endif
 	    (void) chown (SockPath, getuid (), getgid ());
 	} else Msg (errno, "Cannot get status of %s", SockPath);
     } else {
@@ -309,7 +345,7 @@ main (ac, av) char **av; {
     InitKeytab ();
     sprintf (rc, "%.*s/.screenrc", 245, home);
     ReadRc (rc);
-    if ((n = MakeWindow (*av, av, aflag, 0, (char *)0)) == -1) {
+    if ((n = MakeWindow (*av, av, aflag, 0, (char *)0, (char *)0)) == -1) {
 	SetTTY (0, &OldMode);
 	FinitTerm ();
 	Kill (AttacherPid, SIGHUP);
@@ -320,6 +356,8 @@ main (ac, av) char **av; {
     SetMode (&OldMode, &NewMode);
     SetTTY (0, &NewMode);
     signal (SIGCHLD, SigChld);
+    if (DefaultStartup)
+        WriteString (wtab[n], CopyrightNotice, strlen (CopyrightNotice));
     tv.tv_usec = 0;
     while (1) {
 	if (status) {
@@ -514,7 +552,6 @@ static InitKeytab () {
     ktab['k'].type = ktab[Ctrl('k')].type = KEY_KILL;
     ktab['l'].type = ktab[Ctrl('l')].type = KEY_REDISPLAY;
     ktab['w'].type = ktab[Ctrl('w')].type = KEY_WINDOWS;
-    ktab['v'].type = ktab[Ctrl('v')].type = KEY_VERSION;
     ktab['q'].type = ktab[Ctrl('q')].type = KEY_XON;
     ktab['s'].type = ktab[Ctrl('s')].type = KEY_XOFF;
     ktab['t'].type = ktab[Ctrl('t')].type = KEY_INFO;
@@ -524,6 +561,9 @@ static InitKeytab () {
     ktab[Esc].type = KEY_OTHER;
     for (i = 0; i <= 9; i++)
 	ktab[i+'0'].type = KEY_0+i;
+    ktab['/'].type = KEY_COPYRIGHT;
+    ktab['r'].type = ktab[Ctrl('r')].type = KEY_REPEAT;
+    ktab['?'].type = KEY_HELP;
 }
 
 static ProcessInput (buf, len) char *buf; {
@@ -557,7 +597,7 @@ static ProcessInput (buf, len) char *buf; {
 		case KEY_SHELL:
 		    p = buf;
 		    if ((n = MakeWindow (ShellProg, ShellArgs,
-			    0, 0, (char *)0)) != -1)
+			    0, 0, (char *)0, (char *)0)) != -1)
 			SwitchWindow (n);
 		    break;
 		case KEY_NEXT:
@@ -595,10 +635,6 @@ static ProcessInput (buf, len) char *buf; {
 		    p = buf;
 		    ShowWindows ();
 		    break;
-		case KEY_VERSION:
-		    p = buf;
-		    Msg (0, "%s  %s", ScreenVersion, AnsiVersion);
-		    break;
 		case KEY_INFO:
 		    p = buf;
 		    ShowInfo ();
@@ -614,10 +650,26 @@ static ProcessInput (buf, len) char *buf; {
 		case KEY_XOFF:
 		    *p++ = Ctrl('s');
 		    break;
+		case KEY_REPEAT:
+		    p = buf;
+		    Msg (0, "%s", lastmsg);
+		    break;
+		case KEY_COPYRIGHT:
+		    p = buf;
+		    if ((n = MakeWindow (CopyrightArgs[0], CopyrightArgs,
+			    0, 0, (char *)0, "copying")) != -1)
+			SwitchWindow (n);
+		    break;
+		case KEY_HELP:
+		    p = buf;
+		    if ((n = MakeWindow (HelpArgs[0], HelpArgs,
+			    0, 0, (char *)0, "help")) != -1)
+			SwitchWindow (n);
+		    break;
 		case KEY_CREATE:
 		    p = buf;
 		    if ((n = MakeWindow (ktab[*s].args[0], ktab[*s].args,
-			    0, 0, (char *)0)) != -1)
+			    0, 0, (char *)0, (char *)0)) != -1)
 			SwitchWindow (n);
 		    break;
 		}
@@ -711,8 +763,8 @@ static FreeWindow (wp) struct win *wp; {
     free (wp);
 }
 
-static MakeWindow (prog, args, aflag, StartAt, dir)
-	char *prog, **args, *dir; {
+static MakeWindow (prog, args, aflag, StartAt, dir, cmd)
+	char *prog, **args, *dir, *cmd; {
     register struct win **pp, *p;
     register char **cp;
     register n, f;
@@ -771,7 +823,7 @@ nomem:
     p->bell = 0;
     p->outlen = 0;
     p->ptyfd = f;
-    strncpy (p->cmd, Filename (args[0]), MAXSTR-1);
+    strncpy (p->cmd, cmd ? cmd : Filename (args[0]), MAXSTR-1);
     p->cmd[MAXSTR-1] = '\0';
     strncpy (p->tty, TtyName, MAXSTR-1);
     (void) chown (TtyName, getuid (), getgid ());
@@ -1055,6 +1107,9 @@ static Attach (how) {
 	    else
 		Msg (0, "There is no screen to be resumed from %s.", SockName);
     } else {
+#ifdef SUN_NFS_HACK
+	SetRealUID ();
+#endif
 	if ((dirp = opendir (SockPath)) == NULL)
 	    Msg (0, "Cannot open %s", SockPath);
 	while ((dp = readdir (dirp)) != NULL) {
@@ -1084,6 +1139,9 @@ static Attach (how) {
 	closedir (dirp);
 	strcpy (SockNamePtr, last);
 	SockName = SockNamePtr;
+#ifdef SUN_NFS_HACK
+	SetEffectiveUID ();
+#endif
     }
     m.type = how;
     strcpy (m.m.attach.tty, GetTtyName ());
@@ -1175,9 +1233,15 @@ static MakeServerSocket () {
 If it has been detached, try \"screen -r\".", p);
 	/*NOTREACHED*/
     }
+#ifdef SUN_NFS_HACK
+    SetRealUID ();
+#endif
     (void) unlink (SockPath);
     if (bind (s, (struct sockaddr *)&a, strlen (SockPath)+2) == -1)
 	Msg (errno, "bind");
+#ifdef SUN_NFS_HACK
+    SetEffectiveUID ();
+#endif
     (void) chown (SockPath, getuid (), getgid ());
     if (listen (s, 5) == -1)
 	Msg (errno, "listen");
@@ -1307,7 +1371,7 @@ static ExecCreate (mp) struct msg *mp; {
     }
     *pp = 0;
     if ((n = MakeWindow (mp->m.create.line, args, mp->m.create.aflag, 0,
-	    mp->m.create.dir)) != -1)
+	    mp->m.create.dir, (char *)0)) != -1)
 	SwitchWindow (n);
 }
 
@@ -1365,7 +1429,7 @@ static ReadRc (fn) char *fn; {
 		ap[1] = ShellProg; argc = 2;
 	    }
 	    ap[argc] = 0;
-	    (void) MakeWindow (ap[1], ap+1, 0, num, (char *)0);
+	    (void) MakeWindow (ap[1], ap+1, 0, num, (char *)0, (char *)0);
 	} else if (strcmp (ap[0], "bind") == 0) {
 	    p = ap[1];
 	    if (argc < 2 || *p == '\0')
@@ -1652,5 +1716,21 @@ bcopy (s1, s2, len) register char *s1, *s2; register len; {
 	    *s2++ = *s1++;
 	}
     }
+}
+#endif
+
+#ifdef SUN_NFS_HACK
+/* Swap effective and real UID */
+SetRealUID () {
+    register real_uid, eff_uid;
+
+    real_uid = getuid ();
+    eff_uid = geteuid ();
+    setreuid (eff_uid, real_uid);
+}
+
+/* Swap them again */
+SetEffectiveUID () {
+    SetRealUID ();
 }
 #endif

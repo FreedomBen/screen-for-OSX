@@ -36,7 +36,7 @@ and Control-Q.  This is the reason why I have an alias like
 in my .cshrc file.
 
 
-Major changes between this and the previous release are:
+Major changes between this and the first release are:
 
 *  "screen" allows you to `detach' the "screen" session from the physical
    terminal and resume it at a later point in time (possibly on a
@@ -77,10 +77,6 @@ Failing to do this (e.g. if you fear a trojan horse) doesn't have any
 major disadvantages, except that w(1) and some other utilities may have
 some problems with the tty files of your virtual terminals.
 
-
-Regards,
-    Oliver Laumann
-    Technical University of Berlin,
-    Communications and Operating Systems Research Group.
-
-    net@tub.BITNET     US: pyramid!tub!net     Europe: unido!tub!net
+--
+    Oliver Laumann, Technical University of Berlin, Germany.
+    pyramid!tub!net  net@TUB.BITNET  net@tub.cs.tu-berlin.de
