@@ -1,9 +1,9 @@
-This is Info file screen.info, produced by Makeinfo-1.55 from the input
+This is Info file screen.info, produced by Makeinfo-1.64 from the input
 file ./screen.texinfo.
 
    This file documents the `Screen' virtual terminal manager.
 
-   Copyright (c) 1993 Free Software Foundation, Inc.
+   Copyright (c) 1993-1995 Free Software Foundation, Inc.
 
    Permission is granted to make and distribute verbatim copies of this
 manual provided the copyright notice and this permission notice are
@@ -18,6 +18,475 @@ permission notice identical to this one.
 manual into another language, under the above conditions for modified
 versions, except that this permission notice may be stated in a
 translation approved by the Foundation.
+
+
+File: screen.info,  Node: Copy and Paste,  Next: Subprocess Execution,  Prev: Virtual Terminal,  Up: Top
+
+Copy and Paste
+**************
+
+   For those confined to a hardware terminal, these commands provide a
+cut and paste facility more powerful than those provided by most
+windowing systems.
+
+* Menu:
+
+* Copy::                        Copy from scrollback to buffer
+* Paste::                       Paste from buffer into window
+* Registers::                   Longer-term storage
+* Screen-Exchange::             Sharing data between screen users
+* History::                     Recalling previous input
+
+
+File: screen.info,  Node: Copy,  Next: Paste,  Up: Copy and Paste
+
+Copying
+=======
+
+ - Command: copy
+     (`C-a [', `C-a C-[', `C-a ESC')
+     Enter copy/scrollback mode. This allows you to copy text from the
+     current window and its history into the paste buffer. In this mode
+     a `vi'-like full screen editor is active, with controls as
+     outlined below.
+
+* Menu:
+
+* Line Termination::            End copied lines with CR/LF
+* Scrollback::                  Set the size of the scrollback buffer
+* Copy Mode Keys::              Remap keys in copy mode
+* Movement::                    Move around in the scrollback buffer
+* Marking::                     Select the text you want
+* Repeat count::                Repeat a command
+* Searching::                   Find the text you want
+* Specials::                    Other random keys
+
+
+File: screen.info,  Node: Line Termination,  Next: Scrollback,  Up: Copy
+
+CR/LF
+-----
+
+ - Command: crlf [STATE]
+     (none)
+     This affects the copying of text regions with the `C-a [' command.
+     If it is set to `on', lines will be separated by the two character
+     sequence `CR'/`LF'.  Otherwise only `LF' is used.  `crlf' is off
+     by default.  When no parameter is given, the state is toggled.
+
+
+File: screen.info,  Node: Scrollback,  Next: Copy Mode Keys,  Prev: Line Termination,  Up: Copy
+
+Scrollback
+----------
+
+ - Command: defscrollback NUM
+     (none)
+     Same as the `scrollback' command except that the default setting
+     for new windows is changed.  Defaults to 100.
+
+ - Command: scrollback NUM
+     (none)
+     Set the size of the scrollback buffer for the current window to
+     NUM lines.  The default scrollback is 100 lines.  Use `C-a i' to
+     view the current setting.
+
+ - Command: compacthist [STATE]
+     (none)
+     This tells screen weather to suppress trailing blank lines when
+     scrolling up text into the history buffer. Turn compacting `on' to
+     hold more useful lines in your scrollback buffer.
+
+
+File: screen.info,  Node: Copy Mode Keys,  Next: Movement,  Prev: Scrollback,  Up: Copy
+
+markkeys
+--------
+
+ - Command: markkeys STRING
+     (none)
+     This is a method of changing the keymap used for copy/history
+     mode.  The string is made up of OLDCHAR=NEWCHAR pairs which are
+     separated by `:'. Example: The command `markkeys h=^B:l=^F:$=^E'
+     would set some keys to be more familiar to `emacs' users.  If your
+     terminal sends characters, that cause you to abort copy mode, then
+     this command may help by binding these characters to do nothing.
+     The no-op character is `' and is used like this: `markkeys @=L=H'
+     if you do not want to use the `H' or `L' commands any longer.  As
+     shown in this example, multiple keys can be assigned to one
+     function in a single statement.
+
+
+File: screen.info,  Node: Movement,  Next: Marking,  Prev: Copy Mode Keys,  Up: Copy
+
+Movement Keys
+-------------
+
+`h', `j', `k', `l' move the cursor line by line or column by column.
+
+`0', `^' and `$' move to the leftmost column or to the first or last
+non-whitespace character on the line.
+
+`H', `M' and `L' move the cursor to the leftmost column of the top,
+center or bottom line of the window.
+
+`+' and `-' move the cursor to the leftmost column of the next or
+previous line.
+
+`G' moves to the specified absolute line (default: end of buffer).
+
+`|' moves to the specified absolute column.
+
+`w', `b', `e' move the cursor word by word.
+
+`C-u' and `C-d' scroll the display up/down by the specified amount of
+lines while preserving the cursor position. (Default: half screenfull).
+
+`C-b' and `C-f' move the cursor up/down a full screen.
+
+`g' moves to the beginning of the buffer.
+
+`%' jumps to the specified percentage of the buffer.
+
+   Note that Emacs-style movement keys can be specified by a .screenrc
+command. (`markkeys "h=^B:l=^F:$=^E"') There is no simple method for a
+full emacs-style keymap, however, as this involves multi-character
+codes.
+
+
+File: screen.info,  Node: Marking,  Next: Repeat count,  Prev: Movement,  Up: Copy
+
+Marking
+-------
+
+   The copy range is specified by setting two marks. The text between
+these marks will be highlighted. Press `space' to set the first or
+second mark respectively.
+
+`Y' and `y' can be used to mark one whole line or to mark from start of
+line.
+
+`W' marks exactly one word.
+
+
+File: screen.info,  Node: Repeat count,  Next: Searching,  Prev: Marking,  Up: Copy
+
+Repeat Count
+------------
+
+   Any command in copy mode can be prefixed with a number (by pressing
+digits `0...9') which is taken as a repeat count. Example: `C-a C-[ H
+10 j 5 Y' will copy lines 11 to 15 into the paste buffer.
+
+
+File: screen.info,  Node: Searching,  Next: Specials,  Prev: Repeat count,  Up: Copy
+
+Searching
+---------
+
+`/' `vi'-like search forward.
+
+`?' `vi'-like search backward.
+
+`C-a s' `emacs' style incremental search forward.
+
+`C-r' `emacs' style reverse i-search.
+
+
+File: screen.info,  Node: Specials,  Prev: Searching,  Up: Copy
+
+Specials
+--------
+
+   There are, however, some keys that act differently here from in
+`vi'.  `Vi' does not allow to yank rectangular blocks of text, but
+`screen' does. Press
+
+`c' or `C' to set the left or right margin respectively. If no repeat
+count is given, both default to the current cursor position.
+Example: Try this on a rather full text screen: `C-a [ M 20 l SPACE c
+10 l 5 j C SPACE'.
+
+This moves one to the middle line of the screen, moves in 20 columns
+left, marks the beginning of the paste buffer, sets the left column,
+moves 5 columns down, sets the right column, and then marks the end of
+the paste buffer. Now try:
+`C-a [ M 20 l SPACE 10 l 5 j SPACE'
+
+and notice the difference in the amount of text copied.
+
+`J' joins lines. It toggles between 4 modes: lines separated by a
+newline character (012), lines glued seamless, lines separated by a
+single space or comma separated lines. Note that you can prepend the
+newline character with a carriage return character, by issuing a `set
+crlf on'.
+
+`v' is for all the `vi' users who use `:set numbers' - it toggles the
+left margin between column 9 and 1.
+
+`a' before the final space key turns on append mode. Thus the contents
+of the paste buffer will not be overwritten, but appended to.
+
+`A' turns on append mode and sets a (second) mark.
+
+`>' sets the (second) mark and writes the contents of the paste buffer
+to the screen-exchange file (`/tmp/screen-exchange' per default) once
+copy-mode is finished.  *Note Screen-Exchange::.
+This example demonstrates how to dump the whole scrollback buffer to
+that file:
+`C-a [ g SPACE G $ >'.
+
+`C-g' gives information about the current line and column.
+
+`x' exchanges the first mark and the current cursor position. You can
+use this to adjust an already placed mark.
+
+`@' does nothing.  Absolutely nothing.  Does not even exit copy mode.
+
+All keys not described here exit copy mode.
+
+
+File: screen.info,  Node: Paste,  Next: Registers,  Prev: Copy,  Up: Copy and Paste
+
+Paste
+=====
+
+ - Command: paste [REGISTERS [DESTINATION]]
+     (`C-a ]', `C-a C-]')
+     Write the (concatenated) contents of the specified registers to
+     the stdin stream of the current window.  The register `.' is
+     treated as the paste buffer. If no parameter is specified the user
+     is prompted to enter a single register. The paste buffer can be
+     filled with the `copy', `history' and `readbuf' commands.  Other
+     registers can be filled with the `register', `readreg' and `paste'
+     commands.  If `paste' is called with a second argument, the
+     contents of the specified registers is pasted into the named
+     destination register rather than the window. If `.' is used as the
+     second argument, the display's paste buffer is the destination.
+     Note, that `paste' uses a wide variety of resources: Usually both,
+     a current window and a current display are required. But whenever
+     a second argument is specified no current window is needed. When
+     the source specification only contains registers (not the paste
+     buffer) then there need not be a current display (terminal
+     attached), as the registers are a global resource. The paste
+     buffer exists once for every user.
+
+ - Command: pastefont [STATE]
+     Tell screen to include font information in the paste buffer. The
+     default is not to do so. This command is especially usefull for
+     multi character fonts like kanji.
+
+ - Command: slowpaste MSEC
+ - Command: defslowpaste MSEC
+     (none)
+     Define the speed text is inserted in the current window by the
+     `paste' command. If the slowpaste value is nonzero text is written
+     character by character.  `screen' will pause for MSEC milliseconds
+     after each write to allow the application to process the input.
+     only use `slowpaste' if your underlying system exposes flow
+     control problems while pasting large amounts of text.
+     `defslowpaste' specifies the default for new windows.
+
+ - Command: readreg [REGISTER [FILENAME]]
+     (none)
+     Does one of two things, dependent on number of arguments: with
+     zero or one arguments it it duplicates the paste buffer contents
+     into the register specified or entered at the prompt. With two
+     arguments it reads the contents of the named file into the
+     register, just as `readbuf' reads the screen-exchange file into
+     the paste buffer.  The following example will paste the system's
+     password file into the screen window (using register p, where a
+     copy remains):
+
+          C-a : readreg p /etc/passwd
+          C-a : paste p
+
+
+File: screen.info,  Node: Registers,  Next: Screen-Exchange,  Prev: Paste,  Up: Copy and Paste
+
+Registers
+=========
+
+ - Command: copy_reg [KEY]
+     (none)
+     Removed. Use `readreg' instead.
+
+ - Command: ins_reg [KEY]
+     (none)
+     Removed. Use `paste' instead.
+
+ - Command: process [KEY]
+     (none)
+     Stuff the contents of the specified register into the `screen'
+     input queue. If no argument is given you are prompted for a
+     register name. The text is parsed as if it had been typed in from
+     the user's keyboard. This command can be used to bind multiple
+     actions to a single key.
+
+ - Command: register KEY STRING
+     (none)
+     Save the specified STRING to the register KEY.
+
+ - Command: stuff STRING
+     (none)
+     Stuff the string STRING in the input buffer of the current window.
+     This is like the `paste' command, but with much less overhead.
+     You cannot paste large buffers with the `stuff' command. It is most
+     useful for key bindings. *Note Bindkey::
+
+
+
+File: screen.info,  Node: Screen-Exchange,  Next: History,  Prev: Registers,  Up: Copy and Paste
+
+Screen-Exchange
+===============
+
+ - Command: bufferfile [EXCHANGE-FILE]
+     (none)
+     Change the filename used for reading and writing with the paste
+     buffer.  If the EXCHANGE-FILE parameter is omitted, `screen'
+     reverts to the default of `/tmp/screen-exchange'.  The following
+     example will paste the system's password file into the screen
+     window (using the paste buffer, where a copy remains):
+
+          C-a : bufferfile /etc/passwd
+          C-a < C-a ]
+          C-a : bufferfile
+
+ - Command: readbuf
+     (`C-a <')
+     Reads the contents of the current screen-exchange file into the
+     paste buffer.
+
+ - Command: removebuf
+     (`C-a =')
+     Unlinks the screen-exchange file.
+
+ - Command: writebuf
+     (`C-a >')
+     Writes the contents of the paste buffer to a public accessible
+     screen-exchange file. This is thought of as a primitive means of
+     communication between `screen' users on the same host. See also
+     `C-a ESC' (*note Copy::.).
+
+
+File: screen.info,  Node: History,  Prev: Screen-Exchange,  Up: Copy and Paste
+
+History
+=======
+
+ - Command: history
+     (`C-a {')
+     Usually users work with a shell that allows easy access to previous
+     commands.  For example, `csh' has the command `!!' to repeat the
+     last command executed.  `screen' provides a primitive way of
+     recalling "the command that started ...": You just type the first
+     letter of that command, then hit `C-a {' and `screen' tries to
+     find a previous line that matches with the prompt character to the
+     left of the cursor. This line is pasted into this window's input
+     queue.  Thus you have a crude command history (made up by the
+     visible window and its scrollback buffer).
+
+
+File: screen.info,  Node: Subprocess Execution,  Next: Key Binding,  Prev: Copy and Paste,  Up: Top
+
+Subprocess Execution
+********************
+
+   Control Input or Output of a window by another filter process.  Use
+with care!
+
+* Menu:
+
+* Exec::                        The `exec' command syntax.
+* Using Exec::                  Weird things that filters can do.
+
+
+File: screen.info,  Node: Exec,  Next: Using Exec,  Up: Subprocess Execution
+
+Exec
+====
+
+ - Command: exec [[FDPAT] NEWCOMMAND [ARGS ... ]]
+     (none)
+     Run a unix subprocess (specified by an executable path NEWCOMMAND
+     and its optional arguments) in the current window. The flow of
+     data between newcommands stdin/stdout/stderr, the process
+     originally started (let us call it "application-process") and
+     screen itself (window) is controlled by the filedescriptor pattern
+     FDPAT.  This pattern is basically a three character sequence
+     representing stdin, stdout and stderr of newcommand. A dot (`.')
+     connects the file descriptor to screen. An exclamation mark (`!')
+     causes the file descriptor to be connected to the
+     application-process. A colon (`:') combines both.
+     User input will go to newcommand unless newcommand receives the
+     application-process' output (FDPATs first character is `!' or `:')
+     or a pipe symbol (`|') is added to the end of FDPAT.
+     Invoking `exec' without arguments shows name and arguments of the
+     currently running subprocess in this window. Only one subprocess
+     can be running per window.
+     When a subprocess is running the `kill' command will affect it
+     instead of the windows process. Only one subprocess a time can be
+     running in each window.
+     Refer to the postscript file `doc/fdpat.ps' for a confusing
+     illustration of all 21 possible combinations. Each drawing shows
+     the digits 2, 1, 0 representing the three file descriptors of
+     newcommand. The box marked `W' is usual pty that has the
+     application-process on its slave side.  The box marked `P' is the
+     secondary pty that now has screen at its master side.
+
+
+File: screen.info,  Node: Using Exec,  Prev: Exec,  Up: Subprocess Execution
+
+Using Exec
+==========
+
+Abbreviations:
+
+   * Whitespace between the word `exec' and FDPAT and the command name
+     can be omitted.
+
+   * Trailing dots and a FDPAT consisting only of dots can be omitted.
+
+   * A simple `|' is synonymous for the `!..|' pattern.
+
+   * The word `exec' can be omitted when the `|' abbreviation is used.
+
+   * The word `exec' can always be replaced by leading `!'.
+
+Examples:
+
+`!/bin/sh'
+`exec /bin/sh'
+`exec ... /bin/sh'
+     All of the above are equivalent.  Creates another shell in the
+     same window, while the original shell is still running. Output of
+     both shells is displayed and user input is sent to the new
+     `/bin/sh'.
+
+`!!stty 19200'
+`exec!stty 19200'
+`exec !.. stty 19200'
+     All of the above are equivalent.  Set the speed of the window's
+     tty. If your stty command operates on stdout, then add another
+     `!'. This is a useful command, when a screen window is directly
+     connected to a serial line that needs to be configured.
+
+`|less'
+`exec !..| less'
+     Both are equivalent.  This adds a pager to the window output. The
+     special character `|' is needed to give the user control over the
+     pager although it gets its input from the window's process. This
+     works, because `less' listens on stderr (a behavior that `screen'
+     would not expect without the `|') when its stdin is not a tty.
+     `Less' versions newer than 177 fail miserably here; good old `pg'
+     still works.
+
+`!:sed -n s/.*Error.*/\007/p'
+     Sends window output to both, the user and the sed command. The sed
+     inserts an additional bell character (oct. 007) to the window
+     output seen by screen.  This will cause 'Bell in window x'
+     messages, whenever the string `Error' appears in the window.
 
 
 File: screen.info,  Node: Key Binding,  Next: Flow Control,  Prev: Subprocess Execution,  Up: Top
@@ -78,7 +547,7 @@ would bind the space key to the command that displays a list of windows
 available as `C-a space'), bind `C-f' to the command "create a window
 with a TELNET connection to foobar", and bind ESC to the command that
 creates an non-login window with title `root' in slot #9, with a
-super-user shell and a scrollbackbuffer of 1000 lines.
+superuser shell and a scrollback buffer of 1000 lines.
 
 
 File: screen.info,  Node: Command Character,  Next: Help,  Prev: Bind Examples,  Up: Key Binding
@@ -89,13 +558,13 @@ Command Character
  - Command: escape XY
      (none)
      Set the command character to X and the character generating a
-     literal command character to Y (just like with the `-e' option).
-     Each argument is either a single character, a two-character
-     sequence of the form `^x' (meaning `C-x'), a backslash followed by
-     an octal number (specifying the ASCII code of the character), or a
-     backslash followed by a second character, such as `\^' or `\\'.
-     The default is `^Aa', but ```' is recommended by one of the
-     authors.
+     literal command character (by triggering the `meta' command) to Y
+     (similar to the `-e' option).  Each argument is either a single
+     character, a two-character sequence of the form `^x' (meaning
+     `C-x'), a backslash followed by an octal number (specifying the
+     ASCII code of the character), or a backslash followed by a second
+     character, such as `\^' or `\\'.  The default is `^Aa', but ```'
+     is recommended by one of the authors.
 
  - Command: defescape XY
      (none)
@@ -161,11 +630,11 @@ Bindkey
      have two entries in the translation table. You can select the
      application mode entry by specifying the `-a' option.
 
-     The `-t' option tells screen not to do intercharacter timing. One
-     cannot turn off the timing if a termcap capabilty is used.
+     The `-t' option tells screen not to do inter-character timing. One
+     cannot turn off the timing if a termcap capability is used.
 
      `cmd' can be any of screen's commands with an arbitrary number of
-     `args'. If `cmd' is omitted the keybinding is removed from the
+     `args'. If `cmd' is omitted the key-binding is removed from the
      table.
 
 
@@ -187,15 +656,15 @@ Make the "F1" key switch to window one.
 
      bindkey -t foo stuff barfoo
 
-Make `foo' an abrevation of the word `barfoo'. Timeout is disabled so
+Make `foo' an abbreviation of the word `barfoo'. Timeout is disabled so
 that users can type slowly.
 
      bindkey "\024" mapdefault
 
-This keybinding makes `C-t' an escape character for keybindings. If you
-did the above `stuff barfoo' binding, you can enter the word `foo' by
-typing `C-t foo'. If you want to insert a `C-t' you have to press the
-key twice (i.e. escape the escape binding).
+This key-binding makes `C-t' an escape character for key-bindings. If
+you did the above `stuff barfoo' binding, you can enter the word `foo'
+by typing `C-t foo'. If you want to insert a `C-t' you have to press
+the key twice (i.e. escape the escape binding).
 
      bindkey -k F1 command
 
@@ -430,7 +899,8 @@ the terminal, while all other windows are still active (the printer
 port is enabled and disabled again for each chunk of output).  As a
 side-effect, programs running in different windows can send output to
 the printer simultaneously.  Data sent to the printer is not displayed
-in the window.
+in the window. The `info' command displays a line starting with `PRIN'
+while the printer is active.
 
    Some capabilities are only put into the `$TERMCAP' variable of the
 virtual terminal if they can be efficiently implemented by the physical
@@ -473,15 +943,15 @@ The `termcap' command
      going through all the hassles involved in creating a custom
      termcap entry.  Plus, you can optionally customize the termcap
      generated for the windows.  You have to place these commands in
-     one of the screenrc starup files, as they are meaningless once the
-     terminal emulator is booted.
+     one of the screenrc startup files, as they are meaningless once
+     the terminal emulator is booted.
 
      If your system uses the terminfo database rather than termcap,
-     `screen' will understand the `terminfo' command which has the same
-     effects as the `termcap' command.  Two separate commands are
+     `screen' will understand the `terminfo' command, which has the
+     same effects as the `termcap' command.   Two separate commands are
      provided, as there are subtle syntactic differences, e.g. when
      parameter interpolation (using `%') is required. Note that the
-     termcap names of the capabilities have to be used with the
+     termcap names of the capabilities should also be used with the
      `terminfo' command.
 
      In many cases, where the arguments are valid in both terminfo and
@@ -608,11 +1078,11 @@ often not possible to place these capabilities in the terminfo database.
 
 `CS'
      (str)
-     Switch cursor keys to application mode.
+     Switch cursor-keys to application mode.
 
 `CE'
      (str)
-     Switch cursor keys to cursor mode.
+     Switch cursor-keys to cursor mode.
 
 `AN'
      (bool)
@@ -631,7 +1101,7 @@ often not possible to place these capabilities in the terminfo database.
 
 `AF'
      (str)
-     Change character forground color in an ANSI conform way. This
+     Change character foreground color in an ANSI conform way. This
      capability will almost always be set to `\E[3%dm' (`\E[3%p1%dm' on
      terminfo machines).
 
@@ -719,7 +1189,7 @@ characters over several national language font pages.
 <MAPPING> describes to what string a single character will be
 translated. A template mechanism is used, as most of the time the codes
 have a lot in common (for example strings to switch to and from another
-charset). Each occurence of `%' in <TEMPLATE> gets substituted with the
+charset). Each occurrence of `%' in <TEMPLATE> gets substituted with the
 TEMPLATE-ARG specified together with the character. If your strings are
 not similar at all, then use `%' as a template and place the full
 string in <TEMPLATE-ARG>. A quoting mechanism was added to make it
@@ -740,7 +1210,7 @@ therefore a lot of quoting is needed to create a single `\'.
 translates the unquoted `%' char, it will be sent to the terminal
 whenever screen switches to the corresponding <DESIGNATOR>.  In this
 special case the template is assumed to be just `%' because the charset
-switch sequence and the character mappings normaly haven't much in
+switch sequence and the character mappings normally haven't much in
 common.
 
    This example shows one use of the extension:
@@ -795,552 +1265,31 @@ Hardware Status Line
 ====================
 
  - Command: hardstatus [STATE]
+ - Command: hardstatus [`always']`lastline'|`message'|`ignore' [STRING]
+ - Command: hardstatus `string' [STRING]
      (none)
-     Toggles the use of the terminal's hardware status line. If `on',
-     `screen' will use this facility to display one line messages.
-     Otherwise these messages are overlayed in reverse video mode at the
-     display line. Note that the hardstatus feature can only be used if
-     the termcap/terminfo capabilities "hs", "ts", "fs" and "ds" are set
-     properly.  Default is `on' whenever the "hs" capability is present.
-
-
-File: screen.info,  Node: Last Message,  Next: Message Wait,  Prev: Hardware Status Line,  Up: Message Line
-
-Display Last Message
-====================
-
- - Command: lastmsg
-     (`C-a m', `C-a C-m')
-     Repeat the last message displayed in the message line.  Useful if
-     you're typing when a message appears, because (unless your
-     terminal has a hardware status line) the message goes away when
-     you press a key.
-
-
-File: screen.info,  Node: Message Wait,  Prev: Last Message,  Up: Message Line
-
-Message Wait
-============
-
- - Command: msgminwait SEC
-     (none)
-     Defines the time `screen' delays a new message when another is
-     currently displayed.  Defaults to 1 second.
-
- - Command: msgwait SEC
-     (none)
-     Defines the time a message is displayed, if `screen' is not
-     disturbed by other activity.  Defaults to 5 seconds.
-
-
-File: screen.info,  Node: Logging,  Next: Startup,  Prev: Message Line,  Up: Top
-
-Logging
-*******
-
-   This section describes the commands for keeping a record of your
-session.
-
-* Menu:
-
-* Hardcopy::                    Dump the current screen to a file
-* Log::                         Log the output of a window to a file
-
-
-File: screen.info,  Node: Hardcopy,  Next: Log,  Up: Logging
-
-hardcopy
-========
-
- - Command: hardcopy
-     (`C-a h', `C-a C-h')
-     Writes out the current display contents to the file `hardcopy.N'
-     in the window's default directory, where N is the number of the
-     current window.  This either appends or overwrites the file if it
-     exists, as determined by the `hardcopy_append' command.
-
- - Command: hardcopy_append STATE
-     (none)
-     If set to `on', `screen' will append to the `hardcopy.N' files
-     created by the command `hardcopy'; otherwise, these files are
-     overwritten each time.
-
- - Command: hardcopydir DIRECTORY
-     (none)
-     Defines a directory where hardcopy files will be placed.  If unset
-     hardcopys are dumped in screen's current working directory.
-
-
-File: screen.info,  Node: Log,  Prev: Hardcopy,  Up: Logging
-
-log
-===
-
- - Command: log [STATE]
-     (`C-a H')
-     Begins/ends logging of the current window to the file
-     `screenlog.N' in the window's default directory, where N is the
-     number of the current window.  This filename can be changed with
-     the `logfile' command.  If no parameter is given, the logging
-     state is toggled.  The session log is appended to the previous
-     contents of the file if it already exists.  The current contents
-     and the contents of the scrollback history are not included in the
-     session log.  Default is `off'.
-
- - Command: logfile FILENAME
-     (none)
-     Defines the name the logfiles will get. The default is
-     `screenlog.%n'.
-
-
-File: screen.info,  Node: Startup,  Next: Miscellaneous,  Prev: Logging,  Up: Top
-
-Startup
-*******
-
-   This section describes commands which are only useful in the
-`.screenrc' file, for use at startup.
-
-* Menu:
-
-* echo::                        Display a message.
-* sleep::                       Pause execution of the `.screenrc'.
-* Startup Message::             Control display of the copyright notice.
-
-
-File: screen.info,  Node: echo,  Next: sleep,  Up: Startup
-
-echo
-====
-
- - Command: echo [-n] MESSAGE
-     (none)
-     The echo command may be used to annoy `screen' users with a
-     'message of the day'. Typically installed in a global screenrc.
-     The option `-n' may be used to suppress the line feed.  See also
-     `sleep'.  Echo is also useful for online checking of environment
-     variables.
-
-
-File: screen.info,  Node: sleep,  Next: Startup Message,  Prev: echo,  Up: Startup
-
-sleep
-=====
-
- - Command: sleep NUM
-     (none)
-     This command will pause the execution of a .screenrc file for NUM
-     seconds.  Keyboard activity will end the sleep.  It may be used to
-     give users a chance to read the messages output by `echo'.
-
-
-File: screen.info,  Node: Startup Message,  Prev: sleep,  Up: Startup
-
-Startup Message
-===============
-
- - Command: startup_message STATE
-     (none)
-     Select whether you want to see the copyright notice during startup.
-     Default is `on', as you probably noticed.
-
-
-File: screen.info,  Node: Miscellaneous,  Next: Environment,  Prev: Startup,  Up: Top
-
-Miscellaneous commands
-**********************
-
-   The commands described here do not fit well under any of the other
-categories.
-
-* Menu:
-
-* At::                          Execute a command at other displays or windows.
-* Break::                       Send a break signal to the window.
-* Debug::                       Suppress/allow debugging output.
-* License::                     Display the disclaimer page.
-* Nethack::                     Use `nethack'-like error messages.
-* Number::                      Change the current window's number.
-* Silence::			Notify on inactivity.
-* Time::                        Display the time and load average.
-* Version::                     Display the version of `screen'.
-* Zombie::                      Keep dead windows.
-* Printcmd::                    Set command for VT100 printer port emulation.
-* Sorendition::			Change the text highlighting method.
-
-
-File: screen.info,  Node: At,  Next: Break,  Up: Miscellaneous
-
-At
-==
-
- - Command: at [IDENTIFIER][#|*|%] COMMAND [ARGS]
-     (none)
-     Execute a command at other displays or windows as if it had been
-     entered there.  `At' changes the context (the `current window' or
-     `current display' setting) of the command. If the first parameter
-     describes a non-unique context, the command will be executed
-     multiple times. If the first parameter is of the form
-     `IDENTIFIER*' then identifier is matched against user names.  The
-     command is executed once for each display of the selected user(s).
-     If the first parameter is of the form `IDENTIFIER%' identifier is
-     matched against displays. Displays are named after the ttys they
-     attach. The prefix `/dev/' or `/dev/tty' may be omitted from the
-     identifier.  If IDENTIFIER has a `#' or nothing appended it is
-     matched against window numbers and titles. Omitting an identifier
-     in front of the `#', `*' or `%' character selects all users,
-     displays or windows because a prefix-match is performed. Note that
-     on the affected display(s) a short message will describe what
-     happened. Caution: Permission is checked for the owners or the
-     affected display(s), not for the initiator of the `at' command.
-
-
-File: screen.info,  Node: Break,  Next: Debug,  Prev: At,  Up: Miscellaneous
-
-Break
-=====
-
- - Command: break [DURATION]
-     (none)
-     Send a break signal for DURATION*0.25 seconds to this window.
-     Most useful if a character device is attached to the window rather
-     than a shell process.
-
- - Command: pow_break
-     (none)
-     Reopen the window's terminal line and send a break condition.
-
-
-File: screen.info,  Node: Debug,  Next: License,  Prev: Break,  Up: Miscellaneous
-
-Debug
-=====
-
- - Command: debug [ON|OFF]
-     (none)
-     Turns runtime debugging on or off. If `screen' has been compiled
-     with option `-DDEBUG' debugging is available and is turned on per
-     default.  Note that this command only affects debugging output
-     from the main `SCREEN' process.
-
-
-File: screen.info,  Node: License,  Next: Nethack,  Prev: Debug,  Up: Miscellaneous
-
-License
-=======
-
- - Command: license
-     (none)
-     Display the disclaimer page. This is done whenever `screen' is
-     started without options, which should be often enough.
-
-
-File: screen.info,  Node: Nethack,  Next: Number,  Prev: License,  Up: Miscellaneous
-
-Nethack
-=======
-
- - Command: nethack STATE
-     (none)
-     Changes the kind of error messages used by `screen'.  When you are
-     familiar with the game `nethack', you may enjoy the nethack-style
-     messages which will often blur the facts a little, but are much
-     funnier to read. Anyway, standard messages often tend to be
-     unclear as well.
-
-     This option is only available if `screen' was compiled with the
-     NETHACK flag defined (*note Installation::.). The default setting
-     is then determined by the presence of the environment variable
-     `$NETHACKOPTIONS'.
-
-
-File: screen.info,  Node: Number,  Next: Silence,  Prev: Nethack,  Up: Miscellaneous
-
-Number
-======
-
- - Command: number [N]
-     (`C-a N')
-     Change the current window's number. If the given number N is
-     already used by another window, both windows exchange their
-     numbers. If no argument is specified, the current window number
-     (and title) is shown.
-
-
-File: screen.info,  Node: Silence,  Next: Time,  Prev: Number,  Up: Miscellaneous
-
-Silence
-=======
-
- - Command: silence [STATE|SEC]
-     (none)
-     Toggles silence monitoring of windows. When silence is turned on
-     and an affected window is switched into the background, you will
-     receive the silence notification message in the status line after
-     a specified period of inactivity (silence). The default timeout
-     can be changed with the `silencewait' command or by specifying a
-     number of seconds instead of `on' or `off'. Silence is initially
-     off for all windows.
-
- - Command: silencewait SECONDS
-     (none)
-     Define the time that all windows monitored for silence should wait
-     before displaying a message. Default is 30 seconds.
-
-
-File: screen.info,  Node: Time,  Next: Version,  Prev: Silence,  Up: Miscellaneous
-
-Time
-====
-
- - Command: time
-     (`C-a t', `C-a C-t')
-     Uses the message line to display the time of day, the host name,
-     and the load averages over 1, 5, and 15 minutes (if this is
-     available on your system).  For window-specific information use
-     `info' (*note Info::.).
-
-
-File: screen.info,  Node: Version,  Next: Zombie,  Prev: Time,  Up: Miscellaneous
-
-Version
-=======
-
- - Command: version
-     (`C-a v')
-     Display the version and modification date in the message line.
-
-
-File: screen.info,  Node: Zombie,  Next: Printcmd,  Prev: Version,  Up: Miscellaneous
-
-Zombie
-======
-
- - Command: zombie [KEYX]
- - Command: defzombie [KEYX]
-     (none)
-     Per default windows are removed from the window list as soon as the
-     windows process (e.g. shell) exits. When a string of two keys is
-     specified to the zombie command, `dead' windows will remain in the
-     list.  The `kill' kommand may be used to remove the window.
-     Pressing the first key in the dead window has the same effect.
-     Pressing the second key, however, screen will attempt to resurrect
-     the window. The process that was initially running in the window
-     will be launched again. Calling `zombie' without parameters will
-     clear the zombie setting, thus making windows disappear when the
-     process terminates.
-
-     As the zombie setting is affected globally for all windows, this
-     command should only be called `defzombie'. Until we need this as a
-     per window setting, the commands `zombie' and `defzombie' are
-     synonymous.
-
-
-File: screen.info,  Node: Printcmd,  Next: Sorendition,  Prev: Zombie,  Up: Miscellaneous
-
-Printcmd
-========
-
- - Command: printcmd [CMD]
-     (none)
-     If CMD is not an empty string, screen will not use the terminal
-     capabilities `po/pf' for printing if it detects an ansi print
-     sequence `ESC [ 5 i', but pipe the output into CMD.  This should
-     normally be a command like `lpr' or `cat > /tmp/scrprint'.
-     `Printcmd' without an argument displays the current setting.  The
-     ansi sequence `ESC \' ends printing and closes the pipe.
-
-     Warning: Be careful with this command! If other user have write
-     access to your terminal, they will be able to fire off print
-     commands.
-
-
-File: screen.info,  Node: Sorendition,  Prev: Printcmd,  Up: Miscellaneous
-
-Sorendition
-===========
-
- - Command: sorendition [ATTR [COLOR]]
-     (none)
-     Change the way screen does highlighting for text marking and
-     printing messages.  ATTR is a hexadecimal number and describes the
-     attributes (inverse, underline, ...) the text will get.  COLOR is
-     a 2 digit number and changes the forground/background of the
-     highlighted text.  Some knowledge of screen's internal character
-     representation is needed to make the characters appear in the
-     desired way. The default is currently `10 99' (standout, default
-     colors).
-
-
-File: screen.info,  Node: Environment,  Next: Files,  Prev: Miscellaneous,  Up: Top
-
-Environment Variables
-*********************
-
-`COLUMNS'
-     Number of columns on the terminal (overrides termcap entry).
-
-`HOME'
-     Directory in which to look for .screenrc.
-
-`ISCREENRC'
-     Alternate user screenrc file.
-
-`LINES'
-     Number of lines on the terminal (overrides termcap entry).
-
-`LOCKPRG'
-     Screen lock program.
-
-`NETHACKOPTIONS'
-     Turns on `nethack' option.
-
-`PATH'
-     Used for locating programs to run.
-
-`SCREENCAP'
-     For customizing a terminal's `TERMCAP' value.
-
-`SCREENDIR'
-     Alternate socket directory.
-
-`SCREENRC'
-     Alternate user screenrc file.
-
-`SHELL'
-     Default shell program for opening windows (default `/bin/sh').
-
-`STY'
-     Alternate socket name. If `screen' is invoked, and the environment
-     variable `STY' is set, then it creates only a window in the
-     running `screen' session rather than starting a new session.
-
-`SYSSCREENRC'
-     Alternate system screenrc file.
-
-`TERM'
-     Terminal name.
-
-`TERMCAP'
-     Terminal description.
-
-
-File: screen.info,  Node: Files,  Next: Credits,  Prev: Environment,  Up: Top
-
-Files Referenced
-****************
-
-`.../screen-3.?.??/etc/screenrc'
-`.../screen-3.?.??/etc/etcscreenrc'
-     Examples in the `screen' distribution package for private and
-     global initialization files.
-
-``$SYSSCREENRC''
-`/local/etc/screenrc'
-     `screen' initialization commands
-
-``$ISCREENRC''
-``$SCREENRC''
-``$HOME'/.iscreenrc'
-``$HOME'/.screenrc'
-     Read in after /local/etc/screenrc
-
-``$ISCREENDIR'/S-LOGIN'
-``$SCREENDIR'/S-LOGIN'
-`/local/screens/S-LOGIN'
-     Socket directories (default)
-
-`/usr/tmp/screens/S-LOGIN'
-     Alternate socket directories.
-
-`SOCKET DIRECTORY/.termcap'
-     Written by the `dumptermcap' command
-
-`/usr/tmp/screens/screen-exchange or'
-`/tmp/screen-exchange'
-     `screen' interprocess communication buffer
-
-`hardcopy.[0-9]'
-     Screen images created by the hardcopy command
-
-`screenlog.[0-9]'
-     Output log files created by the log command
-
-`/usr/lib/terminfo/?/* or'
-`/etc/termcap'
-     Terminal capability databases
-
-`/etc/utmp'
-     Login records
-
-``$LOCKPRG''
-     Program for locking the terminal.
-
-
-File: screen.info,  Node: Credits,  Next: Bugs,  Prev: Files,  Up: Top
-
-Credits
-*******
-
-Authors
-=======
-
-   Originally created by Oliver Laumann, this latest version was
-produced by Wayne Davison, Juergen Weigert and Michael Schroeder.
-
-Contributors
-============
-
-          Ken Beal (kbeal@amber.ssd.csd.harris.com),
-          Rudolf Koenig (rfkoenig@informatik.uni-erlangen.de),
-          Toerless Eckert (eckert@informatik.uni-erlangen.de),
-          Wayne Davison (davison@borland.com),
-          Patrick Wolfe (pat@kai.com, kailand!pat),
-          Bart Schaefer (schaefer@cse.ogi.edu),
-          Nathan Glasser (nathan@brokaw.lcs.mit.edu),
-          Larry W. Virden (lvirden@cas.org),
-          Howard Chu (hyc@hanauma.jpl.nasa.gov),
-          Tim MacKenzie (tym@dibbler.cs.monash.edu.au),
-          Markku Jarvinen (mta@{cc,cs,ee}.tut.fi),
-          Marc Boucher (marc@CAM.ORG),
-          Doug Siebert (dsiebert@isca.uiowa.edu),
-          Ken Stillson (stillson@tsfsrv.mitre.org),
-          Ian Frechett (frechett@spot.Colorado.EDU),
-          Brian Koehmstedt (bpk@gnu.ai.mit.edu),
-          Don Smith (djs6015@ultb.isc.rit.edu),
-          Frank van der Linden (vdlinden@fwi.uva.nl),
-          Martin Schweikert (schweik@cpp.ob.open.de),
-          David Vrona (dave@sashimi.lcu.com),
-          E. Tye McQueen (tye%spillman.UUCP@uunet.uu.net),
-          Matthew Green (mrgreen@mame.mu.oz.au),
-          Christopher Williams (cgw@unt.edu),
-          Matt Mosley (mattm@access.digex.net),
-          Gregory Neil Shapiro (gshapiro@wpi.WPI.EDU),
-          Jason Merrill (jason@jarthur.Claremont.EDU).
-
-Version
-=======
-
-   This manual describes version 3.7.6 of the `screen' program. Its
-roots are a merge of a custom version 2.3PR7 by Wayne Davison and
-several enhancements to Oliver Laumann's version 2.0.  Note that all
-versions numbered 2.x are copyright by Oliver Laumann.
-
-   See also *Note Availability::.
-
-
-File: screen.info,  Node: Bugs,  Next: Installation,  Prev: Credits,  Up: Top
-
-Bugs
-****
-
-   Just like any other significant piece of software, `screen' has a
-few bugs and missing features.  Please send in a bug report if you have
-found a bug not mentioned here.
-
-* Menu:
-
-* Known Bugs::                  Problems we know about.
-* Reporting Bugs::              How to contact the maintainers.
-* Availability::                Where to find the lastest screen version.
+     This command configures the use and emulation of the terminal's
+     hardstatus line. The first form toggles whether `screen' will use
+     the hardware status line to display messages. If the flag is set
+     to `off', these messages are overlaid in reverse video mode at the
+     display line. The default setting is `on'.
+
+     The second form tells screen what to do if the terminal doesn't
+     have a hardstatus line (i.e. the termcap/terminfo capabilities
+     "hs", "ts", "fs" and "ds" are not set). If the type `lastline' is
+     used, screen will reserve the last line of the display for the
+     hardstatus. `message' uses `screen''s message mechanism and
+     `ignore' tells `screen' never to display the hardstatus.  If you
+     prepend the word `always' to the type, `screen' will use the type
+     even if the terminal supports a hardstatus line.
+
+     The third form specifies the contents of the hardstatus line.
+     `%h' is used as default string, i.e. the stored hardstatus of the
+     current window (settable via `\E]0;^G' or `\E_\\') is displayed.
+     You can customize this to any string you like including string
+     escapes (*Note String Escapes::).  If you leave out the argument
+     STRING, the current string is displayed.
+
+     You can mix the second and third form by providing the string as
+     additional argument.
 

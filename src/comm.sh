@@ -27,23 +27,28 @@ struct comm
 
 #define ARGS_MASK	(3)
 
-#define ARGS_ZERO	(0)
-#define ARGS_ONE	(1)
-#define ARGS_TWO	(2)
-#define ARGS_THREE	(3)
+#define ARGS_0	(0)
+#define ARGS_1	(1)
+#define ARGS_2	(2)
+#define ARGS_3	(3)
 
-#define ARGS_PLUSONE	(1<<2)
-#define ARGS_PLUSTWO	(1<<3)
-#define ARGS_ORMORE	(1<<4)
+#define ARGS_PLUS1	(1<<2)
+#define ARGS_PLUS2	(1<<3)
+#define ARGS_PLUS3	(1<<4)
+#define ARGS_ORMORE	(1<<5)
 
-#define NEED_FORE	(1<<5)	/* this command needs a fore window */
-#define NEED_DISPLAY	(1<<6)	/* this command needs a display */
+#define NEED_FORE	(1<<6)	/* this command needs a fore window */
+#define NEED_DISPLAY	(1<<7)	/* this command needs a display */
 
-#define ARGS_ZEROONE	(ARGS_ZERO|ARGS_PLUSONE)
-#define ARGS_ONETWO	(ARGS_ONE |ARGS_PLUSONE)
-#define ARGS_TWOTHREE	(ARGS_TWO |ARGS_PLUSONE)
-#define ARGS_ZEROTWO	(ARGS_ZERO|ARGS_PLUSTWO)
-#define ARGS_ZEROONETWO	(ARGS_ZERO|ARGS_PLUSONE|ARGS_PLUSTWO)
+#define ARGS_01		(ARGS_0 | ARGS_PLUS1)
+#define ARGS_02		(ARGS_0 | ARGS_PLUS2)
+#define ARGS_12		(ARGS_1 | ARGS_PLUS1)
+#define ARGS_23		(ARGS_2 | ARGS_PLUS1)
+#define ARGS_34		(ARGS_3 | ARGS_PLUS1)
+#define ARGS_012	(ARGS_0 | ARGS_PLUS1 | ARGS_PLUS2)
+#define ARGS_123	(ARGS_1 | ARGS_PLUS1 | ARGS_PLUS2)
+#define ARGS_124	(ARGS_1 | ARGS_PLUS1 | ARGS_PLUS3)
+#define ARGS_1234	(ARGS_1 | ARGS_PLUS1 | ARGS_PLUS2 | ARGS_PLUS3)
 
 struct action
 {

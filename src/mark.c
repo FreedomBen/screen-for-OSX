@@ -33,6 +33,15 @@ RCS_ID("$Id$ FAU")
 
 #ifdef COPY_PASTE
 
+/*
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ *
+ * WARNING: these routines use the global variables "fore" and
+ * "flayer" to make things easier.
+ *
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ */
+
 static int  is_letter __P((int));
 static void nextword __P((int *, int *, int, int));
 static int  linestart __P((int));
@@ -45,21 +54,18 @@ static int  MarkScrollUpDisplay __P((int));
 static void MarkProcess __P((char **, int *));
 static void MarkAbort __P((void));
 static void MarkRedisplayLine __P((int, int, int, int));
-static int  MarkRewrite __P((int, int, int, int));
-static void MarkSetCursor __P((void));
+static int  MarkRewrite __P((int, int, int, struct mchar *, int));
 
+extern struct layer *flayer;
+extern struct display *display, *displays;
 extern struct win *fore;
-extern struct display *display;
 extern char *null, *blank;
 extern struct mline mline_blank, mline_null;
 extern struct mchar mchar_so;
-extern int use_hardstatus;
 
-#ifdef NETHACK
-extern int nethackflag;
-#endif
-
+#ifdef FONT
 int pastefont = 1;
+#endif
 
 static struct LayFuncs MarkLf =
 {
@@ -68,12 +74,13 @@ static struct LayFuncs MarkLf =
   MarkRedisplayLine,
   DefClearLine,
   MarkRewrite,
-  MarkSetCursor,
   DefResize,
   DefRestore
 };
 
 int join_with_cr =  0;
+int compacthist = 0;
+
 unsigned char mark_key_tab[256]; /* this array must be initialised first! */
 
 static struct markdata *markdata;
@@ -108,10 +115,10 @@ int y;
   register int x;
   register char *i;
 
-  for (x = markdata->left_mar, i = WIN(y)->image + x; x < D_width - 1; x++)
+  for (x = markdata->left_mar, i = WIN(y)->image + x; x < fore->w_width - 1; x++)
     if (*i++ != ' ')
       break;
-  if (x == D_width - 1)
+  if (x == fore->w_width - 1)
     x = markdata->left_mar;
   return x;
 }
@@ -148,7 +155,7 @@ static void
 nextword(xp, yp, flags, num)
 int *xp, *yp, flags, num;
 {
-  int xx = D_width, yy = fore->w_histheight + D_height;
+  int xx = fore->w_width, yy = fore->w_histheight + fore->w_height;
   register int sx, oq, q, x, y;
   struct mline *ml;
 
@@ -209,10 +216,14 @@ rem(x1, y1, x2, y2, redisplay, pt, yend)
 int x1, y1, x2, y2, redisplay, yend;
 char *pt;
 {
-  int i, j, from, to, ry, c, cf, font;
+  int i, j, from, to, ry, c;
   int l = 0;
-  char *im, *fo;
+  char *im;
   struct mline *ml;
+#ifdef FONT
+  int cf, font;
+  char *fo;
+#endif
 
   markdata->second = 0;
   if (y2 < y1 || ((y2 == y1) && (x2 < x1)))
@@ -225,7 +236,7 @@ char *pt;
       x1 = i;
     }
   ry = y1 - markdata->hist_offset;
-  
+
   i = y1;
   if (redisplay != 2 && pt == 0 && ry <0)
     {
@@ -240,7 +251,7 @@ char *pt;
       from = (i == y1) ? x1 : 0;
       if (from < markdata->left_mar)
 	from = markdata->left_mar;
-      for (to = D_width, im = ml->image + to; to >= 0; to--)
+      for (to = fore->w_width, im = ml->image + to; to >= 0; to--)
         if (*im-- != ' ')
 	  break;
       if (i == y2 && x2 < to)
@@ -256,12 +267,17 @@ char *pt;
       if (badkanji(ml->font, j))
 	j--;
 #endif
+      im = ml->image + j;
+#ifdef FONT
+      fo = ml->font + j;
       font = ASCII;
-      for (im = ml->image + j, fo = ml->font + j; j <= to; j++)
+#endif
+      for (; j <= to; j++)
 	{
-	  cf = *fo++;
 	  c = *im++;
-#ifdef KANJI
+#ifdef FONT
+	  cf = *fo++;
+# ifdef KANJI
 	  if (cf == KANJI)
 	    {
 	      int t;
@@ -278,7 +294,7 @@ char *pt;
 		  else if (fore->w_kanji == SJIS)
 		    {
 		      t += (c & 1) ? ((t <= 0x5f) ? 0x1f : 0x20) : 0x7e;
-		      c = (c - 0x21) / 2 + ((c < 0x5e) ? 0x81 : 0xc1);
+		      c = (c - 0x21) / 2 + ((c < 0x5f) ? 0x81 : 0xc1);
 		    }
 		  else
 		    {
@@ -297,10 +313,10 @@ char *pt;
 	      c = t;
 	    }
 	  else
-#endif
+# endif /* KANJI */
 	  if (pastefont)
 	    {
-#ifdef KANJI
+# ifdef KANJI
 	      if (cf == KANA)
 		{
 		  if (fore->w_kanji == EUC)
@@ -324,7 +340,7 @@ char *pt;
 		    }
 		}
 	      else
-#endif
+#endif /* KANJI */
 		{
 		  if (cf != font)
 		    {
@@ -339,10 +355,12 @@ char *pt;
 		    }
 		}
 	    }
+#endif /* FONT */
 	  if (pt)
 	    *pt++ = c;
 	  l++;
 	}
+#ifdef FONT
       if (pastefont && font != ASCII)
 	{
 	  if (pt)
@@ -352,9 +370,10 @@ char *pt;
 	    }
 	  l += 3;
 	}
-      if (i != y2 && (to != D_width - 1 || ml->image[to + 1] == ' '))
+#endif
+      if (i != y2 && (to != fore->w_width - 1 || ml->image[to + 1] == ' '))
 	{
-	  /* 
+	  /*
 	   * this code defines, what glues lines together
 	   */
 	  switch (markdata->nonl)
@@ -377,13 +396,18 @@ char *pt;
 		*pt++ = ' ';
 	      l++;
 	      break;
+	    case 3:		/* seperate by comma, for csh junkies */
+	      if (pt)
+	        *pt++ = ',';
+	      l++;
+	      break;
 	    }
 	}
     }
   return l;
 }
 
-/* Check if two chars are identical. All digits are treatened
+/* Check if two chars are identical. All digits are treated
  * as same. Used for GetHistory()
  */
 
@@ -401,6 +425,8 @@ int a, b;
 }
 
 
+/**********************************************************************/
+
 int
 GetHistory()	/* return value 1 if u_copybuffer changed */
 {
@@ -408,9 +434,10 @@ GetHistory()	/* return value 1 if u_copybuffer changed */
   char *linep;
   struct mline *ml;
 
+  ASSERT(display && fore);
   x = fore->w_x;
-  if (x >= D_width)
-    x = D_width - 1;
+  if (x >= fore->w_width)
+    x = fore->w_width - 1;
   y = fore->w_y + fore->w_histheight;
   debug2("cursor is at x=%d, y=%d\n", x, y);
   ml = WIN(y);
@@ -424,7 +451,7 @@ GetHistory()	/* return value 1 if u_copybuffer changed */
       linep = ml->image;
       if (xx < 0 || eq(linep[xx], q))
 	{		/* line is matching... */
-	  for (i = D_width - 1, linep += i; i >= x; i--)
+	  for (i = fore->w_width - 1, linep += i; i >= x; i--)
 	    if (*linep-- != ' ')
 	      break;
 	  if (i >= x)
@@ -437,7 +464,7 @@ GetHistory()	/* return value 1 if u_copybuffer changed */
     UserFreeCopyBuffer(D_user);
   if ((D_user->u_copybuffer = malloc((unsigned) (i - x + 2))) == NULL)
     {
-      Msg(0, "Not enough memory... Sorry.");
+      LMsg(0, "Not enough memory... Sorry.");
       return 0;
     }
   bcopy(linep - i + x + 1, D_user->u_copybuffer, i - x + 1);
@@ -445,47 +472,44 @@ GetHistory()	/* return value 1 if u_copybuffer changed */
   return 1;
 }
 
+/**********************************************************************/
+
+
 void
 MarkRoutine()
 {
   int x, y;
- 
-  ASSERT(fore->w_active);
+
+  ASSERT(fore && display && D_user);
+
+  debug2("MarkRoutine called: fore nr %d, display %s\n",
+         fore->w_number, D_usertty);
+
   if (InitOverlayPage(sizeof(*markdata), &MarkLf, 1))
     return;
-  markdata = (struct markdata *)D_lay->l_data;
+  markdata = (struct markdata *)flayer->l_data;
+  markdata->md_user = D_user;	/* XXX: Correct? */
+  markdata->md_window = fore;
   markdata->second = 0;
   markdata->rep_cnt = 0;
   markdata->append_mode = 0;
   markdata->write_buffer = 0;
   markdata->nonl = 0;
   markdata->left_mar  = 0;
-  markdata->right_mar = D_width - 1;
+  markdata->right_mar = fore->w_width - 1;
   markdata->hist_offset = fore->w_histheight;
   x = fore->w_x;
   y = D2W(fore->w_y);
-  if (x >= D_width)
-    x = D_width - 1;
+  if (x >= fore->w_width)
+    x = fore->w_width - 1;
 
-  GotoPos(x, W2D(y));
-#ifdef NETHACK
-  if (nethackflag)
-    Msg(0, "Welcome to hacker's treasure zoo - Column %d Line %d(+%d) (%d,%d)",
-	x + 1, W2D(y + 1), fore->w_histheight, D_width, D_height);
-  else
-#endif
-  Msg(0, "Copy mode - Column %d Line %d(+%d) (%d,%d)",
-      x + 1, W2D(y + 1), fore->w_histheight, D_width, D_height);
+  LGotoPos(flayer, x, W2D(y));
+  LMsg(0, "Copy mode - Column %d Line %d(+%d) (%d,%d)",
+      x + 1, W2D(y + 1), fore->w_histheight, fore->w_width, fore->w_height);
   markdata->cx = markdata->x1 = x;
   markdata->cy = markdata->y1 = y;
-}
-
-static void
-MarkSetCursor()
-{
-  markdata = (struct markdata *)D_lay->l_data;
-  fore = D_fore;
-  GotoPos(markdata->cx, W2D(markdata->cy));
+  flayer->l_x = x;
+  flayer->l_y = W2D(y);
 }
 
 static void
@@ -499,23 +523,22 @@ int *inlenp;
   int newcopylen = 0, od;
   int in_mark;
   int rep_cnt;
- 
+  struct user *md_user;
+
 /*
   char *extrap = 0, extrabuf[100];
 */
-      
-  markdata = (struct markdata *)D_lay->l_data;
-  fore = D_fore;
+
+  markdata = (struct markdata *)flayer->l_data;
+  fore = markdata->md_window;
+  md_user = markdata->md_user;
   if (inbufp == 0)
     {
       MarkAbort();
       return;
     }
- 
-  if (D_status && !(use_hardstatus && D_HS))
-    RemoveStatus();
 
-  GotoPos(markdata->cx, W2D(markdata->cy));
+  LGotoPos(flayer, markdata->cx, W2D(markdata->cy));
   inbuf= *inbufp;
   inlen= *inlenp;
   pt = inbuf;
@@ -558,6 +581,7 @@ int *inlenp;
       cy = markdata->cy;
       switch (od)
 	{
+	case 'o':
 	case 'x':
 	  if (!markdata->second)
 	    break;
@@ -569,7 +593,7 @@ int *inlenp;
 	  break;
 	case '\014':	/* CTRL-L Redisplay */
 	  Redisplay(0);
-	  GotoPos(cx, W2D(cy));
+	  LGotoPos(flayer, cx, W2D(cy));
 	  break;
 	case 0202:	/* M-C-b */
 	case '\010':	/* CTRL-H Backspace */
@@ -589,8 +613,8 @@ int *inlenp;
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
 	  j = cy + rep_cnt;
-	  if (j > fore->w_histheight + D_height - 1)
-	    j = fore->w_histheight + D_height - 1;
+	  if (j > fore->w_histheight + fore->w_height - 1)
+	    j = fore->w_histheight + fore->w_height - 1;
 	  revto(linestart(j), j);
 	  break;
 	case '-':
@@ -626,7 +650,7 @@ int *inlenp;
 	  break;
 	case '\004':    /* CTRL-D down half screen */
 	  if (rep_cnt == 0)
-	    rep_cnt = (D_height + 1) >> 1;
+	    rep_cnt = (fore->w_height + 1) >> 1;
 	  revto_line(cx, cy + rep_cnt, W2D(cy));
 	  break;
 	case '$':
@@ -642,27 +666,27 @@ int *inlenp;
 	  break;
 	case '\025':	/* CTRL-U up half screen */
 	  if (rep_cnt == 0)
-	    rep_cnt = (D_height + 1) >> 1;
+	    rep_cnt = (fore->w_height + 1) >> 1;
 	  revto_line(cx, cy - rep_cnt, W2D(cy));
 	  break;
 	case '\007':	/* CTRL-G show cursorpos */
-	  if (markdata->left_mar == 0 && markdata->right_mar == D_width - 1)
-	    Msg(0, "Column %d Line %d(+%d)", cx+1, W2D(cy)+1,
+	  if (markdata->left_mar == 0 && markdata->right_mar == fore->w_width - 1)
+	    LMsg(0, "Column %d Line %d(+%d)", cx+1, W2D(cy)+1,
 		markdata->hist_offset);
 	  else
-	    Msg(0, "Column %d(%d..%d) Line %d(+%d)", cx+1,
+	    LMsg(0, "Column %d(%d..%d) Line %d(+%d)", cx+1,
 		markdata->left_mar+1, markdata->right_mar+1, W2D(cy)+1, markdata->hist_offset);
 	  break;
 	case '\002':	/* CTRL-B  back one page */
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  rep_cnt *= D_height; 
+	  rep_cnt *= fore->w_height;
 	  revto(cx, cy - rep_cnt);
 	  break;
 	case '\006':	/* CTRL-F  forward one page */
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  rep_cnt *= D_height;
+	  rep_cnt *= fore->w_height;
 	  revto(cx, cy + rep_cnt);
 	  break;
 	case '\005':	/* CTRL-E  scroll up */
@@ -672,16 +696,16 @@ int *inlenp;
 	  if (cy < D2W(0))
             revto(cx, D2W(0));
 	  else
-            GotoPos(cx, W2D(cy));
+            LGotoPos(flayer, cx, W2D(cy));
 	  break;
 	case '\031': /* CTRL-Y  scroll down */
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
 	  rep_cnt = MarkScrollDownDisplay(rep_cnt);
-	  if (cy > D2W(D_height-1))
-            revto(cx, D2W(D_height-1));
+	  if (cy > D2W(fore->w_height-1))
+            revto(cx, D2W(fore->w_height-1));
 	  else
-            GotoPos(cx, W2D(cy));
+            LGotoPos(flayer, cx, W2D(cy));
 	  break;
 	case '@':
 	  /* it may be usefull to have a key that does nothing */
@@ -693,7 +717,7 @@ int *inlenp;
 	    rep_cnt = 0;
 	  if (rep_cnt > 100)
 	    rep_cnt = 100;
-	  revto_line(markdata->left_mar, (rep_cnt * (fore->w_histheight + D_height)) / 100, (D_height - 1) / 2);
+	  revto_line(markdata->left_mar, (rep_cnt * (fore->w_histheight + fore->w_height)) / 100, (fore->w_height - 1) / 2);
 	  break;
 	case 0201:
 	case 'g':
@@ -703,17 +727,17 @@ int *inlenp;
 	case 'G':
 	  /* rep_cnt is here the WIN line number */
 	  if (rep_cnt == 0)
-	    rep_cnt = fore->w_histheight + D_height;
-	  revto_line(markdata->left_mar, --rep_cnt, (D_height - 1) / 2);
+	    rep_cnt = fore->w_histheight + fore->w_height;
+	  revto_line(markdata->left_mar, --rep_cnt, (fore->w_height - 1) / 2);
 	  break;
 	case 'H':
 	  revto(markdata->left_mar, D2W(0));
 	  break;
 	case 'M':
-	  revto(markdata->left_mar, D2W((D_height - 1) / 2));
+	  revto(markdata->left_mar, D2W((fore->w_height - 1) / 2));
 	  break;
 	case 'L':
-	  revto(markdata->left_mar, D2W(D_height - 1));
+	  revto(markdata->left_mar, D2W(fore->w_height - 1));
 	  break;
 	case '|':
 	  revto(--rep_cnt, cy);
@@ -739,7 +763,7 @@ int *inlenp;
 	case 'a':
 	  markdata->append_mode = 1 - markdata->append_mode;
 	  debug1("append mode %d--\n", markdata->append_mode);
-	  Msg(0, (markdata->append_mode) ? ":set append" : ":set noappend");
+	  LMsg(0, (markdata->append_mode) ? ":set append" : ":set noappend");
 	  break;
 	case 'v':
 	case 'V':
@@ -754,7 +778,7 @@ int *inlenp;
 	  /* set start column (c) and end column (C) */
 	  if (markdata->second)
 	    {
-	      rem(markdata->x1, markdata->y1, cx, cy, 1, (char *)0, D_height-1); /* Hack */
+	      rem(markdata->x1, markdata->y1, cx, cy, 1, (char *)0, fore->w_height-1); /* Hack */
 	      markdata->second = 1;	/* rem turns off second */
 	    }
 	  rep_cnt--;
@@ -778,24 +802,27 @@ int *inlenp;
 	      revto(cx, cy);
 	    }
 	  if (od == 'v' || od == 'V')
-	    Msg(0, (markdata->left_mar != 8) ? ":set nonu" : ":set nu");
+	    LMsg(0, (markdata->left_mar != 8) ? ":set nonu" : ":set nu");
 	  break;
 	case 'J':
 	  /* how do you join lines in VI ? */
-	  markdata->nonl = (markdata->nonl + 1) % 3;
+	  markdata->nonl = (markdata->nonl + 1) % 4;
 	  switch (markdata->nonl)
 	    {
 	    case 0:
 	      if (join_with_cr)
-		Msg(0, "Multiple lines (CR/LF)");
+		LMsg(0, "Multiple lines (CR/LF)");
 	      else
-		Msg(0, "Multiple lines (LF)");
+		LMsg(0, "Multiple lines (LF)");
 	      break;
 	    case 1:
-	      Msg(0, "Lines joined");
+	      LMsg(0, "Lines joined");
 	      break;
 	    case 2:
-	      Msg(0, "Lines joined with blanks");
+	      LMsg(0, "Lines joined with blanks");
+	      break;
+	    case 3:
+	      LMsg(0, "Lines joined with comma");
 	      break;
 	    }
 	  break;
@@ -860,13 +887,7 @@ int *inlenp;
 	      markdata->x1 = cx;
 	      markdata->y1 = cy;
 	      revto(cx, cy);
-#ifdef NETHACK
-	      if (nethackflag)
-		Msg(0, "You drop a magic marker - Column %d Line %d",
-	    	    cx+1, W2D(cy)+1);
-	      else
-#endif
-	      Msg(0, "First mark set - Column %d Line %d", cx+1, W2D(cy)+1);
+	      LMsg(0, "First mark set - Column %d Line %d", cx+1, W2D(cy)+1);
 	      break;
 	    }
 	  else
@@ -877,70 +898,76 @@ int *inlenp;
 	      x2 = cx;
 	      y2 = cy;
 	      newcopylen = rem(markdata->x1, markdata->y1, x2, y2, 2, (char *)0, 0); /* count */
-	      if (D_user->u_copybuffer != NULL && !append_mode)
-		UserFreeCopyBuffer(D_user);
+	      if (md_user->u_copybuffer != NULL && !append_mode)
+		UserFreeCopyBuffer(md_user);
+	      yend = fore->w_height - 1;
+	      if (fore->w_histheight - markdata->hist_offset < fore->w_height)
+		{
+		  markdata->second = 0;
+		  yend -= MarkScrollUpDisplay(fore->w_histheight - markdata->hist_offset);
+		}
 	      if (newcopylen > 0)
 		{
 		  /* the +3 below is for : cr + lf + \0 */
-		  if (D_user->u_copybuffer != NULL)
-		    D_user->u_copybuffer = realloc(D_user->u_copybuffer,
-			(unsigned) (D_user->u_copylen + newcopylen + 3));
+		  if (md_user->u_copybuffer != NULL)
+		    md_user->u_copybuffer = realloc(md_user->u_copybuffer,
+			(unsigned) (md_user->u_copylen + newcopylen + 3));
 		  else
 		    {
-		      D_user->u_copylen = 0;
-		      D_user->u_copybuffer = malloc((unsigned) (newcopylen + 3));
+		      md_user->u_copylen = 0;
+		      md_user->u_copybuffer = malloc((unsigned) (newcopylen + 3));
 		    }
-		  if (D_user->u_copybuffer == NULL)
+		  if (md_user->u_copybuffer == NULL)
 		    {
 		      MarkAbort();
 		      in_mark = 0;
-		      Msg(0, "Not enough memory... Sorry.");
-		      D_user->u_copylen = 0;
-		      D_user->u_copybuffer = NULL;
+		      LMsg(0, "Not enough memory... Sorry.");
+		      md_user->u_copylen = 0;
+		      md_user->u_copybuffer = NULL;
 		      break;
 		    }
 		  if (append_mode)
 		    {
 		      switch (markdata->nonl)
 			{
-			/* 
+			/*
 			 * this code defines, what glues lines together
 			 */
 			case 0:
 			  if (join_with_cr)
 			    {
-			      D_user->u_copybuffer[D_user->u_copylen] = '\r';
-			      D_user->u_copylen++;
+			      md_user->u_copybuffer[md_user->u_copylen] = '\r';
+			      md_user->u_copylen++;
 			    }
-			  D_user->u_copybuffer[D_user->u_copylen] = '\n';
-			  D_user->u_copylen++;
+			  md_user->u_copybuffer[md_user->u_copylen] = '\n';
+			  md_user->u_copylen++;
 			  break;
 			case 1:
 			  break;
 			case 2:
-			  D_user->u_copybuffer[D_user->u_copylen] = ' ';
-			  D_user->u_copylen++;
+			  md_user->u_copybuffer[md_user->u_copylen] = ' ';
+			  md_user->u_copylen++;
+			  break;
+			case 3:
+			  md_user->u_copybuffer[md_user->u_copylen] = ',';
+			  md_user->u_copylen++;
 			  break;
 			}
 		    }
-		  yend = D_height - 1;
-		  if (fore->w_histheight - markdata->hist_offset < D_height)
-		    {
-		      markdata->second = 0;
-		      yend -= MarkScrollUpDisplay(fore->w_histheight - markdata->hist_offset);
-		    }
-		  D_user->u_copylen += rem(markdata->x1, markdata->y1, x2, y2, 
-		    markdata->hist_offset == fore->w_histheight, 
-		    D_user->u_copybuffer + D_user->u_copylen, yend);
+		  md_user->u_copylen += rem(markdata->x1, markdata->y1, x2, y2,
+		    markdata->hist_offset == fore->w_histheight,
+		    md_user->u_copybuffer + md_user->u_copylen, yend);
 		}
 	      if (markdata->hist_offset != fore->w_histheight)
-		LAY_CALL_UP(Activate(0));
+		{
+		  LAY_CALL_UP(RedisplayLayer(flayer, 0));
+		}
 	      ExitOverlayPage();
 	      if (append_mode)
-		Msg(0, "Appended %d characters to buffer",
+		LMsg(0, "Appended %d characters to buffer",
 		    newcopylen);
 	      else
-		Msg(0, "Copied %d characters into buffer", D_user->u_copylen);
+		LMsg(0, "Copied %d characters into buffer", md_user->u_copylen);
 	      if (write_buffer)
 		WriteFile(DUMP_EXCHANGE);
 	      in_mark = 0;
@@ -948,17 +975,17 @@ int *inlenp;
 	    }
 	default:
 	  MarkAbort();
-#ifdef NETHACK
-	  if (nethackflag)
-	    Msg(0, "You escaped the dungeon.");
-	  else
-#endif
-	  Msg(0, "Copy mode aborted");
+	  LMsg(0, "Copy mode aborted");
 	  in_mark = 0;
 	  break;
 	}
       if (in_mark)	/* markdata may be freed */
         markdata->rep_cnt = 0;
+    }
+  if (in_mark)
+    {
+      flayer->l_x = markdata->cx;
+      flayer->l_y = W2D(markdata->cy);
     }
   *inbufp = pt;
   *inlenp = inlen;
@@ -976,23 +1003,21 @@ int tx, ty, line;
 {
   int fx, fy;
   int x, y, t, revst, reven, qq, ff, tt, st, en, ce = 0;
-  int ystart = 0, yend = D_height-1;
+  int ystart = 0, yend = fore->w_height-1;
   int i, ry;
   char *wi;
   struct mline *ml;
-  struct mchar mchar_marked;
- 
-  mchar_marked = mchar_so;
+  struct mchar mc;
 
   if (tx < 0)
     tx = 0;
-  else if (tx > D_width - 1)
-    tx = D_width -1;
+  else if (tx > fore->w_width - 1)
+    tx = fore->w_width -1;
   if (ty < 0)
     ty = 0;
-  else if (ty > fore->w_histheight + D_height - 1)
-    ty = fore->w_histheight + D_height - 1;
-  
+  else if (ty > fore->w_histheight + fore->w_height - 1)
+    ty = fore->w_histheight + fore->w_height - 1;
+
   fx = markdata->cx; fy = markdata->cy;
 
 #ifdef KANJI
@@ -1005,18 +1030,18 @@ int tx, ty, line;
 #endif
 
   markdata->cx = tx; markdata->cy = ty;
- 
+
   /*
-   * if we go to a position that is currently offscreen 
+   * if we go to a position that is currently offscreen
    * then scroll the screen
    */
   i = 0;
-  if (line >= 0 && line < D_height)
+  if (line >= 0 && line < fore->w_height)
     i = W2D(ty) - line;
   else if (ty < markdata->hist_offset)
     i = ty - markdata->hist_offset;
-  else if (ty > markdata->hist_offset + (D_height - 1))
-    i = ty - markdata->hist_offset - (D_height - 1);
+  else if (ty > markdata->hist_offset + (fore->w_height - 1))
+    i = ty - markdata->hist_offset - (fore->w_height - 1);
   if (i > 0)
     yend -= MarkScrollUpDisplay(i);
   else if (i < 0)
@@ -1024,14 +1049,14 @@ int tx, ty, line;
 
   if (markdata->second == 0)
     {
-      GotoPos(tx, W2D(ty));
+      LGotoPos(flayer, tx, W2D(ty));
       return;
     }
-  
-  qq = markdata->x1 + markdata->y1 * D_width;
-  ff = fx + fy * D_width; /* "from" offset in WIN coords */
-  tt = tx + ty * D_width; /* "to" offset  in WIN coords*/
- 
+
+  qq = markdata->x1 + markdata->y1 * fore->w_width;
+  ff = fx + fy * fore->w_width; /* "from" offset in WIN coords */
+  tt = tx + ty * fore->w_width; /* "to" offset  in WIN coords*/
+
   if (ff > tt)
     {
       st = tt; en = ff;
@@ -1062,13 +1087,13 @@ int tx, ty, line;
     {
       y += (ystart - ry);
       x = 0;
-      st = y * D_width;
+      st = y * fore->w_width;
       ry = ystart;
     }
   ml = WIN(y);
   for (t = st; t <= en; t++, x++)
     {
-      if (x >= D_width)
+      if (x >= fore->w_width)
 	{
 	  x = 0;
 	  y++, ry++;
@@ -1078,13 +1103,12 @@ int tx, ty, line;
 	break;
       if (t == st || x == 0)
 	{
-	  wi = ml->image + D_width;
-	  for (ce = D_width; ce >= 0; ce--, wi--)
+	  wi = ml->image + fore->w_width;
+	  for (ce = fore->w_width; ce >= 0; ce--, wi--)
 	    if (*wi != ' ')
 	      break;
 	}
-      if (x <= ce && x >= markdata->left_mar && x <= markdata->right_mar
-          && (D_CLP || x < D_width-1 || ry < D_bot))
+      if (x <= ce && x >= markdata->left_mar && x <= markdata->right_mar)
 	{
 #ifdef KANJI
 	  if (badkanji(ml->font, x))
@@ -1093,30 +1117,34 @@ int tx, ty, line;
 		x--;
 	      }
 #endif
-	  GotoPos(x, W2D(y));
 #ifdef KANJI
 	  if (t >= revst - (ml->font[x] == KANJI) && t <= reven)
 #else
 	  if (t >= revst && t <= reven)
 #endif
 	    {
+	      mc = mchar_so;
+#ifdef FONT
 	      if (pastefont)
-		mchar_marked.font = ml->font[x];
-	      SetRendition(&mchar_marked);
+		mc.font = ml->font[x];
+#endif
+	      mc.image = ml->image[x];
 	    }
 	  else
-	    SetRenditionMline(ml, x);
-	  PUTCHARLP(ml->image[x]);
+	    copy_mline2mchar(&mc, ml, x);
+	  LPutChar(flayer, &mc, x, W2D(y));
 #ifdef KANJI
 	  if (ml->font[x] == KANJI)
 	    {
-	      PUTCHARLP(ml->image[++x]);
+	      x++;
+	      mc.image = ml->image[x];
+	      LPutChar(flayer, &mc, x, W2D(y));
 	      t++;
 	    }
 #endif
 	}
     }
-  GotoPos(tx, W2D(ty));
+  LGotoPos(flayer, tx, W2D(ty));
 }
 
 static void
@@ -1125,18 +1153,18 @@ MarkAbort()
   int yend, redisp;
 
   debug("MarkAbort\n");
-  markdata = (struct markdata *)D_lay->l_data;
-  fore = D_fore;
-  yend = D_height - 1;
+  markdata = (struct markdata *)flayer->l_data;
+  fore = markdata->md_window;
+  yend = fore->w_height - 1;
   redisp = markdata->second;
-  if (fore->w_histheight - markdata->hist_offset < D_height)
+  if (fore->w_histheight - markdata->hist_offset < fore->w_height)
     {
       markdata->second = 0;
       yend -= MarkScrollUpDisplay(fore->w_histheight - markdata->hist_offset);
     }
   if (markdata->hist_offset != fore->w_histheight)
     {
-      LAY_CALL_UP(Activate(0));
+      LAY_CALL_UP(RedisplayLayer(flayer, 0));
     }
   else
     {
@@ -1155,44 +1183,48 @@ int isblank;
   int wy, x, i, rm;
   int sta, sto, cp;	/* NOTE: these 3 are in WINDOW coords system */
   char *wi;
-  struct mline *oml, *ml;
+  struct mline *ml;
   struct mchar mchar_marked;
 
   if (y < 0)	/* No special full page handling */
     return;
 
-  markdata = (struct markdata *)D_lay->l_data;
-  fore = D_fore;
+  markdata = (struct markdata *)flayer->l_data;
+  fore = markdata->md_window;
 
   mchar_marked = mchar_so;
 
-
-  oml = isblank ? &mline_blank : &mline_null;
   wy = D2W(y);
   ml = WIN(wy);
 
   if (markdata->second == 0)
     {
-      DisplayLine(oml, ml, y, xs, xe);
+      if (xs == 0 && y > 0 && wy > 0 && WIN(wy - 1)->image[flayer->l_width] == 0)
+	{
+	  struct mchar nc;
+	  copy_mline2mchar(&nc, ml, 0);
+	  LWrapChar(flayer, &nc, y - 1, -1, -1, 0);
+	  xs++;
+	}
+      LCDisplayLine(flayer, ml, y, xs, xe, isblank);
       return;
     }
 
- 
-  sta = markdata->y1 * D_width + markdata->x1;
-  sto = markdata->cy * D_width + markdata->cx;
+  sta = markdata->y1 * fore->w_width + markdata->x1;
+  sto = markdata->cy * fore->w_width + markdata->cx;
   if (sta > sto)
     {
       i=sta; sta=sto; sto=i;
     }
-  cp = wy * D_width + xs;
- 
+  cp = wy * fore->w_width + xs;
+
   rm = markdata->right_mar;
-  for (x = D_width, wi = ml->image + D_width; x >= 0; x--, wi--)
+  for (x = fore->w_width, wi = ml->image + fore->w_width; x >= 0; x--, wi--)
     if (*wi != ' ')
       break;
   if (x < rm)
     rm = x;
- 
+
   for (x = xs; x <= xe; x++, cp++)
     if (cp >= sta && x >= markdata->left_mar)
       break;
@@ -1201,26 +1233,29 @@ int isblank;
     x--;
 #endif
   if (x > xs)
-    DisplayLine(oml, ml, y, xs, x - 1);
+    LCDisplayLine(flayer, ml, y, xs, x - 1, isblank);
   for (; x <= xe; x++, cp++)
     {
-      if (cp > sto || x > rm || (!D_CLP && x >= D_width-1 && y == D_bot))
+      if (cp > sto || x > rm)
 	break;
+#ifdef FONT
       if (pastefont)
 	mchar_marked.font = ml->font[x];
-      GotoPos(x, y);
-      SetRendition(&mchar_marked);
-      PUTCHARLP(ml->image[x]);
+#endif
+      mchar_marked.image = ml->image[x];
+      LPutChar(flayer, &mchar_marked, x, y);
 #ifdef KANJI
       if (ml->font[x] == KANJI)
 	{
-	  PUTCHARLP(ml->image[++x]);
+	  x++;
+	  mchar_marked.image = ml->image[x];
+	  LPutChar(flayer, &mchar_marked, x, y);
 	  cp++;
 	}
 #endif
     }
   if (x <= xe)
-    DisplayLine(oml, ml, y, x, xe);
+    LCDisplayLine(flayer, ml, y, x, xe, isblank);
 }
 
 
@@ -1228,8 +1263,9 @@ int isblank;
  * This ugly routine is to speed up GotoPos()
  */
 static int
-MarkRewrite(ry, xs, xe, doit)
+MarkRewrite(ry, xs, xe, rend, doit)
 int ry, xs, xe, doit;
+struct mchar *rend;
 {
   int dx, x, y, st, en, t, rm;
   char *i;
@@ -1238,34 +1274,33 @@ int ry, xs, xe, doit;
 
   mchar_marked = mchar_so;
 
-  markdata = (struct markdata *)D_lay->l_data;
-  fore = D_fore;
-  if (ry >= fore->w_height || xe > fore->w_width)
-    return EXPENSIVE;
+  debug3("MarkRewrite %d, %d-%d\n", ry, xs, xe);
+  markdata = (struct markdata *)flayer->l_data;
+  fore = markdata->md_window;
   y = D2W(ry);
   ml = WIN(y);
-  dx = xe - xs;
+  dx = xe - xs + 1;
   if (doit)
     {
       i = ml->image + xs;
       while (dx--)
-        PUTCHARLP(*i++);
+        PUTCHAR(*i++);
       return 0;
     }
-  
+
   if (markdata->second == 0)
     st = en = -1;
   else
     {
-      st = markdata->y1 * D_width + markdata->x1;
-      en = markdata->cy * D_width + markdata->cx;
+      st = markdata->y1 * fore->w_width + markdata->x1;
+      en = markdata->cy * fore->w_width + markdata->cx;
       if (st > en)
         {
           t = st; st = en; en = t;
         }
     }
-  t = y * D_width + xs;
-  for (rm = D_width, i = ml->image + D_width; rm >= 0; rm--)
+  t = y * fore->w_width + xs;
+  for (rm = fore->w_width, i = ml->image + fore->w_width; rm >= 0; rm--)
     if (*i-- != ' ')
       break;
   if (rm > markdata->right_mar)
@@ -1275,21 +1310,23 @@ int ry, xs, xe, doit;
     {
       if (t >= st && t <= en && x >= markdata->left_mar && x <= rm)
         {
+#ifdef FONT
 	  if (pastefont)
 	    mchar_marked.font = ml->font[x];
-	  D_rend.image = mchar_marked.image;
-	  if (!cmp_mchar(&D_rend, &mchar_marked))
+#endif
+	  rend->image = mchar_marked.image;
+	  if (!cmp_mchar(rend, &mchar_marked))
 	    return EXPENSIVE;
         }
       else
         {
-	  D_rend.image = ml->image[x];
-	  if (!cmp_mchar_mline(&D_rend, ml, x))
+	  rend->image = ml->image[x];
+	  if (!cmp_mchar_mline(rend, ml, x))
 	    return EXPENSIVE;
         }
       x++;
     }
-  return xe - xs;
+  return xe - xs + 1;
 }
 
 
@@ -1306,11 +1343,11 @@ int n;
     return 0;
   if (n > fore->w_histheight - markdata->hist_offset)
     n = fore->w_histheight - markdata->hist_offset;
-  i = (n < D_height) ? n : (D_height);
-  ScrollV(0, 0, D_width - 1, D_height - 1, i);
   markdata->hist_offset += n;
+  i = (n < flayer->l_height) ? n : (flayer->l_height);
+  LScrollV(flayer, i, 0, flayer->l_height - 1);
   while (i-- > 0)
-    MarkRedisplayLine(D_height - i - 1, 0, D_width - 1, 1);
+    MarkRedisplayLine(flayer->l_height - i - 1, 0, flayer->l_width - 1, 1);
   return n;
 }
 
@@ -1325,20 +1362,49 @@ int n;
     return 0;
   if (n > markdata->hist_offset)
     n = markdata->hist_offset;
-  i = (n < D_height) ? n : (D_height);
-  ScrollV(0, 0, D_width - 1, D_height - 1, -i);
   markdata->hist_offset -= n;
+  i = (n < flayer->l_height) ? n : (flayer->l_height);
+  LScrollV(flayer, -i, 0, fore->w_height - 1);
   while (i-- > 0)
-    MarkRedisplayLine(i, 0, D_width - 1, 1);
+    MarkRedisplayLine(i, 0, flayer->l_width - 1, 1);
   return n;
 }
 
 int
 InMark()
 {
-  if (display && D_layfn->LayProcess == MarkProcess)
+  if (flayer && flayer->l_layfn == &MarkLf)
     return 1;
   return 0;
 }
 
+void
+MakePaster(pa, buf, len, bufiscopy)
+struct paster *pa;
+char *buf;
+int len;
+int bufiscopy;
+{
+  FreePaster(pa);
+  pa->pa_pasteptr = buf;
+  pa->pa_pastelen = len;
+  if (bufiscopy)
+    pa->pa_pastebuf = buf;
+  pa->pa_pastelayer = flayer;
+  DoProcess(Layer2Window(flayer), &pa->pa_pasteptr, &pa->pa_pastelen, pa);
+}
+
+void
+FreePaster(pa)
+struct paster *pa;
+{
+  if (pa->pa_pastebuf)
+    free(pa->pa_pastebuf);
+  pa->pa_pastebuf = 0;
+  pa->pa_pasteptr = 0;
+  pa->pa_pastelayer = 0;
+  evdeq(&pa->pa_slowev);
+}
+
 #endif /* COPY_PASTE */
+

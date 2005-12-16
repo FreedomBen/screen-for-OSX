@@ -23,7 +23,14 @@
  */
 
 
+#undef IFFONT
 #undef IFCOLOR
+
+#ifdef FONT
+# define IFFONT(x) x
+#else
+# define IFFONT(x)
+#endif
 
 #ifdef COLOR
 # define IFCOLOR(x) x
@@ -35,14 +42,14 @@
 struct mchar {
 	char image;
 	char attr;
-	char font;
+IFFONT( char font;)
 IFCOLOR(char color;)
 };
 
 struct mline {
 	char *image;
 	char *attr;
-	char *font;
+IFFONT( char *font;)
 IFCOLOR(char *color;)
 };
 
@@ -51,56 +58,56 @@ IFCOLOR(char *color;)
 #define save_mline(ml, n) do {					\
 	bcopy((ml)->image, mline_old.image, (n));		\
 	bcopy((ml)->attr,  mline_old.attr,  (n));		\
-	bcopy((ml)->font,  mline_old.font,  (n));		\
+IFFONT(	bcopy((ml)->font,  mline_old.font,  (n));	       )\
 IFCOLOR(bcopy((ml)->color, mline_old.color, (n));	       )\
 } while (0)
 
 #define bcopy_mline(ml, xf, xt, n) do {				\
 	bcopy((ml)->image + (xf), (ml)->image + (xt), (n));	\
 	bcopy((ml)->attr  + (xf), (ml)->attr  + (xt), (n));	\
-	bcopy((ml)->font  + (xf), (ml)->font  + (xt), (n));	\
+IFFONT(	bcopy((ml)->font  + (xf), (ml)->font  + (xt), (n));    )\
 IFCOLOR(bcopy((ml)->color + (xf), (ml)->color + (xt), (n));    )\
 } while (0)
 
 #define clear_mline(ml, x, n) do {				\
 	bclear((ml)->image + (x), (n));				\
 	if ((ml)->attr != null) bzero((ml)->attr  + (x), (n));	\
-	if ((ml)->font != null) bzero((ml)->font  + (x), (n));	\
+IFFONT(	if ((ml)->font != null) bzero((ml)->font  + (x), (n)); )\
 IFCOLOR(if ((ml)->color!= null) bzero((ml)->color + (x), (n)); )\
 } while (0)
 
 #define cmp_mline(ml1, ml2, x) (				\
 	   (ml1)->image[x] == (ml2)->image[x]			\
 	&& (ml1)->attr[x]  == (ml2)->attr[x]			\
-	&& (ml1)->font[x]  == (ml2)->font[x]			\
+IFFONT(	&& (ml1)->font[x]  == (ml2)->font[x]		       )\
 IFCOLOR(&& (ml1)->color[x] == (ml2)->color[x]		       )\
 )
 
 #define cmp_mchar(mc1, mc2) (					\
 	   (mc1)->image == (mc2)->image				\
 	&& (mc1)->attr  == (mc2)->attr				\
-	&& (mc1)->font  == (mc2)->font				\
+IFFONT(	&& (mc1)->font  == (mc2)->font			       )\
 IFCOLOR(&& (mc1)->color == (mc2)->color			       )\
 )
 
 #define cmp_mchar_mline(mc, ml, x) (				\
 	   (mc)->image == (ml)->image[x]			\
 	&& (mc)->attr  == (ml)->attr[x]				\
-	&& (mc)->font  == (ml)->font[x]				\
+IFFONT(	&& (mc)->font  == (ml)->font[x]			       )\
 IFCOLOR(&& (mc)->color == (ml)->color[x]		       )\
 )
 
 #define copy_mchar2mline(mc, ml, x) do {			\
 	(ml)->image[x] = (mc)->image;				\
 	(ml)->attr[x]  = (mc)->attr;				\
-	(ml)->font[x]  = (mc)->font;				\
+IFFONT(	(ml)->font[x]  = (mc)->font;			       )\
 IFCOLOR((ml)->color[x] = (mc)->color;			       )\
 } while (0)
 
 #define copy_mline2mchar(mc, ml, x) do {			\
 	(mc)->image = (ml)->image[x];				\
 	(mc)->attr  = (ml)->attr[x];				\
-	(mc)->font  = (ml)->font[x];				\
+IFFONT(	(mc)->font  = (ml)->font[x];			       )\
 IFCOLOR((mc)->color = (ml)->color[x];			       )\
 } while (0)
 

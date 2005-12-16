@@ -22,7 +22,6 @@
  * $Id$ FAU
  */
 
-
 #ifdef MAPKEYS
 struct kmap
 {
@@ -44,15 +43,48 @@ struct kmap
 
 struct win;			/* forward declaration */
 
+struct canvas
+{
+  struct canvas   *c_next;	/* next canvas on display */
+  struct display  *c_display;	/* back pointer to display */
+  struct viewport *c_vplist;
+  struct layer    *c_layer;	/* layer on this canvas */
+  struct canvas   *c_lnext;	/* next canvas that displays layer */
+  struct layer     c_blank;	/* bottom layer, always blank */
+  int              c_xoff;	/* canvas x offset on display */
+  int              c_yoff;	/* canvas y offset on display */
+  int              c_xs;
+  int              c_xe;
+  int              c_ys;
+  int              c_ye;
+  struct event     c_captev;	/* caption changed event */
+};
+
+struct viewport
+{
+  struct viewport *v_next;	/* next vp on canvas */
+  struct canvas   *v_canvas;	/* back pointer to canvas */
+  int              v_xoff;	/* layer x offset on display */
+  int              v_yoff;	/* layer y offset on display */
+  int              v_xs;	/* vp upper left */
+  int              v_xe;	/* vp upper right */
+  int              v_ys;	/* vp lower left */
+  int              v_ye;	/* vp lower right */
+};
+
 struct display
 {
   struct display *d_next;	/* linked list */
   struct user *d_user;		/* user who owns that display */
-  struct LayFuncs *d_layfn;	/* current layer functions */
-  struct layer *d_lay;		/* layers on the display */
+  struct canvas *d_cvlist;	/* the canvases of this display */
+  struct canvas *d_forecv;	/* current input focus */
+  void (*d_processinput) __P((char *, int));
+  char *d_processinputdata;	/* data for processinput */
+  int d_vpxmin, d_vpxmax;	/* min/max used position on display */
   struct win *d_fore;		/* pointer to fore window */
   struct win *d_other;		/* pointer to other window */
-  char  d_nonblock;		/* don't block when d_obufmax reached */
+  char  d_nonblock;		/* 1: don't block if obufmax reached */
+				/* 2: obufmax is reached, discard */
   char  d_termname[20 + 1];	/* $TERM */
   char	*d_tentry;		/* buffer for tgetstr */
   char	d_tcinited;		/* termcap inited flag */
@@ -72,27 +104,34 @@ struct display
   int	d_cursorkeys;		/* application cursorkeys flag */
   int	d_revvid;		/* reverse video */
   int	d_curvis;		/* cursor visibility */
+  int   d_has_hstatus;		/* display has hardstatus line */
   int	d_hstatus;		/* hardstatus used */
   int	d_lp_missing;		/* last character on bot line missing */
   struct mchar d_lpchar;	/* missing char */
   time_t d_status_time;		/* time of status display */
-  char	d_status;		/* is status displayed? */
+  int   d_status;		/* is status displayed? */
   char	d_status_bell;		/* is it only a vbell? */
   int	d_status_len;		/* length of status line */
   char *d_status_lastmsg;	/* last displayed message */
   int   d_status_buflen;	/* last message buffer len */
   int	d_status_lastx;		/* position of the cursor */
   int	d_status_lasty;		/*   before status was displayed */
+  int	d_status_delayed;	/* status not displayed yet */
+  struct event d_statusev;	/* timeout event */
+  struct event d_hstatusev;	/* hstatus changed event */
   int	d_ESCseen;		/* Was the last char an ESC (^a) */
   int	d_userpid;		/* pid of attacher */
   char	d_usertty[MAXPATHLEN];	/* tty we are attached to */
   int	d_userfd;		/* fd of the tty */
+  struct event d_readev;	/* userfd read event */
+  struct event d_writeev;	/* userfd write event */
   struct mode d_OldMode;	/* tty mode when screen was started */
   struct mode d_NewMode;	/* New tty mode */
   int	d_flow;			/* tty's flow control on/off flag*/
   char *d_obuf;			/* output buffer */
   int   d_obuflen;		/* len of buffer */
   int	d_obufmax;		/* len where we are blocking the pty */
+  int	d_obuflenmax;		/* len - max */
   char *d_obufp;		/* pointer in buffer */
   int   d_obuffree;		/* free bytes in buffer */
 #ifdef AUTO_NUKE
@@ -102,7 +141,7 @@ struct display
   int	d_nseqs;		/* number of valid mappings */
   char *d_seqp;			/* pointer into keymap array */
   int	d_seql;			/* number of parsed chars */
-  int	d_seqruns;		/* number of select calls */
+  struct event d_mapev;		/* timeout event */
   int	d_dontmap;		/* do not map next */
   int	d_mapdefault;		/* do map next to default */
   struct kmap d_kmaps[KMAP_KEYS+KMAP_EXT];	/* keymaps */
@@ -111,14 +150,17 @@ struct display
   char *d_attrtab[NATTR];	/* attrib emulation table */
   char  d_attrtyp[NATTR];	/* attrib group table */
   short	d_dospeed;		/* baudrate of tty */
+#ifdef FONT
   char	d_c0_tab[256];		/* conversion for C0 */
   char ***d_xtable;		/* char translation table */
+#endif
   int	d_UPcost, d_DOcost, d_LEcost, d_NDcost;
   int	d_CRcost, d_IMcost, d_EIcost, d_NLcost;
   int   d_printfd;		/* fd for vt100 print sequence */
 #ifdef UTMPOK
   slot_t d_loginslot;		/* offset, where utmp_logintty belongs */
   struct utmp d_utmp_logintty;	/* here the original utmp structure is stored */
+  int   d_loginttymode;
 # ifdef _SEQUENT_
   char	d_loginhost[100+1];
 # endif /* _SEQUENT_ */
@@ -134,8 +176,12 @@ extern struct display TheDisplay;
 
 #define D_user		DISPLAY(d_user)
 #define D_username	(DISPLAY(d_user) ? DISPLAY(d_user)->u_name : 0)
-#define D_layfn		DISPLAY(d_layfn)
-#define D_lay		DISPLAY(d_lay)
+#define D_cvlist	DISPLAY(d_cvlist)
+#define D_forecv	DISPLAY(d_forecv)
+#define D_processinput	DISPLAY(d_processinput)
+#define D_processinputdata	DISPLAY(d_processinputdata)
+#define D_vpxmin	DISPLAY(d_vpxmin)
+#define D_vpxmax	DISPLAY(d_vpxmax)
 #define D_fore		DISPLAY(d_fore)
 #define D_other		DISPLAY(d_other)
 #define D_nonblock      DISPLAY(d_nonblock)
@@ -160,6 +206,7 @@ extern struct display TheDisplay;
 #define D_cursorkeys	DISPLAY(d_cursorkeys)
 #define D_revvid	DISPLAY(d_revvid)
 #define D_curvis	DISPLAY(d_curvis)
+#define D_has_hstatus	DISPLAY(d_has_hstatus)
 #define D_hstatus	DISPLAY(d_hstatus)
 #define D_lp_missing	DISPLAY(d_lp_missing)
 #define D_lpchar	DISPLAY(d_lpchar)
@@ -171,6 +218,9 @@ extern struct display TheDisplay;
 #define D_status_buflen	DISPLAY(d_status_buflen)
 #define D_status_lastx	DISPLAY(d_status_lastx)
 #define D_status_lasty	DISPLAY(d_status_lasty)
+#define D_status_delayed	DISPLAY(d_status_delayed)
+#define D_statusev	DISPLAY(d_statusev)
+#define D_hstatusev	DISPLAY(d_hstatusev)
 #define D_ESCseen	DISPLAY(d_ESCseen)
 #define D_userpid	DISPLAY(d_userpid)
 #define D_usertty	DISPLAY(d_usertty)
@@ -181,13 +231,13 @@ extern struct display TheDisplay;
 #define D_obuf		DISPLAY(d_obuf)
 #define D_obuflen	DISPLAY(d_obuflen)
 #define D_obufmax	DISPLAY(d_obufmax)
+#define D_obuflenmax	DISPLAY(d_obuflenmax)
 #define D_obufp		DISPLAY(d_obufp)
 #define D_obuffree	DISPLAY(d_obuffree)
 #define D_auto_nuke	DISPLAY(d_auto_nuke)
 #define D_nseqs		DISPLAY(d_nseqs)
 #define D_seqp		DISPLAY(d_seqp)
 #define D_seql		DISPLAY(d_seql)
-#define D_seqruns	DISPLAY(d_seqruns)
 #define D_dontmap	DISPLAY(d_dontmap)
 #define D_mapdefault	DISPLAY(d_mapdefault)
 #define D_kmaps		DISPLAY(d_kmaps)
@@ -208,17 +258,50 @@ extern struct display TheDisplay;
 #define D_printfd	DISPLAY(d_printfd)
 #define D_loginslot	DISPLAY(d_loginslot)
 #define D_utmp_logintty	DISPLAY(d_utmp_logintty)
+#define D_loginttymode	DISPLAY(d_loginttymode)
 #define D_loginhost	DISPLAY(d_loginhost)
+#define D_readev	DISPLAY(d_readev)
+#define D_writeev	DISPLAY(d_writeev)
+#define D_mapev		DISPLAY(d_mapev)
 
 
-#define GRAIN 4096  /* Allocation grain size for output buffer */
-#define OBUF_MAX 256 /* default for obuflimit */
+#define GRAIN 4096	/* Allocation grain size for output buffer */
+#define OBUF_MAX 256	/* default for obuflimit */
 
 #define OUTPUT_BLOCK_SIZE 256  /* Block size of output to tty */
 
-#define AddChar(c) do {			\
-    if (--D_obuffree == 0)		\
-      Resize_obuf();			\
-    *D_obufp++ = (c);			\
-} while (0)
+#define AddChar(c)		\
+do				\
+  {				\
+    if (--D_obuffree == 0)	\
+      Resize_obuf();		\
+    *D_obufp++ = (c);		\
+  }				\
+while (0)
 
+#define CV_CALL(cv, cmd)			\
+{						\
+  struct display *olddisplay = display;		\
+  struct layer *oldflayer = flayer;		\
+  struct layer *l = cv->c_layer;		\
+  struct canvas *cvlist = l->l_cvlist;		\
+  struct canvas *cvlnext = cv->c_lnext;		\
+  flayer = l;					\
+  l->l_cvlist = cv;				\
+  cv->c_lnext = 0;				\
+  cmd;						\
+  flayer = oldflayer;				\
+  l->l_cvlist = cvlist;				\
+  cv->c_lnext = cvlnext;			\
+  display = olddisplay;				\
+}
+
+#define STATUS_OFF	0
+#define STATUS_ON_WIN	1
+#define STATUS_ON_HS	2
+
+#define HSTATUS_IGNORE		0
+#define HSTATUS_LASTLINE	1
+#define HSTATUS_MESSAGE		2
+#define HSTATUS_HS		3
+#define HSTATUS_ALWAYS		(1<<2)

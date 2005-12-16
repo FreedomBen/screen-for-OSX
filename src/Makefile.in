@@ -9,13 +9,14 @@ VPATH = @srcdir@
 
 # Where to install screen.
 
-prefix = /usr/local
-exec_prefix = $(prefix)
+prefix = @prefix@
+exec_prefix = @exec_prefix@
 
 # don't forget to change mandir and infodir in doc/Makefile.
 bindir  = $(exec_prefix)/bin
 
 VERSION = @VERSION@
+SCREEN = screen-$(VERSION)
 
 ETCSCREENRC = `sed < config.h -n -e '/define ETCSCREENRC/s/^.*"\([^"]*\)"/\1/p'`
 
@@ -24,7 +25,7 @@ CFLAGS = -O
 LDFLAGS =
 LIBS = @LIBS@
 
-CPP_DEPEND=/lib/cpp -MM
+CPP_DEPEND=$(CC) -MM
 
 INSTALL = @INSTALL@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -35,33 +36,33 @@ AWK = @AWK@
 ### Chose some debug configuration options:
 # -DDEBUG
 #	Turn on really heavy debug output. This is written to 
-#	/tmp/debug/screen.{front,back} Look at these files and quote 
+#	/tmp/debug/{SCREEN,screen}.<pid>. Look at these files and quote 
 #	questionable sections when sending bug-reports to the author.
-# -DTMPTEST
-#	Change the socket directory to a location that does not interfere
-#	with the (suid-root) installed screen version. Use that in
-#	combination with -DDEBUG
 # -DDUMPSHADOW
-#	With shadow-pw screen would never dump core. Use this option if you
-#	still want to have a core. Use only for debugging.
+#	With shadow-pw screen would never dump core. Use this option if
+#	you still want to have a core. Use only for debugging.
 # -DFORKDEBUG
 #	Swap roles of father and son when forking the SCREEN process. 
+#	Note: "detach" will be less powerfull, but "pow_detach" may be
+#	more forcefull than usual.
 #	Useful only for debugging.
 OPTIONS=
-#OPTIONS= -DDEBUG -DTMPTEST
+#OPTIONS= -DDEBUG
 
 SHELL=/bin/sh
 
 CFILES=	screen.c ansi.c fileio.c mark.c misc.c resize.c socket.c \
 	search.c tty.c term.c window.c utmp.c loadav.c putenv.c help.c \
 	termcap.c input.c attacher.c pty.c process.c display.c comm.c \
-	kmapdef.c acls.c
+	kmapdef.c acls.c braille.c braille_tsi.c logfile.c layer.c \
+	sched.c teln.c nethack.c
 OFILES=	screen.o ansi.o fileio.o mark.o misc.o resize.o socket.o \
 	search.o tty.o term.o window.o utmp.o loadav.o putenv.o help.o \
 	termcap.o input.o attacher.o pty.o process.o display.o comm.o \
-	kmapdef.o acls.o
+	kmapdef.o acls.o braille.o braille_tsi.o logfile.o layer.o \
+	sched.o teln.o nethack.o
 
-all:	screen screen.info
+all:	screen
 
 screen: $(OFILES)
 	$(CC) $(LDFLAGS) -o $@ $(OFILES) $(LIBS)
@@ -69,17 +70,23 @@ screen: $(OFILES)
 .c.o:
 	$(CC) -c -I. -I$(srcdir) $(M_CFLAGS) $(DEFS) $(OPTIONS) $(CFLAGS) $<
 
-install_bin: screen
-	$(INSTALL_PROGRAM) screen $(bindir)/screen-$(VERSION)
-	-chown root $(bindir)/screen-$(VERSION) && chmod 4755 $(bindir)/screen-$(VERSION)
+install_bin: .version screen
+	-if [ -f $(bindir)/$(SCREEN) ] && [ ! -f $(bindir)/$(SCREEN).old ]; \
+		then mv $(bindir)/$(SCREEN) $(bindir)/$(SCREEN).old; fi
+	$(INSTALL_PROGRAM) screen $(bindir)/$(SCREEN)
+	-chown root $(bindir)/$(SCREEN) && chmod 4755 $(bindir)/$(SCREEN)
 # This doesn't work if $(bindir)/screen is a symlink
 	-if [ -f $(bindir)/screen ] && [ ! -f $(bindir)/screen.old ]; then mv $(bindir)/screen $(bindir)/screen.old; fi
 	rm -f $(bindir)/screen
-	ln -s screen-$(VERSION) $(bindir)/screen
+	ln -s $(SCREEN) $(bindir)/screen
 
+###############################################################################
 install: installdirs install_bin
 	cd doc ; $(MAKE) install
-	-tic ${srcdir}/terminfo/screeninfo.src
+	-if [ -d /usr/lib/terminfo ]; then \
+		PATH="$PATH:/usr/5bin" tic ${srcdir}/terminfo/screeninfo.src; \
+		chmod 644 /usr/lib/terminfo/s/screen*; \
+	fi
 # Better do this by hand. E.g. under RCS...
 #	cat ${srcdir}/terminfo/screencap >> /etc/termcap
 	@echo "termcap entry (${srcdir}/terminfo/screencap) should be installed manually."
@@ -90,8 +97,8 @@ installdirs:
 	$(srcdir)/etc/mkinstalldirs $(bindir)
 	cd doc ; $(MAKE) installdirs
 
-uninstall:
-	rm -f $(bindir)/screen-$(VERSION)
+uninstall: .version
+	rm -f $(bindir)/$(SCREEN)
 	rm -f $(bindir)/screen
 	-mv $(bindir)/screen.old $(bindir)/screen
 	rm -f $(ETCSCREENRC)
@@ -99,9 +106,12 @@ uninstall:
 
 shadow:
 	mkdir shadow;
-	cd shadow; ln -s ../*.[ch] ../*.in ../*.sh ../configure ../doc ../terminfo .
+	cd shadow; ln -s ../*.[ch] ../*.in ../*.sh ../configure ../doc ../terminfo ../etc .
 	rm -f shadow/term.h shadow/tty.c shadow/comm.h shadow/osdef.h
-
+	echo "install all Makefiles and config:" > shadow/Makefile
+	echo "	rm -f config.cache" >> shadow/Makefile
+	echo "	sh ./configure" >> shadow/Makefile
+	
 term.h: term.c term.sh
 	AWK=$(AWK) srcdir=$(srcdir) sh $(srcdir)/term.sh
 
@@ -123,78 +133,84 @@ dvi info screen.info:
 	-cd doc; $(MAKE) $@
 
 mostlyclean:
-	rm -f $(OFILES) screen
+	rm -f $(OFILES) screen config.cache osdef0.c osdef1.sed osdef2.sed
 
 clean celan: mostlyclean
-	rm -f tty.c term.h comm.h osdef.h
+	rm -f tty.c term.h comm.h osdef.h core
 
 # Delete all files from the current directory that are created by 
 # configuring or building the program.
 # building of term.h/comm.h requires awk. Keep it in the distribution
 # we keep config.h, as this file knows where 'make dist' finds the ETCSCREENRC.
-distclean:	mostlyclean
-	rm -f screen-$(VERSION).tar screen-$(VERSION).TZ
-	rm -f config.status Makefile
-	rm -f osdef.h doc/Makefile
-	echo "install all Makefiles and config:" > Makefile
-	echo "	sh ./configure" >> Makefile
+#distclean:	mostlyclean
+#	rm -f $(SCREEN).tar $(SCREEN).tar.gz
+#	rm -f config.status Makefile
+#	rm -f osdef.h doc/Makefile
+
+maintainer-clean:
+	@echo "This command is not even intended for maintainers to use;"
+	@echo "it deletes files that may require special tools to rebuild."
+
 
 # Delete everything from the current directory that can be
 # reconstructed with this Makefile.
-realclean:	distclean
-	rm -f tty.c term.h comm.h
+realclean: .version mostlyclean
+	rm -f $(SCREEN).tar $(SCREEN).tar.gz
+	rm -f config.status Makefile doc/Makefile
+	rm -f tty.c term.h comm.h osdef.h
 	rm -f config.h
+	echo "install all Makefiles and config:" > Makefile
+	echo "  sh ./configure" >> Makefile
 
-TAGS: $(CFILES)
-	ctags $(CFILES) *.h
-	ctags -e $(CFILES) *.h
+tags TAGS: $(CFILES)
+	-ctags    *.sh $(CFILES) *.h
+	-ctags -e *.sh $(CFILES) *.h
 
-dist: screen-$(VERSION).tar.gz
+dist: .version $(SCREEN).tar.gz
 
-screen-$(VERSION).tar: term.h comm.h tty.c kmapdef.c
+$(SCREEN).tar: .version term.h comm.h tty.c kmapdef.c
 	-rm -rf dist
 	mkdir dist
-	mkdir dist/screen-$(VERSION)
-	ln acls.h ansi.h display.h extern.h mark.h os.h overlay.h \
-	   patchlevel.h rcs.h screen.h window.h image.h \
-	   osdef.h.in term.sh tty.sh comm.sh osdef.sh \
-	   acls.c ansi.c attacher.c comm.c display.c window.c fileio.c help.c \
-	   input.c loadav.c mark.c misc.c process.c pty.c putenv.c \
-	   screen.c search.c socket.c term.c termcap.c utmp.c resize.c \
-	   ChangeLog COPYING INSTALL NEWS* install.sh \
-	   dist/screen-$(VERSION)
-	ln configure.in configure dist/screen-$(VERSION)
-	sed -e 's@"/local/screens@"/tmp/screens@' -e 's@"/local@"/usr/local@g' < config.h.in > dist/screen-$(VERSION)/config.h.in
-	sed -e 's@[	 ]/local@ /usr/local@g' -e 's/^CFLAGS = -g/CFLAGS = -O/' < Makefile.in > dist/screen-$(VERSION)/Makefile.in
-	ln term.h dist/screen-$(VERSION)/term.h.dist
-	ln comm.h dist/screen-$(VERSION)/comm.h.dist
-	ln tty.c dist/screen-$(VERSION)/tty.c.dist
-	ln kmapdef.c dist/screen-$(VERSION)/kmapdef.c.dist
-	ln README dist/screen-$(VERSION)/README
-	ln tek.patch dist/screen-$(VERSION)/tek.patch
-	mkdir dist/screen-$(VERSION)/terminfo
-	cd terminfo; ln 8bits README checktc.c sco.mail screencap \
+	mkdir dist/$(SCREEN)
+	ln acls.h ansi.h display.h extern.h logfile.h mark.h os.h \
+	   layer.h patchlevel.h rcs.h screen.h window.h image.h \
+	   osdef.h.in term.sh tty.sh comm.sh osdef.sh braille.h \
+	   sched.h \
+	   $(CFILES) \
+	   ChangeLog COPYING INSTALL NEWS* TODO install.sh \
+	   dist/$(SCREEN)
+	cd dist/$(SCREEN); mv tty.c tty.c.dist
+	cd dist/$(SCREEN); mv kmapdef.c kmapdef.c.dist
+	ln configure.in configure dist/$(SCREEN)
+	sed -e 's@"/local/screens@"/tmp/screens@' -e 's@"/local@"/usr/local@g' < config.h.in > dist/$(SCREEN)/config.h.in
+	sed -e 's@[	 ]/local@ /usr/local@g' -e 's/^CFLAGS = -g/CFLAGS = -O/' < Makefile.in > dist/$(SCREEN)/Makefile.in
+	ln term.h dist/$(SCREEN)/term.h.dist
+	ln comm.h dist/$(SCREEN)/comm.h.dist
+	ln README dist/$(SCREEN)/README
+	mkdir dist/$(SCREEN)/terminfo
+	cd terminfo; ln 8bits README checktc.c screencap \
 	  screeninfo.src test.txt tetris.c \
-	  ../dist/screen-$(VERSION)/terminfo
-	mkdir dist/screen-$(VERSION)/etc
-	cd etc; ln * ../dist/screen-$(VERSION)/etc
-	sed -e 's/^startup/#startup/' -e 's/^autodetach/#autodetach/' < $(ETCSCREENRC) > dist/screen-$(VERSION)/etc/etcscreenrc 
-	cp $(HOME)/.screenrc dist/screen-$(VERSION)/etc/screenrc
-	mkdir dist/screen-$(VERSION)/doc
-	sed -e 's@/local/emacs@/usr/local@g' < doc/Makefile.in > dist/screen-$(VERSION)/doc/Makefile.in
-	cd doc; ln FAQ screen.1 screen.texinfo fdpat.ps \
-	  ../dist/screen-$(VERSION)/doc
+	  ../dist/$(SCREEN)/terminfo
+	mkdir dist/$(SCREEN)/etc
+	cd etc; ln * ../dist/$(SCREEN)/etc
+	sed -e 's/^startup/#startup/' -e 's/^autodetach/#autodetach/' < $(ETCSCREENRC) > dist/$(SCREEN)/etc/etcscreenrc 
+	cp $(HOME)/.screenrc dist/$(SCREEN)/etc/screenrc
+	mkdir dist/$(SCREEN)/doc
+	sed -e 's@/local/emacs@/usr/local@g' < doc/Makefile.in > dist/$(SCREEN)/doc/Makefile.in
+	cd doc; ln FAQ README.DOTSCREEN screen.1 screen.texinfo fdpat.ps make.help window_to_display.ps \
+	  ../dist/$(SCREEN)/doc
 	cd doc; if test -f screen.info; then ln screen.info* \
-	   ../dist/screen-$(VERSION)/doc; fi
-	cd dist/screen-$(VERSION)/doc; ln -s ../install.sh .
-	cd dist/screen-$(VERSION); ln -s doc/FAQ .
-	echo "install all Makefiles and config:" > dist/screen-$(VERSION)/Makefile
-	echo "	sh ./configure" >> dist/screen-$(VERSION)/Makefile
-	cd dist; tar chf ../screen-$(VERSION).tar screen-$(VERSION)
+	   ../dist/$(SCREEN)/doc; fi
+	cd dist/$(SCREEN)/doc; ln -s ../install.sh .
+	cd dist/$(SCREEN); ln -s doc/FAQ .
+	echo "install all Makefiles and config:" > dist/$(SCREEN)/Makefile
+	echo "	rm -f config.cache" >> dist/$(SCREEN)/Makefile
+	echo "	sh ./configure"     >> dist/$(SCREEN)/Makefile
+	cd dist; tar cf ../$(SCREEN).tar $(SCREEN)
 	rm -rf dist
 
-screen-$(VERSION).tar.gz: screen-$(VERSION).tar
-	gzip -f screen-$(VERSION).tar
+$(SCREEN).tar.gz: $(SCREEN).tar
+	gzip -nf $(SCREEN).tar || gzip -f $(SCREEN).tar
 
 # Perform self-tests (if any).
 check:
@@ -204,6 +220,23 @@ lint:
 
 saber:
 	#load $(CFLAGS) screen.c ansi.c $(LIBS)
+
+config:
+	rm -f config.cache
+	sh ./configure
+
+
+###############################################################################
+
+.version:
+	@rev=`sed < patchlevel.h -n -e '/#define REV/s/#define REV  *//p'`; \
+	vers=`sed < patchlevel.h -n -e '/#define VERS/s/#define VERS  *//p'`; \
+	pat=`sed < patchlevel.h -n -e '/#define PATCHLEVEL/s/#define PATCHLEVEL  *//p'`; \
+	if [ "$${rev}.$${vers}.$${pat}" != "$(VERSION)" ]; then \
+	echo "This distribution is screen-$${rev}.$${vers}.$${pat}, but"; \
+	echo "the Makefile is from $(VERSION). Please update!"; exit 1; fi
+
+###############################################################################
 
 mdepend: $(CFILES) term.h
 	@rm -f DEPEND ; \
@@ -218,36 +251,76 @@ mdepend: $(CFILES) term.h
 	done
 
 
-depend: $(CFILES) term.h
-	cp Makefile Makefile~
-	sed -e '/\#\#\# Dependencies/q' < Makefile > tmp_make
+depend: depend.in
+	./config.status || ./configure
+	
+depend.in: $(CFILES) term.h
+	cp Makefile.in Makefile.in~
+	sed -e '/\#\#\# Dependencies/q' < Makefile.in > tmp_make
 	for i in $(CFILES); do echo $$i; $(CPP_DEPEND) $$i >> tmp_make; done 
-	mv tmp_make Makefile
+	mv tmp_make Makefile.in
 
-screen.o socket.o: Makefile
+###############################################################################
 
 ### Dependencies:
-screen.o: screen.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h patchlevel.h rcs.h screen.h term.h window.h
-ansi.o: ansi.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-fileio.o: fileio.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-mark.o: mark.c acls.h ansi.h comm.h config.h display.h extern.h image.h mark.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-misc.o: misc.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-resize.o: resize.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-socket.o: socket.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-search.o: search.c acls.h ansi.h comm.h config.h display.h extern.h image.h mark.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-tty.o: tty.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
+screen.o: screen.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h braille.h \
+ patchlevel.h logfile.h extern.h
+ansi.o: ansi.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h braille.h extern.h \
+ logfile.h
+fileio.o: fileio.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+mark.o: mark.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h mark.h extern.h
+misc.o: misc.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+resize.o: resize.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+socket.o: socket.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+search.o: search.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h mark.h extern.h
+tty.o: tty.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h comm.h \
+ layer.h term.h image.h display.h window.h extern.h
 term.o: term.c rcs.h term.h
-window.o: window.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-utmp.o: utmp.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-loadav.o: loadav.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-putenv.o: putenv.c config.h rcs.h
-help.o: help.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-termcap.o: termcap.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-input.o: input.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-attacher.o: attacher.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-pty.o: pty.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-process.o: process.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-display.o: display.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
-comm.o: comm.c acls.h comm.h config.h rcs.h
+window.o: window.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h logfile.h
+utmp.o: utmp.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+loadav.o: loadav.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+putenv.o: putenv.c rcs.h config.h
+help.o: help.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+termcap.o: termcap.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+input.o: input.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+attacher.o: attacher.c rcs.h config.h screen.h os.h osdef.h ansi.h \
+ acls.h comm.h layer.h term.h image.h display.h window.h extern.h
+pty.o: pty.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h comm.h \
+ layer.h term.h image.h display.h window.h extern.h
+process.o: process.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h logfile.h
+display.o: display.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h braille.h
+comm.o: comm.c rcs.h config.h acls.h comm.h
 kmapdef.o: kmapdef.c config.h
-acls.o: acls.c acls.h ansi.h comm.h config.h display.h extern.h image.h os.h osdef.h overlay.h rcs.h screen.h term.h window.h
+acls.o: acls.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h comm.h \
+ layer.h term.h image.h display.h window.h extern.h
+braille.o: braille.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h braille.h
+braille_tsi.o: braille_tsi.c config.h screen.h os.h osdef.h ansi.h \
+ acls.h comm.h layer.h term.h image.h display.h window.h extern.h \
+ braille.h
+logfile.o: logfile.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h logfile.h
+layer.o: layer.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+sched.o: sched.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h logfile.h
+teln.o: teln.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+nethack.o: nethack.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h

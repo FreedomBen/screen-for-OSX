@@ -44,17 +44,16 @@ static void CheckMaxSize __P((int));
 static void FreeMline  __P((struct mline *));
 static int  AllocMline __P((struct mline *ml, int));
 static void MakeBlankLine __P((char *, int));
+static void kaablamm __P((void));
 static int  BcopyMline __P((struct mline *, int, struct mline *, int, int, int));
 
+extern struct layer *flayer;
 extern struct display *display, *displays;
 extern char *blank, *null;
 extern struct mline mline_blank, mline_null, mline_old;
 extern struct win *windows;
 extern int Z0width, Z1width;
-
-#ifdef NETHACK
-extern int nethackflag;
-#endif
+extern int captionalways;
 
 #if defined(TIOCGWINSZ) || defined(TIOCSWINSZ)
   struct winsize glwz;
@@ -62,8 +61,10 @@ extern int nethackflag;
 
 static struct mline mline_zero = {
  (char *)0,
- (char *)0,
  (char *)0
+#ifdef FONT
+ ,(char *)0
+#endif
 #ifdef COLOR
  ,(char *)0
 #endif
@@ -83,15 +84,12 @@ CheckScreenSize(change_flag)
 int change_flag;
 {
   int wi, he;
-  struct win *p;
-  struct layer *oldlay;
 
   if (display == 0)
     {
       debug("CheckScreenSize: No display -> no check.\n");
       return;
     }
-  oldlay = D_lay;
 #ifdef TIOCGWINSZ
   if (ioctl(D_userfd, TIOCGWINSZ, (char *)&glwz) != 0)
     {
@@ -115,6 +113,7 @@ int change_flag;
   
   debug2("CheckScreenSize: screen is (%d,%d)\n", wi, he);
 
+#if 0 /* XXX: Fixme */
   if (change_flag == 2)
     {
       debug("Trying to adapt all windows (-A)\n");
@@ -122,6 +121,7 @@ int change_flag;
 	if (p->w_display == 0 || p->w_display == display)
           ChangeWindowSize(p, wi, he, p->w_histheight);
     }
+#endif
   if (D_width == wi && D_height == he)
     {
       debug("CheckScreenSize: No change -> return.\n");
@@ -129,16 +129,7 @@ int change_flag;
     }
   ChangeScreenSize(wi, he, change_flag);
   if (change_flag == 1)
-    Activate(D_fore ? D_fore->w_norefresh : 0);
-  if (D_lay != oldlay)
-    {
-#ifdef NETHACK
-      if (nethackflag)
-	Msg(0, "KAABLAMM!!!  You triggered a land mine!");
-      else
-#endif
-      Msg(0, "Aborted because of window size change.");
-    }
+    Redisplay(D_fore ? D_fore->w_norefresh : 0);
 }
 
 void
@@ -147,15 +138,60 @@ int wi, he;
 int change_fore;
 {
   struct win *p;
+  struct canvas *cv, **cvpp;
   int wwi;
+  int y, h, hn;
 
-  if (D_width == wi && D_height == he)
-    {
-      debug("ChangeScreenSize: no change\n");
-      return;
-    }
   debug2("ChangeScreenSize from (%d,%d) ", D_width, D_height);
   debug3("to (%d,%d) (change_fore: %d)\n",wi, he, change_fore);
+
+  /*
+   *  STRATEGY: keep the ratios.
+   *  if canvas doesn't fit anymore, throw it off.
+   *  (ATTENTION: cvlist must be sorted!)
+   */
+  y = 0;
+  h = he;
+  if (D_has_hstatus == HSTATUS_LASTLINE)
+    h--;
+  for (cvpp = &D_cvlist; (cv = *cvpp); )
+    {
+      if (h < 2)
+        {
+          /* kill canvas */
+	  SetCanvasWindow(cv, 0);
+          *cvpp = cv->c_next;
+	  free(cv);
+	  if (D_forecv == cv)
+	    D_forecv = 0;
+          continue;
+        }
+      hn = (cv->c_ye - cv->c_ys + 1) * he / D_height;
+      if (hn == 0)
+        hn = 1;
+      if (hn + 2 >= h || cv->c_next == 0)
+        hn = h - 1;
+      if (!captionalways && cv == D_cvlist && h - hn < 2)
+        hn = h;
+      ASSERT(hn > 0);
+      cv->c_xs = 0;
+      cv->c_xe = wi - 1;
+      cv->c_ys = y;
+      cv->c_ye = y + hn - 1;
+
+      cv->c_xoff = cv->c_xs;
+      cv->c_yoff = cv->c_ys;
+
+      y += hn + 1;
+      h -= hn + 1;
+      cvpp = &cv->c_next;
+    }
+  RethinkDisplayViewports();
+  if (D_forecv == 0)
+    D_forecv = D_cvlist;
+  if (D_forecv)
+    D_fore = Layer2Window(D_forecv->c_layer);
+
   D_width = wi;
   D_height = he;
 
@@ -176,7 +212,7 @@ int change_fore;
     }
   debug2("Default size: (%d,%d)\n", D_defwidth, D_defheight);
   if (change_fore)
-    DoResize(wi, he);
+    ResizeLayersToCanvases();
   if (D_CWS == NULL && displays->d_next == 0)
     {
       /* adapt all windows  -  to be removed ? */
@@ -184,40 +220,179 @@ int change_fore;
         {
           debug1("Trying to change window %d.\n", p->w_number);
           wwi = wi;
-          if (D_CZ0 && (wi == Z0width || wi == Z1width))
+#if 0
+          if (D_CZ0 && p->w_width != wi && (wi == Z0width || wi == Z1width))
 	    {
 	      if (p->w_width > (Z0width + Z1width) / 2)
 		wwi = Z0width;
 	      else
 		wwi = Z1width;
 	    }
+#endif
+	  if (p->w_savelayer && p->w_savelayer->l_cvlist == 0)
+	    ResizeLayer(p->w_savelayer, wwi, he, 0);
+#if 0
           ChangeWindowSize(p, wwi, he, p->w_histheight);
+#endif
         }
     }
 }
 
 void
-DoResize(wi, he)
-int wi, he;
+ResizeLayersToCanvases()
 {
-  struct layer *oldlay;
-  int q = 0;
+  struct canvas *cv;
+  struct layer *l;
+  int lx, ly;
 
-  for(;;)
+  debug("ResizeLayersToCanvases\n");
+  for (cv = D_cvlist; cv; cv = cv->c_next)
     {
-      oldlay = D_lay;
-      for (; D_lay; D_lay = D_lay->l_next)
+      l = cv->c_layer;
+      if (l == 0)
+	continue;
+      debug("Doing canvas: ");
+      if (l->l_width  == cv->c_xe - cv->c_xs + 1 &&
+          l->l_height == cv->c_ye - cv->c_ys + 1)
+        {
+          debug("already fitting.\n");
+          continue;
+        }
+      if (!MayResizeLayer(l))
+        {
+          debug("may not resize.\n");
+        }
+      else
 	{
-	  D_layfn = D_lay->l_layfn;
-	  if ((q = Resize(wi, he)))
-	    break;
+	  debug("doing resize.\n");
+	  ResizeLayer(l, cv->c_xe - cv->c_xs + 1, cv->c_ye - cv->c_ys + 1, display);
 	}
-      D_lay = oldlay;
-      D_layfn = D_lay->l_layfn;
-      if (q == 0)
-	break;
-      ExitOverlayPage();
+
+      /* normalize window, see screen.c */
+      lx = cv->c_layer->l_x;
+      ly = cv->c_layer->l_y;
+      if (ly + cv->c_yoff < cv->c_ys)
+	{
+          cv->c_yoff = cv->c_ys - ly;
+          RethinkViewportOffsets(cv);
+	}
+      else if (ly + cv->c_yoff > cv->c_ye)
+	{
+	  cv->c_yoff = cv->c_ye - ly;
+          RethinkViewportOffsets(cv);
+	}
+      if (lx + cv->c_xoff < cv->c_xs)
+        {
+	  int n = cv->c_xs - (lx + cv->c_xoff);
+	  if (n < (cv->c_xe - cv->c_xs + 1) / 2)
+	    n = (cv->c_xe - cv->c_xs + 1) / 2;
+	  if (cv->c_xoff + n > cv->c_xs)
+	    n = cv->c_xs - cv->c_xoff;
+	  cv->c_xoff += n;
+	  RethinkViewportOffsets(cv);
+        }
+      else if (lx + cv->c_xoff > cv->c_xe)
+	{
+	  int n = lx + cv->c_xoff - cv->c_xe;
+	  if (n < (cv->c_xe - cv->c_xs + 1) / 2)
+	    n = (cv->c_xe - cv->c_xs + 1) / 2;
+	  if (cv->c_xoff - n + cv->c_layer->l_width - 1 < cv->c_xe)
+	    n = cv->c_xoff + cv->c_layer->l_width - 1 - cv->c_xe;
+	  cv->c_xoff -= n;
+	  RethinkViewportOffsets(cv);
+	}
     }
+  Redisplay(0);
+}
+
+int
+MayResizeLayer(l)
+struct layer *l;
+{
+  int cvs = 0;
+  debug("MayResizeLayer:\n");
+  for (; l; l = l->l_next)
+    {
+      if (l->l_cvlist)
+        if (++cvs > 1 || l->l_cvlist->c_lnext)
+	  {
+	    debug1("may not - cvs %d\n", cvs);
+	    return 0;
+	  }
+    }
+  debug("may resize\n");
+  return 1;
+}
+
+/*
+ *  Easy implementation: rely on the fact that the only layers
+ *  supporting resize are Win and Blank. So just kill all overlays.
+ *
+ *  This is a lot harder if done the right way...
+ */
+
+static void
+kaablamm()
+{
+  /* this only works because of the status_delayed hack... */
+  Msg(0, "Aborted because of window size change.");
+}
+
+void
+ResizeLayer(l, wi, he, norefdisp)
+struct layer *l;
+int wi, he;
+struct display *norefdisp;
+{
+  struct win *p;
+  struct canvas *cv;
+  struct layer *oldflayer = flayer;
+  struct display *d, *olddisplay = display;
+
+  if (l->l_width == wi && l->l_height == he)
+    return;
+  p = Layer2Window(l);
+
+  if (oldflayer && (l == oldflayer || Layer2Window(oldflayer) == p))
+    while(oldflayer->l_next)
+      oldflayer = oldflayer->l_next;
+    
+  if (p)
+    {
+      for (d = displays; d; d = d->d_next)
+	for (cv = d->d_cvlist; cv; cv = cv->c_next)
+	  {
+	    if (p == Layer2Window(cv->c_layer))
+	      {
+		flayer = cv->c_layer;
+		if (flayer->l_next)
+		  kaablamm();
+	        while(flayer->l_next)
+		  ExitOverlayPage();
+	      }
+	  }
+      l = p->w_savelayer;
+    }
+  flayer = l;
+  if (flayer->l_next)
+    kaablamm();
+  while(flayer->l_next)
+    ExitOverlayPage();
+  if (p)
+    flayer = &p->w_layer;
+  Resize(wi, he);
+  /* now everybody is on flayer, redisplay */
+  l = flayer;
+  for (display = displays; display; display = display->d_next)
+    {
+      if (display == norefdisp)
+	continue;
+      for (cv = D_cvlist; cv; cv = cv->c_next)
+	if (cv->c_layer == l)
+          RefreshArea(cv->c_xs, cv->c_ys, cv->c_xe, cv->c_ye, 0);
+    }
+  flayer = oldflayer;
+  display = olddisplay;
 }
 
 
@@ -229,8 +404,10 @@ struct mline *ml;
     free(ml->image);
   if (ml->attr && ml->attr != null)
     free(ml->attr);
+#ifdef FONT
   if (ml->font && ml->font != null)
     free(ml->font);
+#endif
 #ifdef COLOR
   if (ml->color && ml->color != null)
     free(ml->color);
@@ -245,7 +422,9 @@ int w;
 {
   ml->image = malloc(w);
   ml->attr  = null;
+#ifdef FONT
   ml->font  = null;
+#endif
 #ifdef COLOR
   ml->color = null;
 #endif
@@ -271,6 +450,7 @@ int xf, xt, l, w;
     }
   if (mlt->attr != null)
     bcopy(mlf->attr + xf, mlt->attr + xt, l);
+#ifdef FONT
   if (mlf->font != null && mlt->font == null)
     {
       if ((mlt->font = malloc(w)) == 0)
@@ -279,6 +459,7 @@ int xf, xt, l, w;
     }
   if (mlt->font != null)
     bcopy(mlf->font + xf, mlt->font + xt, l);
+#endif
 #ifdef COLOR
   if (mlf->color != null && mlt->color == null)
     {
@@ -325,38 +506,32 @@ int wi;
     mline_old.attr = malloc((unsigned) maxwidth);
   else
     mline_old.attr = xrealloc(mline_old.attr, maxwidth);
+#ifdef FONT
   if (mline_old.font == 0)
     mline_old.font = malloc((unsigned) maxwidth);
   else
     mline_old.font = xrealloc(mline_old.font, maxwidth);
+#endif
 #ifdef COLOR
   if (mline_old.color == 0)
     mline_old.color = malloc((unsigned) maxwidth);
   else
     mline_old.color = xrealloc(mline_old.color, maxwidth);
-  if (!(blank && null && mline_old.image && mline_old.attr
-                      && mline_old.font && mline_old.color))
-    {
-      Panic(0, "Out of memory -> Game over!!");
-      /*NOTREACHED*/
-    }
-#else
-  if (!(blank && null && mline_old.image && mline_old.attr
-                      && mline_old.font))
-    {
-      Panic(0, "Out of memory -> Game over!!");
-      /*NOTREACHED*/
-    }
 #endif
+  if (!(blank && null && mline_old.image && mline_old.attr IFFONT(&& mline_old.font) IFCOLOR(&& mline_old.color)))
+    Panic(0, strnomem);
+
   MakeBlankLine(blank, maxwidth);
   bzero(null, maxwidth);
 
   mline_blank.image = blank;
   mline_blank.attr  = null;
-  mline_blank.font  = null;
   mline_null.image = null;
   mline_null.attr  = null;
+#ifdef FONT
+  mline_blank.font  = null;
   mline_null.font  = null;
+#endif
 #ifdef COLOR
   mline_blank.color = null;
   mline_null.color = null;
@@ -372,8 +547,10 @@ int wi;
 	{
 	  if (ml->attr == oldnull)
 	    ml->attr = null;
+#ifdef FONT
 	  if (ml->font == oldnull)
 	    ml->font = null;
+#endif
 #ifdef COLOR
 	  if (ml->color== oldnull)
 	    ml->color= null;
@@ -385,8 +562,10 @@ int wi;
 	{
 	  if (ml->attr == oldnull)
 	    ml->attr = null;
+# ifdef FONT
 	  if (ml->font == oldnull)
 	    ml->font = null;
+# endif
 # ifdef COLOR
 	  if (ml->color== oldnull)
 	    ml->color= null;
@@ -459,12 +638,15 @@ int wi, he, hi;
 
   CheckMaxSize(wi);
 
+  /* XXX */
+#if 0
   /* just in case ... */
   if (wi && (p->w_width != wi || p->w_height != he) && p->w_lay != &p->w_winlay)
     {
       debug("ChangeWindowSize: No resize because of overlay?\n");
       return -1;
     }
+#endif
 
   debug("ChangeWindowSize");
   debug3(" from (%d,%d)+%d", p->w_width, p->w_height, p->w_histheight);
@@ -784,6 +966,11 @@ int wi, he, hi;
 #ifdef COPY_PASTE
   p->w_histidx = 0;
   p->w_histheight = hi;
+#endif
+
+#ifdef BUILTIN_TELNET
+  if (p->w_type == W_TYPE_TELNET)
+    TelWindowSize(p);
 #endif
 
 #ifdef DEBUG

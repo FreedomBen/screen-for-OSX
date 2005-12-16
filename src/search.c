@@ -31,10 +31,12 @@ RCS_ID("$Id$ FAU")
 #include "mark.h"
 #include "extern.h"
 
-#ifdef COPY_PASTE
+#define INPUTLINE (flayer->l_height - 1)
 
+extern struct layer *flayer;
 extern struct win *fore;
-extern struct display *display;
+
+#ifdef COPY_PASTE
 
 /********************************************************************
  *  VI style Search
@@ -51,13 +53,13 @@ int dir;
   struct markdata *markdata;
   if (dir == 0)
     {
-      markdata = (struct markdata *)D_lay->l_data;
+      markdata = (struct markdata *)flayer->l_data;
       if (markdata->isdir > 0)
 	searchend(0, 0, NULL);
       else if (markdata->isdir < 0)
 	backsearchend(0, 0, NULL);
       else
-	Msg(0, "No previous pattern");
+	LMsg(0, "No previous pattern");
     }
   else
     Input((dir > 0 ? "/" : "?"), sizeof(markdata->isstr)-1, INP_COOKED,
@@ -72,22 +74,24 @@ char *data;	/* dummy */
 {
   int x = 0, sx, ex, y;
   struct markdata *markdata;
+  struct win *p;
 
-  markdata = (struct markdata *)D_lay->l_data;
+  markdata = (struct markdata *)flayer->l_data;
+  p = markdata->md_window;
   markdata->isdir = 1;
   if (len)
     strcpy(markdata->isstr, buf);
   sx = markdata->cx + 1;
-  ex = D_width - 1;
-  for (y = markdata->cy; y < fore->w_histheight + D_height; y++, sx = 0)
+  ex = flayer->l_width - 1;
+  for (y = markdata->cy; y < p->w_histheight + flayer->l_height; y++, sx = 0)
     {
       if ((x = matchword(markdata->isstr, y, sx, ex)) >= 0)
         break;
     }
-  if (y >= fore->w_histheight + D_height)
+  if (y >= p->w_histheight + flayer->l_height)
     {
-      GotoPos(markdata->cx, W2D(markdata->cy));
-      Msg(0, "Pattern not found");
+      LGotoPos(flayer, markdata->cx, W2D(markdata->cy));
+      LMsg(0, "Pattern not found");
     }
   else
     revto(x, y);
@@ -102,12 +106,12 @@ char *data;	/* dummy */
   int sx, ex, x = -1, y;
   struct markdata *markdata;
 
-  markdata = (struct markdata *)D_lay->l_data;
+  markdata = (struct markdata *)flayer->l_data;
   markdata->isdir = -1;
   if (len)
     strcpy(markdata->isstr, buf);
   ex = markdata->cx - 1;
-  for (y = markdata->cy; y >= 0; y--, ex = D_width - 1)
+  for (y = markdata->cy; y >= 0; y--, ex = flayer->l_width - 1)
     {
       sx = 0;
       while ((sx = matchword(markdata->isstr, y, sx, ex)) >= 0)
@@ -117,8 +121,8 @@ char *data;	/* dummy */
     }
   if (y < 0)
     {
-      GotoPos(markdata->cx, W2D(markdata->cy));
-      Msg(0, "Pattern not found");
+      LGotoPos(flayer, markdata->cx, W2D(markdata->cy));
+      LMsg(0, "Pattern not found");
     }
   else
     revto(x, y);
@@ -132,9 +136,12 @@ int y, sx, ex;
   char *ip, *ipe, *cp, *pp;
   struct mline *ml;
 
+  /* *sigh* to make WIN work */
+  fore = ((struct markdata *)flayer->l_data)->md_window;
+
   ml = WIN(y);
   ip = ml->image + sx;
-  ipe = ml->image + D_width;
+  ipe = ml->image + flayer->l_width;
   for (;sx <= ex; sx++)
     {
       cp = ip++;
@@ -172,8 +179,10 @@ int l, p, end, dir;
   int tab[256];
   int i, q;
   char *s, c;
-  int w = D_width;
+  int w = flayer->l_width;
 
+  /* *sigh* to make WIN work */
+  fore = ((struct markdata *)flayer->l_next->l_data)->md_window;
   debug2("is_bm: searching for %s len %d\n", str, l);
   debug3("start at %d end %d dir %d\n", p, end, dir);
   if (p < 0 || p + l > end)
@@ -222,11 +231,11 @@ char *data;	/* dummy */
 
   if (n == 0)
     return;
-  markdata = (struct markdata *)D_lay->l_next->l_data;
   ASSERT(p);
+  markdata = (struct markdata *)flayer->l_next->l_data;
 
-  pos = markdata->cx + markdata->cy * D_width;
-  GotoPos(markdata->cx, W2D(markdata->cy));
+  pos = markdata->cx + markdata->cy * flayer->l_width;
+  LGotoPos(flayer, markdata->cx, W2D(markdata->cy));
 
   switch (*p)
     {
@@ -273,22 +282,30 @@ char *data;	/* dummy */
       debug2("New char: %c - left %d\n", *p, (int)sizeof(markdata->isistr) - markdata->isistrl);
     }
   if (*p && *p != '\b')
-    pos = is_bm(markdata->isstr, markdata->isstrl, pos, D_width * (fore->w_histheight + D_height), markdata->isdir);
+    pos = is_bm(markdata->isstr, markdata->isstrl, pos, flayer->l_width * (markdata->md_window->w_histheight + flayer->l_height), markdata->isdir);
   if (pos >= 0)
     {
-      x = pos % D_width;
-      y = pos / D_width;
+      x = pos % flayer->l_width;
+      y = pos / flayer->l_width;
       LAY_CALL_UP
 	(
-          RefreshLine(STATLINE, 0, D_width - 1, 0);
+          RedisplayLine(INPUTLINE, 0, flayer->l_width - 1, 0);
           revto(x, y);
-          if (W2D(markdata->cy) == STATLINE)
-	    revto_line(markdata->cx, markdata->cy, STATLINE > 0 ? STATLINE - 1 : 1);
+          if (W2D(markdata->cy) == INPUTLINE)
+	    revto_line(markdata->cx, markdata->cy, INPUTLINE > 0 ? INPUTLINE - 1 : 1);
         );
     }
   if (*p)
     inp_setprompt(isprompts[markdata->isdir + (pos < 0) + 1], markdata->isstrl ? markdata->isstr : "");
-  GotoPos(markdata->cx, W2D(markdata->cy));
+  flayer->l_x = markdata->cx;
+  flayer->l_y = W2D(markdata->cy);
+  LGotoPos(flayer, flayer->l_x, flayer->l_y);
+  if (!*p)
+    {
+      /* we are about to finish, keep cursor position */
+      flayer->l_next->l_x = markdata->cx;
+      flayer->l_next->l_y = W2D(markdata->cy);
+    }
 }
 
 static int
@@ -312,7 +329,7 @@ struct markdata *markdata;
 	markdata->isstr[markdata->isstrl++] = c;
       if (pos >= 0)
 	{
-          npos = is_bm(markdata->isstr, markdata->isstrl, pos, D_width * (fore->w_histheight + D_height), dir);
+          npos = is_bm(markdata->isstr, markdata->isstrl, pos, flayer->l_width * (markdata->md_window->w_histheight + flayer->l_height), dir);
 	  if (npos >= 0)
 	    pos = npos;
 	}
@@ -328,15 +345,17 @@ int dir;
 {
   struct markdata *markdata;
 
-  markdata = (struct markdata *)D_lay->l_data;
+  markdata = (struct markdata *)flayer->l_data;
   markdata->isdir = markdata->isstartdir = dir;
-  markdata->isstartpos = markdata->cx + markdata->cy * D_width;
+  markdata->isstartpos = markdata->cx + markdata->cy * flayer->l_width;
   markdata->isistrl = markdata->isstrl = 0;
-  if (W2D(markdata->cy) == STATLINE)
-    revto_line(markdata->cx, markdata->cy, STATLINE > 0 ? STATLINE - 1 : 1);
+  if (W2D(markdata->cy) == INPUTLINE)
+    revto_line(markdata->cx, markdata->cy, INPUTLINE > 0 ? INPUTLINE - 1 : 1);
   Input(isprompts[dir + 1], sizeof(markdata->isstr) - 1, INP_RAW,
         is_process, NULL);
-  GotoPos(markdata->cx, W2D(markdata->cy));
+  LGotoPos(flayer, markdata->cx, W2D(markdata->cy));
+  flayer->l_x = markdata->cx;
+  flayer->l_y = W2D(markdata->cy);
 }
 
 #endif /* COPY_PASTE */

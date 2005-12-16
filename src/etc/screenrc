@@ -60,11 +60,7 @@ termcapinfo xterm 'k1=\E[11~:k2=\E[12~:k3=\E[13~:k4=\E[14~'
 termcapinfo xterm 'kh=\E[1~:kI=\E[2~:kD=\E[3~:kH=\E[4~:kP=\E[H:kN=\E[6~'
 
 # special xterm hardstatus: use the window title.
-termcapinfo xterm 'hs:ts=\E]2;:fs=\007:ds=\E]0;screen\007'
-
-# our xterm has colors! (rxvt, too)
-termcap  xterm 'AF=\E[3%dm:AB=\E[4%dm'
-terminfo xterm 'AF=\E[3%p1%dm:AB=\E[4%p1%dm'
+termcapinfo xterm 'hs:ts=\E]2;:fs=\007:ds=\E]2;screen\007'
 
 #terminfo xterm 'vb=\E[?5h$<200/>\E[?5l'
 termcapinfo xterm 'vi=\E[?25l:ve=\E[34h\E[?25h:vs=\E[34l'
@@ -74,9 +70,7 @@ termcapinfo   xterm 'XC=K%,%\E(B,[\304,\\\\\326,]\334,{\344,|\366,}\374,~\337'
 
 # xterm-52 tweaks:
 # - uses background color for delete operations
-# - maps F1-4 to PF1-4
-# termcapinfo xterm ut
-# termcapinfo xterm 'k1=\EOP:k2=\EOQ:k3=\EOR:k4=\EOS'
+termcapinfo xterm ut
 
 ################
 #
@@ -117,7 +111,6 @@ bind \\
 bind ^h
 bind h
 #make them better
-bind '\\' quit
 bind 'K' kill
 bind 'I' login on
 bind 'O' login off
@@ -138,3 +131,8 @@ bind ^] paste [.]
 # screen -t local 0
 # screen -t mail 1 elm
 # screen -t 40 2 rlogin faui40
+
+# caption always "%3n %t%? @%u%?%? [%h]%?"
+# hardstatus alwaysignore
+# hardstatus alwayslastline "%w"
+

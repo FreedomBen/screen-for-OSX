@@ -26,6 +26,24 @@ RCS_ID("$Id$ FAU")
 #include <sys/types.h>
 
 #include "config.h"
+
+
+/* XXX: WHY IS THIS HERE?? :XXX */
+
+#ifdef CHECKLOGIN
+# ifdef _SEQUENT_
+#  include <stdio.h>	/* needed by <pwd.h> */
+# endif /* _SEQUENT_ */
+# include <pwd.h>
+# ifdef SHADOWPW
+#  include <shadow.h>
+# endif /* SHADOWPW */
+#endif /* CHECKLOGIN */
+
+#ifndef NOSYSLOG
+# include <syslog.h>
+#endif
+
 #include "screen.h"	/* includes acls.h */
 #include "extern.h"
 
@@ -37,6 +55,7 @@ RCS_ID("$Id$ FAU")
 extern struct comm comms[];
 extern struct win *windows, *wtab[];
 extern char NullStr[];
+extern char SockPath[];
 extern struct display *display, *displays;
 struct user *users;
 
@@ -52,9 +71,9 @@ static AclBits userbits;
  */
 static char default_w_bit[ACL_BITS_PER_WIN] = 
 { 
-  0,	/* EXEC */
-  0, 	/* WRITE */
-  0 	/* READ */
+  1,	/* EXEC */
+  1, 	/* WRITE */
+  1 	/* READ */
 };
 
 static char default_c_bit[ACL_BITS_PER_CMD] = 
@@ -70,6 +89,7 @@ static char default_c_bit[ACL_BITS_PER_CMD] =
  */
 
 static int GrowBitfield __P((AclBits *, int, int, int));
+static struct usergroup **FindGroupPtr __P((struct usergroup **, struct user *, int));
 static int AclSetPermCmd __P((struct user *, char *, struct comm *));
 static int AclSetPermWin __P((struct user *, struct user *, char *, struct win *));
 static int UserAcl __P((struct user *, struct user **, int, char **));
@@ -163,6 +183,8 @@ struct user **up;
     (*up)->u_password = SaveStr(pass);
   if (!(*up)->u_password)
     (*up)->u_password = NullStr;
+  (*up)->u_detachwin = -1;
+  (*up)->u_detachotherwin = -1;
 
 #ifdef MULTIUSER
   (*up)->u_group = NULL;
@@ -278,6 +300,25 @@ struct user **up;
   return 0;
 }
 
+#if 0
+/* change user's password */
+int 
+UserSetPass(name, pass, up)
+char *name, *pass;
+struct user **up;
+{
+  if (!up)
+    up = FindUserPtr(name);
+  if (!*up)
+    return UserAdd(name, pass, up);
+  if (!strcmp(name, "nobody"))		/* he remains without password */
+    return -1;
+  strncpy((*up)->u_password, pass ? pass : "", 20);
+  (*up)->u_password[20] = '\0';
+  return 0;
+}
+#endif
+
 /* 
  * Remove a user from the list. 
  * Destroy all his permissions and completely detach him from the session.
@@ -363,20 +404,16 @@ UserFreeCopyBuffer(u)
 struct user *u;
 {
   struct win *w;
+  struct paster *pa;
 
   if (!u->u_copybuffer)
     return 1;
   for (w = windows; w; w = w->w_next)
     {
-      if (w->w_pasteptr >= u->u_copybuffer &&
-          w->w_pasteptr - u->u_copybuffer < u->u_copylen)
-	{
-	  if (w->w_pastebuf)
-            free((char *)w->w_pastebuf);
-          w->w_pastebuf = 0;
-	  w->w_pasteptr = 0;
-	  w->w_pastelen = 0;
-	}
+      pa = &w->w_paster;
+      if (pa->pa_pasteptr >= u->u_copybuffer &&
+          pa->pa_pasteptr - u->u_copybuffer < u->u_copylen)
+        FreePaster(pa);
     }
   free((char *)u->u_copybuffer);
   u->u_copylen = 0;
@@ -384,6 +421,171 @@ struct user *u;
   return 0;
 }
 #endif	/* COPY_PASTE */
+
+#ifdef MULTIUSER
+/*
+ * Traverses group nodes. It searches for a node that references user u. 
+ * If recursive is true, nodes found in the users are also searched using 
+ * depth first method.  If none of the nodes references u, the address of 
+ * the last next pointer is returned. This address will contain NULL.
+ */ 
+static struct usergroup **
+FindGroupPtr(gp, u, recursive)
+struct usergroup **gp;
+struct user *u;
+int recursive;
+{
+  struct usergroup **g;
+  
+  ASSERT(recursive < 1000);		/* Ouch, cycle detection failed */
+  while (*gp)
+    {
+      if ((*gp)->u == u)
+        return gp;			/* found him here. */
+      if (recursive && 
+          *(g = FindGroupPtr(&(*gp)->u->u_group, u, recursive + 1)))
+	return g;			/* found him there. */
+      gp = &(*gp)->next;
+    }
+  return gp;				/* *gp is NULL */
+}
+
+/* 
+ * Returns nonzero if failed or already linked.
+ * Both users are created on demand. 
+ * Cyclic links are prevented.
+ */
+int
+AclLinkUser(from, to)
+char *from, *to;
+{
+  struct user **u1, **u2;
+  struct usergroup **g;
+
+  if (!*(u1 = FindUserPtr(from)) && UserAdd(from, NULL, u1))
+    return -1;
+  if (!*(u2 = FindUserPtr(to)) && UserAdd(to, NULL, u2))
+    return -1;			/* hmm, could not find both users. */
+
+  if (*FindGroupPtr(&(*u2)->u_group, *u1, 1))
+    return 1;			/* cyclic link detected! */
+  if (*(g = FindGroupPtr(&(*u1)->u_group, *u2, 0)))
+    return 2;			/* aha, we are already linked! */
+
+  if (!(*g = (struct usergroup *)malloc(sizeof(struct usergroup))))
+    return -1;			/* Could not alloc link. Poor screen */
+  (*g)->u = (*u2);
+  (*g)->next = NULL;
+  return 0;
+}
+
+/*
+ * The user pointer stored at *up will be substituted by a pointer
+ * to the named user's structure, if passwords match.
+ * returns NULL if successfull, an static error string otherwise
+ */
+char *
+DoSu(up, name, pw1, pw2)
+struct user **up;
+char *name, *pw1, *pw2;
+{
+  struct user *u;
+  int sorry = 0;
+
+  if (!(u = *FindUserPtr(name)))
+    sorry++;
+  else
+    {
+#ifdef CHECKLOGIN
+      struct passwd *pp;
+#ifdef SHADOWPW
+      struct spwd *ss;
+      int t, c;
+#endif
+      char *pass = "";
+
+      if (!(pp = getpwnam(name)))
+        {
+	  debug1("getpwnam(\"%s\") failed\n", name);
+          if (!(pw1 && *pw1 && *pw1 != '\377'))
+	    {
+	      debug("no unix account, no screen passwd\n");
+	      sorry++;
+	    }
+	}
+      else
+        pass = pp->pw_passwd;
+#ifdef SHADOWPW
+      for (t = 0; t < 13; t++)
+        {
+	  c = pass[t];
+	  if (!(c == '.' || c == '/' ||
+	       (c >= '0' && c <= '9') ||
+	       (c >= 'a' && c <= 'z') ||
+	       (c >= 'A' && c <= 'Z')))
+	    break;
+	}
+      if (t < 13)
+        {
+	  if (!(ss = getspnam(name)))
+	    {
+	      debug1("getspnam(\"%s\") failed\n", name);
+	      sorry++;
+	    }
+	  else
+	    pass = ss->sp_pwdp;
+	}
+#endif /* SHADOWPW */
+
+      if (pw2 && *pw2 && *pw2 != '\377')	/* provided a system password */
+        {
+	  if (!*pass ||				/* but needed none */
+	      strcmp(crypt(pw2, pass), pass))
+	    {
+	      debug("System password mismatch\n");
+	      sorry++;
+	    }
+	}
+      else					/* no pasword provided */
+        if (*pass)				/* but need one */
+	  sorry++;
+#endif
+      if (pw1 && *pw1 && *pw1 != '\377')	/* provided a screen password */
+	{
+	  if (!*u->u_password ||		/* but needed none */
+	      strcmp(crypt(pw1, u->u_password), u->u_password))
+	    {
+	      debug("screen password mismatch\n");
+              sorry++;
+	    }
+	}
+      else					/* no pasword provided */
+        if (*u->u_password)			/* but need one */
+	  sorry++;
+    }
+  
+  debug2("syslog(LOG_NOTICE, \"screen %s: \"su %s\" ", SockPath, name);
+  debug2("%s for \"%s\"\n", sorry ? "failed" : "succeded", (*up)->u_name);
+#ifndef NOSYSLOG
+# ifdef BSD_42
+  openlog("screen", LOG_PID);
+# else
+  openlog("screen", LOG_PID, LOG_AUTH);
+# endif /* BSD_42 */
+  syslog(LOG_NOTICE, "%s: \"su %s\" %s for \"%s\"", SockPath, name, 
+         sorry ? "failed" : "succeded", (*up)->u_name);
+  closelog();
+#else
+  debug("NOT LOGGED.\n");
+#endif /* NOSYSLOG */
+
+  if (sorry)
+    return "Sorry."; 
+  else
+    *up = u;	/* substitute user now */
+  return NULL;
+}
+#endif /* MULTIUSER */
 
 /************************************************************************
  *                     end of user managing code                        *
@@ -611,7 +813,7 @@ char *mode, *s;
 	    AclSetPermWin(uu, u, mode, (struct win *)1);
 	  else				/* .. or all windows */
 	    for (w = windows; w; w = w->w_next)
-	      AclSetPermWin(NULL, u, mode, w);
+	      AclSetPermWin((struct user *)0, u, mode, w);
 	  s++;
 	  break;
 	case '?':
@@ -630,7 +832,7 @@ char *mode, *s;
 	  if ((i = FindCommnr(s)) != RC_ILLEGAL)
 	    AclSetPermCmd(u, mode, &comms[i]);
 	  else if (((i = WindowByNoN(s)) >= 0) && wtab[i])
-	    AclSetPermWin(NULL, u, mode, wtab[i]);
+	    AclSetPermWin((struct user *)0, u, mode, wtab[i]);
 	  else
 	    /* checking group name */
 	    return -1;
@@ -792,44 +994,65 @@ char **argv;
   return 0;
 }
 
-#if 0
-void
-AclWinSwap(a, b)
-int a, b;
+/*
+ * Preprocess argments, so that umask can be set with UsersAcl
+ * 
+ * all current users		umask ±rwxn
+ * one specific user		umask user1±rwxn
+ * several users		umask user1,user2,...±rwxn
+ * default_w_bits		umask ?±rwxn
+ * default_c_bits		umask ??±rwxn
+ */
+int 
+AclUmask(u, str, errp)
+struct user *u;
+char *str;
+char **errp;
 {
-  int a_bit = 0, b_bit = 0;
-  AclGroupList **g;
-  AclBits p;
+  char mode[16]; 
+  char *av[3];
+  char *p, c = '\0';
 
-  debug2("acl lists swapping windows %d and %d\n", a, b);
-  
-  for (g = &aclgrouproot; *g; g = &(*g)->next) 
+  /* split str into user and bits section. */
+  for (p = str; *p; p++)
+    if ((c = *p) == '+' || c == '-')
+      break;
+  if (!*p)
     {
-      p = (*g)->group->winbits;
-      /* see if there was a bit for window a. zap it */
-      if (a >= 0)
-	if ((a_bit = ACLBIT(a) & ACLBYTE(p, a)))
-	  ACLBYTE(p, a) &= ~ACLBIT(a);
-      /* see if there was a bit for window b. zap it */
-      if (b >= 0)
-	if ((b_bit = ACLBIT(b) & ACLBYTE(p, b)))
-	  ACLBYTE(p, b) &= ~ACLBIT(b);
-      /* b may cause a set */
-      if (b_bit && a >= 0)
-        ACLBYTE(p, a) |= ACLBIT(a);
-      /* a may cause b set */
-      if (a_bit && b >= 0)
-        ACLBYTE(p, b) |= ACLBIT(b);
+      *errp = "Bad argument. Should be ``[user[,user...]{+|-}rwxn''.";
+      return -1;
     }
+  strncpy(mode, p, 15);
+  mode[15] = '\0';
+  *p = '\0';
+
+  /* construct argument vector */
+  if (!strcmp("??", str))
+    {
+      str++;
+      av[2] = "?";
+    }
+  else
+    av[2] = "#";
+  av[1] = mode;
+  av[0] = *str ? str : "*";
+  /* call UsersAcl */
+  if (UsersAcl(u, 3, av))
+    {
+      *errp = "UsersAcl failed. Hmmm.";
+      *p = c;
+      return -1;
+    }
+  *p = c;
+  return 0;
 }
-#else
+
 void
 AclWinSwap(a, b)
 int a, b;
 {
-  debug2("AclWinSwap(%d, %d) DUMMY\n", a, b);
+  debug2("AclWinSwap(%d, %d) NOP.\n", a, b);
 }
-#endif
 
 struct user *EffectiveAclUser = NULL;	/* hook for AT command permission */
 

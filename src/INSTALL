@@ -43,7 +43,7 @@ The path for ETCSCREENRC may also need to be adapted.
 Run 'make'. Screen should compile without too many warnings :)
 The creation of term.h, comm.h, tty.c or osdef.h may fail on some machines
 for some odd reason. (E.g. the sed under SCO-unix is known to be 
-case-insensitive and breaks term.h) If so, please mail a short description 
+case-insensitive and breaks term.h.) If so, please mail a short description 
 of the problem to screen@uni-erlangen.de and use the files ending in .dist 
 as a replacement (or in case of osdef.h retry with an empty file).
 You can then try 'make install' (if you dare).
@@ -89,7 +89,7 @@ The files screenrc and etc/etcscreenrc are instructive samples that
 demonstrate what can/should be done from your private .screenrc and from
 $ETCSCREENRC -- do not just copy them. Read them.  Look through the 
 etcscreenrc file for system wide defaults that you like to set. e.g. 
-autodetach off, startup_message off, vbell on, ...aak 
+autodetach off, startup_message off, vbell on, ...
 Since version 3.2.15 the screenrc file syntax changed slightly. All rc files
 from previous versions should be run through the newsyntax script that comes 
 with this package.
@@ -107,4 +107,4 @@ database is up to date. See the README in the terminfo subdirectory.
 To get an idea what the basic screen commands are, read the file README.
 Request snail mail address for liquid and solid donations. :-)
 
-Juergen Weigert. (screen@uni-erlangen.de)
+Juergen & Michael. (screen@uni-erlangen.de)

@@ -39,25 +39,6 @@
 
 typedef unsigned char * AclBits;
 
-/* a bitfield for windows and one for commands */
-typedef struct
-{
-  char name[20 + 1];
-  AclBits wins, cmds;
-} AclGroup;
-
-/* 
- * An AclGroupList is a chaind list of pointers to AclGroups.
- * Each user has such a list to reference groups he is in.
- * The aclgrouproot anchors all AclGroups. Delete and create
- * groups there.
- */
-typedef struct grouplist
-{
-  AclGroup *group;
-  struct grouplist *next;
-} AclGroupList;
-
 /*
  * How a user joins a group.
  * Here is the node to construct one list per user.

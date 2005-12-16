@@ -25,7 +25,6 @@
 RCS_ID("$Id$ FAU")
 
 #include <sys/types.h>
-#include <signal.h>
 #include <fcntl.h>
 #ifndef sun	/* we want to know about TIOCPKT. */
 # include <sys/ioctl.h>
@@ -33,27 +32,30 @@ RCS_ID("$Id$ FAU")
 
 #include "config.h"
 #include "screen.h"
+#include "braille.h"
 #include "extern.h"
+#include "logfile.h"
 
-extern struct win *windows;	/* linked list of all windows */
-extern struct win *fore;
 extern struct display *display, *displays;
 
-extern int  force_vt;
-extern int  all_norefresh;	/* => display */
-extern int  ZombieKey_destroy, ZombieKey_resurrect;
-extern int  real_uid, real_gid;
-extern time_t Now;
 extern struct NewWindow nwin_default;	/* for ResetWindow() */
-extern int  nversion;
+extern int  nversion;		/* numerical version of screen */
+extern int  log_flush, logtstamp_on, logtstamp_after;
+extern char *logtstamp_string;
+extern char *captionstring;
+extern char *hstatusstring;
+#ifdef COPY_PASTE
+extern int compacthist;
+#endif
 
 int Z0width, Z1width;		/* widths for Z0/Z1 switching */
 
+/* globals set in WriteString */
 static struct win *curr;	/* window we are working on */
 static int rows, cols;		/* window size of the curr window */
 
 int visual_bell = 0;
-int use_hardstatus = 1;
+int use_hardstatus = 1;		/* display status line in hs */
 char *printcmd = 0;
 
 char *blank;			/* line filled with spaces */
@@ -67,25 +69,48 @@ struct mchar mchar_null;
 struct mchar mchar_blank = {' ' /* , 0, 0, ... */};
 struct mchar mchar_so    = {' ', A_SO /* , 0, 0, ... */};
 
-static void WinProcess __P((char **, int *));
-static void WinRedisplayLine __P((int, int, int, int));
-static void WinClearLine __P((int, int, int));
-static int  WinRewrite __P((int, int, int, int));
-static void WinSetCursor __P((void));
-static int  WinResize __P((int, int));
-static void WinRestore __P((void));
+/* keep string_t and string_t_string in sync! */
+static char *string_t_string[] = 
+{
+  "NONE",
+  "DCS",			/* Device control string */
+  "OSC",			/* Operating system command */
+  "APC",			/* Application program command */
+				/*  - used for status change */
+  "PM",				/* Privacy message */
+  "AKA",			/* title for current screen */
+  "GM",				/* Global message to every display */
+  "STATUS"			/* User hardstatus line */
+};
+
+/* keep state_t and state_t_string in sync! */
+static char *state_t_string[] =
+{
+  "LIT",			/* Literal input */
+  "ESC",			/* Start of escape sequence */
+  "ASTR",			/* Start of control string */
+  "STRESC",			/* ESC seen in control string */
+  "CSI",			/* Reading arguments in "CSI Pn ;...*/
+  "PRIN",			/* Printer mode */
+  "PRINESC",			/* ESC seen in printer mode */
+  "PRINCSI",			/* CSI seen in printer mode */
+  "PRIN4"			/* CSI 4 seen in printer mode */
+};
+
 static int  Special __P((int));
 static void DoESC __P((int, int));
 static void DoCSI __P((int, int));
-static void SetChar __P((int));
-static void StartString __P((enum string_t));
-static void SaveChar __P((int));
+static void StringStart __P((enum string_t));
+static void StringChar __P((int));
+static int  StringEnd __P((void));
 static void PrintStart __P((void));
 static void PrintChar __P((int));
 static void PrintFlush __P((void));
+#ifdef FONT
 static void DesignateCharset __P((int, int));
 static void MapCharset __P((int));
 static void MapCharsetR __P((int));
+#endif
 static void SaveCursor __P((void));
 static void RestoreCursor __P((void));
 static void BackSpace __P((void));
@@ -97,18 +122,13 @@ static void InsertChar __P((int));
 static void DeleteChar __P((int));
 static void DeleteLine __P((int));
 static void InsertLine __P((int));
-static void ScrollUpMap __P((int));
-static void ScrollDownMap __P((int));
 static void Scroll __P((char *, int, int, char *));
 static void ForwardTab __P((void));
 static void BackwardTab __P((void));
 static void ClearScreen __P((void));
 static void ClearFromBOS __P((void));
 static void ClearToEOS __P((void));
-static void ClearFullLine __P((void));
-static void ClearToEOL __P((void));
-static void ClearFromBOL __P((void));
-static void ClearInLine __P((int, int, int));
+static void ClearLineRegion __P((int, int));
 static void CursorRight __P((int));
 static void CursorUp __P((int));
 static void CursorDown __P((int));
@@ -117,277 +137,28 @@ static void ASetMode __P((int));
 static void SelectRendition __P((void));
 static void RestorePosRendition __P((void));
 static void FillWithEs __P((void));
-static void UpdateLine __P((struct mline *, int, int, int ));
 static void FindAKA __P((void));
 static void Report __P((char *, int, int));
-static void FixLine __P((void));
 static void ScrollRegion __P((int));
-static void CheckLP __P((int));
-#ifdef COPY_PASTE
 static void AddLineToHist __P((struct win *, struct mline *));
-#endif
+static void LogString __P((struct win *, char *, int));
+static void WReverseVideo __P((struct win *, int));
+static void MFixLine __P((struct win *, int, struct mchar *));
+static void MScrollH __P((struct win *, int, int, int, int));
+static void MScrollV __P((struct win *, int, int, int));
+static void MClear __P((struct win *, int, int, int, int));
+static void MInsChar __P((struct win *, struct mchar *, int, int));
+static void MPutChar __P((struct win *, struct mchar *, int, int));
+static void MWrapChar __P((struct win *, struct mchar *, int, int, int, int));
+static int  WindowChangedCheck __P((char *, int, int *));
 
 
-/*
- *  The window layer functions
- */
-
-struct LayFuncs WinLf =
-{
-  WinProcess,
-  0,
-  WinRedisplayLine,
-  WinClearLine,
-  WinRewrite,
-  WinSetCursor,
-  WinResize,
-  WinRestore
-};
-
-static void
-WinProcess(bufpp, lenp)
-char **bufpp;
-int *lenp;
-{
-  int addlf, l2 = 0, f, *ilen, l = *lenp;
-  char *ibuf, *p, *buf = *bufpp;
-  
-  fore = D_fore;
-  /* if w_wlock is set, only one user may write, else we check acls */
-  if (fore->w_ptyfd < 0)
-    {
-      while ((*lenp)-- > 0)
-        {
-	  f = *(*bufpp)++;
-	  if (f == ZombieKey_destroy)
-	    {
-	      debug2("Turning undead: %d(%s)\n", fore->w_number, fore->w_title);
-	      KillWindow(fore);
-	      l2--;
-	      break;
-	    }
-	  if (f == ZombieKey_resurrect)
-	    {
-	      SetCurr(fore);
-
-	      debug1("Resurrecting Zombie: %d\n", fore->w_number);
-	      LineFeed(2);
-	      RemakeWindow(fore);
-	      l2++;
-	      break;
-	    }
-	}
-      if (!l2)
-        {
-	  char b1[10], b2[10];
-
-	  b1[AddXChar(b1, ZombieKey_destroy)] = '\0';
-	  b2[AddXChar(b2, ZombieKey_resurrect)] = '\0';
-	  Msg(0, "Press %s to destroy or %s to resurrect window", b1, b2);
-	}
-      *bufpp += *lenp;
-      *lenp = 0;
-      return;
-    }
-#ifdef MULTIUSER
-  if ((fore->w_wlock == WLOCK_OFF) ? 
-      AclCheckPermWin(D_user, ACL_WRITE, fore) :
-      (D_user != fore->w_wlockuser))
-    {
-      SetCurr(fore);
-      Special('\007');
-      *bufpp += *lenp;
-      *lenp = 0;
-      return;
-    }
-#endif /* MULTIUSER */
-#ifdef PSEUDOS
-  if (W_UWP(fore))
-    {
-      /* we send the user input to our pseudowin */
-      ibuf = fore->w_pwin->p_inbuf; ilen = &fore->w_pwin->p_inlen;
-      f = sizeof(fore->w_pwin->p_inbuf) - *ilen;
-    }
-  else
-#endif /* PSEUDOS */
-    {
-      /* we send the user input to the window */
-      ibuf = fore->w_inbuf; ilen = &fore->w_inlen;
-      f = sizeof(fore->w_inbuf) - *ilen;
-    }
-
-  buf = *bufpp;
-
-  while (l)
-    {
-      l2 = l;
-      addlf = 0;
-      if (fore->w_autolf)
-	{
-	  for (p = buf; l2; p++, l2--)
-	    if (*p == '\r')
-	      {
-		l2--;
-		addlf = 1;
-		break;
-	      }
-	  l2 = l - l2;
-	}
-      if (l2 + addlf > f)
-	{
-	  debug1("Yuck! pty buffer full (%d chars missing). lets beep\n", l - f);
-	  SetCurr(fore);
-	  Special('\007');
-	  l = l2 = f;
-	  addlf = 0;
-	}
-      if (l2 > 0)
-	{
-	  bcopy(buf, ibuf + *ilen, l2);
-	  *ilen += l2;
-	  f -= l2;
-	  buf += l2;
-	  l -= l2;
-	  if (f && addlf)
-	    {
-	      ibuf[(*ilen)++] = '\n';
-	      f--;
-	    }
-	}
-    }
-  *bufpp += *lenp;
-  *lenp = 0;
-}
-
-static void
-WinRedisplayLine(y, from, to, isblank)
-int y, from, to, isblank;
-{
-  if (y < 0)
-    return;
-  fore = D_fore;
-  DisplayLine(isblank ? &mline_blank : &mline_null, &fore->w_mlines[y],
-              y, from, to);
-}
-
-static int
-WinRewrite(y, x1, x2, doit)
-int y, x1, x2, doit;
-{
-  register int cost, dx;
-  register char *p, *f, *i;
-#ifdef COLOR
-  register char *c;
-#endif
-
-  fore = D_fore;
-  if (y >= fore->w_height || x2 > fore->w_width)
-    return EXPENSIVE;
-  dx = x2 - x1;
-  if (doit)
-    {
-      i = fore->w_mlines[y].image + x1;
-      while (dx-- > 0)
-	PUTCHAR(*i++);
-      return 0;
-    }
-  p = fore->w_mlines[y].attr + x1;
-  f = fore->w_mlines[y].font + x1;
-#ifdef COLOR
-  c = fore->w_mlines[y].color + x1;
-#endif
-#ifdef KANJI
-  if (D_rend.font == KANJI)
-    return EXPENSIVE;
-#endif
-
-  cost = dx = x2 - x1;
-  if (D_insert)
-    cost += D_EIcost + D_IMcost;
-  while(dx-- > 0)
-    {
-#ifdef COLOR
-      if (*p++ != D_rend.attr || *f++ != D_rend.font || *c++ != D_rend.color)
-	return EXPENSIVE;
-#else
-      if (*p++ != D_rend.attr || *f++ != D_rend.font)
-	return EXPENSIVE;
-#endif
-    }
-  return cost;
-}
-
-static void
-WinClearLine(y, xs, xe)
-int y, xs, xe;
-{
-  fore = D_fore;
-  DisplayLine(&fore->w_mlines[y], &mline_blank, y, xs, xe);
-}
-
-static void
-WinSetCursor()
-{
-  fore = D_fore;
-  GotoPos(fore->w_x, fore->w_y);
-}
-
-static int
-WinResize(wi, he)
-int wi, he;
-{
-  fore = D_fore;
-  if (fore)
-    ChangeWindowSize(fore, wi, he, fore->w_histheight);
-  return 0;
-}
-
-static void
-WinRestore()
-{
-  fore = D_fore;
-  ChangeScrollRegion(fore->w_top, fore->w_bot);
-  KeypadMode(fore->w_keypad);
-  CursorkeysMode(fore->w_cursorkeys);
-  SetFlow(fore->w_flow & FLOW_NOW);
-  InsertMode(fore->w_insert);
-  ReverseVideo(fore->w_revvid);
-  CursorVisibility(fore->w_curinv ? -1 : fore->w_curvvis);
-  fore->w_active = 1;
-}
-
-/* 
- *  Activate - make fore window active
- *  norefresh = -1 forces a refresh, disregard all_norefresh then.
- */
 void
-Activate(norefresh)
-int norefresh;
+ResetAnsiState(p)
+struct win *p;
 {
-  debug1("Activate(%d)\n", norefresh);
-  if (display == 0)
-    return;
-  if (D_status)
-    {
-      Msg(0, "%s", "");	/* wait till mintime (keep gcc quiet) */
-      RemoveStatus();
-    }
-  fore = D_fore;
-  if (fore)
-    {
-      ASSERT(fore->w_display == display);
-      fore->w_active = D_layfn == &WinLf;
-      if (fore->w_monitor != MON_OFF)
-	fore->w_monitor = MON_ON;
-      fore->w_bell = BELL_OFF;
-      if (ResizeDisplay(fore->w_width, fore->w_height))
-	{
-	  debug2("Cannot resize from (%d,%d)", D_width, D_height);
-	  debug2(" to (%d,%d) -> resize window\n", fore->w_width, fore->w_height);
-	  DoResize(D_width, D_height);
-	}
-    }
-  Redisplay(norefresh + all_norefresh);
+  p->w_state = LIT;
+  p->w_StringType = NONE;
 }
 
 void
@@ -415,16 +186,47 @@ register struct win *p;
   for (i = 8; i < p->w_width; i += 8)
     p->w_tabs[i] = 1;
   p->w_rend = mchar_null;
+#ifdef FONT
   ResetCharsets(p);
+#endif
 }
 
-#ifdef KANJI
+/* adds max 22 bytes */
+int
+GetAnsiStatus(w, buf)
+struct win *w;
+char *buf;
+{
+  char *p = buf;
+
+  if (w->w_state == LIT)
+    return 0;
+
+  strcpy(p, state_t_string[w->w_state]);
+  p += strlen(p);
+  if (w->w_intermediate)
+    {
+      *p++ = '-';
+      if (w->w_intermediate > 0xff)
+	p += AddXChar(p, w->w_intermediate >> 8);
+      p += AddXChar(p, w->w_intermediate & 0xff);
+    }
+  if (w->w_state == ASTR || w->w_state == STRESC)
+    sprintf(p, "-%s", string_t_string[w->w_StringType]);
+  p += strlen(p);
+  return p - buf;
+}
+
+
+#ifdef FONT
+
+# ifdef KANJI
 static char *kanjicharsets[3] = {
   "BBBB02", 	/* jis */
   "B\002IB01",	/* euc  */
   "BIBB01"	/* sjis  */
 };
-#endif
+# endif
 
 void
 ResetCharsets(p)
@@ -464,50 +266,22 @@ char *s;
   p->w_FontL = p->w_charsets[p->w_Charset];
   p->w_FontR = p->w_charsets[p->w_CharsetR];
 }
-
-static void
-FixLine()
-{
-  struct mline *ml = &curr->w_mlines[curr->w_y];
-  if (curr->w_rend.attr && ml->attr == null)
-    {
-      if ((ml->attr = (char *)malloc(curr->w_width + 1)) == 0)
-	{
-	  ml->attr = null;
-	  curr->w_rend.attr = 0;
-	  Msg(0, "Warning: no space for attr - turned off");
-	}
-      bzero(ml->attr, curr->w_width + 1);
-    }
-  if ((curr->w_FontL || curr->w_FontR) && ml->font == null)
-    {
-      if ((ml->font = (char *)malloc(curr->w_width + 1)) == 0)
-	{
-	  ml->font = null;
-	  curr->w_FontL = curr->w_charsets[curr->w_ss ? curr->w_ss : curr->w_Charset] = 0;
-	  curr->w_FontR = curr->w_charsets[curr->w_ss ? curr->w_ss : curr->w_CharsetR] = 0;
-	  curr->w_rend.font  = 0;
-	  Msg(0, "Warning: no space for font - turned off");
-	}
-      bzero(ml->font, curr->w_width + 1);
-    }
-#ifdef COLOR
-  if (curr->w_rend.color && ml->color == null)
-    {
-      if ((ml->color = (char *)malloc(curr->w_width + 1)) == 0)
-	{
-	  ml->color = null;
-	  curr->w_rend.color = 0;
-	  Msg(0, "Warning: no space for color - turned off");
-	}
-      bzero(ml->color, curr->w_width + 1);
-    }
 #endif
-}
+
+/*****************************************************************/
 
 
 /*
  *  Here comes the vt100 emulator
+ *  - writes logfiles,
+ *  - sets timestamp and flags activity in window.
+ *  - record program output in window scrollback
+ *  - translate program output for the display and put it into the obuf.
+ *
+ * Output is only supressed, where obuf is beyond maximum and the flag
+ * nonblock is set. Then we set nonblock from 1 to 2 and output a '~'
+ * character instead. nonblock should be reset to 1 by a successfull
+ * write.  Where nonblock isn't set, the obufmax is ignored.
  */
 void
 WriteString(wp, buf, len)
@@ -515,42 +289,52 @@ struct win *wp;
 register char *buf;
 register int len;
 {
-  register int c, font;
+  register int c;
+#ifdef FONT
+  register int font;
+#endif
+  struct canvas *cv;
 
   if (!len)
     return;
-  if (wp->w_logfp != NULL)
-    if ((int)fwrite(buf, len, 1, wp->w_logfp) < 1)
-      {
-	Msg(errno, "Error writing logfile");
-	fclose(wp->w_logfp);
-	wp->w_logfp = NULL;
-      }
-  /*
-   * SetCurr() here may prevent output, as it may set display = 0
-   */
-  SetCurr(wp);
-  if (display)
-    {
-      if (D_status && !(use_hardstatus && D_HS))
-	RemoveStatus();
-    }
-  else
-    {
-      if (curr->w_tstamp.seconds)
-        curr->w_tstamp.lastio = Now;
+  if (wp->w_log)
+    LogString(wp, buf, len);
 
-      if (curr->w_monitor == MON_ON || curr->w_monitor == MON_DONE)
+  /* set global variables (yuck!) */
+  curr = wp;
+  cols = curr->w_width;
+  rows = curr->w_height;
+
+  /* The status should be already gone, so this is "Just in Case" */
+  for (cv = wp->w_layer.l_cvlist; cv; cv = cv->c_lnext)
+    {
+      display = cv->c_display;
+      if (D_status == STATUS_ON_WIN)
+	RemoveStatus();
+      if (D_nonblock == 1 && (D_obufp - D_obuf > D_obufmax))
 	{
-          debug2("ACTIVITY %d %d\n", curr->w_monitor, curr->w_bell);
-          curr->w_monitor = MON_FOUND;
+	  /* one last surprising '~' means: lost data */
+	  AddChar('~');
+	  /* private flag that prevents more output */
+	  D_nonblock = 2;
 	}
+    }
+
+  if (curr->w_silence)
+    SetTimeout(&curr->w_silenceev, curr->w_silencewait * 1000);
+
+  if (curr->w_monitor == MON_ON)
+    {
+      debug2("ACTIVITY %d %d\n", curr->w_monitor, curr->w_bell);
+      curr->w_monitor = MON_FOUND;
     }
 
   do
     {
       c = (unsigned char)*buf++;
+#ifdef FONT
       curr->w_rend.font = curr->w_FontL;	/* Default: GL */
+#endif
 
       /* The next part is only for speedup
        * (therefore no mchars are used) */
@@ -559,65 +343,40 @@ register int len;
           curr->w_FontL != KANJI && curr->w_FontL != KANA && !curr->w_mbcs &&
 #endif
           c >= ' ' && 
-          ((c & 0x80) == 0 || ((c >= 0xa0 || !curr->w_c1) && !curr->w_gr)) &&
-          !curr->w_insert && !curr->w_ss && curr->w_x < cols - 1)
+          ((c & 0x80) == 0 || ((c >= 0xa0 || !curr->w_c1) && !curr->w_gr)) && !curr->w_ss &&
+          !curr->w_insert && curr->w_x < cols - 1)
 	{
 	  register int currx;
-	  register char *imp, *atp, *fop, at, fo;
+	  register char *imp, *atp, at;
+#ifdef FONT
+	  register char *fop, fo;
+#endif
 #ifdef COLOR
 	  register char *cop, co;
 #endif
-	  register char **xtable = 0;
-          register char *c0tab = 0;
 
 	  if (c == '\177')
 	    continue;
-	  FixLine();
+	  MFixLine(curr, curr->w_y, &curr->w_rend);
 	  currx = curr->w_x;
 	  imp = curr->w_mlines[curr->w_y].image + currx;
 	  atp = curr->w_mlines[curr->w_y].attr  + currx;
-	  fop = curr->w_mlines[curr->w_y].font  + currx;
 	  at = curr->w_rend.attr;
+#ifdef FONT
+	  fop = curr->w_mlines[curr->w_y].font  + currx;
 	  fo = curr->w_rend.font;
+#endif
 #ifdef COLOR
 	  cop = curr->w_mlines[curr->w_y].color + currx;
 	  co = curr->w_rend.color;
 #endif
-	  if (display)
-	    {
-	      if (D_x != currx || D_y != curr->w_y)
-		GotoPos(currx, curr->w_y);
-	      /* This is not SetRendition because the compiler would
-               * not use registers if at/fo/co would be an mchar */
-	      if (at != D_rend.attr)
-		SetAttr(at);
-#ifdef COLOR
-	      if (co != D_rend.color)
-		SetColor(co);
-#endif
-	      if (fo != D_rend.font)
-		SetFont(fo);
-	      if (D_insert)
-		InsertMode(0);
-	      if (D_xtable)
-		xtable =  D_xtable[(int)(unsigned char)D_rend.font];
-	      if (D_rend.font == '0')
-		c0tab = D_c0_tab;
-	    }
 	  while (currx < cols - 1)
 	    {
-	      if (display)
-		{
-		  if (xtable && xtable[c])
-		    AddStr(xtable[c]);
-		  else if (c0tab)
-		    AddChar(c0tab[c]);
-		  else
-		    AddChar(c);
-	        }
 	      *imp++ = c;
 	      *atp++ = at;
+#ifdef FONT
 	      *fop++ = fo;
+#endif
 #ifdef COLOR
 	      *cop++ = co;
 #endif
@@ -630,9 +389,12 @@ skip:	      if (--len == 0)
 	      if (c < ' ' || ((c & 0x80) && ((c < 0xa0 && curr->w_c1) || curr->w_gr)))
 		break;
 	    }
-	  curr->w_x = currx;
-	  if (display)
-	    D_x = currx;
+	  currx -= curr->w_x;
+	  if (currx > 0)
+	    {
+	      LPutStr(&curr->w_layer, imp - currx, currx, &curr->w_rend, curr->w_x, curr->w_y);
+	      curr->w_x += currx;
+	    }
 	  if (len == 0)
 	    break;
 	}
@@ -706,10 +468,11 @@ skip:	      if (--len == 0)
 	      break;
 	    }
 	  /* special xterm hack: accept SetStatus sequence. Yucc! */
+	  /* allow ^E for title escapes */
 	  if (!(curr->w_StringType == OSC && c < ' ' && c != '\005'))
 	    if (!curr->w_c1 || c != ('\\' ^ 0xc0))
 	      {
-		SaveChar(c);
+		StringChar(c);
 		break;
 	      }
 	  c = '\\';
@@ -718,78 +481,31 @@ skip:	      if (--len == 0)
 	  switch (c)
 	    {
 	    case '\\':
-	      curr->w_state = LIT;
-	      *curr->w_stringp = '\0';
-	      switch (curr->w_StringType)
+	      if (StringEnd() == 0 || len <= 1)
+		break;
+	      /* check if somewhere a status is displayed */
+	      for (cv = curr->w_layer.l_cvlist; cv; cv = cv->c_lnext)
 		{
-		case OSC:	/* special xterm compatibility hack */
-		  if (curr->w_stringp - curr->w_string < 2 ||
-		      curr->w_string[0] < '0' ||
-		      curr->w_string[0] > '2' ||
-		      curr->w_string[1] != ';')
+		  display = cv->c_display;
+		  if (D_status == STATUS_ON_WIN)
 		    break;
-		  curr->w_stringp -= 2;
-		  if (curr->w_stringp > curr->w_string)
-		    bcopy(curr->w_string + 2, curr->w_string, curr->w_stringp - curr->w_string);
-		  *curr->w_stringp = '\0';
-		  /* FALLTHROUGH */
-		case APC:
-		  if (curr->w_hstatus)
-		    {
-		      if (strcmp(curr->w_hstatus, curr->w_string) == 0)
-			break;	/* not changed */
-		      free(curr->w_hstatus);
-		      curr->w_hstatus = 0;
-		    }
-		  if (curr->w_string != curr->w_stringp)
-		    curr->w_hstatus = SaveStr(curr->w_string);
-		  if (display)
-		    RefreshStatus();
-		  break;
-		case GM:
-		    {
-		      struct display *old = display;
-		      for (display = displays; display; display = display->d_next)
-			if (display != old)
-			  MakeStatus(curr->w_string);
-		      display = old;
-		    }
-		  /*FALLTHROUGH*/
-		case PM:
-		  if (!display)
-		    break;
-		  MakeStatus(curr->w_string);
-		  if (D_status && !(use_hardstatus && D_HS) && len > 1)
-		    {
-		      if (len > IOSIZE + 1)
-			len = IOSIZE + 1;
-		      curr->w_outlen = len - 1;
-		      bcopy(buf, curr->w_outbuf, curr->w_outlen - 1);
-		      return;
-		    }
-		  break;
-		case DCS:
-		  if (display)
-		    AddStr(curr->w_string);
-		  break;
-		case AKA:
-		  if (curr->w_title == curr->w_akabuf && !*curr->w_string)
-		    break;
-		  ChangeAKA(curr, curr->w_string, 20);
-		  if (!*curr->w_string)
-		    curr->w_autoaka = curr->w_y + 1;
-		  break;
-		default:
-		  break;
+		}
+	      if (cv)
+		{
+		  if (len > IOSIZE + 1)
+		    len = IOSIZE + 1;
+		  curr->w_outlen = len - 1;
+		  bcopy(buf, curr->w_outbuf, len - 1);
+		  return;	/* wait till status is gone */
 		}
 	      break;
 	    case '\033':
-	      SaveChar('\033');
+	      StringChar('\033');
 	      break;
 	    default:
 	      curr->w_state = ASTR;
-	      SaveChar('\033');
-	      SaveChar(c);
+	      StringChar('\033');
+	      StringChar(c);
 	      break;
 	    }
 	  break;
@@ -803,23 +519,23 @@ skip:	      if (--len == 0)
 	      curr->w_state = CSI;
 	      break;
 	    case ']':
-	      StartString(OSC);
+	      StringStart(OSC);
 	      break;
 	    case '_':
-	      StartString(APC);
+	      StringStart(APC);
 	      break;
 	    case 'P':
-	      StartString(DCS);
+	      StringStart(DCS);
 	      break;
 	    case '^':
-	      StartString(PM);
+	      StringStart(PM);
 	      break;
 	    case '!':
-	      StartString(GM);
+	      StringStart(GM);
 	      break;
 	    case '"':
 	    case 'k':
-	      StartString(AKA);
+	      StringStart(AKA);
 	      break;
 	    default:
 	      if (Special(c))
@@ -831,12 +547,14 @@ skip:	      if (--len == 0)
 	      if (c >= ' ' && c <= '/')
 		{
 		  if (curr->w_intermediate)
+		    {
 #ifdef KANJI
-		    if (curr->w_intermediate == '$')
-		      c |= '$' << 8;
-		    else
+		      if (curr->w_intermediate == '$')
+			c |= '$' << 8;
+		      else
 #endif
-		    c = -1;
+		      c = -1;
+		    }
 		  curr->w_intermediate = c;
 		}
 	      else if (c >= '0' && c <= '~')
@@ -887,18 +605,12 @@ skip:	      if (--len == 0)
 	  break;
 	case LIT:
 	default:
-#ifdef KANJI
-	  if (c <= ' ' || c == 0x7f || (c >= 0x80 && c < 0xa0 && curr->w_c1))
-	      curr->w_mbcs = 0;
-#endif
 	  if (c < ' ')
 	    {
 	      if (c == '\033')
 		{
 		  curr->w_intermediate = 0;
 		  curr->w_state = ESC;
-		  if (display && D_lp_missing && (D_CIC || D_IC || D_IM))
-		    UpdateLine(&mline_blank, D_bot, cols - 2, cols - 1);
 		  if (curr->w_autoaka < 0)
 		    curr->w_autoaka = 0;
 		}
@@ -914,13 +626,11 @@ skip:	      if (--len == 0)
 		case 0xc0 ^ 'E':
 		case 0xc0 ^ 'H':
 		case 0xc0 ^ 'M':
-		case 0xc0 ^ 'N':
-		case 0xc0 ^ 'O':
+		case 0xc0 ^ 'N':		/* SS2 */
+		case 0xc0 ^ 'O':		/* SS3 */
 		  DoESC(c ^ 0xc0, 0);
 		  break;
 		case 0xc0 ^ '[':
-		  if (display && D_lp_missing && (D_CIC || D_IC || D_IM))
-		    UpdateLine(&mline_blank, D_bot, cols - 2, cols - 1);
 		  if (curr->w_autoaka < 0)
 		    curr->w_autoaka = 0;
 		  curr->w_NumArgs = 0;
@@ -929,7 +639,7 @@ skip:	      if (--len == 0)
 		  curr->w_state = CSI;
 		  break;
 		case 0xc0 ^ 'P':
-		  StartString(DCS);
+		  StringStart(DCS);
 		  break;
 		default:
 		  break;
@@ -937,8 +647,9 @@ skip:	      if (--len == 0)
 	      break;
 	    }
 
+#ifdef FONT
 	  font = curr->w_rend.font = (c >= 0x80 ? curr->w_FontR : curr->w_FontL);
-#ifdef KANJI
+# ifdef KANJI
 	  if (font == KANA && curr->w_kanji == SJIS && curr->w_mbcs == 0)
 	    {
 	      /* Lets see if it is the first byte of a kanji */
@@ -950,8 +661,6 @@ skip:	      if (--len == 0)
 		  break;
 		}
 	    }
-	  if (font == KANJI && c == ' ')
-	    font = curr->w_rend.font = 0;
 	  if (font == KANJI || curr->w_mbcs)
 	    {
 	      int t = c;
@@ -999,110 +708,91 @@ skip:	      if (--len == 0)
 	      curr->w_mbcs = t;
 	    }
 	  kanjiloop:
-#endif
+# endif
 	  if (curr->w_gr)
 	    {
 	      c &= 0x7f;
 	      if (c < ' ')	/* this is ugly but kanji support */
 		goto tryagain;	/* prevents nicer programming */
 	    }
+#endif /* FONT */
 	  if (c == '\177')
 	    break;
-	  if (display)
-	    SetRendition(&curr->w_rend);
+	  curr->w_rend.image = c;
 	  if (curr->w_x < cols - 1)
 	    {
 	      if (curr->w_insert)
 		InsertAChar(c);
 	      else
 		{
-		  if (display)
-		    PUTCHAR(c);
-		  SetChar(c);
+		  MPutChar(curr, &curr->w_rend, curr->w_x, curr->w_y);
+		  LPutChar(&curr->w_layer, &curr->w_rend, curr->w_x, curr->w_y);
 		  curr->w_x++;
 		}
 	    }
 	  else if (curr->w_x == cols - 1)
 	    {
-	      if (display && curr->w_wrap && (D_CLP || !force_vt || D_COP))
-		{
-		  RAW_PUTCHAR(c);	/* don't care about D_insert */
-		  SetChar(c);
-		  curr->w_x++;
-		  if (D_AM && !D_CLP)
-		    {
-                      SetChar(0);
-		      LineFeed(0);	/* terminal auto-wrapped */
-		    }
-		}
-	      else
-		{
-		  if (display)
-		    {
-		      if (D_CLP || curr->w_y != D_bot)
-			{
-			  RAW_PUTCHAR(c);
-			  GotoPos(curr->w_x, curr->w_y);
-			}
-		      else
-			CheckLP(c);
-		    }
-		  SetChar(c);
-		  if (curr->w_wrap)
-		    curr->w_x++;
-		}
+	      MPutChar(curr, &curr->w_rend, curr->w_x, curr->w_y);
+	      LPutChar(&curr->w_layer, &curr->w_rend, curr->w_x, curr->w_y);
+	      if (curr->w_wrap)
+		curr->w_x++;
 	    }
-	  else /* curr->w_x > cols - 1 */
+	  else
 	    {
-              SetChar(0);		/* we wrapped */
-	      if (curr->w_insert)
-		{
-		  LineFeed(2);		/* cr+lf, handle LP */
-		  InsertAChar(c);
-		}
-	      else
-		{
-		  if (display && D_AM && D_x != cols)	/* write char again */
-		    {
-		      SetRenditionMline(&curr->w_mlines[curr->w_y], cols - 1);
-#ifdef KANJI
-		      if (curr->w_y == D_bot)
-			D_mbcs = D_lp_mbcs;
-#endif
-		      RAW_PUTCHAR(curr->w_mlines[curr->w_y].image[cols - 1]);
-		      SetRendition(&curr->w_rend);
-		      if (curr->w_y == D_bot)
-			D_lp_missing = 0;	/* just wrote it */
-		    }
-		  LineFeed((display == 0 || D_AM) ? 0 : 2);
-		  if (display)
-		    PUTCHAR(c);
-		  SetChar(c);
-		  curr->w_x = 1;
-		}
+	      MWrapChar(curr, &curr->w_rend, curr->w_y, curr->w_top, curr->w_bot, curr->w_insert);
+	      LWrapChar(&curr->w_layer, &curr->w_rend, curr->w_y, curr->w_top, curr->w_bot, curr->w_insert);
+	      if (curr->w_y != curr->w_bot && curr->w_y != curr->w_height - 1)
+	        curr->w_y++;
+	      curr->w_x = 1;
 	    }
-#ifdef KANJI
+#ifdef FONT
+# ifdef KANJI
 	  if (curr->w_mbcs)
 	    {
 	      c = curr->w_mbcs;
 	      curr->w_mbcs = 0;
 	      goto kanjiloop;	/* what a hack! */
 	    }
-#endif
+# endif
 	  if (curr->w_ss)
 	    {
 	      curr->w_FontL = curr->w_charsets[curr->w_Charset];
 	      curr->w_FontR = curr->w_charsets[curr->w_CharsetR];
-	      SetFont(curr->w_FontL);
+	      curr->w_rend.font = curr->w_FontL;
+	      LSetRendition(&curr->w_layer, &curr->w_rend);
 	      curr->w_ss = 0;
 	    }
+#endif /* FONT */
 	  break;
 	}
     }
   while (--len);
-  curr->w_outlen = 0;
-  if (curr->w_state == PRIN)
+  if (!printcmd && curr->w_state == PRIN)
     PrintFlush();
+}
+
+static void
+LogString(p, buf, len)
+struct win *p;
+char *buf;
+int len;
+{
+  if (!p->w_log)
+    return;
+  if (logtstamp_on && p->w_logsilence >= logtstamp_after * 2)
+    {
+      char *t = MakeWinMsg(logtstamp_string, p, '%');
+      logfwrite(p->w_log, t, strlen(t));	/* long time no write */
+    }
+  p->w_logsilence = 0;
+  if (logfwrite(p->w_log, buf, len) < 1)
+    {
+      WMsg(p, errno, "Error writing logfile");
+      logfclose(p->w_log);
+      p->w_log = 0;
+    }
+  if (!log_flush)
+    logfflush(p->w_log);
 }
 
 static int
@@ -1123,30 +813,19 @@ register int c;
       LineFeed(1);
       return 1;
     case '\007':
-      if (display == 0)
-	curr->w_bell = BELL_ON;
-      else
-	{
-	  if (!visual_bell)
-	    PutStr(D_BL);
-	  else
-	    {
-	      if (!D_VB)
-		curr->w_bell = BELL_VISUAL;
-	      else
-		PutStr(D_VB);
-	    }
-	}
+      WBell(curr, visual_bell);
       return 1;
     case '\t':
       ForwardTab();
       return 1;
+#ifdef FONT
     case '\017':		/* SI */
       MapCharset(G0);
       return 1;
     case '\016':		/* SO */
       MapCharset(G1);
       return 1;
+#endif
     }
   return 0;
 }
@@ -1185,24 +864,30 @@ int c, intermediate;
 	case 'c':
 	  ClearScreen();
 	  ResetWindow(curr);
+	  LKeypadMode(&curr->w_layer, 0);
+	  LCursorkeysMode(&curr->w_layer, 0);
+#ifndef TIOCPKT
+	  NewAutoFlow(curr, 1);
+#endif
+	  /* XXX
           SetRendition(&mchar_null);
 	  InsertMode(0);
-	  KeypadMode(0);
-	  CursorkeysMode(0);
 	  ChangeScrollRegion(0, rows - 1);
+	  */
 	  break;
 	case '=':
-	  KeypadMode(curr->w_keypad = 1);
+	  LKeypadMode(&curr->w_layer, curr->w_keypad = 1);
 #ifndef TIOCPKT
 	  NewAutoFlow(curr, 0);
 #endif /* !TIOCPKT */
 	  break;
 	case '>':
-	  KeypadMode(curr->w_keypad = 0);
+	  LKeypadMode(&curr->w_layer, curr->w_keypad = 0);
 #ifndef TIOCPKT
 	  NewAutoFlow(curr, 1);
 #endif /* !TIOCPKT */
 	  break;
+#ifdef FONT
 	case 'n':		/* LS2 */
 	  MapCharset(G2);
 	  break;
@@ -1212,6 +897,7 @@ int c, intermediate;
 	case '~':
 	  MapCharsetR(G1);	/* LS1R */
 	  break;
+	/* { */
 	case '}':
 	  MapCharsetR(G2);	/* LS2R */
 	  break;
@@ -1221,7 +907,7 @@ int c, intermediate;
 	case 'N':		/* SS2 */
 	  if (curr->w_charsets[curr->w_Charset] != curr->w_charsets[G2]
 	      || curr->w_charsets[curr->w_CharsetR] != curr->w_charsets[G2])
-	      curr->w_FontR = curr->w_FontL = curr->w_charsets[curr->w_ss = G2];
+	    curr->w_FontR = curr->w_FontL = curr->w_charsets[curr->w_ss = G2];
 	  else
 	    curr->w_ss = 0;
 	  break;
@@ -1232,13 +918,9 @@ int c, intermediate;
 	  else
 	    curr->w_ss = 0;
 	  break;
+#endif /* FONT */
         case 'g':		/* VBELL, private screen sequence */
-	  if (display == 0)
-	    curr->w_bell = BELL_ON;
-          else if (!D_VB)
-	    curr->w_bell = BELL_VISUAL;
-          else
-	    PutStr(D_VB);
+	  WBell(curr, 1);
           break;
 	}
       break;
@@ -1250,6 +932,7 @@ int c, intermediate;
 	  break;
 	}
       break;
+#ifdef FONT
     case '(':
       DesignateCharset(c, G0);
       break;
@@ -1262,7 +945,7 @@ int c, intermediate;
     case '+':
       DesignateCharset(c, G3);
       break;
-#ifdef KANJI
+# ifdef KANJI
 /*
  * ESC $ ( Fn: invoke multi-byte charset, Fn, to G0
  * ESC $ Fn: same as above.  (old sequence)
@@ -1283,7 +966,8 @@ int c, intermediate;
     case '$'<<8 | '+':
       DesignateCharset(c & 037, G3);
       break;
-#endif
+# endif
+#endif /* FONT */
     }
 }
 
@@ -1312,7 +996,7 @@ int c, intermediate;
 	    a2 = 1;
 	  if (a2 > cols)
 	    a2 = cols;
-	  GotoPos(--a2, --a1);
+	  LGotoPos(&curr->w_layer, --a2, --a1);
 	  curr->w_x = a2;
 	  curr->w_y = a1;
 	  if (curr->w_autoaka)
@@ -1331,7 +1015,7 @@ int c, intermediate;
 	      break;
 	    case 2:
 	      ClearScreen();
-	      GotoPos(curr->w_x, curr->w_y);
+	      LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 	      break;
 	    }
 	  break;
@@ -1341,15 +1025,19 @@ int c, intermediate;
 	  switch (a1)
 	    {
 	    case 0:
-	      ClearToEOL();
+	      ClearLineRegion(curr->w_x, cols - 1);
 	      break;
 	    case 1:
-	      ClearFromBOL();
+	      ClearLineRegion(0, curr->w_x);
 	      break;
 	    case 2:
-	      ClearFullLine();
+	      ClearLineRegion(0, cols - 1);
 	      break;
 	    }
+	  break;
+	case 'X':
+	  a1 = curr->w_x + (a1 ? a1 - 1 : 0);
+	  ClearLineRegion(curr->w_x, a1 < cols ? a1 : cols - 1);
 	  break;
 	case 'A':
 	  CursorUp(a1 ? a1 : 1);
@@ -1362,6 +1050,27 @@ int c, intermediate;
 	  break;
 	case 'D':
 	  CursorLeft(a1 ? a1 : 1);
+	  break;
+	case 'E':
+	  curr->w_x = 0;
+	  CursorDown(a1 ? a1 : 1);	/* positions cursor */
+	  break;
+	case 'F':
+	  curr->w_x = 0;
+	  CursorUp(a1 ? a1 : 1);	/* positions cursor */
+	  break;
+	case 'G':
+	case '`':			/* HPA */
+	  curr->w_x = a1 ? a1 - 1 : 0;
+	  if (curr->w_x >= cols)
+	    curr->w_x = cols - 1;
+	  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
+	  break;
+	case 'd':			/* VPA */
+	  curr->w_y = a1 ? a1 - 1 : 0;
+	  if (curr->w_y >= rows)
+	    curr->w_y = rows - 1;
+	  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 	  break;
 	case 'm':
 	  SelectRendition();
@@ -1381,18 +1090,15 @@ int c, intermediate;
 	    break;
 	  curr->w_top = a1 - 1;
 	  curr->w_bot = a2 - 1;
-	  ChangeScrollRegion(curr->w_top, curr->w_bot);
+	  /* ChangeScrollRegion(curr->w_top, curr->w_bot); */
 	  if (curr->w_origin)
 	    {
-	      GotoPos(0, curr->w_top);
 	      curr->w_y = curr->w_top;
 	      curr->w_x = 0;
 	    }
 	  else
-	    {
-	      GotoPos(0, 0);
-	      curr->w_y = curr->w_x = 0;
-	    }
+	    curr->w_y = curr->w_x = 0;
+	  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 	  break;
 	case 's':
 	  SaveCursor();
@@ -1405,18 +1111,9 @@ int c, intermediate;
 	    a1 = curr->w_width;
 	  if (a2 < 1)
 	    a2 = curr->w_height;
-	  if (display && D_CWS == NULL)
-	    {
-	      a2 = curr->w_height;
-	      if (D_CZ0 == NULL || (a1 != Z0width && a1 != Z1width))
-	        a1 = curr->w_width;
- 	    }
-	  if (a1 == curr->w_width && a2 == curr->w_height)
-	    break;
-          ChangeWindowSize(curr, a1, a2, curr->w_histheight);
-	  SetCurr(curr);
-	  if (display)
-	    Activate(0);
+	  WChangeSize(curr, a1, a2);
+	  cols = curr->w_width;
+	  rows = curr->w_height;
 	  break;
 	case 'u':
 	  RestoreCursor();
@@ -1451,15 +1148,9 @@ int c, intermediate;
 	case 'l':
 	  ASetMode(0);
 	  break;
-	case 'i':
-          {
-	    struct display *odisplay = display;
-	    if (display == 0 && displays && displays->d_next == 0)
-	      display = displays;
-	    if (display && a1 == 5)
-	      PrintStart();
-	    display = odisplay;
-	  }
+	case 'i':		/* MC Media Control */
+	  if (a1 == 5)
+	    PrintStart();
 	  break;
 	case 'n':
 	  if (a1 == 5)		/* Report terminal status */
@@ -1479,13 +1170,14 @@ int c, intermediate;
 	  if (a1 == 6 || a1 == 7)
 	    {
 	      curr->w_curinv = 7 - a1;
-	      CursorVisibility(curr->w_curinv ? -1 : curr->w_curvvis);
+	      LCursorVisibility(&curr->w_layer, curr->w_curinv ? -1 : curr->w_curvvis);
 	    }
 	  break;
-	case 'S':		/* obscure code from a 97801 term */
+	case 'S':		/* code from a 97801 term / DEC vt400 */
 	  ScrollRegion(a1 ? a1 : 1);
 	  break;
-	case 'T':		/* obscure code from a 97801 term */
+	case 'T':		/* code from a 97801 term / DEC vt400 */
+	case '^':		/* SD as per ISO 6429 */
 	  ScrollRegion(a1 ? -a1 : -1);
 	  break;
 	}
@@ -1501,7 +1193,7 @@ int c, intermediate;
 	  switch (a1)
 	    {
 	    case 1:	/* CKM:  cursor key mode */
-	      CursorkeysMode(curr->w_cursorkeys = i);
+	      LCursorkeysMode(&curr->w_layer, curr->w_cursorkeys = i);
 #ifndef TIOCPKT
 	      NewAutoFlow(curr, !i);
 #endif /* !TIOCPKT */
@@ -1509,50 +1201,30 @@ int c, intermediate;
 	    case 2:	/* ANM:  ansi/vt52 mode */
 	      if (i)
 		{
-#ifdef KANJI
+#ifdef FONT
+# ifdef KANJI
 		  if (curr->w_kanji)
 		    break;
-#endif
+# endif
 		  curr->w_charsets[0] = curr->w_charsets[1] =
 		    curr->w_charsets[2] = curr->w_charsets[2] =
 		    curr->w_FontL = curr->w_FontR = ASCII;
 		  curr->w_Charset = 0;
 		  curr->w_CharsetR = 2;
 		  curr->w_ss = 0;
+#endif
 		}
 	      break;
 	    case 3:	/* COLM: column mode */
 	      i = (i ? Z0width : Z1width);
-	      if (curr->w_width != i && (display == 0 || (D_CZ0 || D_CWS)))
-		{
-		  ChangeWindowSize(curr, i, curr->w_height, curr->w_histheight);
-		  SetCurr(curr);	/* update rows/cols */
-		  if (display)
-		    Activate(0);
-		}
+	      WChangeSize(curr, i, curr->w_height);
+	      cols = curr->w_width;
+	      rows = curr->w_height;
 	      break;
 	 /* case 4:	   SCLM: scrolling mode */
 	    case 5:	/* SCNM: screen mode */
-	      /* This should be reverse video.
-	       * Because it is used in some termcaps to emulate
-	       * a visual bell we do this hack here.
-	       * (screen uses \Eg as special vbell sequence)
-	       */
-	      if (i)
-		ReverseVideo(1);
-	      else
-		{
-		  if (display && D_CVR)
-		    ReverseVideo(0);
-		  else
-		    if (curr->w_revvid)
-		      {
-		        if (display && D_VB)
-			  PutStr(D_VB);
-		        else
-		          curr->w_bell = BELL_VISUAL;
-		      }
-		}
+	      if (i != curr->w_revvid)
+	        WReverseVideo(curr, i);
 	      curr->w_revvid = i;
 	      break;
 	    case 6:	/* OM:   origin mode */
@@ -1563,8 +1235,7 @@ int c, intermediate;
 		}
 	      else
 		curr->w_y = curr->w_x = 0;
-	      if (display)
-		GotoPos(curr->w_x, curr->w_y);
+	      LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 	      break;
 	    case 7:	/* AWM:  auto wrap mode */
 	      curr->w_wrap = i;
@@ -1576,13 +1247,21 @@ int c, intermediate;
 	 /* case 13:	   SCFDM: space compression / field delimiting */
 	 /* case 14:	   TEM:  transmit execution mode */
 	 /* case 16:	   EKEM: edit key execution mode */
+	 /* case 18:	   PFF:  Printer term form feed */
+	 /* case 19:	   PEX:  Printer extend screen / scroll. reg */
 	    case 25:	/* TCEM: text cursor enable mode */
 	      curr->w_curinv = !i;
-	      CursorVisibility(curr->w_curinv ? -1 : curr->w_curvvis);
+	      LCursorVisibility(&curr->w_layer, curr->w_curinv ? -1 : curr->w_curvvis);
 	      break;
-	 /* case 40:	   132 col enable */
+	 /* case 34:	   RLM:  Right to left mode */
+	 /* case 35:	   HEBM: hebrew keyboard map */
+	 /* case 36:	   HEM:  hebrew encoding */
+	 /* case 38:	         TeK Mode */
+	 /* case 40:	         132 col enable */
 	 /* case 42:	   NRCM: 7bit NRC character mode */
-	 /* case 44:	   margin bell enable */
+	 /* case 44:	         margin bell enable */
+	 /* case 66:	   NKM:  Numeric keypad appl mode */
+	 /* case 68:	   KBUM: Keyboard usage mode (data process) */
 	    }
 	}
       break;
@@ -1599,25 +1278,8 @@ int c, intermediate;
 }
 
 
-/*
- *  Store char in mline. Be sure, that w_Font is set correctly!
- */
-
 static void
-SetChar(c)
-register int c;
-{
-  register struct win *p = curr;
-  register struct mline *ml;
-
-  FixLine();
-  ml = &p->w_mlines[p->w_y];
-  p->w_rend.image = c;
-  copy_mchar2mline(&p->w_rend, ml, p->w_x);
-}
-
-static void
-StartString(type)
+StringStart(type)
 enum string_t type;
 {
   curr->w_StringType = type;
@@ -1626,7 +1288,7 @@ enum string_t type;
 }
 
 static void
-SaveChar(c)
+StringChar(c)
 int c;
 {
   if (curr->w_stringp >= curr->w_string + MAXSTR - 1)
@@ -1635,44 +1297,99 @@ int c;
     *(curr->w_stringp)++ = c;
 }
 
-static void
-PrintStart()
+/*
+ * Do string processing. Returns -1 if output should be suspended
+ * until status is gone.
+ */
+static int
+StringEnd()
 {
-  int pi[2];
+  struct canvas *cv;
 
-  if (printcmd == 0 && D_PO == 0)
-    return;
-  curr->w_pdisplay = display;
-  curr->w_stringp = curr->w_string;
-  curr->w_state = PRIN;
-  if (printcmd == 0 || curr->w_pdisplay->d_printfd >= 0)
-    return;
-  if (pipe(pi))
+  curr->w_state = LIT;
+  *curr->w_stringp = '\0';
+  switch (curr->w_StringType)
     {
-      Msg(errno, "printing pipe");
-      return;
-    }
-  switch (fork())
-    {
-    case -1:
-      Msg(errno, "printing fork");
-      return;
-    case 0:
-      close(0);
-      dup(pi[0]);
-      closeallfiles(0);
-      if (setuid(real_uid) || setgid(real_gid))
-        _exit(1);
-#ifdef SIGPIPE
-      signal(SIGPIPE, SIG_DFL);
-#endif
-      execl("/bin/sh", "sh", "-c", printcmd, 0);
-      _exit(1);
+    case OSC:	/* special xterm compatibility hack */
+      if (curr->w_stringp - curr->w_string < 2 ||
+	  curr->w_string[0] < '0' ||
+	  curr->w_string[0] > '2' ||
+	  curr->w_string[1] != ';')
+	break;
+      curr->w_stringp -= 2;
+      if (curr->w_stringp > curr->w_string)
+	bcopy(curr->w_string + 2, curr->w_string, curr->w_stringp - curr->w_string);
+      *curr->w_stringp = '\0';
+      /* FALLTHROUGH */
+    case APC:
+      if (curr->w_hstatus)
+	{
+	  if (strcmp(curr->w_hstatus, curr->w_string) == 0)
+	    break;	/* not changed */
+	  free(curr->w_hstatus);
+	  curr->w_hstatus = 0;
+	}
+      if (curr->w_string != curr->w_stringp)
+	curr->w_hstatus = SaveStr(curr->w_string);
+      WindowChanged(curr, 'h');
+      break;
+    case PM:
+    case GM:
+      for (display = displays; display; display = display->d_next)
+	{
+	  for (cv = D_cvlist; cv; cv = cv->c_next)
+	    if (cv->c_layer->l_bottom == &curr->w_layer)
+	      break;
+	  if (cv || curr->w_StringType == GM)
+	    MakeStatus(curr->w_string);
+	}
+      return -1;
+    case DCS:
+      LAY_DISPLAYS(&curr->w_layer, AddStr(curr->w_string));
+      break;
+    case AKA:
+      if (curr->w_title == curr->w_akabuf && !*curr->w_string)
+	break;
+      ChangeAKA(curr, curr->w_string, 20);
+      if (!*curr->w_string)
+	curr->w_autoaka = curr->w_y + 1;
+      break;
     default:
       break;
     }
-  close(pi[0]);
-  curr->w_pdisplay->d_printfd = pi[1];
+  return 0;
+}
+
+static void
+PrintStart()
+{
+  curr->w_pdisplay = 0;
+
+  /* find us a nice display to print on, fore prefered */
+  for (display = displays; display; display = display->d_next)
+    if (curr == D_fore && (printcmd || D_PO))
+      break;
+  if (!display)
+    {
+      struct canvas *cv;
+      for (cv = curr->w_layer.l_cvlist; cv; cv = cv->c_lnext)
+	{
+	  display = cv->c_display;
+	  if (printcmd || D_PO)
+	    break;
+	}
+      if (!cv)
+	{
+	  display = displays;
+	  if (!display || display->d_next || !(printcmd || D_PO))
+	    return;
+	}
+    }
+  curr->w_pdisplay = display;
+  curr->w_stringp = curr->w_string;
+  curr->w_state = PRIN;
+  if (printcmd && curr->w_pdisplay->d_printfd < 0)
+    curr->w_pdisplay->d_printfd = printpipe(curr, printcmd);
 }
 
 static void
@@ -1687,8 +1404,6 @@ int c;
 static void
 PrintFlush()
 {
-  struct display *odisp = display;
-
   display = curr->w_pdisplay;
   if (display && printcmd)
     {
@@ -1700,7 +1415,7 @@ PrintFlush()
 	  r = write(display->d_printfd, bp, len);
 	  if (r <= 0)
 	    {
-	      Msg(errno, "printing aborted");
+	      WMsg(curr, errno, "printing aborted");
 	      close(display->d_printfd);
 	      display->d_printfd = -1;
 	      break;
@@ -1717,7 +1432,6 @@ PrintFlush()
       Flush();
     }
   curr->w_stringp = curr->w_string;
-  display = odisp;
 }
 
 
@@ -1727,31 +1441,36 @@ struct win *win;
 int on;
 {
   debug1("NewAutoFlow: %d\n", on);
-  SetCurr(win);
   if (win->w_flow & FLOW_AUTOFLAG)
     win->w_flow = FLOW_AUTOFLAG | (FLOW_AUTO|FLOW_NOW) * on;
   else
     win->w_flow = (win->w_flow & ~FLOW_AUTO) | FLOW_AUTO * on;
-  if (display)
-    SetFlow(win->w_flow & FLOW_NOW);
+  LSetFlow(&win->w_layer, win->w_flow & FLOW_NOW);
 }
+
+
+#ifdef FONT
 
 static void
 DesignateCharset(c, n)
 int c, n;
 {
   curr->w_ss = 0;
-#ifdef KANJI
+# ifdef KANJI
   if (c == ('@' & 037))
     c = KANJI;
-#endif
+# endif
   if (c == 'B' || c == 'J')
     c = ASCII;
   if (curr->w_charsets[n] != c)
     {
       curr->w_charsets[n] = c;
       if (curr->w_Charset == n)
-	SetFont(curr->w_FontL = c);
+	{
+	  curr->w_FontL = c;
+	  curr->w_rend.font = curr->w_FontL;
+	  LSetRendition(&curr->w_layer, &curr->w_rend);
+	}
       if (curr->w_CharsetR == n)
         curr->w_FontR = c;
     }
@@ -1765,7 +1484,9 @@ int n;
   if (curr->w_Charset != n)
     {
       curr->w_Charset = n;
-      SetFont(curr->w_FontL = curr->w_charsets[n]);
+      curr->w_FontL = curr->w_charsets[n];
+      curr->w_rend.font = curr->w_FontL;
+      LSetRendition(&curr->w_layer, &curr->w_rend);
     }
 }
 
@@ -1782,6 +1503,8 @@ int n;
   curr->w_gr = 1;
 }
 
+#endif /* FONT */
+
 static void
 SaveCursor()
 {
@@ -1789,30 +1512,33 @@ SaveCursor()
   curr->w_Saved_x = curr->w_x;
   curr->w_Saved_y = curr->w_y;
   curr->w_SavedRend= curr->w_rend;
+#ifdef FONT
   curr->w_SavedCharset = curr->w_Charset;
   curr->w_SavedCharsetR = curr->w_CharsetR;
   bcopy((char *) curr->w_charsets, (char *) curr->w_SavedCharsets,
 	4 * sizeof(int));
+#endif
 }
 
 static void
 RestoreCursor()
 {
-  if (curr->w_saved)
-    {
-      GotoPos(curr->w_Saved_x, curr->w_Saved_y);
-      curr->w_x = curr->w_Saved_x;
-      curr->w_y = curr->w_Saved_y;
-      curr->w_rend = curr->w_SavedRend;
-      bcopy((char *) curr->w_SavedCharsets, (char *) curr->w_charsets,
-	    4 * sizeof(int));
-      curr->w_Charset = curr->w_SavedCharset;
-      curr->w_CharsetR = curr->w_SavedCharsetR;
-      curr->w_ss = 0;
-      curr->w_FontL = curr->w_charsets[curr->w_Charset];
-      curr->w_FontR = curr->w_charsets[curr->w_CharsetR];
-      SetRendition(&curr->w_rend);
-    }
+  if (!curr->w_saved)
+    return;
+  LGotoPos(&curr->w_layer, curr->w_Saved_x, curr->w_Saved_y);
+  curr->w_x = curr->w_Saved_x;
+  curr->w_y = curr->w_Saved_y;
+  curr->w_rend = curr->w_SavedRend;
+#ifdef FONT
+  bcopy((char *) curr->w_SavedCharsets, (char *) curr->w_charsets,
+	4 * sizeof(int));
+  curr->w_Charset = curr->w_SavedCharset;
+  curr->w_CharsetR = curr->w_SavedCharsetR;
+  curr->w_ss = 0;
+  curr->w_FontL = curr->w_charsets[curr->w_Charset];
+  curr->w_FontR = curr->w_charsets[curr->w_CharsetR];
+#endif
+  LSetRendition(&curr->w_layer, &curr->w_rend);
 }
 
 static void
@@ -1827,19 +1553,16 @@ BackSpace()
       curr->w_x = cols - 1;
       curr->w_y--;
     }
-  if (display)
-    GotoPos(curr->w_x, curr->w_y);
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
 Return()
 {
-  if (curr->w_x > 0)
-    {
-      curr->w_x = 0;
-      if (display)
-        GotoPos(curr->w_x, curr->w_y);
-    }
+  if (curr->w_x == 0)
+    return;
+  curr->w_x = 0;
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
@@ -1853,17 +1576,17 @@ int out_mode;
     {
       if (curr->w_y < rows-1)
 	curr->w_y++;
-      if (out_mode && display)
-	GotoPos(curr->w_x, curr->w_y);
+      if (out_mode)
+        LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
       return;
     }
-  ScrollUpMap(1);
+  MScrollV(curr, 1, curr->w_top, curr->w_bot);
   if (curr->w_autoaka > 1)
     curr->w_autoaka--;
-  if (out_mode && display)
+  if (out_mode)
     {
-      ScrollV(0, curr->w_top, cols - 1, curr->w_bot, 1);
-      GotoPos(curr->w_x, curr->w_y);
+      LScrollV(&curr->w_layer, 1, curr->w_top, curr->w_bot);
+      LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
     }
 }
 
@@ -1872,11 +1595,9 @@ ReverseLineFeed()
 {
   if (curr->w_y == curr->w_top)
     {
-      ScrollDownMap(1);
-      if (!display)
-	return;
-      ScrollV(0, curr->w_top, cols - 1, curr->w_bot, -1);
-      GotoPos(curr->w_x, curr->w_y);
+      MScrollV(curr, -1, curr->w_top, curr->w_bot);
+      LScrollV(&curr->w_layer, -1, curr->w_top, curr->w_bot);
+      LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
     }
   else if (curr->w_y > 0)
     CursorUp(1);
@@ -1888,24 +1609,11 @@ int c;
 {
   register int y = curr->w_y, x = curr->w_x;
 
-  if (x == cols)
-    x--;
   save_mline(&curr->w_mlines[y], cols);
-  if (cols - x - 1 > 0)
-    bcopy_mline(&curr->w_mlines[y], x, x + 1, cols - x - 1);
-  SetChar(c);
+  curr->w_rend.image = c;
+  MInsChar(curr, &curr->w_rend, x, y);
   curr->w_x = x + 1;
-  if (!display)
-    return;
-  if (D_CIC || D_IC || D_IM)
-    {
-      InsertMode(curr->w_insert);
-      INSERTCHAR(c);
-      if (y == D_bot)
-	D_lp_missing = 0;
-    }
-  else
-    UpdateLine(&mline_old, y, x, cols - 1);
+  LInsChar(&curr->w_layer, &curr->w_rend, x, y, &mline_old);
 }
 
 static void
@@ -1919,16 +1627,9 @@ int n;
   if (x == cols)
     x--;
   save_mline(&curr->w_mlines[y], cols);
-  if (n >= cols - x)
-    n = cols - x;
-  else
-    bcopy_mline(&curr->w_mlines[y], x, x + n, cols - x - n);
-
-  ClearInLine(y, x, x + n - 1);
-  if (!display)
-    return;
-  ScrollH(y, x, curr->w_width - 1, -n, &mline_old);
-  GotoPos(x, y);
+  MScrollH(curr, -n, y, x, curr->w_width - 1);
+  LScrollH(&curr->w_layer, -n, y, x, curr->w_width - 1, &mline_old);
+  LGotoPos(&curr->w_layer, x, y);
 }
 
 static void
@@ -1940,137 +1641,46 @@ int n;
   if (x == cols)
     x--;
   save_mline(&curr->w_mlines[y], cols);
-
-  if (n >= cols - x)
-    n = cols - x;
-  else
-    bcopy_mline(&curr->w_mlines[y], x + n, x, cols - x - n);
-  ClearInLine(y, cols - n, cols - 1);
-  if (!display)
-    return;
-  ScrollH(y, x, curr->w_width - 1, n, &mline_old);
-  GotoPos(x, y);
+  MScrollH(curr, n, y, x, curr->w_width - 1);
+  LScrollH(&curr->w_layer, n, y, x, curr->w_width - 1, &mline_old);
+  LGotoPos(&curr->w_layer, x, y);
 }
 
 static void
 DeleteLine(n)
 int n;
 {
-  register int old = curr->w_top;
-  
   if (curr->w_y < curr->w_top || curr->w_y > curr->w_bot)
     return;
   if (n > curr->w_bot - curr->w_y + 1)
     n = curr->w_bot - curr->w_y + 1;
-  curr->w_top = curr->w_y;
-  ScrollUpMap(n);
-  curr->w_top = old;
-  if (!display)
-    return;
-  ScrollV(0, curr->w_y, cols - 1, curr->w_bot, n);
-  GotoPos(curr->w_x, curr->w_y);
+  MScrollV(curr, n, curr->w_y, curr->w_bot);
+  LScrollV(&curr->w_layer, n, curr->w_y, curr->w_bot);
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
 InsertLine(n)
 int n;
 {
-  register int old = curr->w_top;
-
   if (curr->w_y < curr->w_top || curr->w_y > curr->w_bot)
     return;
   if (n > curr->w_bot - curr->w_y + 1)
     n = curr->w_bot - curr->w_y + 1;
-  curr->w_top = curr->w_y;
-  ScrollDownMap(n);
-  curr->w_top = old;
-  if (!display)
-    return;
-  ScrollV(0, curr->w_y, cols - 1, curr->w_bot, -n);
-  GotoPos(curr->w_x, curr->w_y);
+  MScrollV(curr, -n, curr->w_y, curr->w_bot);
+  LScrollV(&curr->w_layer, -n, curr->w_y, curr->w_bot);
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
 ScrollRegion(n)
 int n;
 {
-  if (n > 0)
-    ScrollUpMap(n);
-  else
-    ScrollDownMap(-n);
-  if (!display)
-    return;
-  ScrollV(0, curr->w_top, cols - 1, curr->w_bot, n);
-  GotoPos(curr->w_x, curr->w_y);
+  MScrollV(curr, n, curr->w_top, curr->w_bot);
+  LScrollV(&curr->w_layer, n, curr->w_top, curr->w_bot);
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
-static void
-ScrollUpMap(n)
-int n;
-{
-  char tmp[256 * sizeof(struct mline)];
-  register int i, cnt1, cnt2;
-  struct mline *ml;
-#ifdef COPY_PASTE
-  register int ii;
-#endif
-
-  i = curr->w_top + n;
-  cnt1 = n * sizeof(struct mline);
-  cnt2 = (curr->w_bot - i + 1) * sizeof(struct mline);
-#ifdef COPY_PASTE
-  for(ii = curr->w_top; ii < i; ii++)
-     AddLineToHist(curr, &curr->w_mlines[ii]);
-#endif
-  ml = curr->w_mlines + i;
-  for (i = n; i; --i)
-    {
-      --ml;
-      clear_mline(ml, 0, cols + 1);
-    }
-  Scroll((char *) ml, cnt1, cnt2, tmp);
-}
-
-static void
-ScrollDownMap(n)
-int n;
-{
-  char tmp[256 * sizeof(struct mline)];
-  register int i, cnt1, cnt2;
-  struct mline *ml;
-
-  i = curr->w_top;
-  cnt1 = (curr->w_bot - i - n + 1) * sizeof(struct mline);
-  cnt2 = n * sizeof(struct mline);
-  ml = curr->w_mlines + i;
-  Scroll((char *) ml, cnt1, cnt2, tmp);
-  for (i = n; i; --i)
-    {
-      clear_mline(ml, 0, cols + 1);
-      ml++;
-    }
-}
-
-static void
-Scroll(cp, cnt1, cnt2, tmp)
-char *cp, *tmp;
-int cnt1, cnt2;
-{
-  if (!cnt1 || !cnt2)
-    return;
-  if (cnt1 <= cnt2)
-    {
-      bcopy(cp, tmp, cnt1);
-      bcopy(cp + cnt1, cp, cnt2);
-      bcopy(tmp, cp + cnt2, cnt1);
-    }
-  else
-    {
-      bcopy(cp + cnt1, tmp, cnt2);
-      bcopy(cp, cp + cnt2, cnt1);
-      bcopy(tmp, cp, cnt2);
-    }
-}
 
 static void
 ForwardTab()
@@ -2086,8 +1696,8 @@ ForwardTab()
     x++;
   while (x < cols - 1 && !curr->w_tabs[x])
     x++;
-  GotoPos(x, curr->w_y);
   curr->w_x = x;
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
@@ -2099,104 +1709,54 @@ BackwardTab()
     x--;
   while (x > 0 && !curr->w_tabs[x])
     x--;
-  GotoPos(x, curr->w_y);
   curr->w_x = x;
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
 ClearScreen()
 {
-  register int i;
-  register struct mline *ml = curr->w_mlines;
-
-  for (i = 0; i < rows; ++i)
-    {
+  LClear(&curr->w_layer, 0, 0, curr->w_width - 1, curr->w_height - 1, 1);
 #ifdef COPY_PASTE
-      AddLineToHist(curr, ml);
+  MScrollV(curr, curr->w_height, 0, curr->w_height - 1);
+#else
+  MClear(curr, 0, 0, curr->w_width - 1, curr->w_height - 1);
 #endif
-      clear_mline(ml, 0, cols + 1);
-      ml++;
-    }
-  if (display)
-    ClearDisplay();
 }
 
 static void
 ClearFromBOS()
 {
-  register int n, y = curr->w_y, x = curr->w_x;
+  register int y = curr->w_y, x = curr->w_x;
 
-  if (display)
-    Clear(0, 0, 0, cols - 1, x, y, 1);
-  for (n = 0; n < y; ++n)
-    ClearInLine(n, 0, cols - 1);
-  ClearInLine(y, 0, x);
+  LClear(&curr->w_layer, 0, 0, x, y, 1);
+  MClear(curr, 0, 0, x, y);
   RestorePosRendition();
 }
 
 static void
 ClearToEOS()
 {
-  register int n, y = curr->w_y, x = curr->w_x;
+  register int y = curr->w_y, x = curr->w_x;
 
   if (x == 0 && y == 0)
     {
       ClearScreen();
       return;
     }
-  if (display)
-    Clear(x, y, 0, cols - 1, cols - 1, rows - 1, 1);
-  ClearInLine(y, x, cols - 1);
-  for (n = y + 1; n < rows; n++)
-    ClearInLine(n, 0, cols - 1);
+  LClear(&curr->w_layer, x, y, cols - 1, rows - 1, 1);
+  MClear(curr, x, y, cols - 1, rows - 1);
   RestorePosRendition();
 }
 
 static void
-ClearFullLine()
+ClearLineRegion(from, to)
+int from, to;
 {
   register int y = curr->w_y;
-
-  if (display)
-    Clear(0, y, 0, cols - 1, cols - 1, y, 1);
-  ClearInLine(y, 0, cols - 1);
+  LClear(&curr->w_layer, from, y, to, y, 1);
+  MClear(curr, from, y, to, y);
   RestorePosRendition();
-}
-
-static void
-ClearToEOL()
-{
-  register int y = curr->w_y, x = curr->w_x;
-
-  if (display)
-    Clear(x, y, 0, cols - 1, cols - 1, y, 1);
-  ClearInLine(y, x, cols - 1);
-  RestorePosRendition();
-}
-
-static void
-ClearFromBOL()
-{
-  register int y = curr->w_y, x = curr->w_x;
-
-  if (display)
-    Clear(0, y, 0, cols - 1, x, y, 1);
-  ClearInLine(y, 0, x);
-  RestorePosRendition();
-}
-
-static void
-ClearInLine(y, x1, x2)
-int y, x1, x2;
-{
-  register int n;
-
-  if (x1 == cols)
-    x1--;
-  if (x2 == cols - 1)
-    x2++;
-  if ((n = x2 - x1 + 1) != 0)
-    clear_mline(&curr->w_mlines[y], x1, n);
 }
 
 static void
@@ -2212,7 +1772,7 @@ register int n;
     }
   if ((curr->w_x += n) >= cols)
     curr->w_x = cols - 1;
-  GotoPos(curr->w_x, curr->w_y);
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
@@ -2227,7 +1787,7 @@ register int n;
   else
     if ((curr->w_y -= n) < curr->w_top)
       curr->w_y = curr->w_top;
-  GotoPos(curr->w_x, curr->w_y);
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
@@ -2242,7 +1802,7 @@ register int n;
   else
     if ((curr->w_y += n) > curr->w_bot)
       curr->w_y = curr->w_bot;
-  GotoPos(curr->w_x, curr->w_y);
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
@@ -2251,7 +1811,7 @@ register int n;
 {
   if ((curr->w_x -= n) < 0)
     curr->w_x = 0;
-  GotoPos(curr->w_x, curr->w_y);
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 }
 
 static void
@@ -2264,16 +1824,18 @@ int on;
     {
       switch (curr->w_args[i])
 	{
-	case 4:
+     /* case 2:		   KAM: Lock keyboard */
+	case 4:		/* IRM: Insert mode */
 	  curr->w_insert = on;
-	  InsertMode(on);
+	  LAY_DISPLAYS(&curr->w_layer, InsertMode(on));
 	  break;
-	case 20:
+     /* case 12:	   SRM: Echo mode on */
+	case 20:	/* LNM: Linefeed mode */
 	  curr->w_autolf = on;
 	  break;
 	case 34:
 	  curr->w_curvvis = !on;
-	  CursorVisibility(curr->w_curinv ? -1 : curr->w_curvvis);
+	  LCursorVisibility(&curr->w_layer, curr->w_curinv ? -1 : curr->w_curvvis);
 	  break;
 	default:
 	  break;
@@ -2316,12 +1878,11 @@ SelectRendition()
         a |= j;
     }
   while (++i < curr->w_NumArgs);
-  if (curr->w_rend.attr != a)
-    SetAttr(curr->w_rend.attr = a);
+  curr->w_rend.attr = a;
 #ifdef COLOR
-  if (curr->w_rend.color != c)
-    SetColor(curr->w_rend.color = c);
+  curr->w_rend.color = c;
 #endif
+  LSetRendition(&curr->w_layer, &curr->w_rend);
 }
 
 static void
@@ -2330,6 +1891,7 @@ FillWithEs()
   register int i;
   register char *p, *ep;
 
+  ClearLayer(&curr->w_layer, 1);
   curr->w_y = curr->w_x = 0;
   for (i = 0; i < rows; ++i)
     {
@@ -2339,61 +1901,9 @@ FillWithEs()
       while (p < ep)
 	*p++ = 'E';
     }
-  if (display)
-    Redisplay(0);
+  RedisplayLayer(&curr->w_layer, 1);
 }
 
-
-static void
-UpdateLine(oml, y, from, to)
-struct mline *oml;
-int from, to, y;
-{
-  ASSERT(display);
-  DisplayLine(oml, &curr->w_mlines[y], y, from, to);
-  RestorePosRendition();
-}
-
-
-static void
-CheckLP(n_ch)
-int n_ch;
-{
-  register int x;
-  register struct mline *ml;
-
-  ASSERT(display);
-  ml = &curr->w_mlines[D_bot];
-  x = cols - 1;
-
-  curr->w_rend.image = n_ch;
-
-  D_lpchar = curr->w_rend;
-  D_lp_missing = 0;
-
-  if (cmp_mchar_mline(&curr->w_rend, ml, x))
-    return;
-#ifdef KANJI
-  D_lp_mbcs = D_mbcs;
-  D_mbcs = 0;
-#endif
-  if (!cmp_mchar(&mchar_blank, &curr->w_rend))	/* is new not blank */
-    D_lp_missing = 1;
-  if (!cmp_mchar_mline(&mchar_blank, ml, x))	/* is old char not blank? */
-    {
-      /* old char not blank, new blank, try to delete */
-      if (D_UT)
-	SetRendition(&mchar_null);
-      if (D_CE)
-	PutStr(D_CE);
-      else if (D_DC)
-	PutStr(D_DC);
-      else if (D_CDC)
-	CPutStr(D_CDC, 1);
-      else
-	D_lp_missing = 1;
-    }
-}
 
 /*
  *  Ugly autoaka hack support:
@@ -2415,14 +1925,9 @@ int l;
   if (p->w_akachange != p->w_akabuf)
     if (p->w_akachange[0] == 0 || p->w_akachange[-1] == ':')
       p->w_title = p->w_akabuf + strlen(p->w_akabuf) + 1;
-
-  /* yucc */
-  if (p->w_hstatus)
-    {
-      display = p->w_display;
-      if (display)
-        RefreshStatus();
-    }
+  WindowChanged(p, 't');
+  WindowChanged((struct win *)0, 'w');
+  WindowChanged((struct win *)0, 'W');
 }
 
 static void
@@ -2474,25 +1979,11 @@ FindAKA()
     wp->w_autoaka = 0;
 }
 
-void
-SetCurr(wp)
-struct win *wp;
-{
-  curr = wp;
-  if (curr == 0)
-    return;
-  cols = curr->w_width;
-  rows = curr->w_height;
-  display = curr->w_active ? curr->w_display : 0;
-}
-
 static void
 RestorePosRendition()
 {
-  if (!display)
-    return;
-  GotoPos(curr->w_x, curr->w_y);
-  SetRendition(&curr->w_rend);
+  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
+  LSetRendition(&curr->w_layer, &curr->w_rend);
 }
 
 /* Send a terminal report as if it were typed. */ 
@@ -2514,6 +2005,294 @@ int n1, n2;
     }
 }
 
+
+
+/*
+ *====================================================================*
+ *====================================================================*
+ */
+
+/**********************************************************************
+ *
+ * Memory subsystem.
+ *
+ */
+
+static void
+MFixLine(p, y, mc)
+struct win *p;
+int y;
+struct mchar *mc;
+{
+  struct mline *ml = &p->w_mlines[y];
+  if (mc->attr && ml->attr == null)
+    {
+      if ((ml->attr = (char *)malloc(p->w_width + 1)) == 0)
+	{
+	  ml->attr = null;
+	  mc->attr = p->w_rend.attr = 0;
+	  WMsg(p, 0, "Warning: no space for attr - turned off");
+	}
+      bzero(ml->attr, p->w_width + 1);
+    }
+#ifdef FONT
+  if (mc->font && ml->font == null)
+    {
+      if ((ml->font = (char *)malloc(p->w_width + 1)) == 0)
+	{
+	  ml->font = null;
+	  p->w_FontL = p->w_charsets[p->w_ss ? p->w_ss : p->w_Charset] = 0;
+	  p->w_FontR = p->w_charsets[p->w_ss ? p->w_ss : p->w_CharsetR] = 0;
+	  mc->font = p->w_rend.font  = 0;
+	  WMsg(p, 0, "Warning: no space for font - turned off");
+	}
+      bzero(ml->font, p->w_width + 1);
+    }
+#endif
+#ifdef COLOR
+  if (mc->color && ml->color == null)
+    {
+      if ((ml->color = (char *)malloc(p->w_width + 1)) == 0)
+	{
+	  ml->color = null;
+	  mc->color = p->w_rend.color = 0;
+	  WMsg(p, 0, "Warning: no space for color - turned off");
+	}
+      bzero(ml->color, p->w_width + 1);
+    }
+#endif
+}
+
+/*****************************************************************/
+
+static void
+MScrollH(p, n, y, xs, xe)
+struct win *p;
+int n, y, xs, xe;
+{
+  struct mline *ml;
+
+  if (n == 0)
+    return;
+  ml = &p->w_mlines[y];
+  if (n > 0)
+    {
+      if (xe - xs + 1 > n)
+	bcopy_mline(ml, xs + n, xs, xe + 1 - xs - n);
+      else
+	n = xe - xs + 1;
+      clear_mline(ml, xe + 1 - n, n);
+    }
+  else
+    {
+      n = -n;
+      if (xe - xs + 1 > n)
+	bcopy_mline(ml, xs, xs + n, xe + 1 - xs - n);
+      else
+	n = xe - xs + 1;
+      clear_mline(ml, xs, n);
+    }
+}
+
+static void
+MScrollV(p, n, ys, ye)
+struct win *p;
+int n;
+int ys, ye;
+{
+  int i, cnt1, cnt2;
+  struct mline *tmp[256];
+  struct mline *ml;
+
+  if (n == 0)
+    return;
+  if (n > 0)
+    {
+      if (n > 256)
+	{
+	  MScrollV(p, n - 256, ys, ye);
+	  n = 256;
+	}
+      if (ye - ys + 1 < n)
+	n = ye - ys + 1;
+#ifdef COPY_PASTE
+      if (compacthist)
+	{
+	  ye = MFindUsedLine(p, ye, ys);
+	  if (ye - ys + 1 < n)
+	    n = ye - ys + 1;
+	  if (n <= 0)
+	    return;
+	}
+#endif
+      /* Clear lines */
+      ml = p->w_mlines + ys;
+      for (i = ys; i < ys + n; i++, ml++)
+	{
+#ifdef COPY_PASTE
+	  if (ys == p->w_top)
+	    AddLineToHist(p, ml);
+#endif
+	  if (ml->attr != null)
+	    free(ml->attr);
+	  ml->attr = null;
+#ifdef FONT
+	  if (ml->font != null)
+	    free(ml->font);
+	  ml->font = null;
+#endif
+#ifdef COLOR
+	  if (ml->color != null)
+	    free(ml->color);
+	  ml->color = null;
+#endif
+	  bclear(ml->image, p->w_width + 1);
+	}
+      /* switch 'em over */
+      cnt1 = n * sizeof(struct mline);
+      cnt2 = (ye - ys + 1 - n) * sizeof(struct mline);
+      if (cnt1 && cnt2)
+	Scroll((char *)(p->w_mlines + ys), cnt1, cnt2, (char *)tmp);
+    }
+  else
+    {
+      if (n < -256)
+	{
+	  MScrollV(p, n + 256, ys, ye);
+	  n = -256;
+	}
+      n = -n;
+      if (ye - ys + 1 < n)
+	n = ye - ys + 1;
+
+      ml = p->w_mlines + ye;
+      /* Clear lines */
+      for (i = ye; i > ye - n; i--, ml--)
+	{
+	  if (ml->attr != null)
+	    free(ml->attr);
+	  ml->attr = null;
+#ifdef FONT
+	  if (ml->font != null)
+	    free(ml->font);
+	  ml->font = null;
+#endif
+#ifdef COLOR
+	  if (ml->color != null)
+	    free(ml->color);
+	  ml->color = null;
+#endif
+	  bclear(ml->image, p->w_width + 1);
+	}
+      cnt1 = n * sizeof(struct mline);
+      cnt2 = (ye - ys + 1 - n) * sizeof(struct mline);
+      if (cnt1 && cnt2)
+	Scroll((char *)(p->w_mlines + ys), cnt2, cnt1, (char *)tmp);
+    }
+}
+
+static void
+Scroll(cp, cnt1, cnt2, tmp)
+char *cp, *tmp;
+int cnt1, cnt2;
+{
+  if (!cnt1 || !cnt2)
+    return;
+  if (cnt1 <= cnt2)
+    {
+      bcopy(cp, tmp, cnt1);
+      bcopy(cp + cnt1, cp, cnt2);
+      bcopy(tmp, cp + cnt2, cnt1);
+    }
+  else
+    {
+      bcopy(cp + cnt1, tmp, cnt2);
+      bcopy(cp, cp + cnt2, cnt1);
+      bcopy(tmp, cp, cnt2);
+    }
+}
+
+static void
+MClear(p, xs, ys, xe, ye)
+struct win *p;
+int xs, ys, xe, ye;
+{
+  int n, y;
+  int xxe;
+  struct mline *ml;
+
+  /* check for magic margin condition */
+  if (xs >= p->w_width)
+    xs = p->w_width - 1;
+  if (xe >= p->w_width)
+    xe = p->w_width - 1;
+
+  ml = p->w_mlines + ys;
+  for (y = ys; y <= ye; y++, ml++)
+    {
+      xxe = (y == ye) ? xe : p->w_width - 1;
+      n = xxe - xs + 1;
+      if (n > 0)
+	clear_mline(ml, xs, n);
+      xs = 0;
+    }
+}
+
+static void
+MInsChar(p, c, x, y)
+struct win *p;
+struct mchar *c;
+int x, y;
+{
+  int n;
+  struct mline *ml;
+
+  ASSERT(x >= 0 && x < p->w_width);
+  MFixLine(p, y, c);
+  ml = p->w_mlines + y;
+  n = p->w_width - x - 1;
+  if (n > 0)
+    bcopy_mline(ml, x, x + 1, n);
+  copy_mchar2mline(c, ml, x);
+}
+
+static void
+MPutChar(p, c, x, y)
+struct win *p;
+struct mchar *c;
+int x, y;
+{
+  struct mline *ml;
+
+  MFixLine(p, y, c);
+  ml = &p->w_mlines[y];
+  copy_mchar2mline(c, ml, x);
+}
+
+
+static void
+MWrapChar(p, c, y, top, bot, ins)
+struct win *p;
+struct mchar *c;
+int y, top, bot;
+int ins;
+{
+  struct mline *ml;
+
+  MFixLine(p, y, c);
+  ml = &p->w_mlines[y];
+  copy_mchar2mline(&mchar_null, ml, p->w_width);
+  if (y == bot)
+    MScrollV(p, 1, top, bot);
+  else if (y < p->w_height - 1)
+    y++;
+  MFixLine(p, y, c);
+  ml = &p->w_mlines[y];
+  if (ins && p->w_width > 1)
+    bcopy_mline(ml, 0, 1, p->w_width - 1);
+  copy_mchar2mline(c, ml, 0);
+}
+
 #ifdef COPY_PASTE
 static void
 AddLineToHist(wp, ml)
@@ -2532,9 +2311,11 @@ struct mline *ml;
   if (o != null)
     free(o);
  
+#ifdef FONT
   q = ml->font; o = hml->font; hml->font = q; ml->font = null;
   if (o != null)
     free(o);
+#endif
 
 #ifdef COLOR
   q = ml->color; o = hml->color; hml->color = q; ml->color = null;
@@ -2547,3 +2328,238 @@ struct mline *ml;
 }
 #endif
 
+int
+MFindUsedLine(p, ye, ys)
+struct win *p;
+int ys, ye;
+{
+  int y;
+  struct mline *ml = p->w_mlines + ye;
+
+  debug2("MFindUsedLine: %d %d\n", ye, ys);
+  for (y = ye; y >= ys; y--, ml--)
+    {
+      if (bcmp((char*)ml->image, blank, p->w_width))
+	break;
+      if (ml->attr != null && bcmp((char*)ml->attr, null, p->w_width))
+	break;
+#ifdef COLOR
+      if (ml->color != null && bcmp((char*)ml->color, null, p->w_width))
+	break;
+#endif
+    }
+  debug1("MFindUsedLine returning  %d\n", y);
+  return y;
+}
+
+
+/*
+ *====================================================================*
+ *====================================================================*
+ */
+
+/*
+ * Tricky: send only one bell even if the window is displayed
+ * more than one times.
+ */
+void
+WBell(p, visual)
+struct win *p;
+int visual;
+{
+  struct canvas *cv;
+  for (display = displays; display; display = display->d_next)
+    {
+      for (cv = D_cvlist; cv; cv = cv->c_next)
+	if (cv->c_layer->l_bottom == &p->w_layer)
+	  break;
+      if (cv && !visual)
+	PutStr(D_BL);
+      else if (cv && D_VB)
+	PutStr(D_VB);
+      else
+        p->w_bell = visual ? BELL_VISUAL : BELL_FOUND;
+    }
+}
+
+/*
+ * This should be reverse video.
+ * Only change video if window is fore.
+ * Because it is used in some termcaps to emulate
+ * a visual bell we do this hack here.
+ * (screen uses \Eg as special vbell sequence)
+ */
+static void
+WReverseVideo(p, on)
+struct win *p;
+int on;
+{
+  struct canvas *cv;
+  for (cv = p->w_layer.l_cvlist; cv; cv = cv->c_lnext)
+    {
+      display = cv->c_display;
+      if (cv != D_forecv)
+	continue;
+      ReverseVideo(on);
+      if (!on && p->w_revvid && !D_CVR)
+	{
+	  if (D_VB)
+	    PutStr(D_VB);
+	  else
+	    p->w_bell = BELL_VISUAL;
+	}
+    }
+}
+
+void
+WMsg(p, err, str)
+struct win *p;
+int err;
+char *str;
+{
+  extern struct layer *flayer;
+  struct layer *oldflayer = flayer;
+  flayer = &p->w_layer;
+  LMsg(err, str);
+  flayer = oldflayer;
+}
+
+void
+WChangeSize(p, w, h)
+struct win *p;
+int w, h;
+{
+  int wok = 0;
+  struct canvas *cv;
+
+  if (p->w_layer.l_cvlist == 0)
+    {
+      /* window not displayed -> works always */
+      ChangeWindowSize(p, w, h, p->w_histheight);
+      return;
+    }
+  for (cv = p->w_layer.l_cvlist; cv; cv = cv->c_lnext)
+    {
+      display = cv->c_display;
+      if (p != D_fore)
+	continue;		/* change only fore */
+      if (D_CWS)
+	break;
+      if (D_CZ0 && (w == Z0width || w == Z1width))
+	wok = 1;
+    }
+  if (cv == 0 && wok == 0)	/* can't change any display */
+    return;
+  if (!D_CWS)
+    h = p->w_height;
+  ChangeWindowSize(p, w, h, p->w_histheight);
+  for (display = displays; display; display = display->d_next)
+    {
+      if (p == D_fore)
+	{
+	  if (D_cvlist && D_cvlist->c_next == 0)
+	    ResizeDisplay(w, h);
+	  else
+	    ResizeDisplay(w, D_height);
+	  ResizeLayersToCanvases();	/* XXX Hmm ? */
+	  continue;
+	}
+      for (cv = D_cvlist; cv; cv = cv->c_next)
+	if (cv->c_layer->l_bottom == &p->w_layer)
+	  break;
+      if (cv)
+	Redisplay(0);
+    }
+}
+
+static int
+WindowChangedCheck(s, what, hp)
+char *s;
+int what;
+int *hp;
+{
+  int h = 0;
+  while(*s)
+    {
+      if (*s++ != '%')
+	continue;
+      while (*s >= '0' && *s <= '9')
+	s++;
+      if (*s == 'h')
+	h = 1;
+      if (*s == what || what == 'd')
+	break;
+      if (*s)
+	s++;
+    }
+  if (hp)
+    *hp = h;
+  return *s ? 1 : 0;
+}
+
+void
+WindowChanged(p, what)
+struct win *p;
+int what;
+{
+  int inwstr, inhstr;
+  int inwstrh, inhstrh;
+  int got, ox, oy;
+  struct display *olddisplay = display;
+  struct canvas *cv;
+
+  inwstr = inhstr = 0;
+
+  inwstr = WindowChangedCheck(captionstring, what, &inwstrh);
+  inhstr = WindowChangedCheck(hstatusstring, what, &inhstrh);
+
+  if (p == 0)
+    {
+      for (display = displays; display; display = display->d_next)
+	{
+	  ox = D_x;
+	  oy = D_y;
+	  for (cv = D_cvlist; cv; cv = cv->c_next)
+	    {
+	      p = Layer2Window(cv->c_layer);
+	      if (inwstr || (inwstrh && p && p->w_hstatus && *p->w_hstatus && WindowChangedCheck(p->w_hstatus, what, (int *)0)))
+	        if (cv->c_ye + 1 < D_height)
+		  RefreshLine(cv->c_ye + 1, 0, D_width - 1, 0);
+	    }
+	  p = D_fore;
+	  if (inhstr || (inhstrh && p && p->w_hstatus && *p->w_hstatus && WindowChangedCheck(p->w_hstatus, what, (int *)0)))
+	    RefreshHStatus();
+	  if (ox != -1 && ox != -1)
+	    GotoPos(ox, oy);
+	}
+      display = olddisplay;
+      return;
+    }
+
+  if (p->w_hstatus && *p->w_hstatus && (inwstrh || inhstrh) && WindowChangedCheck(p->w_hstatus, what, (int *)0))
+    {
+      inwstr |= inwstrh;
+      inhstr |= inhstrh;
+    }
+  if (!inwstr && !inhstr)
+    return;
+  for (display = displays; display; display = display->d_next)
+    {
+      got = 0;
+      ox = D_x;
+      oy = D_y;
+      for (cv = D_cvlist; cv; cv = cv->c_next)
+	{
+	  if (Layer2Window(cv->c_layer) != p)
+	    continue;
+	  got = 1;
+	  if (inwstr && cv->c_ye + 1 < D_height)
+	    RefreshLine(cv->c_ye + 1, 0, D_width - 1, 0);
+	}
+      if (got && inhstr && p == D_fore)
+	RefreshHStatus();
+      if (ox != -1 && ox != -1)
+	GotoPos(ox, oy);
+    }
+  display = olddisplay;
+}

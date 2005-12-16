@@ -27,6 +27,7 @@
 #endif
 
 
+/* keep this in sync with the initialisations in window.c */
 struct NewWindow
 {
   int	StartAt;	/* where to start the search for the slot */
@@ -40,7 +41,10 @@ struct NewWindow
   int	histheight;
   int	monitor;
   int   wlock;		/* default writelock setting */
+  int	silence;
   int   wrap;
+  int	Lflag;		/* logging */
+  int	slow;		/* inter character milliseconds */
   int   c1;
   int   gr;
   int   kanji;
@@ -48,18 +52,19 @@ struct NewWindow
   char	*charset;
 };
 
-
 #ifdef PSEUDOS
 
 struct pseudowin
 {
-  int fdpat;
-  int p_pid;
-  int p_ptyfd;
-  char p_cmd[MAXSTR];
-  char p_tty[MAXSTR];
-  char p_inbuf[IOSIZE];		/* buffered writing to p_ptyfd */
-  int p_inlen;
+  int	p_fdpat;
+  int	p_pid;
+  int	p_ptyfd;
+  struct event p_readev;
+  struct event p_writeev;
+  char	p_cmd[MAXSTR];
+  char	p_tty[MAXSTR];
+  char	p_inbuf[IOSIZE];	/* buffered writing to p_ptyfd */
+  int	p_inlen;
 };
 
 /* bits for fdpat: */
@@ -73,87 +78,112 @@ struct pseudowin
 
 /* The screen process ...)
  * ... wants to write to pseudo */
-#define W_WP(w) ((w)->w_pwin && ((w)->w_pwin->fdpat & F_PFRONT))
+#define W_WP(w) ((w)->w_pwin && ((w)->w_pwin->p_fdpat & F_PFRONT))
 
 /* ... wants to write to window: user writes to window 
  * or stdout/stderr of pseudo are duplicated to window */
 #define W_WW(w) (!((w)->w_pwin) || \
-(((w)->w_pwin->fdpat & F_PMASK) == F_PBACK) || \
-((((w)->w_pwin->fdpat >> F_PSHIFT) & F_PMASK) == F_PBOTH) || \
-((((w)->w_pwin->fdpat >> (F_PSHIFT * 2)) & F_PMASK) == F_PBOTH))
+(((w)->w_pwin->p_fdpat & F_PMASK) == F_PBACK) || \
+((((w)->w_pwin->p_fdpat >> F_PSHIFT) & F_PMASK) == F_PBOTH) || \
+((((w)->w_pwin->p_fdpat >> (F_PSHIFT * 2)) & F_PMASK) == F_PBOTH))
 
 /* ... wants to read from pseudowin */
-#define W_RP(w) ((w)->w_pwin && ((w)->w_pwin->fdpat & \
+#define W_RP(w) ((w)->w_pwin && ((w)->w_pwin->p_fdpat & \
 ((F_PFRONT << (F_PSHIFT * 2)) | (F_PFRONT << F_PSHIFT)) ))
 
 /* ... wants to read from window */
-#define W_RW(w) (!((w)->w_pwin) || ((w)->w_pwin->fdpat & F_PFRONT))
+#define W_RW(w) (!((w)->w_pwin) || ((w)->w_pwin->p_fdpat & F_PFRONT))
 
 /* user input is written to pseudo */
-#define W_UWP(w) ((w)->w_pwin && ((w)->w_pwin->fdpat & F_UWP))
+#define W_UWP(w) ((w)->w_pwin && ((w)->w_pwin->p_fdpat & F_UWP))
 
 /* pseudo output has to be stuffed in window */
 #define W_PTOW(w) (\
-((w)->w_pwin->fdpat & F_PMASK << F_PSHIFT) == F_PBOTH << F_PSHIFT || \
-((w)->w_pwin->fdpat & F_PMASK << F_PSHIFT * 2) == F_PBOTH << F_PSHIFT * 2 )
+((w)->w_pwin->p_fdpat & F_PMASK << F_PSHIFT) == F_PBOTH << F_PSHIFT || \
+((w)->w_pwin->p_fdpat & F_PMASK << F_PSHIFT * 2) == F_PBOTH << F_PSHIFT * 2 )
 
 /* window output has to be stuffed in pseudo */
-#define W_WTOP(w) (((w)->w_pwin->fdpat & F_PMASK) == F_PBOTH)
+#define W_WTOP(w) (((w)->w_pwin->p_fdpat & F_PMASK) == F_PBOTH)
 
 #endif /* PSEUDOS */
 
+/* definitions for wlocktype */
+#define WLOCK_OFF	0	/* all in w_userbits can write */
+#define WLOCK_AUTO	1	/* who selects first, can write */
+#define WLOCK_ON	2	/* user writes even if deselected */
 
 
+#ifdef COPY_PASTE
+struct paster
+{
+  char	*pa_pastebuf;		/* this gets pasted in the window */
+  char	*pa_pasteptr;		/* pointer in pastebuf */
+  int	 pa_pastelen;		/* bytes left to paste */
+  struct layer *pa_pastelayer;	/* layer to paste into */
+  struct event pa_slowev;	/* slowpaste event */
+};
+#else
+struct paster;
+#endif
 
 struct win 
 {
   struct win *w_next;		/* next window */
   int    w_type;		/* type of window */
+  void  *w_data;
+  struct layer w_layer;		/* our layer */
+  struct layer *w_savelayer;	/* the layer to keep */
+  int    w_blocked;		/* block input */
 #ifdef PSEUDOS
   struct pseudowin *w_pwin;	/* ptr to pseudo */
 #endif
-  struct display *w_display;	/* pointer to our display */
   struct display *w_pdisplay;	/* display for printer relay */
   int	 w_number;		/* window number */
-  int	 w_active;		/* is window fore and has no layer? */
-  struct layer *w_lay;		/* the layer of the window */
-  struct layer w_winlay;	/* the layer of the window */
-  int	 w_pid;			/* process at the other end of ptyfd */	
-  char  *w_cmdargs[MAXARGS];	/* command line argument vector */
+  struct event w_readev;
+  struct event w_writeev;
+  struct event w_silenceev;	/* silence event */
   int	 w_ptyfd;		/* fd of the master pty */
-  int	 w_aflag;		/* (used for DUMP_TERMCAP) */
   char	 w_inbuf[IOSIZE];
   int	 w_inlen;
   char	 w_outbuf[IOSIZE];
   int	 w_outlen;
+  int	 w_aflag;		/* (-a option) */
   char  *w_title;		/* name of the window */
   char  *w_akachange;		/* autoaka hack */
-  int	 w_autoaka;		/* autoaka hack */
   char	 w_akabuf[MAXSTR];	/* aka buffer */
-  char	 w_tty[MAXSTR];
+  int	 w_autoaka;		/* autoaka hack */
   int	 w_intermediate;	/* char used while parsing ESC-seq */
-  int	 w_args[MAXARGS];
+  int	 w_args[MAXARGS];	/* emulator args */
   int	 w_NumArgs;
-  slot_t w_slot;		/* utmp slot */
-#if defined (UTMPOK)
-  struct utmp w_savut;		/* utmp entry of this window */
+
+#ifdef MULTIUSER
+  int    w_wlock;		/* WLOCK_AUTO, WLOCK_OFF, WLOCK_ON */
+  struct user *w_wlockuser;	/* NULL when unlocked or user who writes */
+  AclBits w_userbits[ACL_BITS_PER_WIN];
+  AclBits w_lio_notify;		/* whom to tell when lastio+seconds < time() */
+  AclBits w_mon_notify;		/* whom to tell monitor statis */
 #endif
+
+  enum state_t w_state;		/* parser state */
+  enum string_t w_StringType;
   struct mline *w_mlines;
-  int	 w_x, w_y;		/* Cursor position */
-  int	 w_width, w_height;	/* window size */
   struct mchar w_rend;		/* current rendition */
+#ifdef FONT
   char	 w_FontL;		/* character font GL */
   char	 w_FontR;		/* character font GR */
   int	 w_Charset;		/* charset number GL */
   int	 w_CharsetR;		/* charset number GR */
   int	 w_charsets[4];		/* Font = charsets[Charset] */
+#endif
   int	 w_ss;		
   int	 w_saved;
   int	 w_Saved_x, w_Saved_y;
   struct mchar w_SavedRend;
+#ifdef FONT
   int	 w_SavedCharset;
   int	 w_SavedCharsetR;
   int	 w_SavedCharsets[4];
+#endif
   int	 w_top, w_bot;		/* scrollregion */
   int	 w_wrap;		/* autowrap */
   int	 w_origin;		/* origin mode */
@@ -165,18 +195,6 @@ struct win
   int	 w_curvvis;		/* cursor very visible */
   int	 w_autolf;		/* automatic linefeed */
   char  *w_hstatus;		/* hardstatus line */
-#ifdef COPY_PASTE
-  char	*w_pastebuf;		/* this gets pasted in the window */
-  char	*w_pasteptr;		/* pointer in pastebuf */
-  int	 w_pastelen;		/* bytes left to paste */
-  int	 w_histheight;		/* all histbases are malloced with width * histheight */
-  int	 w_histidx;		/* 0 <= histidx < histheight; where we insert lines */
-  struct mline *w_hlines;	/* history buffer */
-#else
-  int	 w_histheight;		/* always 0 */
-#endif
-  enum state_t w_state;		/* parser state */
-  enum string_t w_StringType;
   int	 w_gr;			/* enable GR flag */
   int	 w_c1;			/* enable C1 flag */
 #ifdef KANJI
@@ -188,41 +206,74 @@ struct win
   char	*w_tabs;		/* line with tabs */
   int	 w_bell;		/* bell status of this window */
   int	 w_flow;		/* flow flags */
-  FILE	*w_logfp;		/* log to file */
+  struct logfile *w_log;	/* log to file */
+  int    w_logsilence;		/* silence in secs */
   int	 w_monitor;		/* monitor status */
-  struct lastio_s
-    {
-      time_t lastio;		/* timestamp of last filedescriptor activity */
-      int seconds;		/* tell us when lastio + seconds < time() */
-    } w_tstamp;
+  int	 w_silencewait;		/* wait for silencewait secs */
+  int	 w_silence;		/* silence status (Lloyd Zusman) */
+  char	 w_vbwait;            
   char	 w_norefresh;		/* dont redisplay when switching to that win */
-  char   w_wlock;		/* WLOCK_AUTO, WLOCK_OFF, WLOCK_ON */
-  struct user *w_wlockuser;	/* NULL when unlocked or user who writes */
-#ifdef MULTIUSER
-  AclBits w_userbits[ACL_BITS_PER_WIN];
-  AclBits w_lio_notify;		/* whom to tell when lastio+seconds < time() */
-  AclBits w_mon_notify;		/* whom to tell monitor statis */
+#ifdef HAVE_BRAILLE
+  int	 w_bd_x, w_bd_y;	/* Braille cursor position */
+#endif
+
+#ifdef COPY_PASTE
+  int    w_slowpaste;		/* do careful writes to the window */
+  int	 w_histheight;		/* all histbases are malloced with width * histheight */
+  int	 w_histidx;		/* 0 <= histidx < histheight; where we insert lines */
+  struct mline *w_hlines;	/* history buffer */
+  struct paster w_paster;	/* paste info */
+#else
+  int	 w_histheight;		/* always 0 */
+#endif
+  int	 w_pid;			/* process at the other end of ptyfd */	
+
+  char  *w_cmdargs[MAXARGS];	/* command line argument vector */
+  char	*w_dir;			/* directory for chdir */
+  char	*w_term;		/* TERM to be set instead of "screen" */
+
+  slot_t w_slot;		/* utmp slot */
+#if defined (UTMPOK)
+  struct utmp w_savut;		/* utmp entry of this window */
+#endif
+
+  char	 w_tty[MAXSTR];
+
+#ifdef BUILTIN_TELNET
+  struct sockaddr_in w_telsa;
+  char   w_telbuf[IOSIZE];
+  int    w_telbufl;
+  char   w_telmopts[256];
+  char   w_telropts[256];
+  int    w_telstate;
+  char   w_telsubbuf[128];
+  int    w_telsubidx;
+  struct event w_telconnev;
 #endif
 };
 
+
+#define w_width  w_layer.l_width
+#define w_height w_layer.l_height
+#define w_x      w_layer.l_x
+#define w_y      w_layer.l_y
+
 /* definitions for w_type */
-#define TTY_TYPE_PTY		0
-#define TTY_TYPE_PLAIN		1
+#define W_TYPE_PTY		0
+#define W_TYPE_PLAIN		1
+#define W_TYPE_TELNET		2
 
-
-/* definitions for wlocktype */
-#define WLOCK_OFF	0	/* all who are in w_userbits can write */
-#define WLOCK_AUTO	1	/* who selects first, can write */
-#define WLOCK_ON	2	/* w_wlockuser writes even if deselected */
 
 /*
  * Definitions for flow
- *   000  -(-)
- *   001  +(-)
- *   010  -(+)
- *   011  +(+)
- *   100  -(a)
- *   111  +(a)
+ *   000  -(-)	flow off, auto would be off
+ *   001  +(-)	flow on , auto would be off
+ *   010  -(+)	flow off, auto would be on
+ *   011  +(+)	flow on , auto would be on
+ *   100  -	flow auto, currently off
+ *   111  +	flow auto, currently on
+ * Application controls auto_flow via TIOCPKT, if available, 
+ * else via application keypad mode.
  */
 #define FLOW_NOW	(1<<0)
 #define FLOW_AUTO	(1<<1)
@@ -238,3 +289,5 @@ struct win
 #define WIN(y) ((y < fore->w_histheight) ? \
       &fore->w_hlines[(fore->w_histidx + y) % fore->w_histheight] \
     : &fore->w_mlines[y - fore->w_histheight])
+
+#define Layer2Window(l) ((struct win *)(l)->l_bottom->l_data)

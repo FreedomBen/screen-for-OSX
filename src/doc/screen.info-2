@@ -1,9 +1,9 @@
-This is Info file screen.info, produced by Makeinfo-1.55 from the input
+This is Info file screen.info, produced by Makeinfo-1.64 from the input
 file ./screen.texinfo.
 
    This file documents the `Screen' virtual terminal manager.
 
-   Copyright (c) 1993 Free Software Foundation, Inc.
+   Copyright (c) 1993-1995 Free Software Foundation, Inc.
 
    Permission is granted to make and distribute verbatim copies of this
 manual provided the copyright notice and this permission notice are
@@ -18,6 +18,420 @@ permission notice identical to this one.
 manual into another language, under the above conditions for modified
 versions, except that this permission notice may be stated in a
 translation approved by the Foundation.
+
+
+File: screen.info,  Node: Detach,  Next: Power Detach,  Up: Session Management
+
+Detach
+======
+
+ - Command: autodetach STATE
+     (none)
+     Sets whether `screen' will automatically detach upon hangup, which
+     saves all your running programs until they are resumed with a
+     `screen -r' command.  When turned off, a hangup signal will
+     terminate `screen' and all the processes it contains. Autodetach is
+     on by default.
+
+ - Command: detach
+     (`C-a d', `C-a C-d')
+     Detach the `screen' session (disconnect it from the terminal and
+     put it into the background).  A detached `screen' can be resumed by
+     invoking `screen' with the `-r' option. (*note Invoking Screen::.)
+
+ - Command: password [CRYPTED_PW]
+     (none)
+     Present a crypted password in your `.screenrc' file and screen will
+     ask for it, whenever someone attempts to resume a detached
+     session. This is useful, if you have privileged programs running
+     under `screen' and you want to protect your session from reattach
+     attempts by users that managed to assume your uid. (I.e. any
+     superuser.)  If no crypted password is specified, screen prompts
+     twice a password and places its encryption in the paste buffer.
+     Default is `none', which disables password checking.
+
+
+File: screen.info,  Node: Power Detach,  Next: Lock,  Prev: Detach,  Up: Session Management
+
+Power Detach
+============
+
+ - Command: pow_detach
+     (`C-a D')
+     Mainly the same as `detach', but also sends a HANGUP signal to the
+     parent process of `screen'.
+     *Caution*: This will result in a logout if `screen' was started
+     from your login shell.
+
+ - Command: pow_detach_msg [MESSAGE]
+     (none)
+     The MESSAGE specified here is output whenever a power detach is
+     performed. It may be used as a replacement for a logout message or
+     to reset baud rate, etc.  Without parameter, the current message
+     is shown.
+
+
+File: screen.info,  Node: Lock,  Next: Multiuser Session,  Prev: Power Detach,  Up: Session Management
+
+Lock
+====
+
+ - Command: lockscreen
+     (`C-a x', `C-a C-x')
+     Call a screenlock program (`/local/bin/lck' or `/usr/bin/lock' or
+     a builtin, if no other is available). Screen does not accept any
+     command keys until this program terminates. Meanwhile processes in
+     the windows may continue, as the windows are in the detached state.
+     The screenlock program may be changed through the environment
+     variable `$LOCKPRG' (which must be set in the shell from which
+     `screen' is started) and is executed with the user's uid and gid.
+
+     Warning: When you leave other shells unlocked and have no password
+     set on `screen', the lock is void: One could easily re-attach from
+     an unlocked shell. This feature should rather be called
+     `lockterminal'.
+
+
+File: screen.info,  Node: Multiuser Session,  Next: Session Name,  Prev: Lock,  Up: Session Management
+
+Multiuser Session
+=================
+
+   These commands allow other users to gain access to one single
+`screen' session. When attaching to a multiuser `screen' the
+sessionname is specified as `username/sessionname' to the `-S' command
+line option.  `Screen' must be compiled with multiuser support to
+enable features described here.
+
+* Menu:
+
+* Multiuser::			Enable / Disable multiuser mode.
+* Acladd::			Enable a specific user.
+* Aclchg::                      Change a users permissions.
+* Acldel::			Disable a specific user.
+* Aclgrp::			Grant a user permissions to other users.
+* Displays::			List all active users at their displays.
+* Umask::			Predefine access to new windows.
+* Wall::                        Write a message to all users.
+* Writelock::                   Grant exclusive window access.
+* Su::                          Substitute user.
+
+
+File: screen.info,  Node: Multiuser,  Next: Acladd,  Up: Multiuser Session
+
+Multiuser
+---------
+
+ - Command: multiuser STATE
+     (none)
+     Switch between single-user and multi-user mode. Standard screen
+     operation is single-user. In multi-user mode the commands
+     `acladd', `aclchg' and `acldel' can be used to enable (and
+     disable) other users accessing this `screen'.
+
+
+File: screen.info,  Node: Acladd,  Next: Aclchg,  Prev: Multiuser,  Up: Multiuser Session
+
+Acladd
+------
+
+ - Command: acladd USERNAMES
+ - Command: addacl USERNAMES
+     (none)
+     Enable users to fully access this screen session. USERNAMES can be
+     one user or a comma separated list of users. This command enables
+     to attach to the `screen' session and performs the equivalent of
+     `aclchg USERNAMES +rwx "#?"'. To add a user with restricted access,
+     use the `aclchg' command below.  `Addacl' is a synonym to `acladd'.
+     Multi-user mode only.
+
+
+File: screen.info,  Node: Aclchg,  Next: Acldel,  Prev: Acladd,  Up: Multiuser Session
+
+Aclchg
+------
+
+ - Command: aclchg USERNAMES PERMBITS LIST
+ - Command: chacl USERNAMES PERMBITS LIST
+     (none)
+     Change permissions for a comma separated list of users.
+     Permission bits are represented as `r', `w' and `x'.  Prefixing
+     `+' grants the permission, `-' removes it. The third parameter is
+     a comma separated list of commands or windows (specified either by
+     number or title). The special list `#' refers to all windows, `?'
+     to all commands. If USERNAMES consists of a single `*', all known
+     users is affected.  A command can be executed when the user has
+     the `x' bit for it. The user can type input to a window when he
+     has its `w' bit set and no other user obtains a writelock for this
+     window. Other bits are currently ignored.  To withdraw the
+     writelock from another user in e.g. window 2: `aclchg USERNAME
+     -w+w 2'. To allow read-only access to the session: `aclchg
+     USERNAME -w "#"'. As soon as a user's name is known to screen, he
+     can attach to the session and (per default) has full permissions
+     for all command and windows. Execution permission for the acl
+     commands, `at' and others should also be removed or the user may
+     be able to regain write permission.  `Chacl' is a synonym to
+     `aclchg'.  Multi-user mode only.
+
+
+File: screen.info,  Node: Acldel,  Next: Aclgrp,  Prev: Aclchg,  Up: Multiuser Session
+
+Acldel
+------
+
+ - Command: acldel USERNAME
+     (none)
+     Remove a user from screen's access control list. If currently
+     attached, all the user's displays are detached from the session.
+     He cannot attach again.  Multi-user mode only.
+
+
+File: screen.info,  Node: Aclgrp,  Next: Displays,  Prev: Acldel,  Up: Multiuser Session
+
+Aclgrp
+------
+
+ - Command: aclgrp USERNAME [GROUPNAME]
+     (none)
+     Creates groups of users that share common access rights. The name
+     of the group is the username of the group leader. Each member of
+     the  group  inherits  the  permissions  that  are granted  to the
+     group leader. That means, if a user fails an access check, another
+     check is made for the group leader.  A user is removed from all
+     groups the special value `none' is used for GROUPNAME. If the
+     second parameter is omitted all groups the user is in are listed.
+
+
+File: screen.info,  Node: Displays,  Next: Umask,  Prev: Aclgrp,  Up: Multiuser Session
+
+Displays
+--------
+
+ - Command: displays
+     (`C-a *')
+     Shows a tabular listing  of  all  currently  connected  user
+     front-ends  (displays).   This  is most useful for multiuser
+     sessions.
+
+
+File: screen.info,  Node: Umask,  Next: Wall,  Prev: Displays,  Up: Multiuser Session
+
+aclumask
+--------
+
+ - Command: aclumask [[USERS]+BITS |[USERS]-BITS .... ]
+ - Command: umask [[USERS]+BITS |[USERS]-BITS .... ]
+     (none)
+     This specifies the access other users have to  windows  that will
+     be  created  by  the caller of the command. USERS may be no, one
+     or a comma separated list of known usernames.  If  no  users  are
+     specified,  a  list of all currently known users is assumed.  BITS
+     is any  combination  of  access  control  bits  allowed defined
+     with the `aclchg' command. The special username `?' predefines the
+     access that  not  yet  known  users  will  be granted  to any
+     window initially.  The special username `??' predefines the access
+     that not yet known users  are  granted to any command. Rights of
+     the special username nobody cannot be changed (see the `su'
+     command).  `Umask' is a synonym to `aclumask'.
+
+
+File: screen.info,  Node: Wall,  Next: Writelock,  Prev: Umask,  Up: Multiuser Session
+
+Wall
+----
+
+ - Command: wall MESSAGE
+     (none)
+     Write a message to all displays. The message will appear in the
+     terminal's status line.
+
+
+File: screen.info,  Node: Writelock,  Next: Su,  Prev: Wall,  Up: Multiuser Session
+
+Writelock
+---------
+
+ - Command: writelock ON|OFF|AUTO
+     (none)
+     In addition to access control lists, not all users may be able to
+     write to the same window at once. Per default, writelock is in
+     `auto' mode and grants exclusive input permission to the user who
+     is the first to switch to the particular window. When he leaves
+     the window, other users may obtain the writelock (automatically).
+     The writelock of the current window is disabled by the command
+     `writelock off'. If the user issues the command `writelock on' he
+     keeps the exclusive write permission while switching to other
+     windows.
+
+ - Command: defwritelock ON|OFF|AUTO
+     (none)
+     Sets the default writelock behavior for new windows. Initially all
+     windows will be created with no writelocks.
+
+
+File: screen.info,  Node: Su,  Prev: Writelock,  Up: Multiuser Session
+
+Su
+--
+
+ - Command: su [USERNAME [PASSWORD [PASSWORD2]]]
+     (none)
+     Substitute the user of a display. The  command  prompts  for all
+     parameters that are omitted. If passwords are specified as
+     parameters, they have  to  be  specified  un-crypted.  The first
+     password  is matched against the systems passwd database, the
+     second password  is  matched  against  the `screen' password  as
+     set  with the commands `acladd' or `password'.  `Su' may be useful
+     for the `screen' administrator to test multiuser  setups.  When
+     the  identification  fails,  the  user has access to the commands
+     available for user `nobody'. These are `detach', `license',
+     `version', `help' and `displays'.
+
+
+File: screen.info,  Node: Session Name,  Next: Suspend,  Prev: Multiuser Session,  Up: Session Management
+
+Session Name
+============
+
+ - Command: sessionname [NAME]
+     (none)
+     Rename the current session. Note that for `screen -list' the name
+     shows up with the process-id prepended. If the argument NAME is
+     omitted, the name of this session is displayed.
+     *Caution*: The `$STY' environment variable still reflects the old
+     name. This may result in confusion.  The default is constructed
+     from the tty and host names.
+
+
+File: screen.info,  Node: Suspend,  Next: Quit,  Prev: Session Name,  Up: Session Management
+
+Suspend
+=======
+
+ - Command: suspend
+     (`C-a z', `C-a C-z')
+     Suspend `screen'.  The windows are in the detached state while
+     `screen' is suspended.  This feature relies on the parent shell
+     being able to do job control.
+
+
+File: screen.info,  Node: Quit,  Prev: Suspend,  Up: Session Management
+
+Quit
+====
+
+ - Command: quit
+     (`C-a C-\')
+     Kill all windows and terminate `screen'.  Note that on VT100-style
+     terminals the keys `C-4' and `C-\' are identical.  So be careful
+     not to type `C-a C-4' when selecting window no. 4.  Use the empty
+     bind command (as in `bind "^\"') to remove a key binding (*note
+     Key Binding::.).
+
+
+File: screen.info,  Node: Regions,  Next: Window Settings,  Prev: Session Management,  Up: Top
+
+Regions
+*******
+
+   Screen has the ability to display more than one window on the user's
+display. This is done by splitting the screen in regions, which can
+contain different windows.
+
+* Menu:
+
+* Split::			Split a region into two
+* Focus::			Change to the next region
+* Only::			Delete all other regions
+* Remove::			Delete the current region
+* Caption::			Control the window's caption
+
+
+File: screen.info,  Node: Split,  Next: Focus,  Up: Regions
+
+Split
+=====
+
+ - Command: split
+     (`C-a S')
+     Split the current region into two new ones. All regions on the
+     display are resized to make room for the new region. The blank
+     window is displayed on the new region.
+
+
+File: screen.info,  Node: Focus,  Next: Only,  Prev: Split,  Up: Regions
+
+Focus
+=====
+
+ - Command: focus
+     (`C-a Tab')
+     Move the input focus to the next region. This is done in a cyclic
+     way so that the top region is selected after the bottom one.
+
+
+File: screen.info,  Node: Only,  Next: Remove,  Prev: Focus,  Up: Regions
+
+Only
+====
+
+ - Command: only
+     (`C-a Q')
+     Kill all regions but the current one.
+
+
+File: screen.info,  Node: Remove,  Next: Caption,  Prev: Only,  Up: Regions
+
+Remove
+======
+
+ - Command: remove
+     (`C-a X')
+     Kill the current region. This is a no-op if there is only one
+     region.
+
+
+File: screen.info,  Node: Caption,  Prev: Remove,  Up: Regions
+
+Caption
+=======
+
+ - Command: caption `always'|`splitonly' [STRING]
+ - Command: caption `string' [STRING]
+     (none)
+     This command controls the display of the window captions. Normally
+     a caption is only used if more than one window is shown on the
+     display (split screen mode). But if the type is set to `always',
+     `screen' shows a caption even if only one window is displayed. The
+     default is `splitonly'.
+
+     The second form changes the text used for the caption. You can use
+     all string escapes (*Note String Escapes::). `Screen' uses a
+     default of `%3n %t'.
+
+     You can mix both forms by providing the string as an additional
+     argument.
+
+
+File: screen.info,  Node: Window Settings,  Next: Virtual Terminal,  Prev: Regions,  Up: Top
+
+Window Settings
+***************
+
+   These commands control the way `screen' treats individual windows in
+a session.  *Note Virtual Terminal::, for commands to control the
+terminal emulation itself.
+
+* Menu:
+
+* Naming Windows::		Control the name of the window
+* Console::			See the host's console messages
+* Kill::                        Destroy an unwanted window
+* Login::                       Control `/etc/utmp' logging
+* Mode::                        Control the file mode of the pty
+* Monitor::                     Watch for activity in a window
+* Windows::			List the active windows
+* Hardstatus::			Set a window's hardstatus line
 
 
 File: screen.info,  Node: Naming Windows,  Next: Console,  Up: Window Settings
@@ -178,9 +592,9 @@ Console
 
  - Command: console [STATE]
      (none)
-     Grabs or ungrabs the machines console output to a window. When the
-     argument is omitted the current state is displayed.  *Note*: Only
-     the owner of `/dev/console' can grab the console output. This
+     Grabs or un-grabs the machines console output to a window. When
+     the argument is omitted the current state is displayed.  *Note*:
+     Only the owner of `/dev/console' can grab the console output. This
      command is only available if the host supports the ioctl
      `TIOCCONS'.
 
@@ -196,8 +610,9 @@ Kill
      If there is an `exec' command running (*note Exec::.) then it is
      killed.  Otherwise the process (e.g. shell) running in the window
      receives a `HANGUP' condition, the window structure is removed and
-     screen switches to the previously displayed window. When the last
-     window is destroyed, `screen' exits.
+     screen (your display) switches to another window. When the last
+     window is destroyed, `screen' exits.  After a kill screen switches
+     to the previously displayed window.
      *Caution*: `emacs' users may find themselves killing their `emacs'
      session when trying to delete the current line.  For this reason,
      it is probably wise to use a different command character (*note
@@ -237,7 +652,7 @@ Mode
      The mode of each newly allocated pseudo-tty is set to MODE.  MODE
      is an octal number as used by chmod(1).  Defaults to 0622 for
      windows which are logged in, 0600 for others (e.g. when `-ln' was
-     specified for creation. *Note Screen Command::).
+     specified for creation. *note Screen Command::.).
 
 
 File: screen.info,  Node: Monitor,  Next: Windows,  Prev: Mode,  Up: Window Settings
@@ -284,17 +699,20 @@ Windows
      (`C-a w', `C-a C-w')
      Uses the message line to display a list of all the windows.  Each
      window is listed by number with the name of the program running in
-     the window (or its title); the current window is marked with a `*';
-     the previous window is marked with a `-'; all the windows that are
-     logged in are marked with a `$' (*note Login::.); a background
-     window that has received a bell is marked with a `!'; a background
-     window that is being monitored and has had activity occur is
-     marked with an `@' (*note Monitor::.); a window which has output
-     logging turned on is marked with `(L)'; windows occupied by other
-     users are marked with `&'; windows in the zombie state are marked
-     with `Z'.  If this list is too long to fit on the terminal's
-     status line only the portion around the current window is
-     displayed.
+     the window (or its title).
+
+     The current window is marked with a `*'; the previous window is
+     marked with a `-'; all the windows that are logged in are marked
+     with a `$' (*note Login::.); a background window that has received
+     a bell is marked with a `!'; a background window that is being
+     monitored and has had activity occur is marked with an `@' (*note
+     Monitor::.); a window which has output logging turned on is marked
+     with `(L)'; windows occupied by other users are marked with `&' or
+     `&&' if the window is shared by other users; windows in the zombie
+     state are marked with `Z'.
+
+     If this list is too long to fit on the terminal's status line only
+     the portion around the current window is displayed.
 
 
 File: screen.info,  Node: Hardstatus,  Prev: Windows,  Up: Window Settings
@@ -304,23 +722,26 @@ Hardstatus
 
    `Screen' maintains a hardstatus line for every window. If a window
 gets selected, the display's hardstatus will be updated to match the
-window's hardstatus line. If the display has no hardstatus the line
-will be displayed as a standard screen message.  The hardstatus line
-can be changed with the ANSI Application Program Command (APC):
-`ESC_<string>ESC\'. As a convenience for xterm users the sequence
-`ESC]0..2;<string>^G' is also accepted.
+window's hardstatus line.  The hardstatus line can be changed with the
+ANSI Application Program Command (APC): `ESC_<string>ESC\'. As a
+convenience for xterm users the sequence `ESC]0..2;<string>^G' is also
+accepted.
 
- - Command: defhstatus
+ - Command: defhstatus [STATUS]
      (none)
      The hardstatus line that all new windows will get is set to STATUS.
      This command is useful to make the hardstatus of every window
      display the window number or title or the like.  STATUS may
      contain the same directives as in the window messages, but the
      directive escape character is `^E' (octal 005) instead of `%'.
-     This was done to make a misinterpretion of program generated
+     This was done to make a misinterpretation of program generated
      hardstatus lines impossible.  If the parameter STATUS is omitted,
      the current default string is displayed.  Per default the
      hardstatus line of new windows is empty.
+
+ - Command: hstatus STATUS
+     (none)
+     Changes the current window's hardstatus line to STATUS.
 
 
 File: screen.info,  Node: Virtual Terminal,  Next: Copy and Paste,  Prev: Window Settings,  Up: Top
@@ -329,7 +750,7 @@ Virtual Terminal
 ****************
 
    Each window in a `screen' session emulates a VT100 terminal, with
-some extra functions added. The VT100 emulator is hardcoded, no other
+some extra functions added. The VT100 emulator is hard-coded, no other
 terminal types can be emulated.  The commands described here modify the
 terminal emulation.
 
@@ -395,7 +816,7 @@ functions, respectively.
      ESC * Pcs               (A)     Designate character set as G2
      ESC + Pcs               (A)     Designate character set as G3
      ESC [ Pn ; Pn H                 Direct Cursor Addressing
-     ESC [ Pn ; Pn f                 Direct Cursor Addressing
+     ESC [ Pn ; Pn f                 same as above
      ESC [ Pn J                      Erase in Display
            Pn = None or 0            From Cursor to End of Screen
                 1                    From Beginning of Screen to Cursor
@@ -408,6 +829,11 @@ functions, respectively.
      ESC [ Pn B                      Cursor Down
      ESC [ Pn C                      Cursor Right
      ESC [ Pn D                      Cursor Left
+     ESC [ Pn E                      Cursor next line
+     ESC [ Pn F                      Cursor previous line
+     ESC [ Pn G                      Cursor horizontal position
+     ESC [ Pn `                      same as above
+     ESC [ Pn d                      Cursor vertical position
      ESC [ Ps ;...; Ps m             Select Graphic Rendition
            Ps = None or 0            Default Rendition
                 1                    Bold
@@ -445,6 +871,7 @@ functions, respectively.
      ESC [ Pn P              (A)     Delete Character
      ESC [ Pn S                      Scroll Scrolling Region Up
      ESC [ Pn T                      Scroll Scrolling Region Down
+     ESC [ Pn ^                      same as above
      ESC [ Ps ;...; Ps h             Set Mode
      ESC [ Ps ;...; Ps l             Reset Mode
            Ps = 4            (A)     Insert Mode
@@ -567,9 +994,9 @@ Digraph
      resulting character is inserted in the input stream. For example,
      if the user enters `a"', an a-umlaut will be inserted. If the
      first character entered is a 0 (zero), `screen' will treat the
-     following charcters (up to three) as an octal number instead.  The
-     optional argument PRESET is treated as user input, thus one can
-     create an "umlaut" key.  For example the command `bindkey ^K
+     following characters (up to three) as an octal number instead.
+     The optional argument PRESET is treated as user input, thus one
+     can create an "umlaut" key.  For example the command `bindkey ^K
      digraph '"'' enables the user to generate an a-umlaut by typing
      `CTRL-K a'.
 
@@ -583,16 +1010,17 @@ Bell
      (none)
      When a bell character is sent to a background window, `screen'
      displays a notification in the message line.  The notification
-     message can be re-defined by means of the `bell' command.  Each
-     occurrence of `%' in MESSAGE is replaced by the number of the
-     window to which a bell has been sent, and each occurrence of `~'
-     is replaced by the definition for bell in your termcap (usually an
-     audible bell).  The default message is
+     message can be re-defined by this command.  Each occurrence of `%'
+     in MESSAGE is replaced by the number of the window to which a bell
+     has been sent, and each occurrence of `~' is replaced by the
+     definition for bell in your termcap (usually an audible bell).
+     The default message is
 
           'Bell in window %'
 
      An empty message can be supplied to the `bell_msg' command to
-     suppress output of a message line (`bell_msg ""').
+     suppress output of a message line (`bell_msg ""').  Without
+     parameter, the current message is shown.
 
  - Command: vbell [STATE]
      (`C-a C-g')
@@ -640,13 +1068,34 @@ Info
      Uses the message line to display some information about the current
      window: the cursor position in the form `(COLUMN,ROW)' starting
      with `(1,1)', the terminal width and height plus the size of the
-     scrollback buffer in lines, like in `(80,24)+50', various flag
-     settings (flow-control, insert mode, origin mode, wrap mode,
-     application-keypad mode, output logging, activity monitoring, and
-     redraw (`+' indicates enabled, `-' not)), the currently active
-     character set (`G0', `G1', `G2', or `G3'), and in square brackets
-     the terminal character sets that are currently designated as `G0'
-     through `G3'.  For system information use `time'.
+     scrollback buffer in lines, like in `(80,24)+50', the current
+     state of window XON/XOFF flow control is shown like this (see also
+     *Note Flow Control::):
+            +flow     automatic flow control, currently on.
+            -flow     automatic flow control, currently off.
+            +(+)flow  flow control enabled. Agrees with automatic control.
+            -(+)flow  flow control disabled. Disagrees with automatic control.
+            +(-)flow  flow control enabled. Disagrees with automatic control.
+            -(-)flow  flow control disabled. Agrees with automatic control.
+
+     The current line wrap setting (`+wrap' indicates enabled, `-wrap'
+     not) is also shown. The flags `ins', `org', `app', `log', `mon'
+     and `nored' are displayed when the window is in insert mode,
+     origin mode, application-keypad mode, has output logging, insert
+     mode, origin mode, application-keypad mode, output logging,
+     activity monitoring or partial redraw enabled.
+
+     The currently active character set (`G0', `G1', `G2', or `G3'),
+     and in square brackets the terminal character sets that are
+     currently designated as `G0' through `G3'.  Additional modes
+     depending on the type of the window are displayed at the end of
+     the status line (*note Window Types::.).
+
+     If the state machine of the terminal emulator is in a non-default
+     state, the info line is started with a string identifying the
+     current state.
+
+     For system information use `time'.
 
 
 File: screen.info,  Node: Redisplay,  Next: Wrap,  Prev: Info,  Up: Virtual Terminal
@@ -661,8 +1110,8 @@ Redisplay
      lines. The previous setting of full/partial refresh for each
      window is restored with `allpartial off'. This is a global flag
      that immediately takes effect on all windows overriding the
-     `partial' settings. It does not change the default redraw
-     behaviour of newly created windows.
+     `partial' settings. It does not change the default redraw behavior
+     of newly created windows.
 
  - Command: partial STATE
      (none)
@@ -729,6 +1178,12 @@ Window Size
      Set the display height to a specified number of lines. When no
      argument is given it toggles between 24 and 42 lines display.
 
+ - Command: fit
+     (`C-a F')
+     Change the window size to the size of the current region. This
+     command is needed because screen doesn't adapt the window size
+     automatically if the window is displayed more than once.
+
 
 File: screen.info,  Node: Character Processing,  Prev: Window Size,  Up: Virtual Terminal
 
@@ -748,7 +1203,7 @@ Character Processing
 
  - Command: gr [STATE]
      (none)
-     Turn GR charset switching on/off. Whenever screens sees an input
+     Turn GR charset switching on/off. Whenever screen sees an input
      char with an 8th bit set, it will use the charset stored in the GR
      slot and print the character with the 8th bit stripped. The
      default (see also `defgr') is not to process GR switching because
@@ -797,459 +1252,4 @@ Character Processing
      Like the `charset' command except that the default setting for new
      windows is changed. Shows current default if called without
      argument.
-
-
-File: screen.info,  Node: Copy and Paste,  Next: Subprocess Execution,  Prev: Virtual Terminal,  Up: Top
-
-Copy and Paste
-**************
-
-   For those confined to a hardware terminal, these commands provide a
-cut and paste facility more powerful than those provided by most
-windowing systems.
-
-* Menu:
-
-* Copy::                        Copy from scrollback to buffer
-* Paste::                       Paste from buffer into window
-* Registers::                   Longer-term storage
-* Screen-Exchange::             Sharing data between screen users
-* History::                     Recalling previous input
-
-
-File: screen.info,  Node: Copy,  Next: Paste,  Up: Copy and Paste
-
-Copying
-=======
-
- - Command: copy
-     (`C-a [', `C-a C-[', `C-a ESC')
-     Enter copy/scrollback mode. This allows you to copy text from the
-     current window and its history into the paste buffer. In this mode
-     a `vi'-like full screen editor is active, with controls as
-     outlined below.
-
-* Menu:
-
-* Line Termination::            End copied lines with CR/LF
-* Scrollback::                  Set the size of the scrollback buffer
-* Copy Mode Keys::              Remap keys in copy mode
-* Movement::                    Move around in the scrollback buffer
-* Marking::                     Select the text you want
-* Repeat count::                Repeat a command
-* Searching::                   Find the text you want
-* Specials::                    Other random keys
-
-
-File: screen.info,  Node: Line Termination,  Next: Scrollback,  Up: Copy
-
-CR/LF
------
-
- - Command: crlf [STATE]
-     (none)
-     This affects the copying of text regions with the `C-a [' command.
-     If it is set to `on', lines will be separated by the two character
-     sequence `CR'/`LF'.  Otherwise only `LF' is used.  `crlf' is off
-     by default.  When no parameter is given, the state is toggled.
-
-
-File: screen.info,  Node: Scrollback,  Next: Copy Mode Keys,  Prev: Line Termination,  Up: Copy
-
-Scrollback
-----------
-
- - Command: defscrollback NUM
-     (none)
-     Same as the `scrollback' command except that the default setting
-     for new windows is changed.  Defaults to 100.
-
- - Command: scrollback NUM
-     (none)
-     Set the size of the scrollback buffer for the current window to
-     NUM lines.  The default scrollback is 100 lines.  Use `C-a i' to
-     view the current setting.
-
-
-File: screen.info,  Node: Copy Mode Keys,  Next: Movement,  Prev: Scrollback,  Up: Copy
-
-markkeys
---------
-
- - Command: markkeys STRING
-     (none)
-     This is a method of changing the keymap used for copy/history
-     mode.  The string is made up of OLDCHAR=NEWCHAR pairs which are
-     separated by `:'. Example: The command `markkeys h=^B:l=^F:$=^E'
-     would set some keys to be more familiar to `emacs' users.  If your
-     terminal sends characters, that cause you to abort copy mode, then
-     this command may help by binding these characters to do nothing.
-     The no-op character is `' and is used like this: `markkeys @=L=H'
-     if you do not want to use the `H' or `L' commands any longer.  As
-     shown in this example, multiple keys can be assigned to one
-     function in a single statement.
-
-
-File: screen.info,  Node: Movement,  Next: Marking,  Prev: Copy Mode Keys,  Up: Copy
-
-Movement Keys
--------------
-
-`h', `j', `k', `l' move the cursor line by line or column by column.
-
-`0', `^' and `$' move to the leftmost column or to the first or last
-non-whitespace character on the line.
-
-`H', `M' and `L' move the cursor to the leftmost column of the top,
-center or bottom line of the window.
-
-`+' and `-' move the cursor to the leftmost column of the next or
-previous line.
-
-`G' moves to the specified absolute line (default: end of buffer).
-
-`|' moves to the specified absolute column.
-
-`w', `b', `e' move the cursor word by word.
-
-`C-u' and `C-d' scroll the display up/down by the specified amount of
-lines while preserving the cursor position. (Default: half screenfull).
-
-`C-b' and `C-f' move the cursor up/down a full screen.
-
-`g' moves to the beginning of the buffer.
-
-`%' jumps to the specified percentage of the buffer.
-
-   Note that Emacs-style movement keys can be specified by a .screenrc
-command. (`markkeys "h=^B:l=^F:$=^E"') There is no simple method for a
-full emacs-style keymap, however, as this involves multi-character
-codes.
-
-
-File: screen.info,  Node: Marking,  Next: Repeat count,  Prev: Movement,  Up: Copy
-
-Marking
--------
-
-   The copy range is specified by setting two marks. The text between
-these marks will be highlighted. Press `space' to set the first or
-second mark respectively.
-
-`Y' and `y' can be used to mark one whole line or to mark from start of
-line.
-
-`W' marks exactly one word.
-
-
-File: screen.info,  Node: Repeat count,  Next: Searching,  Prev: Marking,  Up: Copy
-
-Repeat Count
-------------
-
-   Any command in copy mode can be prefixed with a number (by pressing
-digits `0...9') which is taken as a repeat count. Example: `C-a C-[ H
-10 j 5 Y' will copy lines 11 to 15 into the paste buffer.
-
-
-File: screen.info,  Node: Searching,  Next: Specials,  Prev: Repeat count,  Up: Copy
-
-Searching
----------
-
-`/' `vi'-like search forward.
-
-`?' `vi'-like search backward.
-
-`C-a s' `emacs' style incremental search forward.
-
-`C-r' `emacs' style reverse i-search.
-
-
-File: screen.info,  Node: Specials,  Prev: Searching,  Up: Copy
-
-Specials
---------
-
-   There are, however, some keys that act differently here from in
-`vi'.  `Vi' does not allow to yank rectangular blocks of text, but
-`screen' does. Press
-
-`c' or `C' to set the left or right margin respectively. If no repeat
-count is given, both default to the current cursor position.
-Example: Try this on a rather full text screen: `C-a [ M 20 l SPACE c
-10 l 5 j C SPACE'.
-
-This moves one to the middle line of the screen, moves in 20 columns
-left, marks the beginning of the paste buffer, sets the left column,
-moves 5 columns down, sets the right column, and then marks the end of
-the paste buffer. Now try:
-`C-a [ M 20 l SPACE 10 l 5 j SPACE'
-
-and notice the difference in the amount of text copied.
-
-`J' joins lines. It toggles between 3 modes: lines separated by a
-newline character (012), lines glued seamless, or lines separated by a
-single space. Note that you can prepend the newline character with a
-carriage return character, by issuing a `set crlf on'.
-
-`v' is for all the `vi' users who use `:set numbers' - it toggles the
-left margin between column 9 and 1.
-
-`a' before the final space key turns on append mode. Thus the contents
-of the paste buffer will not be overwritten, but appended to.
-
-`A' turns on append mode and sets a (second) mark.
-
-`>' sets the (second) mark and writes the contents of the paste buffer
-to the screen-exchange file (`/tmp/screen-exchange' per default) once
-copy-mode is finished.  *Note Screen-Exchange::.
-This example demonstrates how to dump the whole scrollback buffer to
-that file:
-`C-a [ g SPACE G $ >'.
-
-`C-g' gives information about the current line and column.
-
-`x' exchanges the first mark and the current cursor position. You can
-use this to adjust an already placed mark.
-
-`@' does nothing.  Absolutely nothing.  Does not even exit copy mode.
-
-All keys not described here exit copy mode.
-
-
-File: screen.info,  Node: Paste,  Next: Registers,  Prev: Copy,  Up: Copy and Paste
-
-Paste
-=====
-
- - Command: paste [REGISTERS [DESTINATION]]
-     (`C-a ]', `C-a C-]')
-     Write the (concatenated) contents of the specified registers to
-     the stdin stream of the current window.  The register `.' is
-     treated as the paste buffer. If no parameter is specified the user
-     is prompted to enter a single register. The paste buffer can be
-     filled with the `copy', `history' and `readbuf' commands.  Other
-     registers can be filled with the `register', `readreg' and `paste'
-     commands.  If `paste' is called with a second argument, the
-     contents of the specified registers is pasted into the named
-     destination register rather than the window. If `.' is used as the
-     second argument, the display's paste buffer is the destination.
-     Note, that `paste' uses a wide variety of resources: Usually both,
-     a current window and a current display are required. But whenever
-     a second argument is specified no current window is needed. When
-     the source specification only contains registers (not the paste
-     buffer) then there need not be a current display (terminal
-     attached), as the registers are a global resource. The paste
-     buffer exists once for every user.
-
- - Command: pastefont [STATE]
-     Tell screen to include font information in the paste buffer. The
-     default is not to do so. This command is especially usefull for
-     multi character fonts like kanji.
-
- - Command: slowpaste MSEC
-     (none)
-     Define the speed text is inserted by the `paste' command.  If the
-     slowpaste value is nonzero text is written character by character.
-     `screen' will pause for MSEC milliseconds after each write to
-     allow the application to process the input. only use `slowpaste' if
-     your underlying system exposes flow control problems while pasting
-     large amounts of text.
-
- - Command: readreg [REGISTER [FILENAME]]
-     (none)
-     Does one of two things, dependent on number of arguments: with
-     zero or one arguments it it duplicates the paste buffer contents
-     into the register specified or entered at the prompt. With two
-     arguments it reads the contents of the named file into the
-     register, just as `readbuf' reads the screen-exchange file into
-     the paste buffer.  The following example will paste the system's
-     password file into the screen window (using register p, where a
-     copy remains):
-
-          C-a : readreg p /etc/passwd
-          C-a : paste p
-
-
-File: screen.info,  Node: Registers,  Next: Screen-Exchange,  Prev: Paste,  Up: Copy and Paste
-
-Registers
-=========
-
- - Command: copy_reg [KEY]
-     (none)
-     Removed. Use `readreg' instead.
-
- - Command: ins_reg [KEY]
-     (none)
-     Removed. Use `paste' instead.
-
- - Command: process [KEY]
-     (none)
-     Stuff the contents of the specified register into the `screen'
-     input queue. If no argument is given you are prompted for a
-     register name. The text is parsed as if it had been typed in from
-     the user's keyboard. This command can be used to bind multiple
-     actions to a single key.
-
- - Command: register KEY STRING
-     (none)
-     Save the specified STRING to the register KEY.
-
- - Command: stuff STRING
-     (none)
-     Stuff the string STRING in the input buffer of the current window.
-     This is like the `paste' command, but with much less overhead.
-     You cannot paste large buffers with the `stuff' command. It is most
-     useful for key bindings. *Note Bindkey::
-
-
-
-File: screen.info,  Node: Screen-Exchange,  Next: History,  Prev: Registers,  Up: Copy and Paste
-
-Screen-Exchange
-===============
-
- - Command: bufferfile [EXCHANGE-FILE]
-     (none)
-     Change the filename used for reading and writing with the paste
-     buffer.  If the EXCHANGE-FILE parameter is omitted, `screen'
-     reverts to the default of `/tmp/screen-exchange'.  The following
-     example will paste the system's password file into the screen
-     window (using the paste buffer, where a copy remains):
-
-          C-a : bufferfile /etc/passwd
-          C-a < C-a ]
-          C-a : bufferfile
-
- - Command: readbuf
-     (`C-a <')
-     Reads the contents of the current screen-exchange file into the
-     paste buffer.
-
- - Command: removebuf
-     (`C-a =')
-     Unlinks the screen-exchange file.
-
- - Command: writebuf
-     (`C-a >')
-     Writes the contents of the paste buffer to a public accessible
-     screen-exchange file. This is thought of as a primitive means of
-     communication between `screen' users on the same host. See also
-     `C-a ESC' (*note Copy::.).
-
-
-File: screen.info,  Node: History,  Prev: Screen-Exchange,  Up: Copy and Paste
-
-History
-=======
-
- - Command: history
-     (`C-a {')
-     Usually users work with a shell that allows easy access to previous
-     commands.  For example, `csh' has the command `!!' to repeat the
-     last command executed.  `screen' provides a primitive way of
-     recalling "the command that started ...": You just type the first
-     letter of that command, then hit `C-a {' and `screen' tries to
-     find a previous line that matches with the prompt character to the
-     left of the cursor. This line is pasted into this window's input
-     queue.  Thus you have a crude command history (made up by the
-     visible window and its scrollback buffer).
-
-
-File: screen.info,  Node: Subprocess Execution,  Next: Key Binding,  Prev: Copy and Paste,  Up: Top
-
-Subprocess Execution
-********************
-
-   Control Input or Output of a window by another filter process.  Use
-with care!
-
-* Menu:
-
-* Exec::                        The `exec' command syntax.
-* Using Exec::                  Weird things that filters can do.
-
-
-File: screen.info,  Node: Exec,  Next: Using Exec,  Up: Subprocess Execution
-
-Exec
-====
-
- - Command: exec [[FDPAT] NEWCOMMAND [ARGS ... ]]
-     (none)
-     Run a unix subprocess (specified by an executable path NEWCOMMAND
-     and its optional arguments) in the current window. The flow of
-     data between newcommand's stdin/stdout/stderr, the process already
-     running (shell) and screen itself (window) is controlled by the
-     filedescriptor pattern FDPAT.  This pattern is basically a three
-     character sequence representing stdin, stdout and stderr of
-     newcommand. A dot (`.') connects the file descriptor to screen. An
-     exclamation mark (`!') causes the file descriptor to be connected
-     to the already running process. A colon (`:') combines both.
-     User input will go to newcommand unless newcommand requests the
-     old process' output (FDPATs first character is `!' or `:') or a
-     pipe symbol (`|') is added to the end of FDPAT.
-     Invoking `exec' without arguments shows name and arguments of the
-     currently running subprocess in this window.
-     When a subprocess is running the `kill' command will affect it
-     instead of the window's process.
-     Refer to the postscript file `doc/fdpat.ps' for a confusing
-     illustration of all 21 possible combinations. Each drawing shows
-     the digits 2, 1, 0 representing the three file descriptors of
-     newcommand. The box marked `W' is usual pty that has the
-     application-process on its slave side.  The box marked `P' is the
-     secondary pty that now has screen at its master side.
-
-
-File: screen.info,  Node: Using Exec,  Prev: Exec,  Up: Subprocess Execution
-
-Using Exec
-==========
-
-Abbreviations:
-
-   * Whitespace between the word `exec' and FDPAT and the command name
-     can be omitted.
-
-   * Trailing dots and a FDPAT consisting only of dots can be omitted.
-
-   * A simple `|' is synonymous for the `!..|' pattern.
-
-   * The word `exec' can be omitted when the `|' abbreviation is used.
-
-   * The word `exec' can always be replaced by leading `!'.
-
-Examples:
-
-`!/bin/sh'
-`exec /bin/sh'
-`exec ... /bin/sh'
-     Creates another shell in the same window, while the original shell
-     is still running. Output of both shells is displayed and user
-     input is sent to the new `/bin/sh'.
-
-`!!stty 19200'
-`exec!stty 19200'
-`exec !.. stty 19200'
-     Set the speed of the window's tty. If your stty command operates
-     on stdout, then add another `!'. This is a useful command, when a
-     screen window is directly connected to a serial line that needs to
-     be configured.
-
-`|less'
-`exec !..| less'
-     This adds a pager to the window output. The special character `|'
-     is needed to give the user control over the pager although it gets
-     its input from the window's process. This works, because `less'
-     listens on stderr (a behavior that `screen' would not expect
-     without the `|') when its stdin is not a tty. `Less' versions
-     newer than 177 fail miserably here; good old `pg' still works.
-
-`!:sed -n s/.*Error.*/\007/p'
-     Sends window output to both, the user and the sed command. The sed
-     inserts an additional bell character (oct. 007) to the window
-     output seen by screen.  This will cause 'Bell in window x'
-     messages, whenever the string `Error' appears in the window.
 

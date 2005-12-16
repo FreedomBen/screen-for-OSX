@@ -46,6 +46,7 @@
 /*
  *  Parser state
  */
+/* keep state_t and state_t_string in sync! */
 enum state_t 
 {
   LIT,				/* Literal input */
@@ -59,6 +60,7 @@ enum state_t
   PRIN4				/* CSI 4 seen in printer mode */
 };
 
+/* keep string_t and string_t_string in sync! */
 enum string_t 
 {
   NONE,

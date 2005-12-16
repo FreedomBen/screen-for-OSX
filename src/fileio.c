@@ -37,11 +37,7 @@ RCS_ID("$Id$ FAU")
 #include "screen.h"
 #include "extern.h"
 
-#ifdef NETHACK
-extern int nethackflag;
-#endif
-
-extern struct display *display;
+extern struct display *display, *displays;
 extern struct win *fore;
 extern int real_uid, eff_uid;
 extern int real_gid, eff_gid;
@@ -54,8 +50,8 @@ extern char *BufferFile;
 extern int hardcopy_append;
 extern char *hardcopydir;
 
-static char *findrcfile __P((char *));
 static char *CatExtra __P((char *, char *));
+static char *findrcfile __P((char *));
 
 
 static FILE *fp = NULL;
@@ -109,14 +105,9 @@ char *rcfile;
   else
     {
       debug("findrcfile: you specified nothing...\n");
-      if ((p = getenv("ISCREENRC")) != NULL && *p != '\0')
+      if ((p = getenv("SCREENRC")) != NULL && *p != '\0')
 	{
-	  debug1("  ... but $ISCREENRC has: '%s'\n", p);
-	  rc = SaveStr(p);
-	}
-      else if ((p = getenv("SCREENRC")) != NULL && *p != '\0')
-	{
-	  debug1("  ... but $SCREENRC has: '%s'\n", p);
+	  debug1("  $SCREENRC has: '%s'\n", p);
 	  rc = SaveStr(p);
 	}
       else
@@ -124,9 +115,7 @@ char *rcfile;
 	  debug("  ...nothing in $SCREENRC, defaulting $HOME/.screenrc\n");
 	  if (strlen(home) > sizeof(buf) - 12)
 	    Panic(0, "Rc: home too large");
-	  sprintf(buf, "%s/.iscreenrc", home);
-          if (access(buf, R_OK))
-	    sprintf(buf, "%s/.screenrc", home);
+	  sprintf(buf, "%s/.screenrc", home);
 	  rc = SaveStr(buf);
 	}
     }
@@ -281,18 +270,44 @@ char *rcfilename;
   rc_name = "";
 }
 
+/*
+ * Running a Command Line in the environment determined by the display.
+ * The fore window is taken from the display as well as the user.
+ * This is bad when we run detached.
+ */
 void
 RcLine(ubuf)
 char *ubuf;
 {
   char *args[MAXARGS], *buf;
+#ifdef MULTIUSER
+  extern struct user *EffectiveAclUser;	/* acl.c */
+  extern struct user *users;		/* acl.c */
+#endif
 
-  buf = expand_vars(ubuf, display); 
+  if (display)
+    fore = D_fore;
+  buf = expand_vars(ubuf, display);
   if (Parse(buf, args) <= 0)
     return;
+#ifdef MULTIUSER
+  if (!display)
+    {
+      /* the session owner does it, when there is no display here */
+      EffectiveAclUser = users;        
+      debug1("RcLine: WARNING, no display no user! Session owner does: %s",
+             ubuf);
+    }
+#endif
   DoCommand(args);
+#ifdef MULTIUSER
+  EffectiveAclUser = 0;
+#endif
 }
 
+/*
+ * needs display for copybuffer access and termcap dumping
+ */
 void
 WriteFile(dump)
 int dump;
@@ -499,11 +514,6 @@ int *lenp;
     {
       if (l < 0) 
         l = 0;
-#ifdef NETHACK
-      if (nethackflag)
-        Msg(errno, "You choke on your food: %d bytes from %s", l, fn);
-      else
-#endif
       Msg(errno, "Got only %d bytes from %s", l, fn);
       close(i);
     }
@@ -664,4 +674,41 @@ int mode;
   debug1("secopen ok - returning %d\n", fd);
   return fd;
 #endif
+}
+
+
+int
+printpipe(p, cmd)
+struct win *p;
+char *cmd;
+{
+  int pi[2];
+  if (pipe(pi))
+    {
+      WMsg(p, errno, "printing pipe");
+      return -1;
+    }
+  switch (fork())
+    {
+    case -1:
+      WMsg(p, errno, "printing fork");
+      return -1;
+    case 0:
+      display = p->w_pdisplay;
+      displays = 0;
+      close(0);
+      dup(pi[0]);
+      closeallfiles(0);
+      if (setgid(real_gid) || setuid(real_uid))
+        Panic(errno, "printpipe setuid");
+#ifdef SIGPIPE
+      signal(SIGPIPE, SIG_DFL);
+#endif
+      execl("/bin/sh", "sh", "-c", cmd, 0);
+      Panic(errno, "/bin/sh");
+    default:
+      break;
+    }
+  close(pi[0]);
+  return pi[1];
 }

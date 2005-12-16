@@ -39,7 +39,7 @@ RCS_ID("$Id$ FAU")
 
 #include "screen.h"
 
-#ifdef DIRENT
+#ifdef HAVE_DIRENT_H
 # include <dirent.h>
 #else
 # include <sys/dir.h>
@@ -50,13 +50,12 @@ RCS_ID("$Id$ FAU")
 
 static int   CheckPid __P((int));
 static void  ExecCreate __P((struct msg *));
-#ifdef PASSWORD
-static int CheckPasswd __P((char *, int, char *));
-#endif
 #if defined(_SEQUENT_) && !defined(NAMEDPIPE)
 # define connect sconnect	/* _SEQUENT_ has braindamaged connect */
 static int   sconnect __P((int, struct sockaddr *, int));
 #endif
+static void  FinishAttach __P((struct msg *));
+static void  AskPassword __P((struct msg *));
 
 
 extern char *RcFileName, *extra_incap, *extra_outcap;
@@ -66,20 +65,14 @@ extern char *attach_tty, *LoginName, HostName[];
 extern struct display *display, *displays;
 extern struct win *fore, *wtab[], *console_window, *windows;
 extern struct NewWindow nwin_undef;
-#ifdef NETHACK
-extern int nethackflag;
-#endif
 #ifdef MULTIUSER
 extern char *multi;
 #endif
 
-#ifdef PASSWORD
-extern int CheckPassword;
-extern char Password[];
-#endif
 extern char *getenv();
 
 extern char SockPath[];
+extern struct event serv_read;
 
 #ifdef MULTIUSER
 # define SOCKMODE (S_IWRITE | S_IREAD | (displays ? S_IEXEC : 0) | (multi ? 1 : 0))
@@ -92,18 +85,20 @@ extern char SockPath[];
  *  Socket directory manager
  *
  *  fdp: pointer to store the first good socket.
- *  nfoundp: pointer to store the number of sockets found.
+ *  nfoundp: pointer to store the number of sockets found matching.
+ *  notherp: pointer to store the number of sockets not matching.
  *  match: string to match socket name.
  *
  *  The socket directory must be in SockPath!
- *  The global variables LoginName, multi, rflag, xflag, dflag, quietflag,
- *  nethackflag, SockPath are used.
- *    
+ *  The global variables LoginName, multi, rflag, xflag, dflag,
+ *  quietflag, SockPath are used.
+ *
  *  The first good socket is stored in fdp and its name is
  *  appended to SockPath.
  *  If none exists or fdp is NULL SockPath is not changed.
  *
  *  Returns: number of good sockets.
+ *    
  */
 
 int
@@ -120,7 +115,7 @@ char *match;
   int  matchlen = 0;
   char *name, *n;
   int firsts = -1, sockfd;
-  char *firstn = 0;
+  char *firstn = NULL;
   int nfound = 0, ngood = 0, ndead = 0, nwipe = 0, npriv = 0;
   struct sent
     {
@@ -151,7 +146,7 @@ char *match;
 #endif
 
   if ((dirp = opendir(SockPath)) == 0)
-    Panic(errno, "Cannot opendir %s\n", SockPath);
+    Panic(errno, "Cannot opendir %s", SockPath);
 
   slist = 0;
   slisttail = &slist;
@@ -164,7 +159,7 @@ char *match;
       if (matchlen)
 	{
 	  n = name;
-	  /* if we don't want to match digits swip them */
+	  /* if we don't want to match digits. Skip them */
 	  if ((*match <= '0' || *match > '9') && (*n > '0' && *n <= '9'))
 	    {
 	      while (*n >= '0' && *n <= '9')
@@ -183,10 +178,10 @@ char *match;
 
       debug1("stat %s\n", SockPath);
       errno = 0;
-      debug2("uid = %d, gid = %d\n", (int)getuid(), (int)getgid());
-      debug2("euid = %d, egid = %d\n", (int)geteuid(), (int)getegid());
+      debug2("uid = %d, gid = %d\n", getuid(), getgid());
+      debug2("euid = %d, egid = %d\n", geteuid(), getegid());
       if (stat(SockPath, &st))
-        {
+	{
 	  debug1("errno = %d\n", errno);
 	  continue;
 	}
@@ -194,23 +189,25 @@ char *match;
 #ifndef SOCK_NOT_IN_FS
 # ifdef NAMEDPIPE
 #  ifdef S_ISFIFO
+      debug("S_ISFIFO?\n");
       if (!S_ISFIFO(st.st_mode))
 	continue;
 #  endif
 # else
 #  ifdef S_ISSOCK
+      debug("S_ISSOCK?\n");
       if (!S_ISSOCK(st.st_mode))
 	continue;
 #  endif
 # endif
 #endif
 
-      debug2("st.st_uid = %d, real_uid = %d\n", (int)st.st_uid, real_uid);
+      debug2("st.st_uid = %d, real_uid = %d\n", st.st_uid, real_uid);
       if (st.st_uid != real_uid)
 	continue;
-      mode = st.st_mode & 0777;
+      mode = (int)st.st_mode & 0777;
       debug1("  has mode 0%03o\n", mode);
-#ifdef MULTIUSER
+#ifdef MULTIUSER 
       if (multi && ((mode & 0677) != 0601))
         {
 	  debug("  is not a MULTI-USER session");
@@ -243,7 +240,7 @@ char *match;
       if (sockfd == -1)
 	{
 	  debug2("  MakeClientSocket failed, unreachable? %d %d\n",
-	  	 matchlen, wipeflag);
+	         matchlen, wipeflag);
 	  sent->mode = -3;
 	  /* Unreachable - it is dead if we detect that it's local
            * or we specified a match
@@ -264,7 +261,7 @@ char *match;
 			}
 		    }
 	    }
-	  npriv++;
+	  npriv++;		/* a good socket that was not for us */
 	  continue;
 	}
 
@@ -278,13 +275,13 @@ char *match;
        * mode 700: socket is attached.
        * xflag implies rflag here.
        *
-       * fail, when socket mode is not 600 or 700
+       * fail, when socket mode mode is not 600 or 700
        * fail, when we want to detach w/o reattach, but it already is detached.
        * fail, when we only want to attach, but mode 700 and not xflag.
        * fail, if none of dflag, rflag, xflag is set.
        */
       if ((mode != 0700 && mode != 0600) ||
-	  (dflag && !rflag && mode == 0600) ||
+          (dflag && !rflag && !xflag && mode == 0600) ||
 	  (!dflag && rflag && mode == 0700 && !xflag) ||
 	  (!dflag && !rflag && !xflag))
 	{
@@ -298,13 +295,13 @@ char *match;
 	{
 	  firsts = sockfd;
 	  firstn = sent->name;
-	  debug("  taken\n");
+	  debug("  taken.\n");
 	}
       else
         {
 	  debug("  discarded.\n");
 	  close(sockfd);
-	}
+	} 
     }
   (void)closedir(dirp);
   if (nfound && (lsflag || ngood != 1) && !quietflag)
@@ -312,28 +309,14 @@ char *match;
       switch(ngood)
 	{
 	case 0:
-#ifdef NETHACK
-	  if (nethackflag)
-	    printf(lsflag ? "Your inventory:\n" : "Nothing fitting exists in the game:\n");
-	  else
-#endif
-	  printf(nfound > 1 ? "There are screens on:\n" : "There is a screen on:\n");
+	  Msg(0, nfound > 1 ? "There are screens on:" : "There is a screen on:");
 	  break;
 	case 1:
-#ifdef NETHACK
-	  if (nethackflag)
-	    printf(nfound > 1 ? "Prove thyself worthy or perish:\n" : "You see here a good looking screen:\n");
-	  else
-#endif
-	  printf(nfound > 1 ? "There are several screens on:\n" : "There is a possible screen on:\n");
+	  Msg(0, nfound > 1 ? "There are several screens on:" : "There is a suitable screen on:");
 	  break;
 	default:
-#ifdef NETHACK
-	  if (nethackflag)
-	    printf("You may wish for a screen, what do you want?\n");
-	  else
-#endif
-	  printf("There are several screens on:\n");
+	  Msg(0, "There are several suitable screens on:");
+	  break;
 	}
       for (sent = slist; sent; sent = sent->next)
 	{
@@ -372,25 +355,9 @@ char *match;
   if (ndead && !quietflag)
     {
       if (wipeflag)
-	{
-#ifdef NETHACK
-	  if (nethackflag)
-	    printf("You hear%s distant explosion%s.\n",
-	      ndead > 1 ? "" : " a", ndead > 1 ? "s" : "");
-	  else
-#endif
-	  printf("%d socket%s wiped out.\n", nwipe, ndead > 1 ? "s" : "");
-	}
+        Msg(0, "%d socket%s wiped out.", nwipe, nwipe > 1 ? "s" : "");
       else
-	{
-#ifdef NETHACK
-	  if (nethackflag)
-	    printf("The dead screen%s touch%s you. Try 'screen -wipe'.\n",
-	      ndead > 1 ? "s" : "", ndead > 1 ? "" : "es");
-	  else
-#endif
-	  printf("Remove dead screens with 'screen -wipe'.\n");
-	}
+        Msg(0, "Remove dead screens with 'screen -wipe'.", ndead > 1 ? "s" : "", ndead > 1 ? "" : "es");	/* other args for nethack */
     }
   if (firsts != -1)
     {
@@ -681,87 +648,34 @@ struct NewWindow *nwin;
   if (nwin->term != nwin_undef.term)
     strncpy(m.m.create.screenterm, nwin->term, 19);
   m.m.create.screenterm[19] = '\0';
+  m.protocol_revision = MSG_REVISION;
   debug1("SendCreateMsg writing '%s'\n", m.m.create.line);
   if (write(s, (char *) &m, sizeof m) != sizeof m)
     Msg(errno, "write");
   close(s);
 }
 
-void
-#ifdef USEVARARGS
-/*VARARGS1*/
-# if defined(__STDC__)
-SendErrorMsg(char *fmt, ...)
-# else /* __STDC__ */
-SendErrorMsg(fmt, va_alist)
-char *fmt;
-va_dcl
-# endif /* __STDC__ */
-{ /* } */
-  static va_list ap;
-#else /* USEVARARGS */
-/*VARARGS1*/
-SendErrorMsg(fmt, p1, p2, p3, p4, p5, p6)
-char *fmt;
-unsigned long p1, p2, p3, p4, p5, p6;
+int
+SendErrorMsg(tty, buf)
+char *tty, *buf;
 {
-#endif /* USEVARARGS */
-  register int s;
+  int s;
   struct msg m;
 
-#ifdef USEVARARGS
-# if defined(__STDC__)
-  va_start(ap, fmt);
-# else /* __STDC__ */
-  va_start(ap);
-# endif /* __STDC__ */
-  (void) vsnprintf(m.m.message, sizeof(m.m.message), fmt, ap);
-  va_end(ap);
-#else /* USEVARARGS */
-  xsnprintf(m.m.message, sizeof(m.m.message), fmt, p1, p2, p3, p4, p5, p6);
-#endif /* USEVARARGS */
-  debug1("SendErrorMsg: '%s'\n", m.m.message);
-  if (display == 0)
-    return;
+  strncpy(m.m.message, buf, sizeof(m.m.message) - 1);
+  m.m.message[sizeof(m.m.message) - 1] = 0;
   s = MakeClientSocket(0);
+  if (s < 0)
+    return -1;
   m.type = MSG_ERROR;
-  strncpy(m.m_tty, D_usertty, sizeof(m.m_tty) - 1);
+  strncpy(m.m_tty, tty, sizeof(m.m_tty) - 1);
   m.m_tty[sizeof(m.m_tty) - 1] = 0;
+  m.protocol_revision = MSG_REVISION;
   debug1("SendErrorMsg(): writing to '%s'\n", SockPath);
   (void) write(s, (char *) &m, sizeof m);
   close(s);
-  sleep(2);
+  return 0;
 }
-
-
-#ifdef PASSWORD
-static int
-CheckPasswd(pwd, pid, utty)
-int pid;
-char *pwd, *utty;
-{
-  if (CheckPassword && *Password &&
-      strncmp(crypt(pwd, (strlen(Password) > 1) ? Password : "JW"), Password, strlen(Password)))
-    {
-      if (*pwd)
-	{
-# ifdef NETHACK
-          if (nethackflag)
-	    Msg(0, "'%s' tries to explode in the sky, but fails.", utty);
-          else
-# endif /* NETHACK */
-	  Msg(0, "Illegal reattach attempt from terminal %s.", utty);
-	}
-      debug1("CheckPass() wrong password kill(%d, SIG_PW_FAIL)\n", pid);
-      Kill(pid, SIG_PW_FAIL);
-      return 0;
-    }
-  debug1("CheckPass() from %d happy\n", pid);
-  Kill(pid, SIG_PW_OK);
-  return 1;
-}
-#endif	/* PASSWORD */
-
 
 static void
 ExecCreate(mp)
@@ -869,6 +783,7 @@ ReceiveMsg()
 #ifdef REMOTE_DETACH
   struct display *next;
 #endif
+  struct display *olddisplays = displays;
 
 #ifdef NAMEDPIPE
   debug("Ha, there was someone knocking on my fifo??\n");
@@ -905,6 +820,9 @@ ReceiveMsg()
   close(ServerSocket);
   if ((ServerSocket = secopen(SockPath, O_RDONLY | O_NONBLOCK, 0)) < 0)
     Panic(errno, "reopen fifo %s", SockPath);
+  evdeq(&serv_read);
+  serv_read.fd = ServerSocket;
+  evenq(&serv_read);
 # endif
 #else
   close(ns);
@@ -923,6 +841,12 @@ ReceiveMsg()
 	debug("No data on socket.\n");
       return;
     }
+  if (m.protocol_revision != MSG_REVISION)
+    {
+      Msg(0, "Invalid message (magic 0x%08x).", m.protocol_revision);
+      return;
+    }
+
   debug2("*** RecMsg: type %d tty %s\n", m.type, m.m_tty);
   for (display = displays; display; display = display->d_next)
     if (TTYCMP(D_usertty, m.m_tty) == 0)
@@ -934,7 +858,8 @@ ReceiveMsg()
       for (wi = windows; wi; wi = wi->w_next)
         if (!TTYCMP(m.m_tty, wi->w_tty))
 	  {
-            display = wi->w_display;
+	    /* XXX: hmmm, rework this? */
+            display = wi->w_layer.l_cvlist ? wi->w_layer.l_cvlist->c_display : 0;
 	    debug2("but window %s %sfound.\n", m.m_tty, display ? "" : 
 	    	   "(backfacing)");
 	    break;
@@ -944,6 +869,9 @@ ReceiveMsg()
   /* Remove the status to prevent garbage on the screen */
   if (display && D_status)
     RemoveStatus();
+
+  if (display && !D_tcinited && m.type != MSG_HANGUP)
+    return;		/* ignore messages for bad displays */
 
   switch (m.type)
     {
@@ -968,6 +896,7 @@ ReceiveMsg()
 	  break;		/* Intruder Alert */
       debug2("RecMsg: apid=%d,was %d\n", m.m.attach.apid, display ? D_userpid : 0);
       /* FALLTHROUGH */
+
     case MSG_ATTACH:
       if (CheckPid(m.m.attach.apid))
 	{
@@ -980,19 +909,14 @@ ReceiveMsg()
 	  Kill(m.m.attach.apid, SIG_BYE);
 	  break;
 	}
-#ifdef PASSWORD
-      if (!CheckPasswd(m.m.attach.password, m.m.attach.apid, m.m_tty))
-	{
-	  debug3("RcvMsg:Checkpass(%s,%d,%s) failed\n",
-		 m.m.attach.password, m.m.attach.apid, m.m_tty);
-	  close(i);
-	  break;
-	}
-#else
 # ifdef MULTIUSER
       Kill(m.m.attach.apid, SIGCONT);
 # endif
-#endif				/* PASSWORD */
+
+#if defined(ultrix) || defined(pyr) || defined(NeXT)
+      brktty(i);	/* for some strange reason this must be done */
+#endif
+
       if (display || wi)
 	{
 	  write(i, "Attaching from inside of screen?\n", 33);
@@ -1015,19 +939,6 @@ ReceiveMsg()
 #endif
 
       debug2("RecMsg: apid %d is o.k. and we just opened '%s'\n", m.m.attach.apid, m.m_tty);
-      /* turn off iflag on a multi-attach... */
-      if (iflag && displays)
-	{
-	  iflag = 0;
-	  display = displays;
-#if defined(TERMIO) || defined(POSIX)
-	  D_NewMode.tio.c_cc[VINTR] = VDISABLE;
-	  D_NewMode.tio.c_lflag &= ~ISIG;
-#else /* TERMIO || POSIX */
-	  D_NewMode.m_tchars.t_intrc = -1;
-#endif /* TERMIO || POSIX */
-	  SetTTY(D_userfd, &D_NewMode);
-	}
 
       /* create new display */
       GetTTY(i, &Mode);
@@ -1039,110 +950,27 @@ ReceiveMsg()
 	  Kill(m.m.attach.apid, SIG_BYE);
 	  break;
         }
-#if defined(ultrix) || defined(pyr) || defined(NeXT)
-      brktty(D_userfd);	/* for some strange reason this must be done */
-#endif
-#if defined(pyr) || defined(xelos) || defined(sequent)
-      /*
-       * Kludge for systems with braindamaged termcap routines,
-       * which evaluate $TERMCAP, regardless weather it describes
-       * the correct terminal type or not.
-       */
-      debug("unsetenv(TERMCAP) in case of a different terminal");
-      unsetenv("TERMCAP");
-#endif
-    
-      /*
-       * We reboot our Terminal Emulator. Forget all we knew about
-       * the old terminal, reread the termcap entries in .screenrc
-       * (and nothing more from .screenrc is read. Mainly because
-       * I did not check, weather a full reinit is save. jw) 
-       * and /etc/screenrc, and initialise anew.
-       */
-      if (extra_outcap)
-	free(extra_outcap);
-      if (extra_incap)
-	free(extra_incap);
-      extra_incap = extra_outcap = 0;
-      debug2("Message says size (%dx%d)\n", m.m.attach.columns, m.m.attach.lines);
-#ifdef ETCSCREENRC
-# ifdef ALLOW_SYSSCREENRC
-      if ((p = getenv("SYSSCREENRC")))
-	StartRc(p);
-      else
-# endif
-	StartRc(ETCSCREENRC);
-#endif
-      StartRc(RcFileName);
-      if (InitTermcap(m.m.attach.columns, m.m.attach.lines))
+      /* turn off iflag on a multi-attach... */
+      if (iflag && olddisplays)
 	{
-	  FreeDisplay();
-	  Kill(m.m.attach.apid, SIG_BYE);
-	  break;
+	  iflag = 0;
+#if defined(TERMIO) || defined(POSIX)
+	  olddisplays->d_NewMode.tio.c_cc[VINTR] = VDISABLE;
+	  olddisplays->d_NewMode.tio.c_lflag &= ~ISIG;
+#else /* TERMIO || POSIX */
+	  olddisplays->d_NewMode.m_tchars.t_intrc = -1;
+#endif /* TERMIO || POSIX */
+	  SetTTY(olddisplays->d_userfd, &olddisplays->d_NewMode);
 	}
-      InitTerm(m.m.attach.adaptflag);
-      if (displays->d_next == 0)
-        (void) chsock();
-      signal(SIGHUP, SigHup);
-#ifdef UTMPOK
-      /*
-       * we set the Utmp slots again, if we were detached normally
-       * and if we were detached by ^Z.
-       */
-      RemoveLoginSlot();
-      if (displays->d_next == 0)
-        for (wi = windows; wi; wi = wi->w_next)
-	  if (wi->w_ptyfd >= 0 && wi->w_slot != (slot_t) -1)
-	    SetUtmp(wi);
-#endif
-      SetMode(&D_OldMode, &D_NewMode);
+      SetMode(&D_OldMode, &D_NewMode, D_flow, iflag);
       SetTTY(D_userfd, &D_NewMode);
 
-      D_fore = NULL;
-      /* there may be a window that we remember from last detach: */
-      if (D_user->u_detachwin >= 0) 
-        fore = wtab[D_user->u_detachwin];
-      /* Wayne wants us to restore the other window too. */
-      if (D_user->u_detachotherwin >= 0)
-        D_other = wtab[D_user->u_detachotherwin];
-      /*
-       * We want a window to start with.
-       * It is the window we left from, which is not occupied and
-       * grants us full read/write permissions.
-       */
-#ifdef MULTIUSER
-      if (!fore || fore->w_display || AclCheckPermWin(D_user, ACL_WRITE, fore))
-#else
-      if (!fore || fore->w_display)
+#ifdef PASSWORD
+      if (D_user->u_password && *D_user->u_password)
+	AskPassword(&m);
+      else
 #endif
-        {
-	  /* try to get another window */
-#ifdef MULTIUSER
-	  for (wi = windows; wi; wi = wi->w_next)
-	    if (!wi->w_display && !AclCheckPermWin(D_user, ACL_WRITE, wi))
-	      break;
-	  if (!wi)
-	    for (wi = windows; wi; wi = wi->w_next)
-	      if (!wi->w_display && !AclCheckPermWin(D_user, ACL_READ, wi))
-	        break;
-	  if (!wi)
-#endif
-	    for (wi = windows; wi; wi = wi->w_next)
-	      if (!wi->w_display)
-	        break;
-	  fore = wi;
-	}
-      if (fore)
-        SetForeWindow(fore);
-      Activate(0);
-      if (!D_fore)
-	ShowWindows();
-      if (displays->d_next == 0 && console_window)
-	{
-	  if (TtyGrabConsole(console_window->w_ptyfd, 1, "reattach") == 0)
-	    Msg(0, "console %s is on window %d", HostName, console_window->w_number);
-	}
-      debug("activated...\n");
+        FinishAttach(&m);
       break;
     case MSG_ERROR:
       Msg(0, "%s", m.m.message);
@@ -1224,7 +1052,6 @@ chsock()
   return r;
 }
 
-
 /*
  * Try to recreate the socket/pipe
  */
@@ -1243,5 +1070,209 @@ RecoverSocket()
 
   if ((ServerSocket = MakeServerSocket()) < 0)
     return 0;
+  evdeq(&serv_read);
+  serv_read.fd = ServerSocket;
+  evenq(&serv_read);
   return 1;
 }
+
+
+static void
+FinishAttach(m)
+struct msg *m;
+{
+  char *p;
+  int pid;
+  struct win *wi;
+
+  ASSERT(display);
+  pid = D_userpid;
+
+#if defined(pyr) || defined(xelos) || defined(sequent)
+  /*
+   * Kludge for systems with braindamaged termcap routines,
+   * which evaluate $TERMCAP, regardless weather it describes
+   * the correct terminal type or not.
+   */
+  debug("unsetenv(TERMCAP) in case of a different terminal");
+  unsetenv("TERMCAP");
+#endif
+
+  /*
+   * We reboot our Terminal Emulator. Forget all we knew about
+   * the old terminal, reread the termcap entries in .screenrc
+   * (and nothing more from .screenrc is read. Mainly because
+   * I did not check, weather a full reinit is save. jw) 
+   * and /etc/screenrc, and initialise anew.
+   */
+  if (extra_outcap)
+    free(extra_outcap);
+  if (extra_incap)
+    free(extra_incap);
+  extra_incap = extra_outcap = 0;
+  debug2("Message says size (%dx%d)\n", m->m.attach.columns, m->m.attach.lines);
+#ifdef ETCSCREENRC
+# ifdef ALLOW_SYSSCREENRC
+  if ((p = getenv("SYSSCREENRC")))
+    StartRc(p);
+  else
+# endif
+    StartRc(ETCSCREENRC);
+#endif
+  StartRc(RcFileName);
+  if (InitTermcap(m->m.attach.columns, m->m.attach.lines))
+    {
+      FreeDisplay();
+      Kill(pid, SIG_BYE);
+      return;
+    }
+  MakeDefaultCanvas();
+  InitTerm(m->m.attach.adaptflag);	/* write init string on fd */
+  if (displays->d_next == 0)
+    (void) chsock();
+  signal(SIGHUP, SigHup);
+  if (m->m.attach.esc != -1 && m->m.attach.meta_esc != -1)
+    {
+      D_user->u_Esc = m->m.attach.esc;
+      D_user->u_MetaEsc = m->m.attach.meta_esc;
+    }
+
+#ifdef UTMPOK
+  /*
+   * we set the Utmp slots again, if we were detached normally
+   * and if we were detached by ^Z.
+   * don't log zomies back in!
+   */
+  RemoveLoginSlot();
+  if (displays->d_next == 0)
+    for (wi = windows; wi; wi = wi->w_next)
+      if (wi->w_ptyfd >= 0 && wi->w_slot != (slot_t) -1)
+	SetUtmp(wi);
+#endif
+
+  D_fore = NULL;
+  /*
+   * there may be a window that we remember from last detach:
+   */
+  debug1("D_user->u_detachwin = %d\n", D_user->u_detachwin);
+  if (D_user->u_detachwin >= 0) 
+    fore = wtab[D_user->u_detachwin];
+  else
+    fore = 0;
+
+  /* Wayne wants us to restore the other window too. */
+  if (D_user->u_detachotherwin >= 0)
+    D_other = wtab[D_user->u_detachotherwin];
+
+  fore = FindNiceWindow(fore, *m->m.attach.preselect ? m->m.attach.preselect : 0);
+  if (fore)
+    SetForeWindow(fore);
+  Activate(0);
+  if (!D_fore)
+    ShowWindows();
+  if (displays->d_next == 0 && console_window)
+    {
+      if (TtyGrabConsole(console_window->w_ptyfd, 1, "reattach") == 0)
+	Msg(0, "console %s is on window %d", HostName, console_window->w_number);
+    }
+  debug("activated...\n");
+
+# if defined(DEBUG) && defined(SIG_NODEBUG)
+  if (!dfp)
+    {
+      sleep(1);
+      debug1("Attacher %d must not debug, as we have debug off.\n", pid);
+      kill(pid, SIG_NODEBUG);
+    }
+# endif /* SIG_NODEBUG */
+}
+
+
+#ifdef PASSWORD
+static void PasswordProcessInput __P((char *, int));
+
+struct pwdata {
+  int l;
+  char buf[8];
+  struct msg m;
+};
+
+static void
+AskPassword(m)
+struct msg *m;
+{
+  struct pwdata *pwdata;
+  ASSERT(display);
+  pwdata = (struct pwdata *)malloc(sizeof(struct pwdata));
+  if (!pwdata)
+    Panic(0, strnomem);
+  pwdata->l = 0;
+  pwdata->m = *m;
+  D_processinputdata = (char *)pwdata;
+  D_processinput = PasswordProcessInput;
+  AddStr("Screen password: ");
+}
+
+static void
+PasswordProcessInput(ibuf, ilen)
+char *ibuf;
+int ilen;
+{
+  struct pwdata *pwdata;
+  int c, l;
+  char *up;
+  int pid = D_userpid;
+
+  pwdata = (struct pwdata *)D_processinputdata;
+  l = pwdata->l;
+  while (ilen-- > 0)
+    {
+      c = *(unsigned char *)ibuf++;
+      if (c == '\r' || c == '\n')
+	{
+	  up = D_user->u_password;
+	  pwdata->buf[l] = 0;
+	  if (strncmp(crypt(pwdata->buf, up), up, strlen(up)))
+	    {
+	      /* uh oh, user failed */
+	      bzero(pwdata->buf, sizeof(pwdata->buf));
+	      AddStr("\r\nPassword incorrect.\r\n");
+	      D_processinputdata = 0;	/* otherwise freed by FreeDis */
+	      FreeDisplay();
+	      Msg(0, "Illegal reattach attempt from terminal %s.", pwdata->m.m_tty);
+	      free(pwdata);
+	      Kill(pid, SIG_BYE);
+	      return;
+	    }
+	  /* great, pw matched, all is fine */
+	  bzero(pwdata->buf, sizeof(pwdata->buf));
+	  D_processinputdata = 0;
+	  D_processinput = ProcessInput;
+	  FinishAttach(&pwdata->m);
+	  free(pwdata);
+	  return;
+	}
+      if (c == Ctrl('c'))
+	{
+	  AddStr("\r\n");
+	  FreeDisplay();
+	  Kill(pid, SIG_BYE);
+	  return;
+	}
+      if (c == '\b' || c == 0177)
+	{
+	  if (l > 0)
+	    l--;
+	  continue;
+	}
+      if (c == Ctrl('u'))
+	{
+	  l = 0;
+	  continue;
+	}
+      if (l < 8)
+	pwdata->buf[l++] = c;
+    }
+  pwdata->l = l;
+}
+#endif

@@ -38,24 +38,33 @@
 #include "osdef.h"
 
 #include "ansi.h"
+#include "sched.h"
 #include "acls.h"
 #include "comm.h"
-#include "overlay.h"
+#include "layer.h"
 #include "term.h"
 
 
 #ifdef DEBUG
-#	define DEBUGDIR "/tmp/debug"
-#	define debug(x) {if(dfp){fprintf(dfp,x);fflush(dfp);}}
-#	define debug1(x,a) {if(dfp){fprintf(dfp,x,a);fflush(dfp);}}
-#	define debug2(x,a,b) {if(dfp){fprintf(dfp,x,a,b);fflush(dfp);}}
-#	define debug3(x,a,b,c) {if(dfp){fprintf(dfp,x,a,b,c);fflush(dfp);}}
-	extern FILE *dfp;
+# define STATIC		/* a function that the debugger should see */
 #else
-#	define debug(x) {}
-#	define debug1(x,a) {}
-#	define debug2(x,a,b) {}
-#	define debug3(x,a,b,c) {}
+# define STATIC static
+#endif
+
+#ifdef DEBUG
+# define DEBUGDIR "/tmp/debug"
+# define debugf(a)       do {if(dfp){fprintf a;fflush(dfp);}} while (0)
+# define debug(x)        debugf((dfp,x))
+# define debug1(x,a)     debugf((dfp,x,a))
+# define debug2(x,a,b)   debugf((dfp,x,a,b))
+# define debug3(x,a,b,c) debugf((dfp,x,a,b,c))
+  extern FILE *dfp;
+#else
+# define debugf(a)       do {} while (0)
+# define debug(x)        debugf(x)
+# define debug1(x,a)     debugf(x)
+# define debug2(x,a,b)   debugf(x)
+# define debug3(x,a,b,c) debugf(x)
 #endif
 
 #ifndef DEBUG
@@ -69,7 +78,7 @@
 #  define ASSERT(lousy_cpp) do {if (!(lousy_cpp)) {if (!dfp) opendebug(0, 1);debug2("ASSERT(lousy_cpp) failed file %s line %d\n", __FILE__, __LINE__);abort();}} while (0)
 # endif
 #else
-# define ASSERT(lousy_cpp) {;}
+# define ASSERT(lousy_cpp) do {} while (0)
 #endif
 
 /* here comes my own Free: jw. */
@@ -90,10 +99,11 @@
 #define MAXHISTHEIGHT		3000
 #define DEFAULTHISTHEIGHT	100
 #ifdef NAME_MAX
-# define DEFAULT_BUFFERFILE	"/tmp/screen-xchg"
+# define DEFAULT_BUFFERFILE     "/tmp/screen-xchg"
 #else
 # define DEFAULT_BUFFERFILE	"/tmp/screen-exchange"
 #endif
+
 
 #if defined(hpux) && !(defined(VSUSP) && defined(VDSUSP) && defined(VWERASE) && defined(VLNEXT))
 # define HPUX_LTCHARS_HACK
@@ -121,13 +131,15 @@ struct mode
   int m_ldisc;
   int m_lmode;
 # endif /* TERMIO */
-#if defined(KANJI) && defined(TIOCKSET) && defined(KM_ASCII) && defined(KM_SYSSJIS)
+#if defined(KANJI) && defined(TIOCKSET)
   struct jtchars m_jtchars;
   int m_knjmode;
 # endif
 #endif /* POSIX */
 };
 
+
+/* #include "logfile.h" */	/* (requires stat.h) struct logfile */
 #include "image.h"
 #include "display.h"
 #include "window.h"
@@ -154,8 +166,15 @@ struct mode
 #define MSG_WINCH	6
 #define MSG_HANGUP	7
 
+/*
+ * versions of struct msg:
+ * 0:	screen version 3.6.6 (version count introduced)
+ */
+#define MSG_VERSION	0	
+#define MSG_REVISION	(('m'<<24) | ('s'<<16) | ('g'<<8) | MSG_VERSION)
 struct msg
 {
+  int protocol_revision;	/* reduce harm done by incompatible messages */
   int type;
   char m_tty[MAXPATHLEN];	/* ttyname */
   union
@@ -178,14 +197,15 @@ struct msg
 	  int apid;		/* pid of frontend */
 	  int adaptflag;	/* adapt window size? */
 	  int lines, columns;	/* display size */
-	  char password[20];
+	  char preselect[20];
+	  int esc;		/* his new escape character unless -1 */
+	  int meta_esc;		/* his new meta esc character unless -1 */
 	  char envterm[20 + 1];	/* terminal type */
 	}
       attach;
       struct 
 	{
 	  char duser[20 + 1];	/* username */
-	  char password[20];
 	  int dpid;		/* pid of frontend */
 	}
       detach;
@@ -200,28 +220,31 @@ struct msg
 #define SIG_POWER_BYE	SIGUSR1
 #define SIG_LOCK	SIGUSR2
 #define SIG_STOP	SIGTSTP
-#define SIG_PW_OK	SIGUSR1
-#define SIG_PW_FAIL	SIG_BYE
+#ifdef SIGIO
+#define SIG_NODEBUG	SIGIO		/* triggerd by command 'debug off' */
+#endif
 
 
 #define BELL		(Ctrl('g'))
 #define VBELLWAIT	1 /* No. of seconds a vbell will be displayed */
 
-#define BELL_OFF	0 /* No bell has occurred in the window */
-#define BELL_ON 	1 /* A bell has occurred, but user not yet notified */
-#define BELL_MSG	2 /* A bell has occured, user sees a message */
-#define BELL_DONE	3 /* A bell has occured, user has been notified */
-#define BELL_VISUAL     4 /* A bell has occured in fore win, notify him visually */
+#define BELL_ON		0 /* No bell has occurred in the window */
+#define BELL_FOUND 	1 /* A bell has occurred, but user not yet notified */
+#define BELL_DONE	2 /* A bell has occured, user has been notified */
+
+#define BELL_VISUAL	3 /* A bell has occured in fore win, notify him visually */
 
 #define MON_OFF 	0 /* Monitoring is off in the window */
 #define MON_ON		1 /* No activity has occurred in the window */
 #define MON_FOUND	2 /* Activity has occured, but user not yet notified */
-#define MON_MSG		3 /* Activity has occured, user sees a message */
-#define MON_DONE	4 /* Activity has occured, user has been notified */
+#define MON_DONE	3 /* Activity has occured, user has been notified */
 
 #define DUMP_TERMCAP	0 /* WriteFile() options */
 #define DUMP_HARDCOPY	1
 #define DUMP_EXCHANGE	2
+
+#define SILENCE_OFF	0
+#define SILENCE_ON	1
 
 extern char strnomem[];
 
@@ -250,3 +273,9 @@ struct plop
   int len;
 };
 
+struct baud_values
+{
+  int idx;	/* the index in the bsd-is padding lookup table */
+  int bps;	/* bits per seconds */
+  int sym;	/* symbol defined in ttydev.h */
+};

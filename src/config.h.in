@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  * $Id$ FAU
@@ -30,7 +31,11 @@
  *	User Configuration Section
  */
 
-
+/*
+ * Maximum of simultaneously allowed windows per screen session.
+ * Defaults to 10, if undefined here. 
+ */
+#define MAXWIN 40
 
 /*
  * Define SOCKDIR to be the directory to contain the named sockets
@@ -40,17 +45,13 @@
  * "sticky" bit is on, but this isn't required.
  * If SOCKDIR is not defined screen will put the named sockets in
  * the user's home directory. Notice that this can cause you problems
- * if some user's HOME directories are NFS-mounted and don't support
- * named sockets.
+ * if some user's HOME directories are AFS- or NFS-mounted. Especially
+ * AFS is unlikely to support named sockets.
+ *
  * Screen will name the subdirectories "S-$USER" (e.g /tmp/S-davison).
- * Do not define TMPTEST unless it's for debugging purpose.
  */
 
-#ifndef TMPTEST
-# define SOCKDIR "/tmp/screens"
-#else
-# define SOCKDIR "/tmp/testscreens"
-#endif
+#define SOCKDIR (eff_uid ? "/tmp/uscreens" : "/tmp/screens")
 
 /*
  * Screen sources two startup files. First a global file with a path
@@ -68,6 +69,17 @@
  * Otherwise ETCSCREENRC is always loaded.
  */
 #define ALLOW_SYSSCREENRC 1
+
+/*
+ * Define CHECKLOGIN to force Screen users to enter their Unix password
+ * in addition to the screen password.
+ *
+ * Define NOSYSLOG if yo do not have logging facilities. Currently
+ * syslog() will be used to trace ``su'' commands only.
+ */
+#define CHECKLOGIN 1
+#undef NOSYSLOG
+
 
 /* 
  * define PTYMODE if you do not like the default of 0622, which allows 
@@ -96,18 +108,30 @@
 #undef TOPSTAT
 
 /*
+ * define DETACH can detach a session. An absolute 'must'.
+ */
+#define DETACH
+
+/*
  * here come the erlangen extensions to screen:
  * define LOCK if you want to use a lock program for a screenlock.
  * define PASSWORD for secure reattach of your screen.
  * define COPY_PASTE to use the famous hacker's treasure zoo.
- * define POW_DETACH to have a detach_and_logout key.
+ * define POW_DETACH to have a detach_and_logout key (requires DETACH).
  * define REMOTE_DETACH (-d option) to move screen between terminals.
  * define AUTO_NUKE to enable Tim MacKenzies clear screen nuking
  * define PSEUDOS to allow window input/output filtering
  * define MULTI to allow multiple attaches.
  * define MULTIUSER to allow other users attach to your session
  *                  (if they are in the acl, of course)
- * (jw)
+ * define MAPKEYS to include input keyboard translation.
+ * define FONT to support ISO2022/alternet charset support
+ * define COLOR to include ansi color support. This may expose
+ *        a bug in x11r6-color-xterm.
+ * define KANJI to include support for japanese character sets.
+ *        Needs FONT to work.
+ * define BUILTIN_TELNET to add telnet support to screen.
+ *        Syntax: screen //telnet host [port]
  */
 #undef SIMPLESCREEN
 #ifndef SIMPLESCREEN
@@ -122,8 +146,20 @@
 # define MULTIUSER
 # define MAPKEYS
 # define COLOR
+# define FONT
+# define KANJI
 #endif /* SIMPLESCREEN */
-#define KANJI
+
+#undef BUILTIN_TELNET
+
+
+/*
+ * If you have a braille display you should define HAVE_BRAILLE.
+ * The code inside #ifdef HAVE_BRAILLE was contributed by Hadi Bargi
+ * Rangin (bargi@dots.physics.orst.edu).
+ */
+#undef HAVE_BRAILLE
+
 
 /*
  * As error messages are mostly meaningless to the user, we
@@ -153,11 +189,16 @@
  * Disabling this feature only makes sense if you have a secure /etc/utmp
  * database. 
  * Negative examples: suns usually have a world writable utmp file, 
- * xterm and script will run perfectly without s-bit.
- * If LOGOUTOK is undefined and UTMPOK is defined, all windows are initially
- * and permanently logged in.
+ * xterm will run perfectly without s-bit.
+ *
+ * If LOGOUTOK is undefined and UTMPOK is defined, all windows are
+ * initially and permanently logged in.
+ *
+ * Set CAREFULUTMP to one (1) if you want that users have at least one
+ * window per screen session logged in.
  */
 #define LOGOUTOK 1
+#undef CAREFULUTMP
 
 
 /*
@@ -169,6 +210,36 @@
  * license.
  */
 #undef USRLIMIT
+
+/*
+ * both must be defined if you want to favor tcsendbreak over
+ * other calls to generate a break condition on serial lines.
+ * (Do not bother, if you are not using plain tty windows.)
+ */
+#define POSIX_HAS_A_GOOD_TCSENDBREAK
+#define SUNOS4_AND_WE_TRUST_TCSENDBREAK
+
+/*
+ * to lower the interrupt load on the host machine, you may want to
+ * adjust the VMIN and VTIME settings used for plain tty windows.
+ * See the termio(4) manual page (Non-Canonical Mode Input Processing)
+ * for details.
+ * if undefined, VMIN=1, VTIME=0 is used as a default - this gives you
+ * best user responsiveness, but highest interrupt frequency.
+ * (Do not bother, if you are not using plain tty windows.)
+ */
+#define TTYVMIN 100
+#define TTYVTIME 2
+
+/*
+ * looks like the above values are ignored by setting FNDELAY.
+ * This is default for all pty/ttys, you may disable it for
+ * ttys here. After playing with it for a while, one may find out
+ * that this feature may cause screen to lock up.
+ */
+#ifdef bsdi
+# define TTY_DISABLE_FNBLOCK /* select barfs without it ... */
+#endif
 
 
 /*
@@ -300,9 +371,10 @@
 #endif
 
 /*
- * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
+ * Define HAVE_DIRENT_H if your system has <dirent.h> instead of
+ * <sys/dir.h>
  */
-#undef DIRENT
+#undef HAVE_DIRENT_H
 
 /*
  * If your system has getutent(), pututline(), etc. to write to the
@@ -316,6 +388,11 @@
 #undef UTHOST
 
 /*
+ * Define if you have the utempter utmp helper program
+ */
+#undef HAVE_UTEMPTER
+
+/*
  * If ttyslot() breaks getlogin() by returning indexes to utmp entries
  * of type DEAD_PROCESS, then our getlogin() replacement should be
  * selected by defining BUGGYGETLOGIN.
@@ -326,7 +403,6 @@
  * If your system has the calls setreuid() and setregid(),
  * define HAVE_SETREUID. Otherwise screen will use a forked process to
  * safely create output files without retaining any special privileges.
- * (Output logging will be disabled, however.)
  */
 #undef HAVE_SETREUID
 
@@ -367,8 +443,10 @@
  * undefined, screen uses its own (probably slower) version of bcopy().
  * 
  * SYSV machines may have a working memcpy() -- Oh, this is 
- * quite unlikely. Tell me if you see one. (Juergen)
- * But then, memmove() should work, if at all available.
+ * quite unlikely. Tell me if you see one.
+ * "But then, memmove() should work, if at all available" he thought...
+ * Boing, never say "works everywhere" unless you checked SCO UNIX.
+ * Their memove fails the test in the configure script. Sigh. (Juergen)
  */
 #undef USEBCOPY
 #undef USEMEMCPY
@@ -434,9 +512,9 @@
 #undef NAME_MAX
 
 /*
- * define NEED_RENAME if your system doesn't have a rename() function
+ * define HAVE_RENAME if your system has a rename() function
  */
-#undef NEED_RENAME
+#undef HAVE_RENAME
 
 /*
  * define HAVE__EXIT if your system has the _exit() call.
@@ -454,15 +532,36 @@
 #undef HAVE_UTIMES
 
 /*
+ * define HAVE_FCHOWN if your system has the fchown() call.
+ */
+#undef HAVE_FCHOWN
+
+/*
+ * define HAVE_FCHMOD if your system has the fchmod() call.
+ */
+#undef HAVE_FCHMOD
+
+/*
  * define HAVE_VSNPRINTF if your system has vsnprintf() (GNU lib).
  */
 #undef HAVE_VSNPRINTF
+
+/*
+ * define HAVE_GETCWD if your system has the getcwd() call.
+ */
+#undef HAVE_GETCWD
 
 /*
  * define HAVE_DEV_PTC if you have a /dev/ptc character special
  * device.
  */
 #undef HAVE_DEV_PTC
+
+/*
+ * define HAVE_SVR4_PTYS if you have a /dev/ptmx character special
+ * device and support the ptsname(), grantpt(), unlockpt() functions.
+ */
+#undef HAVE_SVR4_PTYS
 
 /* 
  * define PTYRANGE0 and or PTYRANGE1 if you want to adapt screen

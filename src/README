@@ -1,16 +1,16 @@
 
   [If you just got the screen package, it pays to read the file INSTALL]
   [This intro only describes the most common features to get you started]
+  [A full description of all features is contained in the source package]
+
 
 
 Short introduction to screen (Version 3.6.0)                   lvirden 8-8-93
 
- [note that this intro only describes the most common screen features]
-
 Send bugreports, fixes, enhancements, t-shirts, money, beer & pizza to 
                           screen@uni-erlangen.de
 
-iscreen provides you with an ANSI/vt100 terminal emulator, which can multiplex
+Screen provides you with an ANSI/vt100 terminal emulator, which can multiplex
 up to 10 pseudo-terminals. On startup, it executes $SHELL in window 0.
 Then it reads $HOME/.screenrc to learn configuration, keybindings, and
 possibly open more windows.

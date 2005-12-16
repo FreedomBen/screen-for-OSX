@@ -58,7 +58,7 @@ sed < ${srcdir}/term.c \
 a=substr($2,2,length($2)-3);
 b=substr($3,3,3);
 if (nolist == 0) {
-    printf "#define d_%s d_tcs[%d].%s\n",a,s,b
+    printf "#define d_%s  d_tcs[%d].%s\n",a,s,b
     printf "#define D_%s (D_tcs[%d].%s)\n",a,s,b
   }
 s++;

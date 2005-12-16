@@ -2,7 +2,8 @@
 This directory contains various file for termcap/terminfo installation
 and testing:
 
-screencap		Termcap entry for screen. Add to /etc/termcap.
+screencap		Termcap entry for screen. Add it to /etc/termcap.
+			On NetBSD, you should run /usr/bin/cap_mkdb afterwards.
 
 screeninfo.src		Terminfo entry. Use 'tic screeninfo.src'
 			to install (Sun: /usr/5bin/tic).

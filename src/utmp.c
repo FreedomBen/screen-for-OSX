@@ -25,20 +25,6 @@
 RCS_ID("$Id$ FAU")
 
 
-/*
- * An explanation of some weird things:
- *
- *  linux should have GETUTENT, but their pututline() doesn't have
- *  a return value.
- * 
- *  UTNOKEEP: A (ugly) hack for apollo that does two things:
- *    1) Always close and reopen the utmp file descriptor. (I don't know
- *       for what reason this is done...)
- *    2) Implement an unsorted utmp file much like GETUTENT.
- *  (split into UT_CLOSE and UT_UNSORTED)
- */
-
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -47,14 +33,19 @@ RCS_ID("$Id$ FAU")
 #include "screen.h"
 #include "extern.h"
 
-
 extern struct display *display;
 extern struct win *fore;
 extern char *LoginName;
-extern int eff_uid;
-#ifdef NETHACK
-extern int nethackflag;
-#endif
+extern int real_uid, eff_uid;
+
+
+/*
+ *  UTNOKEEP: A (ugly) hack for apollo that does two things:
+ *    1) Always close and reopen the utmp file descriptor. (I don't know
+ *       for what reason this is done...)
+ *    2) Implement an unsorted utmp file much like GETUTENT.
+ *  (split into UT_CLOSE and UT_UNSORTED)
+ */
 
 
 #ifdef UTNOKEEP
@@ -62,16 +53,52 @@ extern int nethackflag;
 # define UT_UNSORTED
 #endif
 
+#ifdef UT_CLOSE
+# undef UT_CLOSE
+# define UT_CLOSE endutent()
+#else
+# define UT_CLOSE
+#endif
+
+
+/*
+ *  we have a suid-root helper app that changes the utmp for us
+ *  (won't work for login-slots)
+ */
+#if (defined(sun) && defined(SVR4) && defined(GETUTENT)) || defined(HAVE_UTEMPTER)
+# define UTMP_HELPER
+#endif
+
+
 
 #ifdef UTMPOK
 
+
 static slot_t TtyNameSlot __P((char *));
+static void makeuser __P((struct utmp *, char *, char *, int));
+static void makedead __P((struct utmp *));
+static int  pututslot __P((slot_t, struct utmp *, char *, struct win *));
+static struct utmp *getutslot __P((slot_t));
+#ifndef GETUTENT
+static struct utmp *getutent __P((void));
+static void endutent __P((void));
+static int  initutmp __P((void));
+static void setutent __P((void));
+#endif
+#if defined(linux) && defined(GETUTENT)
+static struct utmp *xpututline __P((struct utmp *utmp));
+# define pututline xpututline
+#endif
 
-static int utmpok, utmpfd = -1;
+
+static int utmpok;
 static char UtmpName[] = UTMPFILE;
+#ifndef UTMP_HELPER
+static int utmpfd = -1;
+#endif
 
 
-# if defined(GETUTENT) && !defined(SVR4)
+# if defined(GETUTENT) && (!defined(SVR4) || defined(__hpux))
 #  if defined(hpux) /* cruel hpux release 8.0 */
 #   define pututline _pututline
 #  endif /* hpux */
@@ -80,7 +107,7 @@ extern struct utmp *getutline(), *pututline();
 extern struct utmp *ut_add_user(), *ut_delete_user();
 extern char *ut_find_host();
 #   ifndef UTHOST
-#    define UTHOST		/* _SEQUENT_ has got ut_find_host() */
+#    define UTHOST		/* _SEQUENT_ has ut_find_host() */
 #   endif
 #  endif /* _SEQUENT_ */
 # endif /* GETUTENT && !SVR4 */
@@ -95,9 +122,17 @@ static struct ttyent *getttyent __P((void));
 #  endif
 # endif /* !GETUTENT && !UT_UNSORTED */
 
+#ifndef _SEQUENT_
+# undef  D_loginhost
+# define D_loginhost D_utmp_logintty.ut_host
+#endif
+#ifndef UTHOST
+# undef  D_loginhost
+# define D_loginhost ((char *)0)
+#endif
+
+
 #endif /* UTMPOK */
-
-
 
 
 /*
@@ -110,28 +145,51 @@ static struct ttyent *getttyent __P((void));
  * w_slot = 0   window not logged in, but should be logged in. 
  *              (unable to write utmp, or detached).
  */
+
+#ifndef UTMPOK
+void
+SlotToggle(how)
+int how;
+{
+  debug1("SlotToggle (!UTMPOK) %d\n", how);
+# ifdef UTMPFILE
+  Msg(0, "Unable to modify %s.\n", UTMPFILE);
+# else
+  Msg(0, "Unable to modify utmp-database.\n");
+# endif
+}
+#endif
+
+
+
+#ifdef UTMPOK
+
 void
 SlotToggle(how)
 int how;
 {
   debug1("SlotToggle %d\n", how);
-#ifdef UTMPOK
+  if (fore->w_type != W_TYPE_PTY)
+    {
+      Msg(0, "Can only work with normal windows.\n");
+      return;
+    }
   if (how)
     {
       debug(" try to log in\n");
       if ((fore->w_slot == (slot_t) -1) || (fore->w_slot == (slot_t) 0))
 	{
-# ifdef USRLIMIT
+#ifdef USRLIMIT
           if (CountUsers() >= USRLIMIT)
-            Msg(0, "User limit reached.");
-          else
-# endif
-            {
-              if (SetUtmp(fore) == 0)
-                Msg(0, "This window is now logged in.");
-              else
-                Msg(0, "This window should now be logged in.");
-            }
+	    {
+              Msg(0, "User limit reached.");
+	      return;
+	    }
+#endif
+	  if (SetUtmp(fore) == 0)
+	    Msg(0, "This window is now logged in.");
+	  else
+	    Msg(0, "This window should now be logged in.");
 	}
       else
 	Msg(0, "This window is already logged in.");
@@ -154,29 +212,48 @@ int how;
 	    Msg(0, "What? Cannot remove Utmp slot?");
 	  else
 	    Msg(0, "This window is no longer logged in.");
+#ifdef CAREFULUTMP
+	  CarefulUtmp();
+#endif
 	}
     }
-#else	/* !UTMPOK */
-# ifdef UTMPFILE
-  Msg(0, "Unable to modify %s.\n", UTMPFILE);
-# else
-  Msg(0, "Unable to modify utmp-database.\n");
-# endif
-#endif
 }
 
 
+#ifdef CAREFULUTMP
 
+/* CAREFULUTMP: goodie for paranoid sysadmins: always leave one
+ * window logged in
+ */
+void
+CarefulUtmp()
+{
+  struct win *p;
 
-#ifdef UTMPOK
+  if (!windows)			/* hopeless */
+    return;
+  debug("CarefulUtmp counting slots\n");
+  for (p = windows; p; p = p->w_next)
+    if (p->w_ptyfd >= 0 && p->w_slot != (slot_t)-1)
+      return;			/* found one, nothing to do */
 
+  debug("CarefulUtmp: no slots, log one in again.\n");
+  for (p = windows; p; p = p->w_next)
+    if (p->w_ptyfd >= 0)	/* no zombies please */
+      break;
+  if (!p)
+    return;			/* really hopeless */
+  SetUtmp(p);
+  Msg(0, "Window %d is now logged in.\n", p->w_number);
+}
+#endif /* CAREFULUTMP */
 
 
 void
 InitUtmp()
 {
   debug1("InitUtmp testing '%s'...\n", UtmpName);
-#if !(defined(sun) && defined(SVR4) && defined(GETUTENT))
+#ifndef UTMP_HELPER
   if ((utmpfd = open(UtmpName, O_RDWR)) == -1)
     {
       if (errno != EACCES)
@@ -189,7 +266,7 @@ InitUtmp()
   close(utmpfd);	/* it was just a test */
   utmpfd = -1;
 # endif /* GETUTENT */
-#endif
+#endif	/* UTMP_HELPER */
   utmpok = 1;
 }
 
@@ -198,34 +275,18 @@ InitUtmp()
 int
 CountUsers()
 {
-# ifdef GETUTENT
-  struct utmp *ut, *getutent();
-# else /* GETUTENT */
-  struct utmp utmpbuf;
-# endif /* GETUTENT */
+  struct utmp *ut;
   int UserCount;
 
-# ifdef UT_CLOSE
-  InitUtmp();
-# endif /* UT_CLOSE */
   debug1("CountUsers() - utmpok=%d\n", utmpok);
   if (!utmpok)
     return 0;
   UserCount = 0;
-# ifdef GETUTENT
   setutent();
   while (ut = getutent())
-    if (ut->ut_type == USER_PROCESS)
+    if (SLOT_USED(ut))
       UserCount++;
-# else /* GETUTENT */
-  (void) lseek(utmpfd, (off_t) 0, 0);
-  while (read(utmpfd, &utmpbuf, sizeof(utmpbuf)) == sizeof(utmpbuf))
-    if (utmpbuf.ut_name[0] != '\0')
-      UserCount++;
-# endif /* GETUTENT */
-# ifdef UT_CLOSE
-  close(utmpfd);
-# endif /* UT_CLOSE */
+  UT_CLOSE;
   return UserCount;
 }
 #endif /* USRLIMIT */
@@ -239,102 +300,62 @@ CountUsers()
 void
 RemoveLoginSlot()
 {
-#ifdef GETUTENT
-  struct utmp *uu;
-#endif /* GETUTENT */
-  struct utmp u;	/* 'empty' slot that we write back */
-#ifdef _SEQUENT_
-  char *p;
-#endif /* _SEQUENT_ */
+  struct utmp u, *uu;
 
   ASSERT(display);
   debug("RemoveLoginSlot: removing your logintty\n");
   D_loginslot = TtyNameSlot(D_usertty);
   if (D_loginslot == (slot_t)0 || D_loginslot == (slot_t)-1)
     return;
-#ifdef UT_CLOSE
-  InitUtmp();
-#endif /* UT_CLOSE */
+#ifdef UTMP_HELPER
+  if (eff_uid)	/* helpers can't do login slots. sigh. */
+#else
   if (!utmpok)
+#endif
     {
+      D_loginslot = 0;
       debug("RemoveLoginSlot: utmpok == 0\n");
-      return;
     }
-
+  else
+    {
 #ifdef _SEQUENT_
-  if (p = ut_find_host(D_loginslot))
-    strncpy(D_loginhost, p, sizeof(D_loginhost) - 1);
-  D_loginhost[sizeof(D_loginhost) - 1] = 0;
+      {
+	char *p;
+	if ((p = ut_find_host(D_loginslot)) != 0)
+	  strncpy(D_loginhost, p, sizeof(D_loginhost) - 1);
+	D_loginhost[sizeof(D_loginhost) - 1] = 0;
+      }
 #endif /* _SEQUENT_ */
 
-  bzero((char *) &u, sizeof(u));
-
-#ifdef GETUTENT
-  setutent();
-  strncpy(u.ut_line, D_loginslot, sizeof(u.ut_line));
-  if ((uu = getutline(&u)) == 0)
-    {
-      Msg(0, "Utmp slot not found -> not removed");
-      return;
-    }
-  D_utmp_logintty = *uu;
-# ifdef _SEQUENT_
-  if (ut_delete_user(D_loginslot, uu->ut_pid, 0, 0) == 0)
-# else /* _SEQUENT_ */
-  u = *uu;
-  /*
-   * Ed Hill (ed-hill@uiowa.edu)   screen-3.5.2 under AIX 3.2.5
-   * when you are down to a single screen, and you log out of it (thus
-   * exiting screen), it leaves a stray entry in the utmp file.
-   * Seems better: u.ut_type = EMPTY;
-   */
-  u.ut_type = DEAD_PROCESS;
-#  if !defined(sun) || !defined(SVR4)
-  u.ut_user[0] = '\0';	/* for Digital UNIX, kilbi@rad.rwth-aachen.de */
-#  endif
-  u.ut_exit.e_termination = 0;
-  u.ut_exit.e_exit= 0;
-  if (pututline(&u) == 0)
-# endif /* _SEQUENT_ */
-
-#else /* GETUTENT */
-
-  bzero((char *)&D_utmp_logintty, sizeof(u));
-  (void) lseek(utmpfd, (off_t) (D_loginslot * sizeof(u)), 0);
-  if (read(utmpfd, (char *) &D_utmp_logintty, sizeof(u)) != sizeof(u))
-    {
-      Msg(errno, "cannot read %s ?", UtmpName);
-      sleep(1);
-    }
-# ifdef UT_UNSORTED
-  /* copy tty line */
-  bcopy((char *)&D_utmp_logintty, (char *)&u, sizeof(u));
-  bzero(u.ut_name, sizeof(u.ut_name));
-  bzero(u.ut_host, sizeof(u.ut_host));
-#  ifdef linux
-  u.ut_type = DEAD_PROCESS;
-#  endif
-# endif /* UT_UNSORTED */
-  (void) lseek(utmpfd, (off_t) (D_loginslot * sizeof(u)), 0);
-  if (write(utmpfd, (char *) &u, sizeof(u)) != sizeof(u))
-
-#endif /* GETUTENT */
-
-    {
-#if defined(sun) && defined(SVR4) && defined(GETUTENT)
-      if (eff_uid == 0)	/* don't complain if not suid-root */
-#endif
-# ifdef NETHACK
-      if (nethackflag)
-	Msg(errno, "%s is too hard to dig in", UtmpName); 
+      if ((uu = getutslot(D_loginslot)) == 0)
+	{
+	  debug("Utmp slot not found -> not removed");
+	  D_loginslot = 0;
+	}
       else
-# endif /* NETHACK */
-      Msg(errno, "Could not write %s", UtmpName);
+	{
+	  D_utmp_logintty = *uu;
+	  u = *uu;
+	  makedead(&u);
+	  if (pututslot(D_loginslot, &u, (char *)0, (struct win *)0) == 0)
+	    D_loginslot = 0;
+	}
+      UT_CLOSE;
     }
-#ifdef UT_CLOSE
-  close(utmpfd);
-#endif /* UT_CLOSE */
   debug1(" slot %d zapped\n", (int)D_loginslot);
+  if (D_loginslot == (slot_t)0)
+    {
+      /* couldn't remove slot, do a 'mesg n' at least. */
+      struct stat stb;
+      char *tty;
+      debug("couln't zap slot -> do mesg n\n");
+      D_loginttymode = 0;
+      if ((tty = ttyname(D_userfd)) && stat(tty, &stb) == 0 && stb.st_uid == real_uid && ((int)stb.st_mode & 0777) != 0666)
+	{
+	  D_loginttymode = (int)stb.st_mode & 0777;
+	  chmod(D_usertty, stb.st_mode & 0600);
+	}
+    }
 }
 
 /*
@@ -343,74 +364,27 @@ RemoveLoginSlot()
 void
 RestoreLoginSlot()
 {
+  char *tty;
+
   debug("RestoreLoginSlot()\n");
   ASSERT(display);
-#ifdef UT_CLOSE
-  InitUtmp();
-#endif /* UT_CLOSE */
   if (utmpok && D_loginslot != (slot_t)0 && D_loginslot != (slot_t)-1)
     {
-#ifdef GETUTENT
-# ifdef _SEQUENT_
-      int fail;
-      debug1(" logging you in again (slot %s)\n", D_loginslot);
-/*
- * We have problems if we add the console and use ut_add_user()
- * because the id will be 'scon' instead of 'co'. So we
- * restore it with pututline(). The reason why we don't use
- * pututline all the time is that we want to set the host field.
- * Unfortunatelly this can only be done with ut_add_user().
- */
-      if (*D_loginhost)
-        {
-          fail = (ut_add_user(D_utmp_logintty.ut_name, D_loginslot, D_utmp_logintty.ut_pid,
-                              *D_loginhost ? D_loginhost : (char *)0) == 0);
-        }
-      else
-        {
-          setutent();
-          fail = (pututline(&D_utmp_logintty) == 0);
-        }
-      if (fail)
-# else	/* _SEQUENT_ */
-      debug1(" logging you in again (slot %s)\n", D_loginslot);
-      setutent();
-      if (pututline(&D_utmp_logintty) == 0)
-# endif	/* _SEQUENT */
-#else	/* GETUTENT */
-      debug1(" logging you in again (slot %d)\n", D_loginslot);
-# ifdef sequent
-      /* 
-       * call sequent undocumented routine to count logins 
-       * and add utmp entry if possible 
-       */
-      if (add_utmp(D_loginslot, &D_utmp_logintty) == -1)
-# else /* sequent */
-      (void) lseek(utmpfd, (off_t) (D_loginslot * sizeof(struct utmp)), 0);
-      if (write(utmpfd, (char *) &D_utmp_logintty, sizeof(struct utmp))
-	  != sizeof(struct utmp))
-# endif /* sequent */
-#endif	/* GETUTENT */
-        {
-#ifdef NETHACK
-          if (nethackflag)
-            Msg(errno, "%s is too hard to dig in", UtmpName);
-	  else
-#endif /* NETHACK */
-          Msg(errno,"Could not write %s", UtmpName);
-        }
+      debug1(" logging you in again (slot %#x)\n", (int)D_loginslot);
+      if (pututslot(D_loginslot, &D_utmp_logintty, D_loginhost, (struct win *)0) == 0)
+        Msg(errno,"Could not write %s", UtmpName);
     }
-#ifdef UT_CLOSE
-  close(utmpfd);
-#endif /* UT_CLOSE */
-  D_loginslot = (slot_t) 0;
+  UT_CLOSE;
+  D_loginslot = (slot_t)0;
+  if (D_loginttymode && (tty = ttyname(D_userfd)))
+    chmod(tty, D_loginttymode);
 }
 
 
 
 /*
  * Construct a utmp entry for window wi.
- * the hostname field reflects what we know about the user (i.e. display)
+ * the hostname field reflects what we know about the user (display)
  * location. If d_loginhost is not set, then he is local and we write
  * down the name of his terminal line; else he is remote and we keep
  * the hostname here. The letter S and the window id will be appended.
@@ -423,21 +397,16 @@ struct win *wi;
 {
   register char *p;
   register slot_t slot;
-#ifndef _SEQUENT_
-  char *line;
-#endif
   struct utmp u;
   int saved_ut;
 #ifdef UTHOST
-# ifdef _SEQUENT_
-  char host[100+5];
-# else /* _SEQUENT_ */
-  char host[sizeof(D_utmp_logintty.ut_host)+5];
-# endif /* _SEQUENT_ */
+  char host[sizeof(D_loginhost) + 15];
+#else
+  int host = 0;
 #endif /* UTHOST */
 
   wi->w_slot = (slot_t)0;
-  if (!utmpok)
+  if (!utmpok || wi->w_type != W_TYPE_PTY)
     return -1;
   if ((slot = TtyNameSlot(wi->w_tty)) == (slot_t)0)
     {
@@ -445,24 +414,20 @@ struct win *wi;
       return -1;
     }
   debug2("SetUtmp %d will get slot %d...\n", wi->w_number, (int)slot);
-#ifdef UT_CLOSE
-  InitUtmp();
-#endif /* UT_CLOSE */
 
-  bzero((char *) &u, sizeof(u));
-  if ((saved_ut = bcmp((char *) &wi->w_savut, (char *) &u, sizeof(u))))
+  bzero((char *)&u, sizeof(u));
+  if ((saved_ut = bcmp((char *) &wi->w_savut, (char *)&u, sizeof(u))))
     /* restore original, of which we will adopt all fields but ut_host */
-    bcopy((char *) &wi->w_savut, (char *) &u, sizeof(u));
+    bcopy((char *)&wi->w_savut, (char *) &u, sizeof(u));
+
+  if (!saved_ut)
+    makeuser(&u, stripdev(wi->w_tty), LoginName, wi->w_pid);
 
 #ifdef UTHOST
-  host[sizeof(host)-5] = '\0';
+  host[sizeof(host) - 15] = '\0';
   if (display)
     {
-# ifdef _SEQUENT_
-      strncpy(host, D_loginhost, sizeof(host) - 5);
-# else /* _SEQUENT */
-      strncpy(host, D_utmp_logintty.ut_host, sizeof(host) - 5);
-# endif /* _SEQUENT */
+      strncpy(host, D_loginhost, sizeof(host) - 15);
       if (D_loginslot != (slot_t)0 && D_loginslot != (slot_t)-1 && host[0] != '\0')
 	{
 	  /*
@@ -488,89 +453,33 @@ struct win *wi;
 	}
       else
 	{
-	  strncpy(host + 1, stripdev(D_usertty), sizeof(host) - 6);
+	  strncpy(host + 1, stripdev(D_usertty), sizeof(host) - 15 - 1);
 	  host[0] = ':';
 	}
     }
   else
-    strncpy(host, "local", sizeof(host) - 5);
-  sprintf(host + strlen(host), ":S.%c", '0' + wi->w_number);
+    strncpy(host, "local", sizeof(host) - 15);
+
+  sprintf(host + strlen(host), ":S.%d", wi->w_number);
   debug1("rlogin hostname: '%s'\n", host);
+
 # if !defined(_SEQUENT_) && !defined(sequent)
   strncpy(u.ut_host, host, sizeof(u.ut_host));
 # endif
 #endif /* UTHOST */
 
-#ifdef _SEQUENT_
-  if (ut_add_user(saved_ut ? u.ut_user : LoginName, slot, saved_ut ? u.ut_pid : wi->w_pid, host) == 0)
-#else /* _SEQUENT_ */
-  if (!saved_ut)
-    { /* make new utmp from scratch */
-      line = stripdev(wi->w_tty);
-# ifdef GETUTENT
-      strncpy(u.ut_user, LoginName, sizeof(u.ut_user));
-      /* Now the tricky part... guess ut_id */
-#  ifdef sgi
-      strncpy(u.ut_id, line + 3, sizeof(u.ut_id));
-#  else /* sgi */
-#   ifdef _IBMR2
-      strncpy(u.ut_id, line, sizeof(u.ut_id));
-#   else
-      strncpy(u.ut_id, line + strlen(line) - 2, sizeof(u.ut_id));
-#   endif
-#  endif /* sgi */
-      strncpy(u.ut_line, line, sizeof(u.ut_line));
-      u.ut_pid = wi->w_pid;
-      u.ut_type = USER_PROCESS;
-      (void) time((time_t *)&u.ut_time);
-    } /* !saved_ut {-: */
-  setutent();
-  if (pututline(&u) == 0)
-# else	/* GETUTENT */
-      strncpy(u.ut_line, line, sizeof(u.ut_line));
-      strncpy(u.ut_name, LoginName, sizeof(u.ut_name));
-#  if defined(linux)	/* should have GETUTENT */
-      u.ut_type = USER_PROCESS;
-      u.ut_pid = wi->w_pid;
-      strncpy(u.ut_id, line + 3, sizeof(u.ut_id));
-#  endif /* linux */
-      (void) time((time_t *)&u.ut_time); /* cast needed for ultrix */
-    } /* !saved_ut */
-#  ifdef sequent
-  /*
-   * call sequent undocumented routine to count logins and 
-   * add utmp entry if possible 
-   */
-  if (add_utmp(slot, &u) == -1)
-#  else /* sequent */
-  (void) lseek(utmpfd, (off_t) (slot * sizeof(u)), 0);
-  if (write(utmpfd, (char *) &u, sizeof(u)) != sizeof(u))
-#  endif /* sequent */
-# endif /* GETUTENT */
-#endif /* _SEQUENT_ */
-
+  if (pututslot(slot, &u, host, wi) == 0)
     {
-#ifdef NETHACK
-      if (nethackflag)
-        Msg(errno, "%s is too hard to dig in", UtmpName);
-      else
-#endif /* NETHACK */
       Msg(errno,"Could not write %s", UtmpName);
-#ifdef UT_CLOSE
-      close(utmpfd);
-#endif /* UT_CLOSE */
+      UT_CLOSE;
       return -1;
     }
   debug("SetUtmp successful\n");
   wi->w_slot = slot;
-#ifdef UT_CLOSE
-  close(utmpfd);
-#endif /* UT_CLOSE */
-  bcopy((char *) &u, (char *) &wi->w_savut, sizeof(u));
+  bcopy((char *)&u, (char *)&wi->w_savut, sizeof(u));
+  UT_CLOSE;
   return 0;
 }
-
-
 
 /*
  * if slot could be removed or was 0,  wi->w_slot = -1;
@@ -581,154 +490,278 @@ int
 RemoveUtmp(wi)
 struct win *wi;
 {
-#ifdef GETUTENT
-  struct utmp *uu;
-#endif /* GETUTENT */
-  struct utmp u;
+  struct utmp u, *uu;
   slot_t slot;
 
   slot = wi->w_slot;
-#ifdef GETUTENT
-  debug1("RemoveUtmp(%s)\n", (slot == (slot_t) 0) ?
-         "no slot (0)":((slot == (slot_t) -1) ? "no slot (-1)" : slot));
-#else /* GETUTENT */
-  debug1("RemoveUtmp(wi.slot: %d)\n", slot);
-#endif /* GETUTENT */
-#ifdef UT_CLOSE
-  InitUtmp();
-#endif /* UT_CLOSE */
+  debug1("RemoveUtmp slot=%#x\n", slot);
   if (!utmpok)
     return -1;
-  if (slot == (slot_t) 0 || slot == (slot_t) -1)
+  if (slot == (slot_t)0 || slot == (slot_t)-1)
     {
-      debug1("There is no utmp-slot to be removed(%d)\n", (int)slot);
-      wi->w_slot = (slot_t) -1;
+      wi->w_slot = (slot_t)-1;
       return 0;
     }
   bzero((char *) &u, sizeof(u));
-#ifdef GETUTENT
-  setutent();
-# ifdef sgi
-  bcopy((char *) &wi->w_savut, (char *) &u, sizeof(u));
+#ifdef sgi
+  bcopy((char *)&wi->w_savut, (char *)&u, sizeof(u));
   uu  = &u;
-# else
-  strncpy(u.ut_line, slot, sizeof(u.ut_line));
-  if ((uu = getutline(&u)) == 0)
+#else
+  if ((uu = getutslot(slot)) == 0)
     {
       Msg(0, "Utmp slot not found -> not removed");
       return -1;
     }
   bcopy((char *)uu, (char *)&wi->w_savut, sizeof(wi->w_savut));
-# endif
-# ifdef _SEQUENT_
-  if (ut_delete_user(slot, uu->ut_pid, 0, 0) == 0)
-# else /* _SEQUENT_ */
+#endif
   u = *uu;
-  u.ut_type = DEAD_PROCESS;
-#  if !defined(sun) || !defined(SVR4)
-  u.ut_user[0] = '\0';	/* for Digital UNIX, kilbi@rad.rwth-aachen.de */
-#  endif
-  u.ut_exit.e_termination = 0;
-  u.ut_exit.e_exit= 0;
-  if (pututline(&u) == 0)
-# endif /* _SEQUENT_ */
-#else /* GETUTENT */
-  (void) lseek(utmpfd, (off_t) (slot * sizeof(u)), 0);
-  if (read(utmpfd, (char *) &wi->w_savut, sizeof(u)) != sizeof(u))
+  makedead(&u);
+  if (pututslot(slot, &u, (char *)0, wi) == 0)
     {
-      bzero((char *)&wi->w_savut, sizeof(wi->w_savut));
-      Msg(errno, "cannot read %s?", UtmpName);
-      sleep(1);
-    }
-# ifdef UT_UNSORTED
-  bcopy((char *)&wi->w_savut, (char *)&u, sizeof(u));
-  bzero(u.ut_name, sizeof(u.ut_name));
-  bzero(u.ut_host, sizeof(u.ut_host));
-#  ifdef linux
-  u.ut_type = DEAD_PROCESS;
-#  endif
-# endif /* UT_UNSORTED */
-  (void) lseek(utmpfd, (off_t) (slot * sizeof(u)), 0);
-  if (write(utmpfd, (char *) &u, sizeof(u)) != sizeof(u))
-#endif /* GETUTENT */
-    {
-#ifdef NETHACK
-      if (nethackflag)
-        Msg(errno, "%s is too hard to dig in", UtmpName);
-      else
-#endif /* NETHACK */
       Msg(errno,"Could not write %s", UtmpName);
-#ifdef UT_CLOSE
-      close(utmpfd);
-#endif /* UT_CLOSE */
+      UT_CLOSE;
       return -1;
     }
   debug("RemoveUtmp successfull\n");
-  wi->w_slot = (slot_t) -1;
-#ifdef UT_CLOSE
-  close(utmpfd);
-#endif /* UT_CLOSE */
+  wi->w_slot = (slot_t)-1;
+  UT_CLOSE;
   return 0;
 }
 
 
 
-/*
- * TtyNameSlot:
- * return an index, where the named tty is found in utmp.
+/*********************************************************************
+ *
+ *  routines using the getut* api
  */
 
-static slot_t 
+#ifdef GETUTENT
+
+#define SLOT_USED(u) (u->ut_type == USER_PROCESS)
+
+static struct utmp *
+getutslot(slot)
+slot_t slot;
+{
+  struct utmp u;
+  bzero((char *)&u, sizeof(u));
+  strncpy(u.ut_line, slot, sizeof(u.ut_line));
+  setutent();
+  return getutline(&u);
+}
+
+static int
+pututslot(slot, u, host, wi)
+slot_t slot;
+struct utmp *u;
+char *host;
+struct win *wi;
+{
+#ifdef _SEQUENT_
+  if (SLOT_USED(u) && host && *host)
+    return ut_add_user(u.ut_name, slot, u.ut_pid, host) != 0;
+  if (!SLOT_USED(u))
+    return ut_delete_user(slot, u.ut_pid, 0, 0) != 0;
+#endif
+#ifdef HAVE_UTEMPTER
+  if (eff_uid && wi->w_ptyfd != -1)
+    {
+      /* sigh, linux hackers made the helper functions void */
+      if (SLOT_USED(u))
+	addToUtmp(wi->w_tty, host, wi->w_ptyfd);
+      else
+	removeLineFromUtmp(wi->w_tty, wi->w_ptyfd);
+      return 1;	/* pray for success */
+    }
+#endif
+  setutent();
+  return pututline(u) != 0;
+}
+
+static void
+makedead(u)
+struct utmp *u;
+{
+  u->ut_type = DEAD_PROCESS;
+  u->ut_exit.e_termination = 0;
+  u->ut_exit.e_exit = 0;
+#if !defined(sun) || !defined(SVR4)
+  u->ut_user[0] = 0;	/* for Digital UNIX, kilbi@rad.rwth-aachen.de */
+#endif
+}
+
+static void
+makeuser(u, line, user, pid)
+struct utmp *u;
+char *line, *user;
+int pid;
+{
+  u->ut_type = USER_PROCESS;
+  strncpy(u->ut_user, user, sizeof(u->ut_user));
+  /* Now the tricky part... guess ut_id */
+#if defined(sgi) || defined(linux)
+  strncpy(u->ut_id, line + 3, sizeof(u->ut_id));
+#else /* sgi */
+# ifdef _IBMR2
+  strncpy(u->ut_id, line, sizeof(u->ut_id));
+# else
+  strncpy(u->ut_id, line + strlen(line) - 2, sizeof(u->ut_id));
+# endif
+#endif /* sgi */
+  strncpy(u->ut_line, line, sizeof(u->ut_line));
+  u->ut_pid = pid;
+  (void)time((time_t *)&u->ut_time);
+}
+
+static slot_t
 TtyNameSlot(nam)
 char *nam;
 {
-  char *name;
-  register slot_t slot;
-#ifndef GETUTENT
-# ifdef UT_UNSORTED
-  struct utmp u;
-# else
-  register struct ttyent *tp;
+  return stripdev(nam);
+}
+
+
+#else /* GETUTENT */
+
+/*********************************************************************
+ *
+ *  getut emulation for systems lacking the api
+ */
+
+static struct utmp uent;
+
+#define SLOT_USED(u) (u.ut_name[0] != 0)
+
+static int
+initutmp()
+{
+  if (utmpfd >= 0)
+    return 1;
+  return (utmpfd = open(UtmpName, O_RDWR)) >= 0;
+}
+
+static void
+setutent()
+{
+  if (utmpfd >= 0)
+    (void)lseek(utmpfd, (off_t)0, 0);
+}
+
+static void
+endutent()
+{
+  if (utmpfd >= 0)
+    close(utmpfd);
+  utmpfd = -1;
+}
+
+static struct utmp *
+getutent()
+{
+  if (utmpfd < 0 && !initutmp())
+    return 0;
+  if (read(utmpfd, &uent, sizeof(uent)) != sizeof(uent))
+    return 0;
+  return &uent;
+}
+
+static struct utmp *
+getutslot(slot)
+slot_t slot;
+{
+  if (utmpfd < 0 && !initutmp())
+    return 0;
+  lseek(utmpfd, (off_t)(slot * sizeof(struct utmp)), 0);
+  if (read(utmpfd, &uent, sizeof(uent)) != sizeof(uent))
+    return 0;
+  return &uent;
+}
+
+static int
+pututslot(slot, u, host, wi)
+slot_t slot;
+struct utmp *u;
+char *host;
+struct win *wi;
+{
+#ifdef sequent
+  if (SLOT_USED(u))
+    return add_utmp(slot, u) != -1;
+#endif
+  if (utmpfd < 0 && !initutmp())
+    return 0;
+  lseek(utmpfd, (off_t)(slot * sizeof(*u)), 0);
+  if (write(utmpfd, u, sizeof(*u)) != sizeof(*u))
+    return 0;
+  return 1;
+}
+
+
+static void
+makedead(u)
+struct utmp *u;
+{
+#ifdef UT_UNSORTED
+  bzero(u->ut_name, sizeof(u->ut_name));
+# ifdef UTHOST
+  bzero(u->ut_host, sizeof(u->ut_host));
 # endif
+#else
+  bzero((char *)u, sizeof(*u));
+#endif
+}
+
+
+static void
+makeuser(u, line, user, pid)
+struct utmp *u;
+char *line, *user;
+int pid;
+{
+  strncpy(u->ut_line, line, sizeof(u->ut_line));
+  strncpy(u->ut_name, user, sizeof(u->ut_name));
+  (void)time((time_t *)&u->ut_time);
+}
+
+static slot_t
+TtyNameSlot(nam)
+char *nam;
+{
+  slot_t slot;
+  char *line;
+#ifndef UT_UNSORTED
+  struct ttyent *tp;
 #endif
 
-  debug1("TtyNameSlot(%s)\n", nam);
-#ifdef UT_CLOSE
-  InitUtmp();
-#endif /* UT_CLOSE */
-  if (!utmpok || nam == 0)
-    return (slot_t)0;
-  name = stripdev(nam);
-#ifdef GETUTENT
-  slot = name;
-#else /* GETUTENT */
-# ifdef UT_UNSORTED
-  slot = 0;
-  (void) lseek(utmpfd, (off_t) 0, 0);
-  while ((read(utmpfd, (char *)&u, sizeof(u)) == sizeof(u))
-         && (strcmp(u.ut_line, name)))
-    slot++;
-# else /* UT_UNSORTED*/
+  line = stripdev(nam);
+#ifdef UT_UNSORTED
+  setutent();
+  if (utmpfd < 0)
+    return -1;
+  for (slot = 0; getutent(); slot++)
+    if (strcmp(uent.ut_line, line) == 0)
+      break;
+  UT_CLOSE;
+#else
   slot = 1;
   setttyent();
-  while ((tp = getttyent()) != 0 && strcmp(name, tp->ty_name) != 0)
+  while ((tp = getttyent()) != 0 && strcmp(line, tp->ty_name) != 0)
     slot++;
-# endif /* UTNOKEEP */
-#endif /* GETUTENT */
-
-#ifdef UT_CLOSE
-  close(utmpfd);
 #endif
   return slot;
 }
 
+#endif	/* GETUTENT */
 
+
+
+/*********************************************************************
+ *
+ *  Cheap plastic imitation of ttyent routines.
+ */
 
 #if !defined(GETTTYENT) && !defined(GETUTENT) && !defined(UT_UNSORTED)
 
-/*
- *  Cheap plastic imitation of ttyent routines.
- */
 
 static char *tt, *ttnext;
 static char ttys[] = "/etc/ttys";
@@ -816,4 +849,22 @@ getlogin()
   return *retbuf ? retbuf : NULL;
 }
 # endif /* BUGGYGETLOGIN */
+
+#if defined(linux) && defined(GETUTENT)
+# undef pututline
+
+/* aargh, linux' pututline returns void! */
+struct utmp *
+xpututline(u)
+struct utmp *u;
+{
+  struct utmp *u2;
+  pututline(u);
+  setutent();
+  u2 = getutline(u);
+  if (u2 == 0)
+    return u->ut_type == DEAD_PROCESS ? u : 0;
+  return u->ut_type == u2->ut_type ? u : 0;
+}
+#endif
 
