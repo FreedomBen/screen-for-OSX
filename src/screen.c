@@ -8,21 +8,17 @@
  * not modified.
  */
 
-static char ScreenVersion[] = "screen 1.1i  1.7 88/12/13";
-
-#ifdef SUNOS
-#define KVMLIB
-#endif SUNOS
+static char ScreenVersion[] = "screen 1.1i  1-Jul-87";
 
 #include <stdio.h>
 #include <sgtty.h>
 #include <signal.h>
 #include <errno.h>
 #include <ctype.h>
-#include <sys/types.h>
 #include <utmp.h>
 #include <pwd.h>
 #include <nlist.h>
+#include <sys/types.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
@@ -30,10 +26,6 @@ static char ScreenVersion[] = "screen 1.1i  1.7 88/12/13";
 #include <sys/stat.h>
 #include <sys/file.h>
 #include "screen.h"
-#ifdef KVMLIB
-#include <kvm.h>
-#include <sys/param.h>
-#endif KVMLIB
 
 #ifdef GETTTYENT
 #   include <ttyent.h>
@@ -64,16 +56,8 @@ extern sys_nerr;
 extern char *sys_errlist[];
 extern char *index(), *rindex(), *malloc(), *getenv(), *MakeTermcap();
 extern char *getlogin(), *ttyname();
-extern struct passwd *getpwuid();
-#ifdef pe3200
-extern struct utmp *SetUtmp();
-#endif /* pe3200 */
 static Finit(), SigChld();
 static char *MakeBellMsg(), *Filename(), **SaveArgs();
-#ifdef LOCK
-static void LockTerminal();
-static char LockEnd[] = "Welcome back to screen !!";
-#endif LOCK
 
 static char PtyName[32], TtyName[32];
 static char *ShellProg;
@@ -82,27 +66,10 @@ static char inbuf[IOSIZE];
 static inlen;
 static ESCseen;
 static GotSignal;
-#ifdef LOCK
-static char DefaultLock[] = "/usr/local/bin/lck";
-#endif LOCK
 static char DefaultShell[] = "/bin/sh";
-#ifdef pe3200
-static char DefaultPath[] = ":/usr/local/bin:/bin:/usr/bin";
-#else
 static char DefaultPath[] = ":/usr/ucb:/bin:/usr/bin";
-#endif
 static char PtyProto[] = "/dev/ptyXY";
 static char TtyProto[] = "/dev/ttyXY";
-#ifdef SEQUENT
-#define PTYCHAR1 "p"
-#define PTYCHAR2 "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-#endif SEQUENT
-#ifndef PTYCHAR1
-#define PTYCHAR1 "pqrst"
-#endif PTYCHAR1
-#ifndef PTYCHAR2
-#define PTYCHAR2 "01213456789abcdef"
-#endif PTYCHAR2
 static char SockPath[512];
 static char SockDir[] = ".screen";
 static char *SockName;
@@ -111,45 +78,19 @@ static char Esc = Ctrl('a');
 static char MetaEsc = 'a';
 static char *home;
 static HasWindow;
-static utmp;
-#ifndef pe3200
-static utmpf;
+static utmp, utmpf;
 static char UtmpName[] = "/etc/utmp";
-#endif
 static char *LoginName;
 static char *BellString = "Bell in window %";
 static mflag, nflag, fflag;
 static char HostName[MAXSTR];
 #ifdef LOADAV
-#ifdef SEQUENT
-    static char AvenrunSym[] = "_loadav";
-#else SEQUENT
-    static char AvenrunSym[] = "_avenrun";
-#endif
-    static struct nlist nl[2];
-    static avok;
-#ifdef KVMLIB
-    static kvm_t *kmemf;
-#else
     static char KmemName[] = "/dev/kmem";
-#ifdef SEQUENT
-    static char UnixName[] = "/dynix";
-#else SEQUENT
     static char UnixName[] = "/vmunix";
-#endif SEQUENT
-    static kmemf;
-#endif KVMLIB
-#ifndef vax
-#define AVvar(X) long X[3]
-#ifndef FSCALE
-#define FSCALE 1
-#endif FSCALE
-#define AVfmt(X) (((double)X)/FSCALE)
-#else
-#define AVvar(X) double X[3]
-#define AVfmt(X) X
-#endif vax
-#endif LOADAV
+    static char AvenrunSym[] = "_avenrun";
+    static struct nlist nl[2];
+    static avenrun, kmemf;
+#endif
 
 struct mode {
     struct sgttyb m_ttyb;
@@ -205,12 +146,7 @@ struct msg {
 #define KEY_INFO          23
 #define KEY_TERMCAP       24
 #define KEY_QUIT          25
-#ifdef LOCK
-#define KEY_LOCK	  26
-#define KEY_CREATE        27
-#else  LOCK
-#define KEY_CREATE	  26
-#endif LOCK
+#define KEY_CREATE        26
 
 struct key {
     int type;
@@ -222,9 +158,6 @@ char *KeyNames[] = {
     "windows", "version", "other", "select0", "select1", "select2", "select3",
     "select4", "select5", "select6", "select7", "select8", "select9",
     "xon", "xoff", "info", "termcap", "quit",
-#ifdef LOCK
-    "lock",
-#endif LOCK
     0
 };
 
@@ -236,7 +169,7 @@ main (ac, av) char **av; {
     int aflag = 0;
     struct timeval tv;
     time_t now;
-    char buf[IOSIZE], *myname = (ac == 0) ? "??screen??" : av[0];
+    char buf[IOSIZE], *myname = (ac == 0) ? "screen" : av[0];
     char rc[256];
 
     while (ac > 0) {
@@ -314,7 +247,6 @@ main (ac, av) char **av; {
     signal (SIGTERM, Finit);
     InitKeytab ();
     sprintf (rc, "%.*s/.screenrc", 245, home);
-    signal (SIGCHLD, SigChld);
     ReadRc (rc);
     if ((n = MakeWindow (*av, av, aflag, 0, (char *)0)) == -1) {
 	SetTTY (0, &OldMode);
@@ -325,11 +257,9 @@ main (ac, av) char **av; {
     HasWindow = 1;
     SetMode (&OldMode, &NewMode);
     SetTTY (0, &NewMode);
+    signal (SIGCHLD, SigChld);
     tv.tv_usec = 0;
     while (1) {
-#ifdef EBUG
-fprintf(stderr,"DEBUG: next while.  ");
-#endif * EBUG */
 	if (status) {
 	    time (&now);
 	    if (now - TimeDisplayed < MSGWAIT) {
@@ -353,9 +283,6 @@ fprintf(stderr,"DEBUG: next while.  ");
 	}
 	r |= 1 << s;
 	fflush (stdout);
-#ifdef EBUG
-fprintf(stderr,"DEBUG: selecting..  ");
-#endif * EBUG */
 	if (select (32, &r, &w, &x, status ? &tv : (struct timeval *)0) == -1) {
 	    if (errno == EINTR)
 		continue;
@@ -363,14 +290,8 @@ fprintf(stderr,"DEBUG: selecting..  ");
 	    Msg (errno, "select");
 	    /*NOTREACHED*/
 	}
-#ifdef EBUG
-fprintf(stderr,"DEBUG: select DONE. ");
-#endif * EBUG */
 	if (GotSignal && !status) {
 	    SigHandler ();
-#ifdef EBUG
-fprintf(stderr,"DEBUG: handle sigs  ");
-#endif * EBUG */
 	    continue;
 	}
 	if (r & 1 << s) {
@@ -381,30 +302,18 @@ fprintf(stderr,"DEBUG: handle sigs  ");
 	    RemoveStatus (curr);
 	    if (ESCseen) {
 		inbuf[0] = Esc;
-#ifdef EBUG
-fprintf(stderr,"DEBUG: read(ESC)    ");
-#endif * EBUG */
 		inlen = read (0, inbuf+1, IOSIZE-1) + 1;
 		ESCseen = 0;
 	    } else {
-#ifdef EBUG
-fprintf(stderr,"DEBUG: read(nonESC) ");
-#endif * EBUG */
 		inlen = read (0, inbuf, IOSIZE);
 	    }
 	    if (inlen > 0)
 		inlen = ProcessInput (inbuf, inlen);
-#ifdef EBUG
-fprintf(stderr,"DEBUG: Input DONE. \n");
-#endif * EBUG */
 	    if (inlen > 0)
 		continue;
 	}
 	if (GotSignal && !status) {
 	    SigHandler ();
-#ifdef EBUG
-fprintf(stderr,"DEBUG: handle sigs2 ");
-#endif * EBUG */
 	    continue;
 	}
 	if (w & 1 << curr->ptyfd && inlen > 0) {
@@ -415,9 +324,6 @@ fprintf(stderr,"DEBUG: handle sigs2 ");
 	}
 	if (GotSignal && !status) {
 	    SigHandler ();
-#ifdef EBUG
-fprintf(stderr,"DEBUG: handle sigs3");
-#endif * EBUG */
 	    continue;
 	}
 	for (pp = wtab; pp < wtab+MAXWIN; ++pp) {
@@ -537,9 +443,6 @@ static InitKeytab () {
     ktab['q'].type = ktab[Ctrl('q')].type = KEY_XON;
     ktab['s'].type = ktab[Ctrl('s')].type = KEY_XOFF;
     ktab['t'].type = ktab[Ctrl('t')].type = KEY_INFO;
-#ifdef LOCK
-    ktab['x'].type = ktab[Ctrl('x')].type = KEY_LOCK;
-#endif LOCK
     ktab['.'].type = KEY_TERMCAP;
     ktab[Ctrl('\\')].type = KEY_QUIT;
     ktab[Esc].type = KEY_OTHER;
@@ -618,7 +521,7 @@ static ProcessInput (buf, len) char *buf; {
 		    break;
 		case KEY_VERSION:
 		    p = buf;
-		    Msg (0, "%s; %s", ScreenVersion, AnsiVersion);
+		    Msg (0, "%s  %s", ScreenVersion, AnsiVersion);
 		    break;
 		case KEY_INFO:
 		    p = buf;
@@ -635,12 +538,6 @@ static ProcessInput (buf, len) char *buf; {
 		case KEY_XOFF:
 		    *p++ = Ctrl('s');
 		    break;
-#ifdef LOCK
-		case KEY_LOCK:
-		    p = buf;
-		    LockTerminal();
-		    break;
-#endif LOCK
 		case KEY_CREATE:
 		    p = buf;
 		    if ((n = MakeWindow (ktab[*s].args[0], ktab[*s].args,
@@ -745,9 +642,6 @@ static MakeWindow (prog, args, aflag, StartAt, dir)
     int mypid;
     char ebuf[10];
 
-#ifdef EBUG
-fprintf(stderr,"DEBUG: makewindow(%s)\n",prog);
-#endif /* EBUG */
     pp = wtab+StartAt;
     do {
 	if (*pp == 0)
@@ -957,9 +851,8 @@ static ShowInfo () {
     register struct win *wp = curr;
     struct tm *tp;
     time_t now;
-    int i;
 #ifdef LOADAV
-    AVvar(av);
+    double av[3];
 #endif
 
     time (&now);
@@ -967,13 +860,9 @@ static ShowInfo () {
     sprintf (buf, "%2d:%02.2d:%02.2d %s", tp->tm_hour, tp->tm_min, tp->tm_sec,
 	HostName);
 #ifdef LOADAV
-    if (avok && GetAvenrun (av)) {
+    if (avenrun && GetAvenrun (av)) {
 	p = buf + strlen (buf);
-	for (i = 0; i < sizeof(av)/sizeof(av[0]); i++) {
-	    /* sprintf (p, " %2.2f" , AVfmt(av[i])), */
-	    sprintf (p, " %g" , AVfmt(av[i])),
-	    p = buf + strlen (buf);
-	}
+	sprintf (p, " %2.2f %2.2f %2.2f", av[0], av[1], av[2]);
     }
 #endif
     p = buf + strlen (buf);
@@ -991,8 +880,8 @@ static OpenPTY () {
     strcpy (PtyName, PtyProto);
     strcpy (TtyName, TtyProto);
     for (p = PtyName, i = 0; *p != 'X'; ++p, ++i) ;
-    for (l = PTYCHAR1; *p = *l; ++l) {
-	for (d = PTYCHAR2; p[1] = *d; ++d) {
+    for (l = "pqr"; *p = *l; ++l) {
+	for (d = "0123456789abcdef"; p[1] = *d; ++d) {
 	    if ((f = open (PtyName, O_RDWR)) != -1) {
 		TtyName[i] = p[0];
 		TtyName[i+1] = p[1];
@@ -1029,14 +918,6 @@ static SetMode (op, np) struct mode *op, *np; {
     np->m_ttyb.sg_flags |= CBREAK;
     np->m_tchars.t_intrc = -1;
     np->m_tchars.t_quitc = -1;
-#ifdef pe3200
-    /* this is because this is really a System V
-     * In CBREAK mode eof = min number of chars to be read before return
-     *                eol = time in 1/10 seconds waiting for input
-     */
-    np->m_tchars.t_eofc = 1;
-    np->m_tchars.t_brkc = 1;
-#endif
     if (!flowctl) {
 	np->m_tchars.t_startc = -1;
 	np->m_tchars.t_stopc = -1;
@@ -1065,15 +946,7 @@ static GetSockName () {
     }
     if ((home = getenv ("HOME")) == 0)
 	Msg (0, "$HOME is undefined.");
-#ifdef SEQUENT
-    /* the sequent has problems with binding AF_UNIX sockets
-     * to NFS files. So we changed the path to point to a (hopefully)
-     * local directory
-     */
-    sprintf (SockPath, "/tmp/.%s.%d",  SockDir, getuid());
-#else SEQUENT
-    sprintf (SockPath, "/tmp/.%s.%d",  home, SockDir);
-#endif SEQUENT
+    sprintf (SockPath, "%s/%s", home, SockDir);
     if (stat (SockPath, &s) == -1) {
 	if (errno == ENOENT) {
 	    if (mkdir (SockPath, 0700) == -1)
@@ -1418,42 +1291,30 @@ static char *MakeBellMsg (n) {
 static InitUtmp () {
     struct passwd *p;
 
-#ifndef pe3200
     if ((utmpf = open (UtmpName, O_WRONLY)) == -1) {
 	if (errno != EACCES)
 	    Msg (errno, UtmpName);
 	return;
     }
-#endif
     if ((LoginName = getlogin ()) == 0 || LoginName[0] == '\0') {
 	if ((p = getpwuid (getuid ())) == 0)
-	    LoginName = "SCREEN";
-        else
-	  LoginName = p->pw_name;
+	    return;
+	LoginName = p->pw_name;
     }
     utmp = 1;
 }
 
-static
-#ifdef pe3200
-  struct utmp *
-#endif
-  SetUtmp (name) char *name; {
+static SetUtmp (name) char *name; {
     register char *p;
-#ifdef pe3200
-    struct utmp *u;
-#else
     register struct ttyent *tp;
     register slot = 1;
     struct utmp u;
 
     if (!utmp)
 	return 0;
-#endif
     if (p = rindex (name, '/'))
 	++p;
     else p = name;
-#ifndef pe3200
     setttyent ();
     while ((tp = getttyent ()) != NULL && strcmp (p, tp->ty_name) != 0)
 	++slot;
@@ -1461,41 +1322,14 @@ static
 	return 0;
     strncpy (u.ut_line, p, 8);
     strncpy (u.ut_name, LoginName, 8);
-    time (&u.ut_time);
     u.ut_host[0] = '\0';
+    time (&u.ut_time);
     (void) lseek (utmpf, (long)(slot * sizeof (u)), 0);
     (void) write (utmpf, &u, sizeof (u));
     return slot;
-#else
-    if ( (u = (struct utmp *)malloc(sizeof(struct utmp)) == (struct utmp *)NULL) )
-      {
-        return NULL;
-      }
-    strncpy (u->ut_line, p, 12);
-    u->ut_id[0] = *p;
-    strncpy(&u->ut_id[1],strlen(p) > 1 ? p + strlen(p) - 2 : p, 2);
-    u->ut_id[3] = '\0';
-    strncpy (u->ut_user, LoginName, 8);
-    time (&u->ut_time);
-    u->ut_type = USER_PROCESS;
-    u->ut_pid = getpid();
-    pututline(u);
-    return u;
-#endif
 }
 
-static RemoveUtmp (slot)
-#ifdef pe3200
-  struct utmp *slot;
-#endif
-{
-#ifdef pe3200
-    if (slot)
-      {
-        slot->ut_type = DEAD_PROCESS;
-	pututline(slot);
-      }
-#else
+static RemoveUtmp (slot) {
     struct utmp u;
 
     if (slot) {
@@ -1503,86 +1337,7 @@ static RemoveUtmp (slot)
 	(void) lseek (utmpf, (long)(slot * sizeof (u)), 0);
 	(void) write (utmpf, &u, sizeof (u));
     }
-#endif
 }
-
-#ifdef LOCK
-
-/* ADDED by Rainer Pruy 10/15/87 */
-static void LockTerminal()
-{
-  char *prg;
-  int sig, pid;
-  void * sigs[NSIG];
-
-  for ( sig = 1; sig < NSIG; sig++ )
-    {
-      sigs[sig] = (void *)signal(sig,SIG_IGN);
-    }
-  SetTTY (0, &OldMode);
-  FinitTerm ();
-  printf("\n");
-
-  if ( (pid = fork()) == 0)
-    {
-      /* Child */
-      if ( (prg = getenv("LOCKPRG")) == NULL)
-	prg = DefaultLock;
-  
-      execl(prg,"SCREEN-LOCK",NULL);
-      Msg(errno,"%s",prg);
-      sleep(2);
-      exit(0);
-    }
-  if (pid == -1)
-    {
-      SetTTY (0, &NewMode);
-      Activate (wtab[CurrNum]);
-      Msg(errno,"Cannot lock terminal - fork failed");
-    }
-  else
-    {
-      union wait status;
-      int wret, saverrno;
-
-      errno = 0;
-      while ( ((wret=wait(&status)) != pid) ||
-	      ((wret == -1) && (errno = EINTR))
-	    ) errno = 0;
-
-      saverrno = errno;
-      SetTTY (0, &NewMode);
-      Activate (wtab[CurrNum]);
-
-      if (saverrno)
-	Msg(saverrno,"Lock");
-      else
-	if (status.w_T.w_Termsig != 0)
-	  Msg(0,"Lock: %s: Killed by signal: %d%s",prg,
-	      status.w_T.w_Termsig,status.w_T.w_Coredump?" (Core dumped)":"");
-	else
-	  if (status.w_T.w_Retcode)
-	    Msg(0,"Lock: %s: Returnecode = %d",prg,status.w_T.w_Retcode);
-	  else
-	    {
-	      int startpos;
-	      char *endmsg = getenv("LOCKMSG");
-
-	      if ( endmsg == NULL ) endmsg = LockEnd;
-	      startpos = (cols - strlen(endmsg)) / 2 - 1;
-	      if ( startpos < 0 ) startpos = 0;
-	      Msg(0,"%*s%-*s", startpos, "", cols - startpos, endmsg);
-	    }
-    }
-  /* reset signals */
-  for ( sig = 1; sig < NSIG; sig++ )
-    {
-      signal(sig,(int (*)())sigs[sig]);
-    }
-} /* LockTerminal */
-
-#endif LOCK
-
 
 #ifndef GETTTYENT
 
@@ -1623,32 +1378,20 @@ static struct ttyent *getttyent () {
 #ifdef LOADAV
 
 static InitKmem () {
-    avok = 0;
-    nl[0].n_name = AvenrunSym;
-#ifdef KVMLIB
-    if ((kmemf = kvm_open (NULL, NULL, NULL, O_RDONLY, "screen")) == NULL)
-	return;
-    kvm_nlist (kmemf, nl);
-#else KVMLIB
     if ((kmemf = open (KmemName, O_RDONLY)) == -1)
 	return;
+    nl[0].n_name = AvenrunSym;
     nlist (UnixName, nl);
-#endif KVMLIB
     if (nl[0].n_type == 0 || nl[0].n_value == 0)
 	return;
-    avok = 1;
+    avenrun = 1;
 }
 
-static GetAvenrun (av) AVvar(av); {
-#ifdef KVMLIB
-    if (kvm_read( kmemf, nl[0].n_value, av, sizeof (av)) != sizeof(av))
-	return 0;
-#else KVMLIB
+static GetAvenrun (av) double av[]; {
     if (lseek (kmemf, nl[0].n_value, 0) == -1)
 	return 0;
-    if (read (kmemf, av, sizeof (av)) != sizeof (av))
+    if (read (kmemf, av, 3*sizeof (double)) != 3*sizeof (double))
 	return 0;
-#endif KVMLIB
     return 1;
 }
 

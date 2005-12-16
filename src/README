@@ -67,9 +67,6 @@ Major changes between this and the beta-test release are:
     -  "C-a C-t" displays status information (e.g. the load average and
        the virtual terminal's parameters) in the message line
     -  "C-a C-\" closes all windows and terminates screen
-    -  "C-a x"  calls a lock program intended to lock the terminal.
-       Screen wait for this program to terminate before proceeding.
-       This is available by the compiler option -DLOCK
 
 Before typing "make", you should have a look into the Makefile.
 If your system maintains a 4.3-BSD-style load average, add -DLOADAV to

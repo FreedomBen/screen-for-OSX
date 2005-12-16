@@ -8,11 +8,7 @@
  * not modified.
  */
 
-#ifndef NO_SCCS_ID
-static char sccs_id[]="@(#)ansi.c	1.3 88/07/20 01:08:40";
-#endif /* NO_SCCS_ID */
-
-char AnsiVersion[] = "ansi 1.0g 1.3 88/07/20";
+char AnsiVersion[] = "ansi 1.0g 27-Apr-87";
 
 #include <stdio.h>
 #include <sys/types.h>

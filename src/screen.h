@@ -8,10 +8,6 @@
  * not modified.
  */
 
-#ifndef NO_SCCS_ID
-static char SCCS_screen_h[]="@(#)screen.h	1.3 88/07/20 01:58:01";
-#endif /* NO_SCCS_ID */
-
 enum state_t {
     LIT,         /* Literal input */
     ESC,         /* Start of escape sequence */
@@ -40,11 +36,7 @@ struct win {
     int outlen;
     char cmd[MAXSTR];
     char tty[MAXSTR];
-#ifdef pe3200
-    struct utmp *slot;
-#else
     int slot;
-#endif
     char **image;
     char **attr;
     int active;
