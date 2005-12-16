@@ -45,7 +45,7 @@
 /*
  * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
  */
-#undef POSIX
+#define POSIX
 
 /*
  * Define BSDJOBS if you have BSD-style job control (both process
@@ -59,7 +59,7 @@
  * POSIX systems should define this anyway, even though they use
  * struct termios.
  */
-#undef TERMIO
+#define TERMIO
 
 /*
  * Define TERMINFO if your machine emulates the termcap routines
@@ -72,18 +72,18 @@
 /*
  * Define SYSV if your machine is SYSV complient (Sys V, HPUX, A/UX)
  */
-#undef SYSV
+#define SYSV
 
 /*
  * Define SIGVOID if your signal handlers return void.  On older
  * systems, signal returns int, but on newer ones, it returns void.
  */
-#undef SIGVOID 
+#define SIGVOID 
 
 /*
  * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
  */
-#undef DIRENT
+#define DIRENT
 
 /*
  * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
@@ -102,7 +102,7 @@
  * If your system has getutent(), pututline(), etc. to write to the
  * utmp file, define GETUTENT.
  */
-#undef GETUTENT
+#define GETUTENT
 
 /*
  * Define UTHOST if the utmp file has a host field.
@@ -133,7 +133,7 @@
  * files without retaining any special privileges.  (Output logging will be
  * disabled, however.)
  */
-#undef NOREUID
+#define NOREUID
 
 /*
  * If you want the "time" command to display the current load average
@@ -142,7 +142,7 @@
  * following formats:  3 doubles (BSD), 3 longs (sun), and 4 longs (alliant).
  */
 #undef  LOADAV_3DOUBLES
-#define LOADAV_3LONGS
+#undef  LOADAV_3LONGS
 #undef  LOADAV_4LONGS
 
 /*
@@ -204,7 +204,7 @@
 /*
  * Define this if your system supports named pipes.
  */
-#undef NAMEDPIPE
+#define NAMEDPIPE
 
 /*
  * here come the erlangen extensions to screen:

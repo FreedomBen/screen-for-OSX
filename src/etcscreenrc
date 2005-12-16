@@ -1,0 +1,74 @@
+
+# This is a global screenrc file
+# Install this file as /usr/local/etc/screenrc. See config.h
+#
+# Flaws of termcap and standard settings are done here.
+# Note: This file should not be shared between different hosts.
+#       The 'termcap' lines are written in termcap syntax.
+#       The syntax for a terminfo based host is slightly different.
+#
+# for further details see ~jnweiger/.screenrc
+#echo "===================================================================="
+#echo "Es gibt mal wieder eine neue screen Version."
+#echo "     Neues Feature: Scrollback history"
+#echo ""
+#echo "  jnweiger@immd4"
+#echo "===================================================================="
+#sleep 3
+
+set vbell on
+set login on
+set autodetach off
+# 'vbell on' without the prepended 'set' keyword will change the default for 
+# subsequently opened windows. with the 'set' keyword we would change
+# the setting of the currently active window.
+vbell on
+set vbell_msg "   Wuff,  ----  Wuff!!  "
+
+# all termcap entries are now duplicated as terminfo entries.
+# only difference should be the slightly modified syntax, and check for
+# terminfo entries, that are already corected in the database.
+# 
+# G0 	we have a SEMI-GRAPHICS-CHARACTER-MODE
+# WS	this sequence resizes our window.
+# cs    this sequence changes the scrollregion
+# hs@	we have no hardware statusline. screen will only believe that there
+#       is a hardware status line if hs,ts,fs,ds are all set.
+# ts    to statusline
+# fs    from statusline
+# ds    delete statusline
+# AL    add lines
+# al    add one line
+# dl    delete one line
+
+#the vt100 description does not mention "dl". *sigh*
+termcap  vt100 dl=5\E[M
+terminfo vt100 dl=5\E[M
+
+#facit's "al" has a bug if the line contains attributes...
+termcap  facit|vt100|xterm LP:G0
+terminfo facit|vt100|xterm LP:G0
+termcap  facit|vt100 al@:AL@:cs=\E[%i%d;%dr
+terminfo facit|vt100 al@:AL@:cs=\E[%i%p1%d;%p2%dr
+#make sun termcap/info better
+termcap  sun up=^K:AL=\E[%dL:DL=\E[%dM:WS=\E[8;%d;%dt
+terminfo sun up=^K:AL=\E[%p1%dL:DL=\E[%p1%dM:WS=\E[8;%p1%d;%p2%dt
+termcap  xterm|fptwist hs@:cs=\E[%i%d;%dr
+terminfo xterm|fptwist hs@:cs=\E[%i%p1%d;%p2%dr
+termcap  hp700 Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[0$~\E[61"p
+terminfo hp700 Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[0$~\E[61"p
+
+# xterms is xterm with status line in title bar
+termcap  xterms hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%d;%dr:LP:G0:al@:AL@
+terminfo xterms hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%p1%d;%p2%dr:LP:G0:al@:AL@
+
+#remove some stupid / dangerous key bindings
+bind '^k'
+#bind 'L'
+bind '^\'
+#make them better
+bind '\\' quit
+bind 'K' kill
+bind 'I' set login on
+bind 'O' set login off
+bind '}' history

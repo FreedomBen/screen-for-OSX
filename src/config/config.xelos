@@ -67,7 +67,7 @@
  * Thus the .screenrc file is parsed for
  * the command 'terminfo' and not 'termcap'.
  */
-#undef TERMINFO
+#define TERMINFO
 
 /*
  * Define SYSV if your machine is SYSV complient (Sys V, HPUX, A/UX)
@@ -102,7 +102,7 @@
  * If your system has getutent(), pututline(), etc. to write to the
  * utmp file, define GETUTENT.
  */
-#undef GETUTENT
+#define GETUTENT
 
 /*
  * Define UTHOST if the utmp file has a host field.
@@ -239,3 +239,4 @@
 /*
  *	End of User Configuration Section
  */
+

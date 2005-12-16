@@ -22,8 +22,8 @@ LDFLAGS=
 #LIBS= nmalloc.o -ltermcap 
 LIBS= -ltermcap 
 
-CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c
-OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o
+CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c putenv.c
+OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o putenv.o
 
 screen: $(OFILES)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o screen $(OFILES) $(LIBS)
@@ -48,6 +48,10 @@ window.o: window.c config.h screen.h  extern.h
 
 socket.o: socket.c config.h screen.h  extern.h
 	$(CC) $(CFLAGS) -c socket.c
+
+putenv.o: putenv.c config.h
+	$(CC) $(CFLAGS) -c putenv.c
+
 
 clean:
 	rm -f $(OFILES) screen

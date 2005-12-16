@@ -21,6 +21,9 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
+ * this config file was contributed by Marc Boucher <marc@CAM.ORG>
+ * it supports System V Release 4.0
+ ********************************************************** 
  * $Id$ FAU
  */
 
@@ -45,13 +48,7 @@
 /*
  * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
  */
-#undef POSIX
-
-/*
- * Define BSDJOBS if you have BSD-style job control (both process
- * groups and a tty that deals correctly with them).
- */
-#define BSDJOBS
+#define POSIX
 
 /*
  * Define TERMIO if you have struct termio instead of struct sgttyb.
@@ -59,31 +56,31 @@
  * POSIX systems should define this anyway, even though they use
  * struct termios.
  */
-#undef TERMIO
+#define TERMIO
 
 /*
  * Define TERMINFO if your machine emulates the termcap routines
- * with the terminfo database.
- * Thus the .screenrc file is parsed for
+ * with the terminfo database. 
+ * Thus the .screenrc file is parsed for 
  * the command 'terminfo' and not 'termcap'.
  */
-#undef TERMINFO
+#define TERMINFO
 
 /*
  * Define SYSV if your machine is SYSV complient (Sys V, HPUX, A/UX)
  */
-#undef SYSV
+#define SYSV
 
 /*
  * Define SIGVOID if your signal handlers return void.  On older
  * systems, signal returns int, but on newer ones, it returns void.
  */
-#undef SIGVOID 
+#define SIGVOID 
 
 /*
  * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
  */
-#undef DIRENT
+#define DIRENT
 
 /*
  * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
@@ -102,12 +99,12 @@
  * If your system has getutent(), pututline(), etc. to write to the
  * utmp file, define GETUTENT.
  */
-#undef GETUTENT
+#define GETUTENT
 
 /*
  * Define UTHOST if the utmp file has a host field.
  */
-#define UTHOST
+#undef UTHOST
 
 /*
  * If UTMPOK is defined and your system (incorrectly) counts logins by
@@ -133,7 +130,7 @@
  * files without retaining any special privileges.  (Output logging will be
  * disabled, however.)
  */
-#undef NOREUID
+#define NOREUID
 
 /*
  * If you want the "time" command to display the current load average
@@ -141,8 +138,8 @@
  * and have a load average format that screen understands.  We handle the
  * following formats:  3 doubles (BSD), 3 longs (sun), and 4 longs (alliant).
  */
-#undef  LOADAV_3DOUBLES
-#define LOADAV_3LONGS
+#define LOADAV_3DOUBLES
+#undef  LOADAV_3LONGS
 #undef  LOADAV_4LONGS
 
 /*
@@ -199,12 +196,12 @@
  * "varargs.h" to use functions with variable arguments,
  * define USEVARARGS.
  */
-#undef USEVARARGS
+#define USEVARARGS
 
 /*
  * Define this if your system supports named pipes.
  */
-#undef NAMEDPIPE
+#define NAMEDPIPE
 
 /*
  * here come the erlangen extensions to screen:
@@ -236,6 +233,9 @@
  */
 #define ETCSCREENRC "/local/etc/screenrc"
 
+#define SVR4
+/*#define NEEDSETENV*/
+/*#define DEBUG*/
 /*
  *	End of User Configuration Section
  */

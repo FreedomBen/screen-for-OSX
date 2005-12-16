@@ -45,7 +45,7 @@
 /*
  * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
  */
-#undef POSIX
+#define POSIX
 
 /*
  * Define BSDJOBS if you have BSD-style job control (both process
@@ -59,7 +59,7 @@
  * POSIX systems should define this anyway, even though they use
  * struct termios.
  */
-#undef TERMIO
+#define TERMIO
 
 /*
  * Define TERMINFO if your machine emulates the termcap routines
@@ -78,12 +78,12 @@
  * Define SIGVOID if your signal handlers return void.  On older
  * systems, signal returns int, but on newer ones, it returns void.
  */
-#undef SIGVOID 
+#define SIGVOID 
 
 /*
  * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
  */
-#undef DIRENT
+#define DIRENT
 
 /*
  * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
@@ -175,9 +175,9 @@
 
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
-#  define SOCKDIR "/local/screens"
-# else
 #  define SOCKDIR "/tmp/screens"
+# else
+#  define SOCKDIR "/tmp/testscreens"
 # endif
 #endif
 
@@ -204,7 +204,7 @@
 /*
  * Define this if your system supports named pipes.
  */
-#undef NAMEDPIPE
+#define NAMEDPIPE
 
 /*
  * here come the erlangen extensions to screen:

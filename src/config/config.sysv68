@@ -51,7 +51,7 @@
  * Define BSDJOBS if you have BSD-style job control (both process
  * groups and a tty that deals correctly with them).
  */
-#define BSDJOBS
+#undef BSDJOBS
 
 /*
  * Define TERMIO if you have struct termio instead of struct sgttyb.
@@ -59,7 +59,7 @@
  * POSIX systems should define this anyway, even though they use
  * struct termios.
  */
-#undef TERMIO
+#define TERMIO
 
 /*
  * Define TERMINFO if your machine emulates the termcap routines
@@ -67,23 +67,23 @@
  * Thus the .screenrc file is parsed for
  * the command 'terminfo' and not 'termcap'.
  */
-#undef TERMINFO
+#define TERMINFO
 
 /*
  * Define SYSV if your machine is SYSV complient (Sys V, HPUX, A/UX)
  */
-#undef SYSV
+#define SYSV
 
 /*
  * Define SIGVOID if your signal handlers return void.  On older
  * systems, signal returns int, but on newer ones, it returns void.
  */
-#undef SIGVOID 
+#define SIGVOID 
 
 /*
  * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
  */
-#undef DIRENT
+#define DIRENT
 
 /*
  * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
@@ -95,19 +95,19 @@
  * it is installed set-uid root), define UTMPOK.  Set LOGINDEFAULT to one (1)
  * if you want entries added to /etc/utmp by default, else set it to zero (0).
  */
-#define UTMPOK
+#undef UTMPOK
 #define LOGINDEFAULT	1
 
 /*
  * If your system has getutent(), pututline(), etc. to write to the
  * utmp file, define GETUTENT.
  */
-#undef GETUTENT
+#define GETUTENT
 
 /*
  * Define UTHOST if the utmp file has a host field.
  */
-#define UTHOST
+#undef UTHOST
 
 /*
  * If UTMPOK is defined and your system (incorrectly) counts logins by
@@ -133,7 +133,7 @@
  * files without retaining any special privileges.  (Output logging will be
  * disabled, however.)
  */
-#undef NOREUID
+#define NOREUID
 
 /*
  * If you want the "time" command to display the current load average
@@ -142,7 +142,7 @@
  * following formats:  3 doubles (BSD), 3 longs (sun), and 4 longs (alliant).
  */
 #undef  LOADAV_3DOUBLES
-#define LOADAV_3LONGS
+#undef  LOADAV_3LONGS
 #undef  LOADAV_4LONGS
 
 /*
@@ -204,7 +204,7 @@
 /*
  * Define this if your system supports named pipes.
  */
-#undef NAMEDPIPE
+#define NAMEDPIPE
 
 /*
  * here come the erlangen extensions to screen:
@@ -226,7 +226,7 @@
  * try to throw out phrases that are somewhat more familiar
  * to ...well, at least familiar to us NetHack players.
  */
-#define NETHACK
+#undef NETHACK 
 
 /*
  * and another sneaky feature: screen sources two startup files.

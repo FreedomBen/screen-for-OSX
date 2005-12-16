@@ -45,7 +45,9 @@
 /*
  * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
  */
-#undef POSIX
+#ifndef POSIX
+# define POSIX
+#endif
 
 /*
  * Define BSDJOBS if you have BSD-style job control (both process
@@ -59,7 +61,7 @@
  * POSIX systems should define this anyway, even though they use
  * struct termios.
  */
-#undef TERMIO
+#define TERMIO
 
 /*
  * Define TERMINFO if your machine emulates the termcap routines
@@ -78,25 +80,25 @@
  * Define SIGVOID if your signal handlers return void.  On older
  * systems, signal returns int, but on newer ones, it returns void.
  */
-#undef SIGVOID 
+#define SIGVOID 
 
 /*
  * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
  */
-#undef DIRENT
+#define DIRENT
 
 /*
  * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
  */
-#define SUIDROOT
+#undef SUIDROOT
 
 /*
  * If screen is installed with permissions to update /etc/utmp (such as if
  * it is installed set-uid root), define UTMPOK.  Set LOGINDEFAULT to one (1)
  * if you want entries added to /etc/utmp by default, else set it to zero (0).
  */
-#define UTMPOK
-#define LOGINDEFAULT	1
+#undef UTMPOK
+#define LOGINDEFAULT	0
 
 /*
  * If your system has getutent(), pututline(), etc. to write to the
@@ -107,7 +109,7 @@
 /*
  * Define UTHOST if the utmp file has a host field.
  */
-#define UTHOST
+#undef UTHOST
 
 /*
  * If UTMPOK is defined and your system (incorrectly) counts logins by
@@ -141,15 +143,15 @@
  * and have a load average format that screen understands.  We handle the
  * following formats:  3 doubles (BSD), 3 longs (sun), and 4 longs (alliant).
  */
-#undef  LOADAV_3DOUBLES
-#define LOADAV_3LONGS
+#define  LOADAV_3DOUBLES
+#undef LOADAV_3LONGS
 #undef  LOADAV_4LONGS
 
 /*
  * If your system has the new format /etc/ttys (like 4.3 BSD) and the
  * getttyent(3) library functions, define GETTTYENT.
  */
-#undef GETTTYENT
+#define GETTTYENT
 
 /*
  * If your version of NFS supports named sockets and you install screen
@@ -172,6 +174,7 @@
  * define LOCALSOCKDIR and change the definition of SOCKDIR below.
  */
 #define LOCALSOCKDIR
+#define TMPTEST
 
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
@@ -204,7 +207,7 @@
 /*
  * Define this if your system supports named pipes.
  */
-#undef NAMEDPIPE
+#define NAMEDPIPE
 
 /*
  * here come the erlangen extensions to screen:
@@ -234,8 +237,11 @@
  * your local $HOME/.screenrc
  * Don't define this, if you don't want it.
  */
-#define ETCSCREENRC "/local/etc/screenrc"
+#undef ETCSCREENRC "/local/etc/screenrc"
 
 /*
  *	End of User Configuration Section
  */
+
+
+#define NEEDSETENV

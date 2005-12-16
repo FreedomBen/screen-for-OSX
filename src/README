@@ -1,74 +1,86 @@
-"screen" is a window manager that allows you to handle several independent
-screens (UNIX ttys) on a single physical terminal; each screen has its own
-set of processes connected to it (typically interactive shells).  Each
-virtual terminal created by "screen" emulates a DEC VT100 plus several ANSI
-X3.64 and ISO 2022 functions (including DEC VT102 features such as line and
-character deletion and insertion).
 
-Since "screen" uses pseudo-ttys, the select system call, and UNIX-domain
-sockets, it will not run under a system that does not include these
-features of 4.2 and 4.3 BSD UNIX.
+Short introduction to screen (Version 3.0.7)                  jw 7.9.91
 
-If you want to get a quick idea how "screen" works but don't want to read
-the entire manual, do the following:
- 
-     -  call "screen" without arguments
-     -  wait for the shell prompt; execute some commands
-     -  type ^A ^C (Control-A followed by Control-C)
-     -  wait for the shell prompt; do something in the new window
-     -  type ^A ^A repeatedly to switch between the two windows
-     -  terminate the first shell ("screen" switches to the other window)
-     -  terminate the second shell
+screen 
+  provides you with an ansi/vt100 terminal emulator, which can multiplex
+  up to 10 pseudo-terminals. On startup, it executes $SHELL in window 0.
+  Then it reads $HOME/.screenrc to learn configuration, keybindings, 
+  and may open more windows.
 
-If you have got "vttest" (the VT100 test program from mod.sources) you
-may want to run it from within "screen" to verify that it correctly
-emulates a VT100 on your terminal (except for things your terminal is
-incapable of handling, like 132 column mode and double width/height
-characters, of course).
+  C-A C		Create new windows.
 
-By the way, "screen" can be used to compensate for certain bugs of "real"
-VT100 terminals.  For instance, our 4.2 BSD version of mille(6) garbles
-the display on terminals of the VT100 family, but it works quite fine
-when it is invoked from within "screen".  In addition, "screen" enables
-you to use EMACS on terminals that are unable to generate Control-S and
-Control-Q from the keyboard or that require flow control using Control-S
-and Control-Q.  This is the reason why I have an alias like
+  C-A SPACE	Advance from window to window (with wraparound)
 
-     alias emacs "screen emacs"
+  C-A C-A	Toggle between two windows.
 
-in my .cshrc file.  Users who run EMACS on terminals which normally have no
-trouble with Control-S and Control-Q will probably want to run screen with
-the -fn or -fa options, or put the line "flow off" or "flow auto" in their
-.screenrc file.
+  C-A 0
+   ...
+  C-A 9		Switch to window nr. 0 ... 9.
 
-Before typing "make", copy config.h-dist to config.h and then edit it to
-reflect the configuration parameters of your choice.  Each define is well
-commented to help you decide what to choose.  Then give the Makefile the
-once-over and compile.
+  C-A w		Show a list of windows in the Statusline.
 
-To get screen to do everything it was designed to do, it should be installed
-set-uid root.  This enables it to modify the ownership of the pseudo-ttys,
-update /etc/utmp, and read the current load average from /dev/kmem.
+  C-A a		(Think of goto-start-of-line in emacs or tcsh).
+  C-A s		(Think of i-search in emacs).
+  C-A q		Send a literal C-A/C-S/C-Q to the process in the window.
 
-Failing to install it suid root (e.g. if you fear a trojan horse) doesn't
-have any major disadvantages, except that w(1) and some other utilities
-will display only "screen" as the current process, and the pseudo ttys
-(ptys) used for the virtual terminals won't have their owners set.  Screen
-can provide you some pty security by opening the ptys exclusively, but
-this has the unfortunate side-effect of keeping your own subprocesses from
-being able to open /dev/tty.
+  C-A l		Redraw this window.
 
-It is also possible to create a special "screen" group and give the file
-/etc/utmp screen-group write-access, and give the file /dev/kmem screen-group
-read access to get all the features except the pty-ownership changes.  Some
-people also install it set-gid "kmem" or set-gid "utmp" to give it one or
-the other.
+  C-A W		Toggle between 80 & 132 columns mode. 
 
-Many people install screen as a normal program with no special privileges
-and still find it to be indispensable.  Give it a try.
+  C-A L		Try to toggle the utmp-slot for this window.
 
-Send your questions, comments and bug reports for screen to:
+  C-A A		Prompt for a new name for this window. (see C-A w).
 
-	Wayne Davison <davison%drivax@uunet.uu.net>
+  C-A z		Suspend the whole screen.
 
-	(...!uunet!drivax!davison)
+  C-A x		Execute /usr/bin/lock or $LOCKCMD or a builtin terminallock.
+
+  C-A C-[	Start copy&paste mode. Move cursor with h,j,k,l. Set 2 marks
+		with SPACE or y. Abort with ESC. Note that "C-[" is ESC.
+		NOTE: there is a userdefined amount of scrollback history.
+                The history buffer is entered, when the cursor hits the top
+		of the window.
+
+  C-A C-]	paste in current window's stdin. see C-A C-[.
+
+  C-A <
+  C-A >		Read or write the copybuffer from/to the exchange file.
+		Multiple screen users on the same host may thus transfer text.
+
+  C-A d		Detach screen. All processes continue and may spool output
+		to their pty's, but screen disconnects from your terminal.
+		reattach with "screen -r".
+
+  C-A D D	Power detach. Disconnect like C-A d and kill the parent shell.
+
+  C-A K		Kill a window and send SIGHUP to its processgroup. Per default
+		this would be C-A C-k. But it is redefined in the demo .screenrc
+		(think of killing a whole line in emacs).
+
+  C-A :set all  Show all keybindings. The above list is not at all complete and
+		may even be wrong, as keys can be redefined in .screenrc or
+		with "C-A :bind 'X' keyname [arguments]".
+
+  C-A : ....  Online configuration change.
+
+
+screen -r [host.tty]
+  Reattach a detached screen session. The terminal emulator reconfigures
+  according to your $TERMCAP or $TERM settings. '-R' brings up a detached
+  session or (if none) creates a new session. You should specify a socket
+  when there you have multiple screens detached. 
+
+screen -d [host.tty]
+  Detach a screen session from remote. Has the same effect as typing 'C-A d'
+  on the controlling terminal. '-D' will power-detach.
+
+screen -list
+screen -ls
+  Show all available sockets. If there are (DEAD???) sockets, you may consider 
+  removing them. If there are sockets missing, you may send a SIGCHLD to its
+  process 'SCREEN' and the process will re-establish the socket. (think of 
+  someone cleaning /tmp thoroughly).
+
+screen -h 200
+  Starts a new screen session and sets the number of lines in the scrollback
+  buffer to 200. The default is 50 lines.
