@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2002
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -44,8 +44,7 @@ struct NewWindow
   int   gr;
   int   c1;
   int   bce;
-  int   kanji;
-  int   utf8;
+  int   encoding;
   char	*hstatus;
   char	*charset;
 };
@@ -164,9 +163,6 @@ struct win
 
   enum state_t w_state;		/* parser state */
   enum string_t w_StringType;
-#ifdef UTF8
-  int    w_utf8char;
-#endif
   struct mline *w_mlines;
   struct mchar w_rend;		/* current rendition */
 #ifdef FONT
@@ -199,8 +195,11 @@ struct win
   int	 w_gr;			/* enable GR flag */
   int	 w_c1;			/* enable C1 flag */
   int	 w_bce;			/* enable backcol erase */
-#ifdef KANJI
-  int    w_kanji;		/* for input and paste */
+#if 0
+  int    w_encoding;		/* for input and paste */
+#endif
+  int    w_decodestate;		/* state of our input decoder */
+#ifdef DW_CHARS
   int    w_mbcs;		/* saved char for multibytes charset */
 #endif
   char	 w_string[MAXSTR];
@@ -238,6 +237,7 @@ struct win
   char	*w_dir;			/* directory for chdir */
   char	*w_term;		/* TERM to be set instead of "screen" */
 
+  int    w_lflag;		/* login flag */
   slot_t w_slot;		/* utmp slot */
 #if defined (UTMPOK)
   struct utmp w_savut;		/* utmp entry of this window */
@@ -259,7 +259,7 @@ struct win
 };
 
 
-#define w_utf8   w_layer.l_utf8
+#define w_encoding   w_layer.l_encoding
 #define w_width  w_layer.l_width
 #define w_height w_layer.l_height
 #define w_x      w_layer.l_x

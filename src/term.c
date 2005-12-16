@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2002
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -118,8 +118,10 @@ struct term term[T_N] =
   { "Sf", T_STR  },
   { "Sb", T_STR  },
   { "op", T_STR  },
+  { "Co", T_NUM  },
   { "be", T_FLG  },
   { "AX", T_FLG  },
+  { "C8", T_FLG  },
 
 /* keypad/cursorkeys */
   { "ks", T_STR  },

@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2002
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -179,6 +179,10 @@ extern int errno;
 #ifdef BUILTIN_TELNET
 # include <netinet/in.h>
 # include <arpa/inet.h>
+#endif
+
+#if defined(USE_LOCALE) && (!defined(HAVE_SETLOCALE) || !defined(HAVE_STRFTIME))
+# undef USE_LOCALE
 #endif
 
 /*****************************************************************

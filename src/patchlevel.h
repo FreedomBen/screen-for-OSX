@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2001
+/* Copyright (c) 1993-2002
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -466,11 +466,33 @@
  *                     -- DISTRIBUTED
  *  4.09.01 -- 3.09.10 '-R' security fix. Fixed array in MScrollV().
  *                     -- DISTRIBUTED
+ *                     Reset charset after 'me'.
+ * 14.02.02 -- 3.09.11 Support for other encodings. Double width
+ *                     utf-8 chars. 'L' modifier for %D, %M, %w
+ *                     and %W. New %= (hfill), %H (hostname),
+ *                     %f (flags), %F (focus) escapes. New commands
+ *                     source, windowlist, deflog. Command key classes.
+ *                     New login state: always. Time format
+ *                     changeable. 256 color support.
+ *                     Updated digraph table. Ignorecase.
+ *                     Windowlist resizeable on blank window.
+ *                     Added encoding to paste buffers.
+ *                     Hpux loadtype detection fixed.
+ *                     Disabled im/ic warning. Fixed a bug that
+ *                     could cause window lockups in rare
+ *                     circumstances. Made hangup signal to the
+ *                     backend process detach all displays.
+ *                     New escapes %< %>, + and - flag for %w.
+ *                     Added eval command, added -h option to detach.
+ *                     Also set flayer when processing -X commands.
+ *                     use getpt() on linux systems. doc patches from
+ *                     Adam Lazur. tty flow/intr cleanup.
+ *                     -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 9
-#define PATCHLEVEL 10
-#define DATE "4-Sep-01"
+#define PATCHLEVEL 11
+#define DATE "14-Feb-02"
 #define STATE "" 

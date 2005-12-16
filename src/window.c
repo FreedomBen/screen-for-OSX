@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2002
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -65,6 +65,10 @@ extern struct winsize glwz;
 extern int aixhack;
 #endif
 
+#ifdef O_NOCTTY
+extern int separate_sids;
+#endif
+
 static void WinProcess __P((char **, int *));
 static void WinRedisplayLine __P((int, int, int, int));
 static void WinClearLine __P((int, int, int, int));
@@ -116,8 +120,7 @@ struct NewWindow nwin_undef   =
   -1, 		/* gr */
   -1, 		/* c1 */
   -1, 		/* bce */
-  -1, 		/* kanji */
-  -1, 		/* utf8 */
+  -1, 		/* encoding */
   (char *)0,	/* hstatus */
   (char *)0	/* charset */
 };
@@ -142,8 +145,7 @@ struct NewWindow nwin_default =
   0,		/* gr */
   1,		/* c1 */
   0,		/* bce */
-  0,		/* kanji */
-  0, 		/* utf8 */
+  0,		/* encoding */
   (char *)0,	/* hstatus */
   (char *)0	/* charset */
 };
@@ -176,8 +178,7 @@ struct NewWindow *def, *new, *res;
   COMPOSE(gr);
   COMPOSE(c1);
   COMPOSE(bce);
-  COMPOSE(kanji);
-  COMPOSE(utf8);
+  COMPOSE(encoding);
   COMPOSE(hstatus);
   COMPOSE(charset);
 #undef COMPOSE
@@ -365,13 +366,9 @@ int y, from, to, isblank;
     return;
   fore = (struct win *)flayer->l_data;
   if (from == 0 && y > 0 && fore->w_mlines[y - 1].image[fore->w_width] == 0)
-    {
-      struct mchar nc;
-      copy_mline2mchar(&nc, &fore->w_mlines[y], 0);
-      LWrapChar(&fore->w_layer, &nc, y - 1, -1, -1, 0);
-      from++;
-    }
-  LCDisplayLine(&fore->w_layer, &fore->w_mlines[y], y, from, to, isblank);
+    LCDisplayLineWrap(&fore->w_layer, &fore->w_mlines[y], y, from, to, isblank);
+  else
+    LCDisplayLine(&fore->w_layer, &fore->w_mlines[y], y, from, to, isblank);
 }
 
 static int
@@ -380,12 +377,15 @@ int y, x1, x2, doit;
 struct mchar *rend;
 {
   register int cost, dx;
-  register char *p, *i;
+  register unsigned char *p, *i;
 #ifdef FONT
-  register char *f;
+  register unsigned char *f;
 #endif
 #ifdef COLOR
-  register char *c;
+  register unsigned char *c;
+# ifdef COLORS256
+  register unsigned char *cx;
+# endif
 #endif
 
   debug3("WinRewrite %d, %d-%d\n", y, x1, x2);
@@ -401,13 +401,20 @@ struct mchar *rend;
   p = fore->w_mlines[y].attr + x1;
 #ifdef FONT
   f = fore->w_mlines[y].font + x1;
-# ifdef KANJI
-  if (rend->font == KANJI)
+# ifdef DW_CHARS
+  if (is_dw_font(rend->font))
+    return EXPENSIVE;
+# endif
+# ifdef UTF8
+  if (fore->w_encoding && fore->w_encoding != UTF8 && D_encoding == UTF8 && ContainsSpecialDeffont(fore->w_mlines + y, x1, x2, fore->w_encoding))
     return EXPENSIVE;
 # endif
 #endif
 #ifdef COLOR
   c = fore->w_mlines[y].color + x1;
+# ifdef COLORS256
+  cx = fore->w_mlines[y].colorx + x1;
+# endif
 #endif
 
   cost = dx = x2 - x1 + 1;
@@ -422,6 +429,10 @@ struct mchar *rend;
 #ifdef COLOR
       if (*c++ != rend->color)
 	return EXPENSIVE;
+# ifdef COLORS256
+      if (*cx++ != rend->colorx)
+	return EXPENSIVE;
+# endif
 #endif
     }
   return cost;
@@ -686,12 +697,7 @@ struct NewWindow *newwin;
     }
 #endif
 
-#ifdef KANJI
-  p->w_kanji = nwin.kanji;
-#endif
-#ifdef UTF8
-  p->w_utf8 = nwin.utf8;
-#endif
+  p->w_encoding = nwin.encoding;
   ResetWindow(p);	/* sets w_wrap, w_c1, w_gr, w_bce */
 
 #ifdef FONT
@@ -749,18 +755,19 @@ struct NewWindow *newwin;
   *pp = p;
   p->w_next = windows;
   windows = p;
+  p->w_lflag = nwin.lflag;
 #ifdef UTMPOK
   p->w_slot = (slot_t)-1;
 # ifdef LOGOUTOK
   debug1("MakeWindow will %slog in.\n", nwin.lflag?"":"not ");
-  if (nwin.lflag)
+  if (nwin.lflag & 1)
 # else /* LOGOUTOK */
   debug1("MakeWindow will log in, LOGOUTOK undefined in config.h%s.\n",
   	 nwin.lflag?"":" (although lflag=0)");
 # endif /* LOGOUTOK */
     {
       p->w_slot = (slot_t)0;
-      if (display)
+      if (display || (p->w_lflag & 2))
         SetUtmp(p);
     }
 # ifdef CAREFULUTMP
@@ -802,6 +809,7 @@ struct NewWindow *newwin;
   Activate(p->w_norefresh);
   WindowChanged((struct win*)0, 'w');
   WindowChanged((struct win*)0, 'W');
+  WindowChanged((struct win*)0, 0);
   return n;
 }
 
@@ -849,8 +857,8 @@ struct win *p;
 #ifdef BUILTIN_TELNET
   if (p->w_type == W_TYPE_TELNET)
     {
-	if (TelConnect(p))
-	  return -1;
+      if (TelConnect(p))
+        return -1;
     }
   else
 #endif
@@ -862,12 +870,13 @@ struct win *p;
     }
 
 #ifdef UTMPOK
-  if (display && p->w_slot == (slot_t)0)
+  if (p->w_slot == (slot_t)0 && (display || (p->w_lflag & 2)))
     SetUtmp(p);
 # ifdef CAREFULUTMP
   CarefulUtmp();	/* If all 've been zombies, we've had no slot */
 # endif
 #endif
+  WindowChanged(p, 'f');
   return p->w_number;
 }
 
@@ -1220,7 +1229,15 @@ char **args, *ttyn;
 	    {
 	      if (newfd < 0)
 		{
-		  if ((newfd = open(ttyn, O_RDWR)) < 0)
+# ifdef O_NOCTTY
+		  if (separate_sids)
+		    newfd = open(ttyn, O_RDWR);
+		  else
+		    newfd = open(ttyn, O_RDWR|O_NOCTTY);
+# else
+		  newfd = open(ttyn, O_RDWR);
+# endif
+		  if (newfd < 0)
 		    Panic(errno, "Cannot open %s", ttyn);
 		}
 	      else
@@ -1243,7 +1260,15 @@ char **args, *ttyn;
 	      Msg(errno, "Warning: clear NBLOCK fcntl failed");
 	}
 #else /* PSEUDOS */
-      if ((newfd = open(ttyn, O_RDWR)) != 0)
+# ifdef O_NOCTTY
+      if (separate_sids)
+        newfd = open(ttyn, O_RDWR);
+      else
+        newfd = open(ttyn, O_RDWR|O_NOCTTY);
+# else
+      newfd = open(ttyn, O_RDWR);
+# endif
+      if (newfd != 0)
 	Panic(errno, "Cannot open %s", ttyn);
       dup(0);
       dup(0);
@@ -1558,6 +1583,8 @@ struct win *w;
     close(pwin->p_ptyfd);
   evdeq(&pwin->p_readev);
   evdeq(&pwin->p_writeev);
+  if (w->w_readev.condneg == &pwin->p_inlen)
+    w->w_readev.condpos = w->w_readev.condneg = 0;
   free((char *)pwin);
   w->w_pwin = NULL;
 }

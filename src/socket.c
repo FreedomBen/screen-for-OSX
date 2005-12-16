@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2002
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -65,6 +65,7 @@ extern int dflag, iflag, rflag, lsflag, quietflag, wipeflag, xflag;
 extern char *attach_tty, *LoginName, HostName[];
 extern struct display *display, *displays;
 extern struct win *fore, *wtab[], *console_window, *windows;
+extern struct layer *flayer;
 extern struct NewWindow nwin_undef;
 #ifdef MULTIUSER
 extern char *multi;
@@ -74,6 +75,7 @@ extern char *getenv();
 
 extern char SockPath[];
 extern struct event serv_read;
+extern char *rc_name;
 
 #ifdef MULTIUSER
 # define SOCKMODE (S_IWRITE | S_IREAD | (displays ? S_IEXEC : 0) | (multi ? 1 : 0))
@@ -963,8 +965,14 @@ ReceiveMsg()
 	  Kill(m.m.attach.apid, SIG_BYE);
 	  break;
         }
-#ifdef UTF8
-      D_utf8 = m.m.attach.utf8;
+#ifdef ENCODINGS
+# ifdef UTF8
+      D_encoding = m.m.attach.encoding == 1 ? UTF8 : m.m.attach.encoding ? m.m.attach.encoding - 1 : 0;
+# else
+      D_encoding = m.m.attach.encoding ? m.m.attach.encoding - 1 : 0;
+# endif
+      if (D_encoding < 0 || !EncodingName(D_encoding))
+	D_encoding = 0;
 #endif
       /* turn off iflag on a multi-attach... */
       if (iflag && olddisplays)
@@ -995,7 +1003,7 @@ ReceiveMsg()
       break;
     case MSG_HANGUP:
       if (!wi)		/* ignore hangups from inside */
-        SigHup(SIGARG);
+        Hangup();
       break;
 #ifdef REMOTE_DETACH
     case MSG_DETACH:
@@ -1299,65 +1307,6 @@ int ilen;
 }
 #endif
 
-void
-SendCmdMessage(sty, match, av)
-char *sty;
-char *match;
-char **av;
-{
-  int i, s;
-  struct msg m;
-  char *p;
-  int len, n;
-
-  if (sty == 0)
-    {
-      i = FindSocket(&s, (int *)0, (int *)0, match);
-      if (i == 0)
-	Panic(0, "No screen session found.");
-      if (i != 1)
-	Panic(0, "Use -S to specify a session.");
-    }
-  else
-    {
-#ifdef NAME_MAX
-      if (strlen(sty) > NAME_MAX)
-	sty[NAME_MAX] = 0;
-#endif
-      if (strlen(sty) > 2 * MAXSTR - 1)
-	sty[2 * MAXSTR - 1] = 0;
-      sprintf(SockPath + strlen(SockPath), "/%s", sty);
-      if ((s = MakeClientSocket(1)) == -1)
-	exit(1);
-    }
-  bzero((char *)&m, sizeof(m));
-  m.type = MSG_COMMAND;
-  if (attach_tty)
-    {
-      strncpy(m.m_tty, attach_tty, sizeof(m.m_tty) - 1);
-      m.m_tty[sizeof(m.m_tty) - 1] = 0;
-    }
-  p = m.m.command.cmd;
-  n = 0;
-  for (; *av && n < MAXARGS - 1; ++av, ++n)
-    {
-      len = strlen(*av) + 1;
-      if (p + len >= m.m.command.cmd + sizeof(m.m.command.cmd) - 1)
-	break;
-      strcpy(p, *av);
-      p += len;
-    }
-  *p = 0;
-  m.m.command.nargs = n;
-  strncpy(m.m.attach.auser, LoginName, sizeof(m.m.attach.auser) - 1);
-  m.m.command.auser[sizeof(m.m.command.auser) - 1] = 0;
-  m.protocol_revision = MSG_REVISION;
-  debug1("SendCommandMsg writing '%s'\n", m.m.command.cmd);
-  if (write(s, (char *) &m, sizeof m) != sizeof m)
-    Msg(errno, "write");
-  close(s);
-}
-
 static void
 DoCommandMsg(mp)
 struct msg *mp;
@@ -1402,13 +1351,45 @@ struct msg *mp;
     for (display = displays; display; display = display->d_next)
       if (D_user == user)
 	break;
+  for (fore = windows; fore; fore = fore->w_next)
+    if (!TTYCMP(mp->m_tty, fore->w_tty))
+      {
+	if (!display)
+	  display = fore->w_layer.l_cvlist ? fore->w_layer.l_cvlist->c_display : 0;
+	break;
+      }
   if (!display)
     display = displays;		/* sigh */
+  if (*mp->m.command.preselect)
+    {
+      int i;
+      i = WindowByNoN(mp->m.command.preselect);
+      fore = i >= 0 ? wtab[i] : 0;
+    }
+  else if (!fore)
+    {
+      if (display && D_user == user)
+	fore = Layer2Window(display->d_forecv->c_layer);
+      if (!fore)
+	{
+	  fore = user->u_detachwin >= 0 ? wtab[user->u_detachwin] : 0;
+	  fore = FindNiceWindow(fore, 0);
+	}
+    }
 #ifdef MULTIUSER
   EffectiveAclUser = user;
 #endif
   if (*args)
-    DoCommand(args);
+    {
+      char *oldrcname = rc_name;
+      rc_name = "-X";
+      debug3("Running command on display %x window %x (%d)\n", display, fore, fore ? fore->w_number : -1);
+      flayer = fore ? &fore->w_layer : 0;
+      if (fore && fore->w_savelayer && (fore->w_blocked || fore->w_savelayer->l_cvlist == 0))
+	flayer = fore->w_savelayer;
+      DoCommand(args);
+      rc_name = oldrcname;
+    }
 #ifdef MULTIUSER
   EffectiveAclUser = 0;
 #endif

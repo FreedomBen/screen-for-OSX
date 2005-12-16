@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2002
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -198,6 +198,7 @@ int how;
 	    Msg(0, "This window is now logged in.");
 	  else
 	    Msg(0, "This window should now be logged in.");
+	  WindowChanged(fore, 'f');
 	}
       else
 	Msg(0, "This window is already logged in.");
@@ -223,6 +224,7 @@ int how;
 #ifdef CAREFULUTMP
 	  CarefulUtmp();
 #endif
+	  WindowChanged(fore, 'f');
 	}
     }
 }

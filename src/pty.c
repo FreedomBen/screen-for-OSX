@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2002
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -244,10 +244,17 @@ char **ttyn;
   register int f;
   char *m, *ptsname();
   int unlockpt __P((int)), grantpt __P((int));
+#if defined(HAVE_GETPT) && defined(linux)
+  int getpt __P((void));
+#endif
   sigret_t (*sigcld)__P(SIGPROTOARG);
 
   strcpy(PtyName, "/dev/ptmx");
+#if defined(HAVE_GETPT) && defined(linux)
+  if ((f = getpt()) == -1)
+#else
   if ((f = open(PtyName, O_RDWR | O_NOCTTY)) == -1)
+#endif
     return -1;
 
   /*
