@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  * RCS_ID("$Id$ FAU")
@@ -74,7 +75,7 @@ typedef struct user
   char u_name[20+1];		/* login name how he showed up */
   char u_password[20+1];	/* his password (may be zero length). */
   int  u_detachwin;		/* the window where he last detached */
-  char u_Esc, u_MetaEsc;	/* the users screen escape character */
+  int  u_Esc, u_MetaEsc;	/* the users screen escape character */
 #ifdef COPY_PASTE
   char  *u_copybuffer;
   int   u_copylen;
@@ -84,5 +85,5 @@ typedef struct user
 #endif
 } User;
 
-extern char DefaultEsc, DefaultMetaEsc;
+extern int DefaultEsc, DefaultMetaEsc;
 

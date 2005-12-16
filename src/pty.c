@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -77,6 +78,14 @@ static char TtyProto[] = "/dev/ttyXY";
 #endif
 
 static void initpty __P((int));
+
+/*
+ *  Open all ptys with O_NOCTTY, just to be on the safe side
+ *  (RISCos mips breaks otherwise)
+ */
+#ifndef O_NOCTTY
+# define O_NOCTTY 0
+#endif
 
 /***************************************************************/
 
@@ -176,7 +185,7 @@ char **ttyn;
   struct stat buf;
    
   strcpy(PtyName, "/dev/ptc");
-  if ((f = open(PtyName, O_RDWR | O_NONBLOCK)) < 0)
+  if ((f = open(PtyName, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0)
     return -1;
   if (fstat(f, &buf) < 0)
     {
@@ -203,7 +212,8 @@ char **ttyn;
   int unlockpt __P((int)), grantpt __P((int));
   sigret_t (*sigcld)__P(SIGPROTOARG);
 
-  if ((f = open("/dev/ptmx", O_RDWR)) == -1)
+  strcpy(PtyName, "/dev/ptmx");
+  if ((f = open(PtyName, O_RDWR | O_NOCTTY)) == -1)
     return -1;
 
   /*
@@ -242,7 +252,7 @@ char **ttyn;
 
   /* a dumb looking loop replaced by mycrofts code: */
   strcpy (PtyName, "/dev/ptc");
-  if ((f = open (PtyName, O_RDWR)) < 0)
+  if ((f = open (PtyName, O_RDWR | O_NOCTTY)) < 0)
     return -1;
   strncpy(TtyName, ttyname(f), sizeof(TtyName));
   if (eff_uid && access(TtyName, R_OK | W_OK))
@@ -287,7 +297,7 @@ char **ttyn;
       for (d = PTYRANGE1; (p[1] = *d) != '\0'; d++)
 	{
 	  debug1("OpenPTY tries '%s'\n", PtyName);
-	  if ((f = open(PtyName, O_RDWR)) == -1)
+	  if ((f = open(PtyName, O_RDWR | O_NOCTTY)) == -1)
 	    continue;
 	  q[0] = *l;
 	  q[1] = *d;

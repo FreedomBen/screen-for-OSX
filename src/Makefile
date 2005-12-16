@@ -1,2 +1,2 @@
-install all Makefiles config:
+install all Makefiles and config:
 	sh ./configure

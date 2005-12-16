@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  * $Id$ FAU
@@ -35,7 +36,7 @@ struct kmap
 
 #define KMAP_KEYS (T_OCAPS-T_CAPS)
 #define KMAP_AKEYS (T_OCAPS-T_CURSOR)
-#define KMAP_EXT 10
+#define KMAP_EXT 50
 
 #define KMAP_NOTIMEOUT 0x4000
 
@@ -53,15 +54,14 @@ struct display
   struct win *d_other;		/* pointer to other window */
   char  d_nonblock;		/* don't block when d_obufmax reached */
   char  d_termname[20 + 1];	/* $TERM */
-  char	d_tentry[TERMCAP_BUFSIZE];	/* buffer for tgetstr */
+  char	*d_tentry;		/* buffer for tgetstr */
   char	d_tcinited;		/* termcap inited flag */
   int	d_width, d_height;	/* width/height of the screen */
   int	d_defwidth, d_defheight;	/* default width/height of windows */
   int	d_top, d_bot;		/* scrollregion start/end */
   int	d_x, d_y;		/* cursor position */
-  char	d_attr;			/* current attributes */
+  struct mchar d_rend;		/* current rendition */
   char	d_atyp;			/* current attribute types */
-  char	d_font;			/* current font */
 #ifdef KANJI
   int   d_mbcs;			/* saved char for multibytes charset */
   int   d_kanji;		/* what kanji type the display is */
@@ -70,12 +70,10 @@ struct display
   int	d_keypad;		/* application keypad flag */
   int	d_cursorkeys;		/* application cursorkeys flag */
   int	d_revvid;		/* reverse video */
-  int	d_curinv;		/* cursor invisible */
+  int	d_curvis;		/* cursor visibility */
   int	d_hstatus;		/* hardstatus used */
   int	d_lp_missing;		/* last character on bot line missing */
-  int	d_lp_image;		/* missing image */
-  int	d_lp_attr;		/* missing attr */
-  int	d_lp_font;		/* missing font */
+  struct mchar d_lpchar;	/* missing char */
   time_t d_status_time;		/* time of status display */
   char	d_status;		/* is status displayed? */
   char	d_status_bell;		/* is it only a vbell? */
@@ -113,6 +111,7 @@ struct display
   char  d_attrtyp[NATTR];	/* attrib group table */
   short	d_dospeed;		/* baudrate of tty */
   char	d_c0_tab[256];		/* conversion for C0 */
+  char ***d_xtable;		/* char translation table */
   int	d_UPcost, d_DOcost, d_LEcost, d_NDcost;
   int	d_CRcost, d_IMcost, d_EIcost, d_NLcost;
   int   d_printfd;		/* fd for vt100 print sequence */
@@ -150,21 +149,18 @@ extern struct display TheDisplay;
 #define D_bot		DISPLAY(d_bot)
 #define D_x		DISPLAY(d_x)
 #define D_y		DISPLAY(d_y)
-#define D_attr		DISPLAY(d_attr)
+#define D_rend		DISPLAY(d_rend)
 #define D_atyp		DISPLAY(d_atyp)
-#define D_font		DISPLAY(d_font)
 #define D_mbcs		DISPLAY(d_mbcs)
 #define D_kanji		DISPLAY(d_kanji)
 #define D_insert	DISPLAY(d_insert)
 #define D_keypad	DISPLAY(d_keypad)
 #define D_cursorkeys	DISPLAY(d_cursorkeys)
 #define D_revvid	DISPLAY(d_revvid)
-#define D_curinv	DISPLAY(d_curinv)
+#define D_curvis	DISPLAY(d_curvis)
 #define D_hstatus	DISPLAY(d_hstatus)
 #define D_lp_missing	DISPLAY(d_lp_missing)
-#define D_lp_image	DISPLAY(d_lp_image)
-#define D_lp_attr	DISPLAY(d_lp_attr)
-#define D_lp_font	DISPLAY(d_lp_font)
+#define D_lpchar	DISPLAY(d_lpchar)
 #define D_status	DISPLAY(d_status)
 #define D_status_time	DISPLAY(d_status_time)
 #define D_status_bell	DISPLAY(d_status_bell)
@@ -198,6 +194,7 @@ extern struct display TheDisplay;
 #define D_attrtyp	DISPLAY(d_attrtyp)
 #define D_dospeed	DISPLAY(d_dospeed)
 #define D_c0_tab	DISPLAY(d_c0_tab)
+#define D_xtable	DISPLAY(d_xtable)
 #define D_UPcost	DISPLAY(d_UPcost)
 #define D_DOcost	DISPLAY(d_DOcost)
 #define D_LEcost	DISPLAY(d_LEcost)
@@ -217,10 +214,9 @@ extern struct display TheDisplay;
 
 #define OUTPUT_BLOCK_SIZE 256  /* Block size of output to tty */
 
-#define AddChar(c) \
-  { \
-    if (--D_obuffree == 0) \
-      Resize_obuf(); \
-    *D_obufp++ = (c); \
-  }
+#define AddChar(c) do {			\
+    if (--D_obuffree == 0)		\
+      Resize_obuf();			\
+    *D_obufp++ = (c);			\
+} while (0)
 

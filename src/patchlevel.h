@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  * $Id$ FAU
@@ -188,11 +189,36 @@
  *                     Paste bug fixed (only worked with KANJI).
  *                     Check bcopy before memcpy/memmove.
  *                     FindSocket code much fixed & improved.
+ * 31.08.95 -- 3.06.03 Color support, digraph command, code
+ *                     cleanup (struct mchar/mline added).
+ * 13.09.95 -- 3.06.04 SetRendition display check. Solaris unblock
+ *                     SIGHUP. w_curchar->w_rend, lintified.
+ *                     Shadow-password code moved and rewritten
+ *                     (includes sun C2).
+ * 26.09.95 -- 3.06.05 resize code completely rewritten.
+ *                     Very visible cursor added. vbell sequence
+ *                     \Eb added. _delay for terminfo libs added
+ *                     to make the padding work for the first time.
+ *                     New ProcessInput() makes "command command"
+ *                     work. '[def]escape ""' clears escape chars.
+ *                     Changed logdir command to logfile. It now uses
+ *                     MakeWinMsg() to create the filename.
+ *                     Updated the manuals.
+ * 28.10.95 -- 3.06.06 Added new 'XC' capability to provide
+ *                     a method for character translation.
+ * 17.11.95 -- 3.07.00 Added CheckEscape() function.
+ *                     acl -> acls because of hpux10 nameclash
+ *                     /stand/vmunix added to kernel list (hpux10)
+ *                     stripdev changed to translate 
+ *                     /dev/pts<n> to /dev/pts/<n> (unixware)
+ *                     -lgen added to GETUTENT configure test.
+ * 20.11.95 -- 3.07.01 corrected vbell null ptr reference
+ *                     -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 3
-#define VERS 6
-#define PATCHLEVEL 2
-#define DATE "4-Apr-95"
-#define STATE "" 
+#define VERS 7
+#define PATCHLEVEL 1
+#define DATE "20-Nov-95"
+#define STATE ""

@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  * $Id$ FAU
@@ -43,6 +44,8 @@ struct NewWindow
   int   c1;
   int   gr;
   int   kanji;
+  char	*hstatus;
+  char	*charset;
 };
 
 
@@ -100,13 +103,6 @@ struct pseudowin
 #endif /* PSEUDOS */
 
 
-struct displaylist
-{
-  struct displaylist *next;
-  struct display *d;
-};
-
-#define w_display w_dlist->d
 
 
 struct win 
@@ -115,7 +111,7 @@ struct win
 #ifdef PSEUDOS
   struct pseudowin *w_pwin;	/* ptr to pseudo */
 #endif
-  struct displaylist *w_dlist;	/* pointer to our display */
+  struct display *w_display;	/* pointer to our display */
   struct display *w_pdisplay;	/* display for printer relay */
   int	 w_number;		/* window number */
   int	 w_active;		/* is window fore and has no layer? */
@@ -142,13 +138,11 @@ struct win
 #if defined (UTMPOK)
   struct utmp w_savut;		/* utmp entry of this window */
 #endif
-  char **w_image;
-  char **w_attr;
-  char **w_font;
+  struct mline *w_mlines;
   int	 w_x, w_y;		/* Cursor position */
   int	 w_width, w_height;	/* window size */
-  char	 w_Attr;		/* character attributes */
-  char	 w_Font;		/* character font GL */
+  struct mchar w_rend;		/* current rendition */
+  char	 w_FontL;		/* character font GL */
   char	 w_FontR;		/* character font GR */
   int	 w_Charset;		/* charset number GL */
   int	 w_CharsetR;		/* charset number GR */
@@ -156,7 +150,7 @@ struct win
   int	 w_ss;		
   int	 w_saved;
   int	 w_Saved_x, w_Saved_y;
-  char	 w_SavedAttr;
+  struct mchar w_SavedRend;
   int	 w_SavedCharset;
   int	 w_SavedCharsetR;
   int	 w_SavedCharsets[4];
@@ -168,6 +162,7 @@ struct win
   int	 w_cursorkeys;		/* appl. cursorkeys mode */
   int	 w_revvid;		/* reverse video */
   int	 w_curinv;		/* cursor invisible */
+  int	 w_curvvis;		/* cursor very visible */
   int	 w_autolf;		/* automatic linefeed */
   char  *w_hstatus;		/* hardstatus line */
 #ifdef COPY_PASTE
@@ -176,9 +171,9 @@ struct win
   int	 w_pastelen;		/* bytes left to paste */
   int	 w_histheight;		/* all histbases are malloced with width * histheight */
   int	 w_histidx;		/* 0 <= histidx < histheight; where we insert lines */
-  char **w_ihist; 		/* the history buffer image */
-  char **w_ahist; 		/* attributes */
-  char **w_fhist; 		/* fonts */
+  struct mline *w_hlines;	/* history buffer */
+#else
+  int	 w_histheight;		/* always 0 */
 #endif
   enum state_t w_state;		/* parser state */
   enum string_t w_StringType;
@@ -228,14 +223,11 @@ struct win
 
 
 /*
- * iWIN gives us a reference to line y of the *whole* image
+ * WIN gives us a reference to line y of the *whole* image
  * where line 0 is the oldest line in our history.
- * y must be in WIN coordinate system, not in display.
+ * y must be in whole image coordinate system, not in display.
  */
-#define iWIN(y) ((y < fore->w_histheight) ? fore->w_ihist[(fore->w_histidx + y)\
-                % fore->w_histheight] : fore->w_image[y - fore->w_histheight])
-#define aWIN(y) ((y < fore->w_histheight) ? fore->w_ahist[(fore->w_histidx + y)\
-                % fore->w_histheight] : fore->w_attr[y - fore->w_histheight])
-#define fWIN(y) ((y < fore->w_histheight) ? fore->w_fhist[(fore->w_histidx + y)\
-                % fore->w_histheight] : fore->w_font[y - fore->w_histheight])
 
+#define WIN(y) ((y < fore->w_histheight) ? \
+      &fore->w_hlines[(fore->w_histidx + y) % fore->w_histheight] \
+    : &fore->w_mlines[y - fore->w_histheight])

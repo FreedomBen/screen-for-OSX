@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -25,7 +26,7 @@ RCS_ID("$Id$ FAU")
 #include <sys/types.h>
 
 #include "config.h"
-#include "screen.h"	/* includes acl.h */
+#include "screen.h"	/* includes acls.h */
 #include "extern.h"
 
 
@@ -114,8 +115,8 @@ char *name;
   return u;
 }
 
-char DefaultEsc = Ctrl('a');
-char DefaultMetaEsc = 'a';
+int DefaultEsc = Ctrl('a');
+int DefaultMetaEsc = 'a';
 
 /*
  * Add a new user. His password may be NULL or "" if none. 
@@ -235,7 +236,7 @@ struct user **up;
 
   if (!up)
     up = FindUserPtr(name);
-  if (!(u = *up))
+  if ((u = *up) == 0)
     return -1;			/* he who does not exist cannot be removed */
   old = display;
   for (display = displays; display; display = next)
@@ -455,7 +456,7 @@ char *mode, *s;
 	default:
 	  for (p = s; *p && *p != ' ' && *p != '\t' && *p != ','; p++)
 	    ;
-	  if ((ch = *p))
+	  if ((ch = *p) != 0)
 	    *p++ = '\0';
 	  if ((i = FindCommnr(s)) != RC_ILLEGAL)
 	    AclSetPermCmd(u, mode, &comms[i]);

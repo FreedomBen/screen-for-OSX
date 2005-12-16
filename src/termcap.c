@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -28,11 +29,12 @@ RCS_ID("$Id$ FAU")
 #include "screen.h"
 #include "extern.h"
 
-extern struct display *display;
+extern struct display *display, *displays;
 
 static void  AddCap __P((char *));
 static void  MakeString __P((char *, char *, int, char *));
 static char *findcap __P((char *, char **, int));
+static int   copyarg __P((char **, char *));
 static char *e_tgetstr __P((char *, char **));
 static int   e_tgetflag __P((char *));
 static int   e_tgetnum __P((char *));
@@ -40,7 +42,7 @@ static int   e_tgetnum __P((char *));
 static int   addmapseq __P((char *, int));
 static int   remmapseq __P((char *));
 #ifdef DEBUG
-static void dumpmap __P((void));
+static void  dumpmap __P((void));
 #endif
 #endif
 
@@ -55,6 +57,7 @@ extern struct action mmtab[];
 extern struct action dmtab[];
 extern char *kmap_extras[];
 extern int kmap_extras_fl[];
+extern int DefaultEsc;
 #endif
 
 char Termcap[TERMCAP_BUFSIZE + 8];	/* new termcap +8:"TERMCAP=" */
@@ -104,7 +107,11 @@ int he;
   debug1("InitTermcap: looking for tgetent('%s')\n", D_termname);
   if (*D_termname == 0 || tgetent(tbuf, D_termname) != 1)
     {
+#ifdef TERMINFO
+      Msg(0, "Cannot find terminfo entry for '%s'.", D_termname);
+#else
       Msg(0, "Cannot find termcap entry for '%s'.", D_termname);
+#endif
       return -1;
     }
   debug1("got it:\n%s\n",tbuf);
@@ -114,8 +121,14 @@ int he;
   if (extra_outcap)
     debug1("Extra outcap: %s\n", extra_outcap);
 #endif
-  tp = D_tentry;
 
+  if ((D_tentry = (char *)malloc(TERMCAP_BUFSIZE + (extra_incap ? strlen(extra_incap) + 1 : 0))) == 0)
+    {
+      Msg(0, strnomem);
+      return -1;
+    }
+
+  tp = D_tentry;
   for (i = 0; i < T_N; i++)
     {
       switch(term[i].type)
@@ -174,8 +187,8 @@ int he;
     nwin_default.flowflag = D_CNF ? FLOW_NOW * 0 : 
 			    D_NX ? FLOW_NOW * 1 :
 			    FLOW_AUTOFLAG;
-  D_CLP |= assume_LP || !D_AM || D_XV || D_XN ||
-	 (!extra_incap && !strncmp(D_termname, "vt", 2));
+  D_CLP |= (assume_LP || !D_AM || D_XV || D_XN ||
+	 (!extra_incap && !strncmp(D_termname, "vt", 2)));
   if (!D_BL)
     D_BL = "\007";
   if (!D_BC)
@@ -271,6 +284,12 @@ int he;
 	  t = D_attrtyp[i];
         }
     }
+  if (D_CAF == 0 && D_CAB == 0)
+    {
+      /* hmm, where's the difference? */
+      D_CAF = D_CSF;
+      D_CAB = D_CSB;
+    }
 
   if (!D_DO)
     D_DO = D_NL;
@@ -288,7 +307,7 @@ int he;
   if (D_CVN == 0)
     D_CVR = 0;
   if (D_VE == 0)
-    D_VI = 0;
+    D_VI = D_VS = 0;
   if (D_CCE == 0)
     D_CCS = 0;
   if (D_CG0)
@@ -305,7 +324,6 @@ int he;
     }
   else if (D_AC || (D_AS && D_AE))	/* some kind of graphics */
     {
-      D_CG0 = 1;
       D_CS0 = (D_AS && D_AE) ? D_AS : "";
       D_CE0 = (D_AS && D_AE) ? D_AE : "";
       D_CC0 = D_AC;
@@ -333,6 +351,10 @@ int he;
   if (D_PF == 0)
     D_PO = 0;
   debug2("terminal size is %d, %d (says TERMCAP)\n", D_CO, D_LI);
+
+  if (D_CXC)
+    if (CreateTransTable(D_CXC))
+      return -1;
 
   /* Termcap fields Z0 & Z1 contain width-changing sequences. */
   if (D_CZ1 == 0)
@@ -393,6 +415,9 @@ int he;
 
   D_tcinited = 1;
   MakeTermcap(0);
+#ifdef MAPKEYS
+  CheckEscape();
+#endif
   return 0;
 }
 
@@ -435,7 +460,7 @@ int map;
 	a1 = 0;
       if (a2 && a2->nr == RC_STUFF && strcmp(a2->args[0], s) == 0)
 	a2 = 0;
-      domap |= a1 || a2;
+      domap |= (a1 || a2);
       if (tab == umtab)
 	tab = dmtab;
       else if (tab == dmtab)
@@ -453,6 +478,42 @@ int map;
     return addmapseq(s, n | fl);
   else
     return remmapseq(s);
+}
+
+void
+CheckEscape()
+{
+  struct display *odisplay;
+  int i, nr;
+
+  if (DefaultEsc >= 0)
+    return;
+
+  odisplay = display;
+  for (display = displays; display; display = display->d_next)
+    {
+      for (i = 0; i < D_nseqs; i++)
+	{
+	  nr = D_kmaps[i].nr & ~KMAP_NOTIMEOUT;
+	  if (umtab[nr].nr == RC_COMMAND)
+	    break;
+	  if (umtab[nr].nr == RC_ILLEGAL && dmtab[nr].nr == RC_COMMAND)
+	    break;
+	}
+      if (i >= D_nseqs)
+        break;
+    }
+  if (display == 0)
+    {
+      display = odisplay;
+      return;
+    }
+  ParseEscape((struct user *)0, "^aa");
+  if (odisplay->d_user->u_Esc <= 0)
+    odisplay->d_user->u_Esc = DefaultEsc;
+  display = 0;
+  Msg(0, "Warning: escape char set back to ^A");
+  display = odisplay;
 }
 
 static int
@@ -650,6 +711,20 @@ int aflag;
       sprintf(p, "vt100");
     }
   while (0);		/* Goto free programming... */
+
+  /* check for compatibility problems, displays == 0 after fork */
+  {
+    char *tgetstr(), xbuf[TERMCAP_BUFSIZE], *xbp = xbuf;
+    if (tgetstr("im", &xbp) && tgetstr("ic", &xbp) && displays)
+      {
+#ifdef TERMINFO
+	Msg(0, "Warning: smir and ich1 set in %s terminfo entry", p);
+#else
+	Msg(0, "Warning: im and ic set in %s termcap entry", p);
+#endif
+      }
+  }
+  
   tcLineLen = 100;	/* Force NL */
   sprintf(Termcap,
 	  "TERMCAP=SC|%s|VT 100/ANSI X3.64 virtual terminal", Term + 5);
@@ -712,6 +787,9 @@ int aflag;
   AddCap("ks=\\E[?1h\\E=:");
   AddCap("ke=\\E[?1l\\E>:");
 #endif
+  AddCap("vi=\\E[?25l:");
+  AddCap("ve=\\E[34h\\E[?25h:");
+  AddCap("vs=\\E[34l:");
   if (display)
     {
       if (D_US)
@@ -734,8 +812,10 @@ int aflag;
 	AddCap("mr=\\E[7m:");
       if (D_MB || D_MD || D_MH || D_MR)
 	AddCap("me=\\E[m:ms:");
+      if (D_CAF || D_CAB)
+	AddCap("Co#8:pa#64:AF=\\E[3%dm:AB=\\E[4%dm:op=\\E[39;49m:AX:");
       if (D_VB)
-	AddCap("vb=\\E[?5h\\E[?5l:");
+	AddCap("vb=\\Eg:");
 #ifndef MAPKEYS
       if (D_KS)
 	{
@@ -749,8 +829,9 @@ int aflag;
 	}
 #endif
       if (D_CG0)
+        AddCap("G0:");
+      if (D_CC0 || (D_CS0 && *D_CS0))
 	{
-	  AddCap("G0:");
 	  AddCap("as=\\E(0:");
 	  AddCap("ae=\\E(B:");
 	  /* avoid `` because some shells dump core... */
@@ -875,6 +956,148 @@ char *s;
 }
 
 
+#undef QUOTES
+#define QUOTES(p) \
+  (*p == '\\' && (p[1] == '\\' || p[1] == ',' || p[1] == '%'))
+
+int
+CreateTransTable(s)
+char *s;
+{
+  int curchar;
+  char *templ, *arg;
+  int templlen;
+  int templnsub;
+  char *p, *sx;
+  char **ctable;
+  int l, c;
+
+  if ((D_xtable = (char ***)malloc(256 * sizeof(char **))) == 0)
+    {
+      Msg(0, strnomem);
+      return -1;
+    }
+  bzero((char *)D_xtable, 256 * sizeof(char **));
+
+  while (*s)
+    {
+      if (QUOTES(s))
+	s++;
+      curchar = (unsigned char)*s++;
+      if (curchar == 'B')
+	curchar = 0;	/* ASCII */
+      templ = s;
+      templlen = 0;
+      templnsub = 0;
+      if (D_xtable[curchar] == 0)
+        {
+          if ((D_xtable[curchar] = (char **)malloc(257 * sizeof(char *))) == 0)
+	    {
+	      Msg(0, strnomem);
+	      FreeTransTable();
+	      return -1;
+	    }
+	  bzero((char *)D_xtable[curchar], 257 * sizeof(char *));
+        }
+      ctable = D_xtable[curchar];
+      for(; *s && *s != ','; s++)
+	{
+	  if (QUOTES(s))
+	      s++;
+	  else if (*s == '%')
+	    {
+	      templnsub++;
+	      continue;
+	    }
+	  templlen++;
+	}
+      if (*s++ == 0)
+	break;
+      while (*s && *s != ',')
+	{    
+	  c = (unsigned char)*s++;
+	  if (QUOTES((s - 1)))
+	    c = (unsigned char)*s++;
+	  else if (c == '%')
+	    c = 256;
+	  if (ctable[c])
+	    free(ctable[c]);
+	  arg = s;
+	  l = copyarg(&s, (char *)0);
+	  if (c != 256)
+	    l = l * templnsub + templlen;
+	  if ((ctable[c] = (char *)malloc(l + 1)) == 0)
+	    {
+	      Msg(0, strnomem);
+	      FreeTransTable();
+	      return -1;
+	    }
+	  sx = ctable[c];
+	  for (p = ((c == 256) ? "%" : templ); *p && *p != ','; p++)
+	    {
+	      if (QUOTES(p))
+		p++;
+	      else if (*p == '%')
+		{
+		  s = arg;
+		  sx += copyarg(&s, sx);
+		  continue;
+		}
+	      *sx++ = *p;
+	    }
+	  *sx = 0;
+	  ASSERT(ctable[c] + l == sx);
+	  debug3("XC: %c %c->%s\n", curchar, c, ctable[c]);
+	}
+      if (*s == ',')
+	s++;
+    }
+  return 0;
+}
+
+void
+FreeTransTable()
+{
+  char ***p, **q;
+  int i, j;
+
+  if ((p = D_xtable) == 0)
+    return;
+  for (i = 0; i < 256; i++, p++)
+    {
+      if (*p == 0)
+	continue;
+      q = *p;
+      for (j = 0; j < 257; j++, q++)
+	if (*q)
+	  free(*q);
+      free((char *)*p);
+    }
+  free((char *)D_xtable);
+}
+
+static int
+copyarg(pp, s)
+char **pp, *s;
+{
+  int l;
+  char *p;
+
+  for (l = 0, p = *pp; *p && *p != ','; p++)
+    {
+      if (QUOTES(p))
+	p++;
+      if (s)
+        *s++ = *p;
+      l++;
+    }
+  if (*p == ',')
+    p++;
+  *pp = p;
+  return l;
+}
+
+
 /*
 **
 **  Termcap routines that use our extra_incap
@@ -900,7 +1123,7 @@ int n;
   int num = 0, capl;
 
   if (!extra_incap)
-    return (0);
+    return 0;
   tep = *tepp;
   capl = strlen(cap);
   cp = 0;
@@ -994,10 +1217,10 @@ int n;
 	  *cp++ = 0;
 	  *tepp = cp;
 	  debug2("'%s' found in extra_incap -> %s\n", cap, tep);
-	  return(tep);
+	  return tep;
 	}
     }
-  return(0);
+  return 0;
 }
 
 static char *
@@ -1007,8 +1230,8 @@ char **tepp;
 {
   char *tep, *tgetstr();
   if ((tep = findcap(cap, tepp, 0)))
-    return((*tep == '@') ? 0 : tep);
-  return (tgetstr(cap, tepp));
+    return (*tep == '@') ? 0 : tep;
+  return tgetstr(cap, tepp);
 }
 
 static int
@@ -1019,8 +1242,8 @@ char *cap;
   char *tep;
   bufp = buf;
   if ((tep = findcap(cap, &bufp, 2)))
-    return((*tep == '@') ? 0 : 1);
-  return (tgetflag(cap));
+    return (*tep == '@') ? 0 : 1;
+  return tgetflag(cap);
 }
 
 static int
@@ -1036,13 +1259,14 @@ char *cap;
     {
       c = *tep;
       if (c == '@')
-	return(-1);
+	return -1;
       if (c == '0')
 	base = 8;
       res = 0;
       while ((c = *tep++) >= '0' && c <= '9')
 	res = res * base + (c - '0');
-      return(res);
+      return res;
     }
-  return (tgetnum(cap));
+  return tgetnum(cap);
 }
+

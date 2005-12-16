@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -52,9 +53,9 @@ int dir;
     {
       markdata = (struct markdata *)D_lay->l_data;
       if (markdata->isdir > 0)
-	searchend(0, 0);
+	searchend((char *)0, 0);
       else if (markdata->isdir < 0)
-	backsearchend(0, 0);
+	backsearchend((char *)0, 0);
       else
 	Msg(0, "No previous pattern");
     }
@@ -126,9 +127,11 @@ char *pattern;
 int y, sx, ex;
 {
   char *ip, *ipe, *cp, *pp;
+  struct mline *ml;
 
-  ip = iWIN(y) + sx;
-  ipe = iWIN(y) + D_width;
+  ml = WIN(y);
+  ip = ml->image + sx;
+  ipe = ml->image + D_width;
   for (;sx <= ex; sx++)
     {
       cp = ip++;
@@ -189,7 +192,7 @@ int l, p, end, dir;
       s = str;
       for (i = 0;;)
 	{
-          c = iWIN(q / w)[q % w];
+          c = (WIN(q / w))->image[q % w];
 	  if (i == 0)
             p += tab[(int)(unsigned char) c];
 	  if (c != *s)
@@ -263,7 +266,7 @@ int n;
       markdata->isstr[markdata->isstrl++] = *p;
       markdata->isistr[markdata->isistrl++] = *p;
       markdata->isstr[markdata->isstrl] = 0;
-      debug2("New char: %c - left %d\n", *p, sizeof(markdata->isistr) - markdata->isistrl);
+      debug2("New char: %c - left %d\n", *p, (int)sizeof(markdata->isistr) - markdata->isistrl);
     }
   if (*p && *p != '\b')
     pos = is_bm(markdata->isstr, markdata->isstrl, pos, D_width * (fore->w_histheight + D_height), markdata->isdir);
@@ -276,9 +279,7 @@ int n;
           RefreshLine(STATLINE, 0, D_width - 1, 0);
           revto(x, y);
           if (W2D(markdata->cy) == STATLINE)
-	    {
-	      revto_line(markdata->cx, markdata->cy, STATLINE > 0 ? STATLINE - 1 : 1);
-	    }
+	    revto_line(markdata->cx, markdata->cy, STATLINE > 0 ? STATLINE - 1 : 1);
         );
     }
   if (*p)
@@ -327,9 +328,7 @@ int dir;
   markdata->isstartpos = markdata->cx + markdata->cy * D_width;
   markdata->isistrl = markdata->isstrl = 0;
   if (W2D(markdata->cy) == STATLINE)
-    {
-      revto_line(markdata->cx, markdata->cy, STATLINE > 0 ? STATLINE - 1 : 1);
-    }
+    revto_line(markdata->cx, markdata->cy, STATLINE > 0 ? STATLINE - 1 : 1);
   Input(isprompts[dir + 1], sizeof(markdata->isstr) - 1, is_process, INP_RAW);
   GotoPos(markdata->cx, W2D(markdata->cy));
 }

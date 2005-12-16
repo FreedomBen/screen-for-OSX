@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -49,7 +50,7 @@ extern struct comm comms[];
 extern char *rc_name;
 extern char *RcFileName, *home;
 extern char *BellString, *ActivityString, *ShellProg, *ShellArgs[];
-extern char *hardcopydir, *screenlogdir;
+extern char *hardcopydir, *screenlogfile;
 extern char *VisualBellString;
 extern int VBellWait, MsgWait, MsgMinWait, SilenceWait;
 extern char SockPath[], *SockName;
@@ -82,6 +83,7 @@ extern char *kmapdef[];
 extern char *kmapadef[];
 extern char *kmapmdef[];
 #endif
+extern struct mchar mchar_so;
 
 
 static int  CheckArgNum __P((int, char **));
@@ -102,7 +104,7 @@ static int  ParseOnOff __P((struct action *, int *));
 static int  ParseSaveStr __P((struct action *act, char **));
 static int  ParseNum __P((struct action *act, int *));
 static int  ParseWinNum __P((struct action *act, int *));
-static int  ParseOct __P((struct action *act, int *));
+static int  ParseBase __P((struct action *act, char *, int *, int, char *));
 static char *ParseChar __P((char *, char *));
 static int  IsNum __P((char *, int));
 static void InputColon __P((void));
@@ -123,6 +125,7 @@ static void pass2 __P((char *, int));
 #ifdef POW_DETACH
 static void pow_detach_fn __P((char *, int));
 #endif
+static void digraph_fn __P((char *, int));
 
 
 
@@ -174,6 +177,116 @@ char *kmap_extras[KMAP_EXT];
 int kmap_extras_fl[KMAP_EXT];
 
 #endif
+
+
+static const unsigned char digraphs[][3] = {
+    {'~', '!', 161},	/* ¡ */
+    {'!', '!', 161},	/* ¡ */
+    {'c', '|', 162},	/* ¢ */
+    {'$', '$', 163},	/* £ */
+    {'o', 'x', 164},	/* ¤ */
+    {'Y', '-', 165},	/* ¥ */
+    {'|', '|', 166},	/* ¦ */
+    {'p', 'a', 167},	/* § */
+    {'"', '"', 168},	/* ¨ */
+    {'c', 'O', 169},	/* © */
+    {'a', '-', 170},	/* ª */
+    {'<', '<', 171},	/* « */
+    {'-', ',', 172},	/* ¬ */
+    {'-', '-', 173},	/* ­ */
+    {'r', 'O', 174},	/* ® */
+    {'-', '=', 175},	/* ¯ */
+    {'~', 'o', 176},	/* ° */
+    {'+', '-', 177},	/* ± */
+    {'2', '2', 178},	/* ² */
+    {'3', '3', 179},	/* ³ */
+    {'\'', '\'', 180},	/* ´ */
+    {'j', 'u', 181},	/* µ */
+    {'p', 'p', 182},	/* ¶ */
+    {'~', '.', 183},	/* · */
+    {',', ',', 184},	/* ¸ */
+    {'1', '1', 185},	/* ¹ */
+    {'o', '-', 186},	/* º */
+    {'>', '>', 187},	/* » */
+    {'1', '4', 188},	/* ¼ */
+    {'1', '2', 189},	/* ½ */
+    {'3', '4', 190},	/* ¾ */
+    {'~', '?', 191},	/* ¿ */
+    {'?', '?', 191},	/* ¿ */
+    {'A', '`', 192},	/* À */
+    {'A', '\'', 193},	/* Á */
+    {'A', '^', 194},	/* Â */
+    {'A', '~', 195},	/* Ã */
+    {'A', '"', 196},	/* Ä */
+    {'A', '@', 197},	/* Å */
+    {'A', 'E', 198},	/* Æ */
+    {'C', ',', 199},	/* Ç */
+    {'E', '`', 200},	/* È */
+    {'E', '\'', 201},	/* É */
+    {'E', '^', 202},	/* Ê */
+    {'E', '"', 203},	/* Ë */
+    {'I', '`', 204},	/* Ì */
+    {'I', '\'', 205},	/* Í */
+    {'I', '^', 206},	/* Î */
+    {'I', '"', 207},	/* Ï */
+    {'D', '-', 208},	/* Ð */
+    {'N', '~', 209},	/* Ñ */
+    {'O', '`', 210},	/* Ò */
+    {'O', '\'', 211},	/* Ó */
+    {'O', '^', 212},	/* Ô */
+    {'O', '~', 213},	/* Õ */
+    {'O', '"', 214},	/* Ö */
+    {'/', '\\', 215},	/* × */
+    {'O', '/', 216},	/* Ø */
+    {'U', '`', 217},	/* Ù */
+    {'U', '\'', 218},	/* Ú */
+    {'U', '^', 219},	/* Û */
+    {'U', '"', 220},	/* Ü */
+    {'Y', '\'', 221},	/* Ý */
+    {'I', 'p', 222},	/* Þ */
+    {'s', 's', 223},	/* ß */
+    {'s', '"', 223},	/* ß */
+    {'a', '`', 224},	/* à */
+    {'a', '\'', 225},	/* á */
+    {'a', '^', 226},	/* â */
+    {'a', '~', 227},	/* ã */
+    {'a', '"', 228},	/* ä */
+    {'a', '@', 229},	/* å */
+    {'a', 'e', 230},	/* æ */
+    {'c', ',', 231},	/* ç */
+    {'e', '`', 232},	/* è */
+    {'e', '\'', 233},	/* é */
+    {'e', '^', 234},	/* ê */
+    {'e', '"', 235},	/* ë */
+    {'i', '`', 236},	/* ì */
+    {'i', '\'', 237},	/* í */
+    {'i', '^', 238},	/* î */
+    {'i', '"', 239},	/* ï */
+    {'d', '-', 240},	/* ð */
+    {'n', '~', 241},	/* ñ */
+    {'o', '`', 242},	/* ò */
+    {'o', '\'', 243},	/* ó */
+    {'o', '^', 244},	/* ô */
+    {'o', '~', 245},	/* õ */
+    {'o', '"', 246},	/* ö */
+    {':', '-', 247},	/* ÷ */
+    {'o', '/', 248},	/* ø */
+    {'u', '`', 249},	/* ù */
+    {'u', '\'', 250},	/* ú */
+    {'u', '^', 251},	/* û */
+    {'u', '"', 252},	/* ü */
+    {'y', '\'', 253},	/* ý */
+    {'i', 'p', 254},	/* þ */
+    {'y', '"', 255},	/* y", make poor lint happy*/
+    {'"', '[', 196},	/* Ä */
+    {'"', '\\', 214},	/* Ö */
+    {'"', ']', 220},	/* Ü */
+    {'"', '{', 228},	/* ä */
+    {'"', '|', 246},	/* ö */
+    {'"', '}', 252},	/* ü */
+    {'"', '~', 223}	/* ß */
+};
+
 
 char *noargs[1];
 
@@ -252,7 +365,8 @@ InitKeytab()
   ktab['k'].nr = ktab[Ctrl('k')].nr = RC_KILL;
   ktab['l'].nr = ktab[Ctrl('l')].nr = RC_REDISPLAY;
   ktab['w'].nr = ktab[Ctrl('w')].nr = RC_WINDOWS;
-  ktab['v'].nr = ktab[Ctrl('v')].nr = RC_VERSION;
+  ktab['v'].nr = RC_VERSION;
+  ktab[Ctrl('v')].nr = RC_DIGRAPH;
   ktab['q'].nr = ktab[Ctrl('q')].nr = RC_XON;
   ktab['s'].nr = ktab[Ctrl('s')].nr = RC_XOFF;
   ktab['t'].nr = ktab[Ctrl('t')].nr = RC_TIME;
@@ -311,8 +425,10 @@ InitKeytab()
   ktab['b'].nr = ktab[Ctrl('b')].nr = RC_BREAK;
   ktab['B'].nr = RC_POW_BREAK;
   ktab['_'].nr = RC_SILENCE;
-  ktab[(int)(unsigned char)DefaultEsc].nr = RC_OTHER;
-  ktab[(int)(unsigned char)DefaultMetaEsc].nr = RC_META;
+  if (DefaultEsc >= 0)
+    ktab[DefaultEsc].nr = RC_OTHER;
+  if (DefaultMetaEsc >= 0)
+    ktab[DefaultMetaEsc].nr = RC_META;
 }
 
 static void
@@ -332,40 +448,13 @@ struct action *act;
   act->args = noargs;
 }
 
-#if 0
-void
-ProcessInput(ibuf, ilen)
-char *ibuf;
-int ilen;
-{
-  char *s;
-  int slen;
 
-  while (display)
-    {
-      fore = D_fore;
-      slen = ilen;
-      s = ibuf;
-      while (ilen > 0)
-	{
-	  if (*s++ == D_user->u_Esc)
-	    break;
-	  ilen--;
-	}
-      slen -= ilen;
-      while (slen)
-	Process(&ibuf, &slen);
-      if (--ilen == 0)
-	D_ESCseen = 1;
-      if (ilen <= 0)
-	return;
-      DoAction(&ktab[(int)(unsigned char)*s], (int)(unsigned char)*s);
-      ibuf = s + 1;
-      ilen--;
-    }
-}
-#endif
+#ifdef MAPKEYS
 
+/*
+ *  This ProcessInput just does the keybindings and passes
+ *  everything on to ProcessInput2
+ */
 
 void
 ProcessInput(ibuf, ilen)
@@ -374,29 +463,16 @@ int ilen;
 {
   int ch, slen;
   char *s;
-#ifdef MAPKEYS
   struct action *act;
   int i, l;
-#endif
 
   if (display == 0 || ilen == 0)
     return;
   slen = ilen;
   s = ibuf;
-  while (D_ESCseen)
-    {
-      D_ESCseen = 0;
-      fore = D_fore;
-      DoAction(&ktab[(int)(unsigned char)*s], (int)(unsigned char)*s);
-      ibuf = ++s;
-      slen = --ilen;
-      if (display == 0 || ilen == 0)
-        return;
-    }
   while(ilen-- > 0)
     {
       ch = *(unsigned char *)s++;
-#ifdef MAPKEYS
       if (D_dontmap)
         D_dontmap = 0;
       else if (D_nseqs)
@@ -413,8 +489,8 @@ int ilen;
 		if (D_seql)
 		  {
 		    D_seqp -= D_seql;
-		    while (D_seql)
-		      Process(&D_seqp, &D_seql);
+		    ProcessInput2(D_seqp, D_seql);
+		    D_seql = 0;
 		  }
 		D_seqp = D_kmaps[0].seq;
 		D_mapdefault = 0;
@@ -422,9 +498,9 @@ int ilen;
 	      }
 	    if (D_seql++ == 0)
 	      {
+		/* Finish old stuff */
 		slen -= ilen + 1;
-		while (slen)
-		  Process(&ibuf, &slen);
+		ProcessInput2(ibuf, slen);
 		D_seqruns = 0;
 	      }
 	    ibuf = s;
@@ -460,51 +536,80 @@ int ilen;
 		else
 		  {
 		    D_seqp -= D_seql;
-		    while (D_seql)
-		      Process(&D_seqp, &D_seql);
+		    ProcessInput2(D_seqp, D_seql);
 		  }
 		if (display == 0)
 		  return;
 		D_seql = 0;
 		D_seqp = D_kmaps[0].seq;
-		if (D_ESCseen)
-		  {
-		    slen++;
-		    ch = D_user->u_Esc;
-		  }
 	      }
 	    break;
 	  }
-#endif
-      if (ch == D_user->u_Esc)
-	{
-	  slen -= ilen + 1;
-	  while (slen)
-	    Process(&ibuf, &slen);
-	  do
-	    {
-	      if (ilen-- == 0)
-		{
-		  D_ESCseen = 1;
-		  return;
-		}
-	      D_ESCseen = 0;
-	      fore = D_fore;
-	      ch  = (int)(unsigned char)*s++;
-	      DoAction(&ktab[ch], ch);
-	      if (display == 0 || ilen == 0)
-		return;
-	    }
-	  while (D_ESCseen);
-	  ibuf = s;
-	  slen = ilen;
-	}
     }
-  while (slen)
-    Process(&ibuf, &slen);
+  ProcessInput2(ibuf, slen);
 }
 
-	
+#else
+# define ProcessInput2 ProcessInput
+#endif
+
+
+/*
+ *  Here the screen escape commands are handled, the remaining
+ *  chars are passed to the layer's input handler.
+ */
+
+void
+ProcessInput2(ibuf, ilen)
+char *ibuf;
+int ilen;
+{
+  char *s;
+  int ch, slen;
+
+  while (display)
+    {
+      fore = D_fore;
+      slen = ilen;
+      s = ibuf;
+      if (!D_ESCseen)
+	{
+	  while (ilen > 0)
+	    {
+	      if ((unsigned char)*s++ == D_user->u_Esc)
+		break;
+	      ilen--;
+	    }
+	  slen -= ilen;
+	  while (slen)
+	    Process(&ibuf, &slen);
+	  if (--ilen == 0)
+	    D_ESCseen = 1;
+	}
+      if (ilen <= 0)
+        return;
+      D_ESCseen = 0;
+      ch = (unsigned char)*s;
+
+      /* 
+       * As users have different esc characters, but a common ktab[],
+       * we fold back the users esc and meta-esc key to the Default keys
+       * that can be looked up in the ktab[]. grmbl. jw.
+       * FIXME: make ktab[] a per user thing.
+       */
+      if (ch == D_user->u_Esc) 
+        ch = DefaultEsc;
+      else if (ch == D_user->u_MetaEsc) 
+        ch = DefaultMetaEsc;
+
+      if (ch >= 0)
+        DoAction(&ktab[ch], ch);
+      ibuf = s + 1;
+      ilen--;
+    }
+}
+
+
 int
 FindCommnr(str)
 char *str;
@@ -1025,12 +1130,15 @@ int key;
 	  D_ESCseen = 1;
 	  break;
 	}
+      D_ESCseen = 0;
       /* FALLTHROUGH */
     case RC_OTHER:
       if (MoreWindows())
 	SwitchWindow(D_other ? D_other->w_number : NextWindow());
       break;
     case RC_META:
+      if (D_user->u_Esc < 0)
+        break;
       ch = D_user->u_Esc;
       s = &ch;
       n = 1;
@@ -1177,9 +1285,7 @@ int key;
       break;
     case RC_DEFWRITELOCK:
       if (args[0][0] == 'a')
-	{
-	  nwin_default.wlock = WLOCK_AUTO;
-	}
+	nwin_default.wlock = WLOCK_AUTO;
       else
 	{
 	  if (ParseOnOff(act, &n))
@@ -1447,22 +1553,25 @@ int key;
       KillBuffers();
       break;
 #endif				/* COPY_PASTE */
-    case RC_DEFESCAPE:
-      if (ParseEscape(NULL, *args))
-	Msg(0, "%s: two characters required after defescape.", rc_name);
-      break;
     case RC_ESCAPE:
-      ClearAction(&ktab[(int)(unsigned char)D_user->u_Esc]);
-      ClearAction(&ktab[(int)(unsigned char)D_user->u_MetaEsc]);
-      if (ParseEscape(D_user, *args))
+      if (ParseEscape(display ? D_user : users, *args))
 	{
 	  Msg(0, "%s: two characters required after escape.", rc_name);
 	  break;
 	}
-      ClearAction(&ktab[(int)(unsigned char)D_user->u_Esc]);
-      ClearAction(&ktab[(int)(unsigned char)D_user->u_MetaEsc]);
-      ktab[(int)(unsigned char)D_user->u_Esc].nr = RC_OTHER;
-      ktab[(int)(unsigned char)D_user->u_MetaEsc].nr = RC_META;
+      /* Change defescape if only one user. This is because we only
+       * have one ktab.
+       */
+      if (users->u_next)
+        break;
+      /* FALLTHROUGH */
+    case RC_DEFESCAPE:
+      if (ParseEscape((struct user *)0, *args))
+	{
+	  Msg(0, "%s: two characters required after defescape.", rc_name);
+	  break;
+	}
+      CheckEscape();
       break;
     case RC_CHDIR:
       s = *args ? *args : home;
@@ -1476,8 +1585,11 @@ int key;
     case RC_HARDCOPYDIR:
       (void)ParseSaveStr(act, &hardcopydir);
       break;
-    case RC_LOGDIR:
-      (void)ParseSaveStr(act, &screenlogdir);
+    case RC_LOGFILE:
+      if (*args)
+	if (ParseSaveStr(act, &screenlogfile) || !msgok)
+	  break;
+      Msg(0, "logfile is '%s'", screenlogfile);
       break;
     case RC_SHELLTITLE:
     case RC_SHELLAKA:
@@ -1486,6 +1598,7 @@ int key;
     case RC_SLEEP:
     case RC_TERMCAP:
     case RC_TERMINFO:
+    case RC_TERMCAPINFO:
       break;			/* Already handled */
     case RC_TERM:
       s = NULL;
@@ -1692,6 +1805,13 @@ int key;
 #ifdef MULTIUSER
 	  AclWinSwap(old, n);
 #endif
+  /* yucc */
+	  if (fore->w_hstatus)
+	    {
+	      display = fore->w_display;
+	      if (display)
+	        RefreshStatus();
+	    }
 	}
       break;
     case RC_SILENCE:
@@ -1742,7 +1862,7 @@ int key;
       break;
     case RC_SCROLLBACK:
       (void)ParseNum(act, &n);
-      ChangeScrollback(fore, n, D_width);
+      ChangeWindowSize(fore, fore->w_width, fore->w_height, n);
       if (msgok)
 	Msg(0, "scrollback set to %d", fore->w_histheight);
       break;
@@ -1878,7 +1998,7 @@ int key;
       debug1(" new vbellstr '%s'\n", VisualBellString);
       break;
     case RC_DEFMODE:
-      if (ParseOct(act, &n))
+      if (ParseBase(act, *args, &n, 8, "oct"))
         break;
       if (n < 0 || n > 0777)
 	{
@@ -2106,7 +2226,7 @@ int key;
 	        ;
 	      *s ? (*s++ = '\0') : (*s = '\0');
 	      u = FindUserPtr(args[0]);
-	      UserAdd(args[0], NULL, u);
+	      UserAdd(args[0], (char *)0, u);
 	      if (args[1] && args[2])
 		AclSetPerm(*u, args[1], args[2]);
 	      else
@@ -2116,7 +2236,7 @@ int key;
 	}
     case RC_ACLDEL:
         {
-	  if (UserDel(args[0], NULL))
+	  if (UserDel(args[0], (struct user **)0))
 	    break;
 	  if (msgok)
 	    Msg(0, "%s removed from acl database", args[0]);
@@ -2208,6 +2328,98 @@ int key;
 	else
 	  Msg(0, "using termcap entries for printing");
       break;
+    case RC_DIGRAPH:
+      Input("Enter digraph: ", 10, digraph_fn, INP_EVERY);
+      if (*args && **args)
+	{
+	  s = *args;
+	  n = strlen(s);
+	  Process(&s, &n);
+	}
+      break;
+    case RC_DEFHSTATUS:
+      if (*args == 0)
+        {
+	  char buf[256];
+          *buf = 0;
+	  if (nwin_default.hstatus)
+            AddXChars(buf, sizeof(buf), nwin_default.hstatus);
+	  Msg(0, "default hstatus is '%s'", buf);
+	  break;
+        }
+      (void)ParseSaveStr(act, &nwin_default.hstatus);
+      if (*nwin_default.hstatus == 0)
+	{
+	  free(nwin_default.hstatus);
+	  nwin_default.hstatus = 0;
+	}
+      break;
+    case RC_DEFCHARSET:
+    case RC_CHARSET:
+      if (*args == 0)
+        {
+	  char buf[256];
+          *buf = 0;
+	  if (nwin_default.charset)
+            AddXChars(buf, sizeof(buf), nwin_default.charset);
+	  Msg(0, "default charset is '%s'", buf);
+	  break;
+        }
+      n = strlen(*args);
+      if (n == 0 || n > 6)
+	{
+	  Msg(0, "%s: %s: string has illegal size.", rc_name, comms[nr].name);
+	  break;
+	}
+      if (n > 4 && (
+        ((args[0][4] < '0' || args[0][4] > '3') && args[0][4] != '.') ||
+        ((args[0][5] < '0' || args[0][5] > '3') && args[0][5] && args[0][5] != '.')))
+	{
+	  Msg(0, "%s: %s: illegal mapping number.", rc_name, comms[nr].name);
+	  break;
+	}
+      if (nr == RC_CHARSET)
+	{
+	  SetCharsets(fore, *args);
+	  break;
+	}
+      if (nwin_default.charset)
+	free(nwin_default.charset);
+      nwin_default.charset = SaveStr(*args);
+      break;
+    case RC_SORENDITION:
+      i = mchar_so.attr;
+      if (*args && **args)
+        {
+	  if (ParseBase(act, *args, &i, 16, "hex"))
+	    break;
+	  if (i < 0 || i >= (1 << NATTR))
+	    {
+	      Msg(0, "sorendition: bad standout attributes");
+	      break;
+	    }
+        }
+#ifdef COLOR
+      n = mchar_so.color;
+      if (*args && args[1])
+	{
+	  if (ParseBase(act, args[1], &n, 16, "hex"))
+	    break;
+	  if (n < 0 || n > 0x99 || (n & 15) > 9)
+	    {
+	      Msg(0, "sorendition: bad standout color");
+	      break;
+	    }
+	  n = 0x99 - n;
+	}
+      mchar_so.attr = i;
+      mchar_so.color = n;
+      Msg(0, "Standout attributes 0x%02x  color 0x%02x", (unsigned char)mchar_so.attr, 0x99 - (unsigned char)mchar_so.color);
+#else
+      mchar_so.attr = i;
+      Msg(0, "Standout attributes 0x%02x", (unsigned char)mchar_so.attr);
+#endif
+      break;
     default:
       break;
     }
@@ -2240,9 +2452,7 @@ char **args;
   if ((pp = ap = (char **) malloc((unsigned) (argc + 1) * sizeof(char **))) == 0)
     Panic(0, strnomem);
   while (argc--)
-    {
-      *pp++ = SaveStr(*args++);
-    }
+    *pp++ = SaveStr(*args++);
   *pp = 0;
   return ap;
 }
@@ -2333,9 +2543,51 @@ ParseEscape(u, p)
 struct user *u;
 char *p;
 {
-  if ((p = ParseChar(p, u ? &u->u_Esc : &DefaultEsc)) == NULL ||
-      (p = ParseChar(p, u ? &u->u_MetaEsc : &DefaultMetaEsc)) == NULL || *p)
-    return -1;
+  unsigned char buf[2];
+  int e, me;
+
+#ifdef MAPKEYS
+  if (*p == 0)
+    e = me = -1;
+  else
+#endif
+    {
+      if ((p = ParseChar(p, (char *)buf)) == NULL ||
+	  (p = ParseChar(p, (char *)buf+1)) == NULL || *p)
+	return -1;
+      e = buf[0];
+      me = buf[1];
+    }
+  if (u)
+    {
+      u->u_Esc = e;
+      u->u_MetaEsc = me;
+    }
+  else
+    {
+      if (users)
+	{
+	  if (DefaultEsc >= 0)
+	    ClearAction(&ktab[DefaultEsc]);
+	  if (DefaultMetaEsc >= 0)
+	    ClearAction(&ktab[DefaultMetaEsc]);
+	}
+      DefaultEsc = e;
+      DefaultMetaEsc = me;
+      if (users)
+	{
+	  if (DefaultEsc >= 0)
+	    {
+	      ClearAction(&ktab[DefaultEsc]);
+	      ktab[DefaultEsc].nr = RC_OTHER;
+	    }
+	  if (DefaultMetaEsc >= 0)
+	    {
+	      ClearAction(&ktab[DefaultMetaEsc]);
+	      ktab[DefaultMetaEsc].nr = RC_META;
+	    }
+	}
+    }
   return 0;
 }
 
@@ -2433,9 +2685,12 @@ char *s;
   struct win *p;
 
   for (p = windows; p; p = p->w_next)
+    if (!strcmp(p->w_title, s))
+      return p;
+  for (p = windows; p; p = p->w_next)
     if (!strncmp(p->w_title, s, strlen(s)))
       return p;
-  return NULL;
+  return 0;
 }
 
 static int
@@ -2501,34 +2756,38 @@ int *var;
   return 0;
 }
 
-static int
-ParseOct(act, var)
-struct action *act;
-int *var;
-{
-  char *p, **args = act->args;
-  int i = 0; 
 
-  p = *args;
-  if (p == 0 || *p == 0 || args[1])
+static int
+ParseBase(act, p, var, base, bname)
+struct action *act;
+char *p;
+int *var;
+int base;
+char *bname;
+{
+  int i = 0;
+  int c;
+
+  if (*p == 0)
     {
-      Msg(0, "%s: %s: invalid argument. Give one octal argument.",
-          rc_name, comms[act->nr].name);
+      Msg(0, "%s: %s: empty argument.", rc_name, comms[act->nr].name);
       return -1;
     }
-  while (*p)
+  while ((c = *p++))
     {
-      if (*p >= '0' && *p <= '7')
-	i = 8 * i + (*p - '0');
-      else
+      if (c >= 'a' && c <= 'z')
+	c -= 'a' - 'A';
+      if (c >= 'A' && c <= 'Z')
+	c -= 'A' - ('0' + 10);
+      c -= '0';
+      if (c < 0 || c >= base)
 	{
-	  Msg(0, "%s: %s: invalid argument. Give octal argument.",
-	      rc_name, comms[act->nr].name);
+	  Msg(0, "%s: %s: argument is not %s.", rc_name, comms[act->nr].name, bname);
 	  return -1;
 	}    
-      p++;
+      i = base * i + c;
     }
-  debug1("ParseOct got %d\n", i);
+  debug1("ParseBase got %d\n", i);
   *var = i;
   return 0;
 }
@@ -2819,10 +3078,8 @@ int on;
 	Msg(0, "You are %s logging.", on ? "already" : "not");
       return;
     }
-  if (screenlogdir)
-    sprintf(buf, "%s/screenlog.%d", screenlogdir, fore->w_number);
-  else
-    sprintf(buf, "screenlog.%d", fore->w_number);
+  strncpy(buf, MakeWinMsg(screenlogfile, fore, '%'), 1023);
+  buf[1023] = 0;
   if (fore->w_logfp != NULL)
     {
 #ifdef NETHACK
@@ -2982,7 +3239,7 @@ ShowInfo()
 	  (wp->w_logfp != NULL) ? '+' : '-',
 	  (wp->w_monitor != MON_OFF) ? '+' : '-',
 	  wp->w_norefresh ? '-' : '+');
-  if (D_CG0)
+  if (D_CC0 || (D_CS0 && *D_CS0))
     {
       p = buf + strlen(buf);
       if (wp->w_gr)
@@ -3340,9 +3597,7 @@ int len;
   if (!fore)
     return;	/* Input() should not call us w/o fore, but you never know... */
   if (*buf == '.')
-    {
-      Msg(0, "ins_reg_fn: Warning: pasting real register '.'!");
-    }
+    Msg(0, "ins_reg_fn: Warning: pasting real register '.'!");
   if (len)
     {
       *buf = 0;
@@ -3456,3 +3711,62 @@ int len;
 }
 #endif /* PASSWORD */
 
+static void
+digraph_fn(buf, len)
+char *buf;
+int len;
+{
+  int ch, i, x;
+
+  ch = buf[len];
+  if (ch)
+    {
+      if (ch < ' ' || ch == '\177')
+	return;
+      if (len && *buf == '0')
+	{
+	  if (ch < '0' || ch > '7')
+	    {
+	      buf[len] = '\001';	/* ignore */
+	      return;
+	    }
+	  if (len == 3)
+	    buf[len] = '\n';
+	  return;
+	}
+      if (len == 1)
+        buf[len] = '\n';
+      return;
+    }
+  buf[len] = buf[len + 1];	/* gross */
+  len++;
+  if (len < 2)
+    return;
+  if (buf[0] == '0')
+    {
+      x = 0;
+      for (i = 1; i < len; i++)
+	{
+	  if (buf[i] < '0' || buf[i] > '7')
+	    break;
+	  x = x * 8 | (buf[i] - '0');
+	}
+    }
+  else
+    {
+      for (i = 0; i < sizeof(digraphs)/sizeof(*digraphs); i++)
+	if ((digraphs[i][0] == (unsigned char)buf[0] && digraphs[i][1] == (unsigned char)buf[1]) ||
+	    (digraphs[i][0] == (unsigned char)buf[1] && digraphs[i][1] == (unsigned char)buf[0]))
+	  break;
+      if (i == sizeof(digraphs)/sizeof(*digraphs))
+	{
+	  Msg(0, "Unknown digraph");
+	  return;
+	}
+      x = digraphs[i][2];
+    }
+  i = 1;
+  *buf = x;
+  while(i)
+    Process(&buf, &i);
+}

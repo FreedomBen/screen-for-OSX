@@ -100,7 +100,6 @@ extern int   tcsetpgrp __P((int, int));
 #endif
 extern int   ioctl __P((int, int, char *));
 
-extern int   getpgrp __P((int));
 extern int   kill __P((int, int));
 
 extern int   getpid __P((void));
@@ -170,3 +169,14 @@ struct ttyent;
 extern void  setttyent __P((void));
 extern struct ttyent *getttyent __P((void));
 # endif
+
+#ifdef SVR4
+struct rlimit;
+extern int getrlimit __P((int, struct rlimit *));
+#endif
+
+struct stat;
+extern int stat __P((char *, struct stat *));
+extern int lstat __P((char *, struct stat *));
+extern int fstat __P((int, struct stat *));
+

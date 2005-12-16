@@ -1,11 +1,18 @@
-Installation of screen3.6                                         jw 10.01.95
+Installation of screen3.6                                         jw 9.04.95
 
 
 0.) This instruction is quite lengthy
 -------------------------------------
 .. and there are still important items near the end. Start here:
-Unpack. Screen comes as a compressed tar archive. You need gzip to uncompress.
-and... well, you probably already managed that step, when you are reading this.
+Unpack. Screen comes as a compressed tar archive. You need gzip to 
+uncompress.  And... well, you probably already managed that step, 
+when you are reading this.
+
+For general documentation on the coding and usage standards this
+distributions follows, see the GNU standards document on
+prep.ai.mit.edu:pub/gnu/standards.*, especially the `Makefile
+Conventions', `Configuration', and `User Interfaces' sections.
+
 
 1.) configure & config.status
 -----------------------------
@@ -25,14 +32,18 @@ Look through the Makefile & user configuration section in config.h and check
 pathnames. Change them to suit your installation requirements. Usually 
 sysadmins discuss the location of SOCKDIR, whether it should be in /tmp or 
 not. At least it must be on a filesystem that supports sockets/fifos.
-The path for ETCSCREENRC needs also to be adapted.
+SOCKDIR must not point into an AFS (Andrew File System) mounted directory. 
+If you are uncrertain about your NFS implementation, use a UFS directory for 
+SOCKDIR. Personally, I favour a users home directory and recommend the the 
+/tmp/ area. 
+The path for ETCSCREENRC may also need to be adapted.
 
 3.) how to actually compile 
 ---------------------------
 Run 'make'. Screen should compile without too many warnings :)
 The creation of term.h, comm.h, tty.c or osdef.h may fail on some machines
 for some odd reason. (E.g. the sed under SCO-unix is known to be 
-case-insensitive and breaks term.h.) If so, please mail a short description 
+case-insensitive and breaks term.h) If so, please mail a short description 
 of the problem to screen@uni-erlangen.de and use the files ending in .dist 
 as a replacement (or in case of osdef.h retry with an empty file).
 You can then try 'make install' (if you dare).
@@ -53,7 +64,7 @@ Consider this, when deciding whether you install screen setuid-root:
 - Some commands only work properly when the pty is owned by the user.
   These include mesg and biff.
 - The ^At feature may need to lseek and read the kernel file to retrieve 
-  the load average.
+  the load average. 
 - On most machines utmp slots can only be created/manipulated with root
   privileges. Users will appear to be logged on the primary terminal
   instead of the screen windows, if screen is not installed setuid-root.
@@ -78,7 +89,7 @@ The files screenrc and etc/etcscreenrc are instructive samples that
 demonstrate what can/should be done from your private .screenrc and from
 $ETCSCREENRC -- do not just copy them. Read them.  Look through the 
 etcscreenrc file for system wide defaults that you like to set. e.g. 
-autodetach off, startup_message off, vbell on, ... 
+autodetach off, startup_message off, vbell on, ...aak 
 Since version 3.2.15 the screenrc file syntax changed slightly. All rc files
 from previous versions should be run through the newsyntax script that comes 
 with this package.
@@ -96,4 +107,4 @@ database is up to date. See the README in the terminfo subdirectory.
 To get an idea what the basic screen commands are, read the file README.
 Request snail mail address for liquid and solid donations. :-)
 
-Juergen & Michael. (screen@uni-erlangen.de)
+Juergen Weigert. (screen@uni-erlangen.de)

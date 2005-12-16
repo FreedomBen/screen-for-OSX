@@ -5,7 +5,7 @@
 @finalout
 @setchapternewpage odd
 @c %**end of header
-@set version 3.6.0
+@set version 3.7.0
 
 @c For examples, use a literal escape in info.
 @ifinfo
@@ -16,7 +16,7 @@
 @end iftex
 
 @ifinfo
-This file documents the the @code{Screen} virtual terminal manager.
+This file documents the @code{Screen} virtual terminal manager.
 
 Copyright (c) 1993 Free Software Foundation, Inc.
 
@@ -46,7 +46,7 @@ by the Foundation.
 @title Screen
 @subtitle The virtual terminal manager
 @subtitle for Version @value{version}
-@subtitle Nov 1994
+@subtitle Oct 1995
 
 @page
 @vskip 0pt plus 1filll
@@ -188,26 +188,20 @@ discussed in the section on keystrokes (@pxref{Default Key Bindings}).
 Another section (@pxref{Customization}) deals with the contents of your
 @file{.screenrc}.
 
-If possible, choose a version of your terminal's termcap that has
-automatic margins turned @emph{off}.  This will ensure an accurate and
-optimal update of the screen in all circumstances.  The next best thing
-is an auto-margin terminal that allows the last position on the screen
-to be updated without scrolling the screen (such as a VT100).  This also
-allows the entire screen to be updated.  If all you've got is a
-``true'' auto-margin terminal, @code{screen} will be content to use it,
-but updating a character put into the last position on the screen may
-not be possible until the screen scrolls or the character is moved into
-a safe position in some other way.  This delay can be shortened by using
-a terminal with insert-character capability.
-
-If your terminal is of the second type (firm-margined @samp{am}), you will
-want to let @code{screen} know about this, since a normal termcap
-doesn't distinguish this type of automatic margins from a ``true'' @samp{am}
-terminal.  You do this by specifying the @samp{xn} capability in your termcap
-(@pxref{Termcap,@code{termcap} command}), or by using the @samp{-L}
-command-line option.  @code{screen} needs this information to correctly
-update the screen.  You don't need to worry about this if your terminal
-type starts with @samp{vt}, as @code{screen} assumes @samp{xn} in that case.
+If your terminal is a ``true'' auto-margin terminal (it doesn't allow
+the last position on the screen to be updated without scrolling the
+screen) consider to use a version of your terminal's termcap that has
+automatic margins turned @emph{off}.  This will ensure an accurate
+and optimal update of the screen in all circumstances.  Most terminals
+nowadays have ``magic'' margins (automatic margins plus usable last
+column).  This is the VT100 style type and perfectly suited for
+@code{screen}.
+If all you've got is a ``true'' auto-margin terminal @code{screen}
+will be content to use it, but updating a character put into the last
+position on the screen may not be possible until the screen scrolls or
+the character is moved into a safe position in some other way. This
+delay can be shortened by using a terminal with insert-character
+capability.
 
 @xref{Special Capabilities}, for more information about telling
 @code{screen} what kind of terminal you have.
@@ -375,8 +369,7 @@ following ways:
 For the global screenrc file @code{screen} searches for the environment
 variable @code{$SYSSCREENRC} (this override feature may be disabled at
 compile-time).  The user specific screenrc file is
-searched for in @code{$ISCREENRC}, then @code{$SCREENRC}, then
-@file{@code{$HOME}/.iscreenrc} and finally defaults to
+searched for in @code{$SCREENRC}, then 
 @file{@code{$HOME}/.screenrc}.  The command line option @samp{-c}
 specifies which file to use (@pxref{Invoking Screen}.  Commands in these
 files are used to set options, bind commands to keys, and to
@@ -595,9 +588,12 @@ Send a ^S (ASCII XOFF) to the current window.  @xref{XON/XOFF}.
 Show the load average and xref.  @xref{Time}.
 
 @item @kbd{C-a v}
-@itemx @kbd{C-a C-v}
 (version)@*
 Display the version and compilation date.  @xref{Version}.
+
+@item @kbd{C-a C-v}
+(digraph)@*
+Enter digraph.  @xref{Digraph}.
 
 @item @kbd{C-a w}
 @itemx @kbd{C-a C-w}
@@ -606,7 +602,7 @@ Show a list of active windows.  @xref{Windows}.
 
 @item @kbd{C-a W}
 (width)@*
-Toggle between 80 and 132 columns.  @xref{Width}.
+Toggle between 80 and 132 columns.  @xref{Window Size}.
 
 @item @kbd{C-a x}
 @itemx @kbd{C-a C-x}
@@ -711,6 +707,8 @@ Send a break signal to the current window.  @xref{Break}.
 Select a file for screen-exchange.  @xref{Screen-Exchange}.
 @item c1 @var{[state]}
 Change c1 code processing.  @xref{Character Processing}.
+@item charset @var{set}
+Change character set slot designation.  @xref{Character Processing}.
 @item chdir @var{[directory]}
 Change the current directory for future windows.  @xref{Chdir}.
 @item clear
@@ -733,12 +731,16 @@ Suppress/allow debugging output.  @xref{Debug}.
 Select default autonuke behavior.  @xref{Autonuke}.
 @item defc1 @var{state}
 Select default c1 processing behavior.  @xref{Character Processing}.
+@item defcharset @var{[set]}
+Change defaul character set slot designation.  @xref{Character Processing}.
 @item defescape @var{xy}
 Set the default command and @code{meta} characters.  @xref{Command Character}.
 @item defflow @var{fstate}
 Select default flow control behavior.  @xref{Flow}.
 @item defgr @var{state}
 Select default GR processing behavior.  @xref{Character Processing}.
+@item defhstatus @var{[status]}
+Select default window hardstatus line.  @xref{Hardstatus}.
 @item defkanji @var{wtype}
 Select default GR processing behavior.  @xref{Character Processing}.
 @item deflogin @var{state}
@@ -759,6 +761,8 @@ Set default writelock behavior.  @xref{Multiuser}.
 Keep dead windows.  @xref{Zombie}.
 @item detach
 Disconnect @code{screen} from the terminal.  @xref{Detach}.
+@item digraph
+Enter digraph sequence.  @xref{Digraph}.
 @item dumptermcap
 Write the window's termcap entry to a file.  @xref{Dump Termcap}.
 @item echo [-n] @var{message}
@@ -780,7 +784,7 @@ Place, where to dump hardcopy files.  @xref{Hardcopy}.
 @item hardstatus @var{[state]}
 Use the hardware status line.  @xref{Hardware Status Line}.
 @item height @var{[lines]}
-Set display height.  @xref{Height}.
+Set display height.  @xref{Window Size}.
 @item help
 Display current key bindings.  @xref{Help}.
 @item history
@@ -801,7 +805,7 @@ Display licensing information.  @xref{Startup}.
 Lock the controlling terminal.  @xref{Lock}.
 @item log @var{[state]}
 Log all output in the current window.  @xref{Log}.
-@item logdir @var{directory}
+@item logfile @var{filename}
 Place where to collect logfiles.  @xref{Log}.
 @item login @var{[state]}
 Log the window in @file{/etc/utmp}.  @xref{Login}.
@@ -889,6 +893,8 @@ Default timeout to trigger an inactivity notify.  @xref{Silence}.
 Pause during startup.  @xref{Startup}.
 @item slowpaste @var{msec}
 Slow down pasting in windows.  @xref{Paste}.
+@item sorendition @var{[attr [color]]}
+Change text highlighting.  @xref{Sorendition}.
 @item startup_message @var{state}
 Display copyright notice on startup.  @xref{Startup}.
 @item stuff @var{string}
@@ -901,6 +907,8 @@ Set @code{$TERM} for new windows.  @xref{Term}.
 Tweak termcap entries for best performance.  @xref{Termcap Syntax}.
 @item terminfo @var{term terminal-tweaks [window-tweaks]}
 Ditto, for terminfo systems.  @xref{Termcap Syntax}.
+@item termcapinfo @var{term terminal-tweaks [window-tweaks]}
+Ditto, for both systems.  @xref{Termcap Syntax}.
 @item time
 Display time and load average.  @xref{Time}.
 @item title @var{[windowtitle]}
@@ -915,10 +923,10 @@ Set vbell message.  @xref{Bell}.
 Set delay for vbell message.  @xref{Bell}.
 @item version
 Display @code{screen} version.  @xref{Version}.
-@item wall @var{message ...}
+@item wall @var{message}
 Write a message to all displays.  @xref{Multiuser Session}.
 @item width @var{[num]}
-Set the width of the window.  @xref{Width}.
+Set the width of the window.  @xref{Window Size}.
 @item windows
 List active windows.  @xref{Windows}.
 @item wrap @var{[state]}
@@ -941,7 +949,8 @@ Keep dead windows.  @xref{Zombie}.
 This section describes the commands for creating a new window for
 running programs.  When a new window is created, the first available
 number from the range 0@dots{}9 is assigned to it.  There can be no more
-than 10 windows active at any one time.
+than 10 windows active at any one time unless @code{screen} was compiled
+with a higher MAXWIN setting.
 
 @menu
 * Chdir::                       Change the working directory for new windows.
@@ -1054,8 +1063,7 @@ use of the @code{term} command is discouraged for non-default purpose.
 That is, one may want to specify special @code{$TERM} settings (e.g. vt100) for
 the next @code{screen rlogin othermachine} command. Use the command
 @code{screen -T vt100 rlogin othermachine} rather than setting
-(@code{term vt100}) and resetting (@code{term screen}) the default
-before and after the @code{screen} command.
+and resetting the default.
 @end deffn
 
 @node Selecting, Session Management, New Window, Top
@@ -1097,11 +1105,9 @@ Switch to the previous window (the opposite of @kbd{C-a n}).
 @deffn Command other
 (@kbd{C-a C-a})@*
 Switch to the last window displayed.  Note that this command
-defaults to the command character typed twice, unless overridden; for
-instance, if you use the option @samp{-e]x}, this command becomes
-@kbd{]]}, not @kbd{]C-a} (@pxref{Command Character}).  On the other
-hand, if you use the option @samp{-e``}, this command remains @kbd{`
-C-a}, since @kbd{``} is bound to @code{meta}.
+defaults to the command character typed twice, unless overridden.
+For instance, if you use the option @samp{-e]x}, 
+this command becomes @kbd{]]} (@pxref{Command Character}).
 @end deffn
 
 @node Select,  , Other Window, Selecting
@@ -1288,7 +1294,7 @@ Multi-user mode only.
 
 @node Wall, Writelock, Acldel, Multiuser Session
 @subsection Wall
-@deffn Command wall @var{message ...}
+@deffn Command wall @var{message}
 (none)@*
 Write a message to all displays. The message will appear in the terminal's
 status line.
@@ -1358,18 +1364,17 @@ in a session.  @xref{Virtual Terminal}, for commands to control the
 terminal emulation itself.
 
 @menu
-* Naming Windows::               Control the name of the window
-* Autonuke::			Flush unseen output
+* Naming Windows::		Control the name of the window
 * Console::			See the host's console messages
 * Kill::                        Destroy an unwanted window
 * Login::                       Control @file{/etc/utmp} logging
 * Mode::                        Control the file mode of the pty
 * Monitor::                     Watch for activity in a window
-* Obuflimit::			Allow pending output when reading more
-* Windows::                     List the active windows
+* Windows::			List the active windows
+* Hardstatus::			Set a window's hardstatus line
 @end menu
 
-@node Naming Windows, Autonuke,  , Window Settings
+@node Naming Windows, Console,  , Window Settings
 @section Naming Windows (Titles)
 @cindex title
 
@@ -1467,7 +1472,7 @@ PROMPT_COMMAND='echo -n -e "\033k\033\134"'
 (I used @samp{\134} to output a @samp{\} because of a bug in v1.04).
 
 @node Title Screenrc,  , Title Prompts, Naming Windows
-@subsection Setting up shell Titles in your @file{.screenrc}
+@subsection Setting up shell titles in your @file{.screenrc}
 Here are some .screenrc examples:
 
 @example
@@ -1475,7 +1480,7 @@ screen -t top 2 nice top
 @end example
 
 Adding this line to your .screenrc would start a niced version of the
-@code{top} command in window 2 name @samp{top} rather than @samp{nice}.
+@code{top} command in window 2 named @samp{top} rather than @samp{nice}.
 
 @example
 shelltitle '> |csh'
@@ -1524,24 +1529,7 @@ a title when you type @kbd{C-a o}.  The second binding would clear an
 auto-titles current setting (C-a E).  The third binding would set the
 current window's title to @samp{(unknown)} (C-a u).
 
-@node Autonuke, Console, Naming Windows, Window Settings
-@section Autonuke
-@deffn Command autonuke @var{state}
-(none)@*
-Sets whether a clear screen sequence should nuke all the output
-that has not been written to the terminal. @xref{Obuflimit}.
-This property is set per display, not per window.
-@end deffn
-
-@deffn Command defautonuke @var{state}
-(none)@*
-Same as the @code{autonuke} command except that the default setting for
-new displays is also changed. Initial setting is @code{off}. 
-Note that you can use the special @code{AN} terminal capability if you
-want to have a terminal type dependent setting.
-@end deffn
-
-@node Console, Kill, Autonuke, Window Settings
+@node Console, Kill, Naming Windows, Window Settings
 @section Console
 @deffn Command console @var{[state]}
 (none)@*
@@ -1605,7 +1593,7 @@ windows which are logged in, 0600 for others (e.g. when @code{-ln} was
 specified for creation. @xref{Screen Command}).
 @end deffn
 
-@node Monitor, Obuflimit, Mode, Window Settings
+@node Monitor, Windows, Mode, Window Settings
 @section Monitoring
 
 @deffn Command activity message
@@ -1643,26 +1631,7 @@ the window-status display (@pxref{Windows}).  Monitoring defaults to
 @samp{off} for all windows.
 @end deffn
 
-@node Obuflimit, Windows, Monitor, Window Settings
-@section Obuflimit
-@deffn Command obuflimit @var{[limit]}
-(none)@*
-If the output buffer contains more bytes than the specified limit, no
-more data will be read from the windows. The default value is 256. If
-you have a fast display (like @code{xterm}), you can set it to some 
-higher value. If no argument is specified, the current setting is displayed.
-This property is set per display, not per window.
-@end deffn
-
-@deffn Command defobuflimit @var{limit}
-(none)@*
-Same as the @code{obuflimit} command except that the default setting for new
-displays is also changed. Initial setting is 256 bytes. Note that you can use
-the special @code{OL} terminal capability if you want to have a terminal
-type dependent limit.
-@end deffn
-
-@node Windows,  , Obuflimit, Window Settings
+@node Windows, Hardstatus, Monitor, Window Settings
 @section Windows
 @kindex w
 @kindex C-w
@@ -1682,24 +1651,52 @@ If this list is too long to fit on the terminal's status line only the
 portion around the current window is displayed.
 @end deffn
 
+@node Hardstatus, , Windows, Window Settings
+@section Hardstatus
+
+@code{Screen} maintains a hardstatus line for every window. If a window
+gets selected, the display's hardstatus will be updated to match
+the window's hardstatus line. If the display has no hardstatus
+the line will be displayed as a standard screen message.
+The hardstatus line can be changed with the ANSI Application
+Program Command (APC): @samp{ESC_<string>ESC\}. As a convenience
+for xterm users the sequence @samp{ESC]0..2;<string>^G} is
+also accepted.
+
+@deffn Command defhstatus
+(none)@*
+The hardstatus line that all new windows will get is set to
+@var{status}.
+This command is useful to make the hardstatus of every window
+display the window number or title or the like.  @var{status}
+may contain the same directives as in the window messages, but
+the directive escape character is @samp{^E} (octal 005) instead
+of @samp{%}.  This was done to make a misinterpretion of program
+generated hardstatus lines impossible.
+If the parameter @var{status}
+is omitted, the current default string is displayed.
+Per default the hardstatus line of new windows is empty.
+@end deffn
+
 @node Virtual Terminal, Copy and Paste, Window Settings, Top
 @chapter Virtual Terminal
 
 Each window in a @code{screen} session emulates a VT100 terminal, with
-some extra functions added.  The commands described here modify the
-terminal emulation.
+some extra functions added. The VT100 emulator is hardcoded, no other
+terminal types can be emulated. 
+The commands described here modify the terminal emulation.
 
 @menu
 * Control Sequences::           Details of the internal VT100 emulation.
 * Input Translation::           How keystrokes are remapped.
+* Digraph::			Entering digraph sequences.
 * Bell::                        Getting your attention.
 * Clear::                       Clear the window display.
-* Height::			Changing the height of your terminal.
 * Info::                        Terminal emulation statistics.
 * Redisplay::                   When the display gets confusing.
 * Wrap::                        Automatic margins.
 * Reset::                       Recovering from ill-behaved applications.
-* Width::                       Changing the width of your terminal.
+* Window Size::                 Changing the size of your terminal.
 * Character Processing::	Change the effect of special characters.
 @end menu
 
@@ -1721,6 +1718,10 @@ ESC 8                   (V)     Restore Cursor and Attributes
 ESC [s                  (A)     Save Cursor and Attributes
 ESC [u                  (A)     Restore Cursor and Attributes
 ESC c                           Reset to Initial State
+ESC g                           Visual Bell
+ESC Pn p                        Cursor Visibility (97801)
+    Pn = 6                      Invisible
+         7                      Visible
 ESC =                   (V)     Application Keypad Mode
 ESC >                   (V)     Numeric Keypad Mode
 ESC # 8                 (V)     Fill Screen with E's
@@ -1731,8 +1732,9 @@ ESC k                           Title Definition String
 ESC P                   (A)     Device Control String
                                 Outputs a string directly to the host
                                 terminal without interpretation.
-ESC _                   (A)     Application Program Command (not used)
-ESC ]                   (A)     Operating System Command (not used)
+ESC _                   (A)     Application Program Command (Hardstatus)
+ESC ]                   (A)     Operating System Command (Hardstatus, xterm
+                                title hack)
 Control-N               (A)     Lock Shift G1 (SO)
 Control-O               (A)     Lock Shift G0 (SI)
 ESC n                   (A)     Lock Shift G2
@@ -1770,6 +1772,18 @@ ESC [ Ps ;...; Ps m             Select Graphic Rendition
            24           (A)     Not Underlined
            25           (A)     Not Blinking
            27           (A)     Positive Image
+           30           (A)     Foreground Black
+           31           (A)     Foreground Red
+           32           (A)     Foreground Green
+           33           (A)     Foreground Yellow
+           34           (A)     Foreground Blue
+           35           (A)     Foreground Magenta
+           36           (A)     Foreground Cyan
+           37           (A)     Foreground White
+           39           (A)     Foreground Default
+           40           (A)     Background Black
+	   ...                  ...
+	   49           (A)     Background Default
 ESC [ Pn g                      Tab Clear
       Pn = None or 0            Clear Tab at Current Position
            3                    Clear All Tabs
@@ -1780,26 +1794,32 @@ ESC [ Pn L              (A)     Insert Line
 ESC [ Pn M              (A)     Delete Line
 ESC [ Pn @@              (A)     Insert Character
 ESC [ Pn P              (A)     Delete Character
+ESC [ Pn S                      Scroll Scrolling Region Up
+ESC [ Pn T                      Scroll Scrolling Region Down
 ESC [ Ps ;...; Ps h             Set Mode
 ESC [ Ps ;...; Ps l             Reset Mode
       Ps = 4            (A)     Insert Mode
+           20           (A)     @samp{Automatic Linefeed} Mode.
+           34                   Normal Cursor Visibility
            ?1           (V)     Application Cursor Keys
            ?3           (V)     Change Terminal Width to 132 columns
-           ?5           (V)     Visible Bell (@samp{On} followed by @samp{Off})
+           ?5           (V)     Reverse Video
            ?6           (V)     @samp{Origin} Mode
            ?7           (V)     @samp{Wrap} Mode
+           ?25          (V)     Visible Cursor
 ESC [ 5 i               (A)     Start relay to printer (ANSI Media Copy)
 ESC [ 4 i               (A)     Stop relay to printer (ANSI Media Copy)
 ESC [ 8 ; Ph ; Pw t             Resize the window to @samp{Ph} lines and
                                 @samp{Pw} columns (SunView special)
 ESC [ c                         Send VT100 Identification String
+ESC [ x                 (V)     Send Terminal Parameter Report
 ESC [ > c                       Send Secondary Device Attributes String
 ESC [ 6 n                       Send Cursor Position Report
 
 @end example
 
 
-@node Input Translation, Bell, Control Sequences, Virtual Terminal
+@node Input Translation, Digraph, Control Sequences, Virtual Terminal
 @section Input Translation
 @cindex input translation
 In order to do a full VT100 emulation @code{screen} has to detect
@@ -1889,7 +1909,25 @@ Keypad enter         fe         stuff \015
                                 stuff \033OM      (A)
 @end example
 
-@node Bell, Clear, Input Translation, Virtual Terminal
+@node Digraph, Bell, Input Translation, Virtual Terminal
+@section Digraph
+
+@kindex C-v
+@deffn Command digraph [preset]
+(none)@*
+This command prompts the user for a digraph sequence. The next
+two characters typed are looked up in a builtin table and the
+resulting character is inserted in the input stream. For example,
+if the user enters @samp{a"}, an a-umlaut will be inserted. If the
+first character entered is a 0 (zero), @code{screen}
+will treat the following charcters (up to three) as an octal
+number instead.  The optional argument @var{preset}
+is treated as user input, thus one can create an "umlaut" key.
+For example the command @samp{bindkey ^K digraph '"'} enables the user
+to generate an a-umlaut by typing @samp{CTRL-K a}.
+@end deffn
+
+@node Bell, Clear, Digraph, Virtual Terminal
 @section Bell
 
 @deffn Command bell_msg [message]
@@ -1927,7 +1965,7 @@ Per  default, @code{vbell} is @samp{off}, thus the audible bell is used.
 
 @deffn Command vbell_msg [message]
 (none)@*
-Sets the visual bell message. @var{message} is printed to the status
+Sets the visual bell message. @var{Message} is printed to the status
 line if the window receives a bell character (^G), @code{vbell} is
 set to @samp{on} and the terminal does not support a visual bell.
 The default message is @samp{Wuff, Wuff!!}.
@@ -1940,7 +1978,7 @@ Define a delay in seconds after each display of @code{screen} 's visual
 bell message. The default is 1 second.
 @end deffn
 
-@node Clear, Height, Bell, Virtual Terminal
+@node Clear, Info, Bell, Virtual Terminal
 @section Clear
 @kindex C
 @deffn Command clear
@@ -1948,15 +1986,7 @@ bell message. The default is 1 second.
 Clears the screen and saves its contents to the scrollback buffer.
 @end deffn
 
-@node Height, Info, Clear, Virtual Terminal
-@section Height
-@deffn Command height @var{[lines]}
-(none)@*
-Set the display height to a specified number of lines. When no
-argument is given it toggles between 24 and 42 lines display.
-@end deffn
-
-@node Info, Redisplay, Height, Virtual Terminal
+@node Info, Redisplay, Clear, Virtual Terminal
 @section Info
 @kindex i
 @kindex C-i
@@ -2026,7 +2056,7 @@ windows is changed. Initially line-wrap is on and can be toggled with the
 @code{wrap} command (@kbd{C-a r}) or by means of "C-a : wrap on|off".
 @end deffn
 
-@node Reset, Width, Wrap, Virtual Terminal
+@node Reset, Window Size, Wrap, Virtual Terminal
 @section Reset
 @kindex Z
 @deffn Command reset
@@ -2036,8 +2066,8 @@ settings (like scroll regions or graphics character set) are left over from
 an application.
 @end deffn
 
-@node Width, Character Processing, Reset, Virtual Terminal
-@section Width
+@node Window Size, Character Processing, Reset, Virtual Terminal
+@section Window Size
 @kindex W
 @deffn Command width [num]
 (@kbd{C-a W})@*
@@ -2047,7 +2077,13 @@ capable terminal and the termcap entries @samp{Z0} and @samp{Z1}.  See
 the @code{termcap} command (@pxref{Termcap}), for more information.
 @end deffn
 
-@node Character Processing, ,Width, Virtual Terminal
+@deffn Command height @var{[lines]}
+(none)@*
+Set the display height to a specified number of lines. When no
+argument is given it toggles between 24 and 42 lines display.
+@end deffn
+
+@node Character Processing, ,Window Size, Virtual Terminal
 @section Character Processing
 
 @deffn Command c1 [state]
@@ -2083,6 +2119,21 @@ See also @samp{defkanji}, which changes the default setting of a new
 window.
 @end deffn
 
+@deffn Command charset set
+(none)@*
+Change the current character set slot designation and charset
+mapping.  The first four character of @var{set}
+are treated as charset designators while the fifth and sixth
+character must be in range @samp{0} to @samp{3} and set the GL/GR
+charset mapping. On every position a @samp{.} may be used to indicate
+that the corresponding charset/mapping should not be changed
+(@var{set} is padded to six characters internally by appending
+@samp{.} chars). New windows have @samp{BBBB02} as default
+charset, unless a @samp{kanji} command is active.
+
+The current setting can be viewed with the @xref{Info} command.
+@end deffn
+
 @deffn Command defc1 state
 (none)@*
 Same as the @samp{c1} command except that the default setting for
@@ -2099,6 +2150,12 @@ new windows is changed. Initial setting is @samp{off}.
 (none)@*
 Same as the @samp{kanji} command except that the default setting for
 new windows is changed. Initial setting is @samp{off}, i.e. @samp{jis}.
+@end deffn
+
+@deffn Command defcharset [set]
+Like the @samp{charset} command except that the default setting for
+new windows is changed. Shows current default if called without
+argument.
 @end deffn
 
 @node Copy and Paste, Subprocess Execution, Virtual Terminal, Top
@@ -2319,8 +2376,15 @@ whole scrollback buffer to that file: @*@kbd{C-a [ g SPACE G $ >}.
 @kbd{C-g} gives information about the current line and column.
 
 @noindent
+@kbd{x} exchanges the first mark and the current cursor position. You
+can use this to adjust an already placed mark.
+
+@noindent
 @kbd{@@} does nothing.  Absolutely nothing.  Does not even exit copy
 mode.
+
+@noindent
+All keys not described here exit copy mode.
 
 @node Paste, Registers, Copy, Copy and Paste
 @section Paste
@@ -2504,11 +2568,12 @@ running subprocess in this window.
 When a subprocess is running the @code{kill} command will affect it instead of 
 the window's process.
 @*
-Refer to the postscript file @file{doc/fdpat.ps} for illustration of all 21 
-possible combinations. Each drawing shows the numbers 210 representing the three
-file descriptors of newcommand. The box marked `W' is usual pty that has 
-the old process (shell) on its slave side. The box marked `P' is the 
-secondary pty that now has screen at its master side.
+Refer to the postscript file @file{doc/fdpat.ps} for a confusing
+illustration of all 21 possible combinations. Each drawing shows the digits
+2, 1, 0 representing the three file descriptors of newcommand. The box
+marked `W' is usual pty that has the application-process on its slave side.
+The box marked `P' is the secondary pty that now has screen at its master
+side.
 @end deffn
 
 @node Using Exec,  , Exec, Subprocess Execution
@@ -2558,7 +2623,8 @@ This adds a pager to the window output. The special character @samp{|} is
 needed to give the user control over the pager although it gets its input from 
 the window's process. This works, because @samp{less} listens on stderr 
 (a behavior that @code{screen} would not expect without the @samp{|}) 
-when its stdin is not a tty.
+when its stdin is not a tty. @code{Less} versions newer than 177 fail miserably
+here; good old @code{pg} still works.
 
 @item !:sed -n s/.*Error.*/\007/p
 Sends window output to both, the user and the sed command. The sed inserts an
@@ -2663,7 +2729,7 @@ window.  The keystroke for this command is the second parameter to the
 (none)@*
 This command has the same effect as typing the screen escape character
 (@kbd{C-a}). It is probably only useful for key bindings.
-@xref{Bindkey}
+@xref{Bindkey}.
 @end deffn
 
 @node Help, Bindkey, Command Character, Key Binding
@@ -2675,8 +2741,7 @@ Displays a help screen showing you all the key bindings.  The first
 pages list all the internal commands followed by their bindings.
 Subsequent pages will display the custom commands, one command per key.
 Press space when you're done reading each page, or return to exit early.
-All other characters are ignored, except for the command character,
-which will exit the help display and begin a command.  
+All other characters are ignored.
 @xref{Default Key Bindings}.
 @end deffn
 
@@ -2755,8 +2820,7 @@ bindkey -k F1 command
 @end example
 @noindent
 Make the F11 (not F1!) key an alternative screen
-escape (besides @samp{C-a}). Note that @samp{F11 F11} does not work in
-the current release of screen.
+escape (besides @samp{C-a}).
 
 @node Bindkey Control, , Bindkey Examples, Key Binding
 @section Bindkey Control
@@ -2892,6 +2956,9 @@ and the one simulated by @code{screen}.
 * Termcap Syntax::              The @code{termcap} and @code{terminfo} commands.
 * Termcap Examples::            Uses for @code{termcap}.
 * Special Capabilities::        Non-standard capabilities used by @code{screen}.
+* Autonuke::			Flush unseen output
+* Obuflimit::			Allow pending output when reading more
+* Character Translation::       Emulating fonts and charsets.
 @end menu
 
 @node Window Termcap, Dump Termcap,  , Termcap
@@ -3005,15 +3072,26 @@ to run a converter like @code{captoinfo} and then compile the entry with
 @section The @code{termcap} command
 @deffn Command termcap term terminal-tweaks [window-tweaks]
 @deffnx Command terminfo term terminal-tweaks [window-tweaks]
+@deffnx Command termcapinfo term terminal-tweaks [window-tweaks]
 (none)@*
 Use this command to modify your terminal's termcap entry without going
 through all the hassles involved in creating a custom termcap entry.
 Plus, you can optionally customize the termcap generated for the
-windows.  If your system uses the terminfo database rather than
+windows.
+You have to place these commands in one of the screenrc starup files, as
+they are meaningless once the terminal emulator is booted.
+
+If your system uses the terminfo database rather than
 termcap, @code{screen} will understand the @code{terminfo} command which
-has the same effects as the @code{termcap} command. Thus users can write
-one .screenrc file that handles both cases, although terminfo syntax is
-slightly different from termcap syntax.
+has the same effects as the @code{termcap} command.  Two separate commands are
+provided, as there are subtle syntactic differences, e.g. when parameter
+interpolation (using @samp{%}) is required. Note that the termcap names of
+the capabilities have to be used with the @code{terminfo} command.
+
+In many cases, where the arguments are valid in both terminfo and termcap
+syntax, you can use the command @code{termcapinfo}, which is just a
+shorthand for a pair of @code{termcap} and @code{terminfo} commands with
+identical arguments.
 @end deffn
 
 The first argument specifies which terminal(s) should be affected by
@@ -3087,20 +3165,23 @@ should instead set the @code{$SCREENCAP} variable prior to running
 @code{screen} terminal emulation.  @xref{Top, , Termcap, termcap, The
 Termcap Manual}, for more information on termcap definitions.
 
-@node Special Capabilities,  , Termcap Examples, Termcap
+@node Special Capabilities, Autonuke, Termcap Examples, Termcap
 @section Special Terminal Capabilities
 @cindex terminal capabilities
 @cindex capabilities 
 The following table describes all terminal capabilities that are
 recognized by @code{screen} and are not in the termcap manual
 (@pxref{Top, , Termcap, termcap, The Termcap Manual}).
-
+You can place these capabilities in your termcap entries (in
+@file{/etc/termcap}) or use them with the commands @code{termcap},
+@code{terminfo} and @code{termcapinfo} in your @code{screenrc} files. It is
+often not possible to place these capabilities in the terminfo database.
 @table @samp
 @item LP
 (bool)@*
 Terminal has VT100 style margins (`magic margins'). Note that
-this capability is obsolete --- @code{screen} now uses @samp{xn}
-instead.
+this capability is obsolete --- @code{screen} now uses the standard 
+@samp{xn} instead.
 
 @item Z0
 (str)@*
@@ -3115,14 +3196,6 @@ Change width to 80 columns.
 Resize display. This capability has the desired width and height as
 arguments.  SunView(tm) example: @samp{\E[8;%d;%dt}.
 
-@item B8
-(str)@*
-Tell @code{screen} to look out for characters with 8th bit set. If such
-a character is found @code{screen} processes the specified string
-and than outputs the character with the 8th bit stripped off.
-Note that the string can contain any esc-sequences known to
-@code{screen}, too. (Example: Single Shift G2 = \EN.)
-
 @item NF
 (bool)@*
 Terminal doesn't need flow control. Send ^S and ^Q direct to
@@ -3136,7 +3209,7 @@ Terminal can deal with ISO 2022 font selection sequences.
 @item S0
 (str)@*
 Switch charset @samp{G0} to the specified charset. Default
-is @samp{\E(%d}.
+is @samp{\E(%.}.
 
 @item E0
 (str)@*
@@ -3156,11 +3229,144 @@ Switch cursor keys to application mode.
 (str)@*
 Switch cursor keys to cursor mode.
 
+@item AN
+(bool)@*
+Enable autonuke for displays of this terminal type.
+(@pxref{Autonuke}).
+
+@item OL
+(num)@*
+Set the output buffer limit. See the @samp{obuflimit} command
+(@pxref{Obuflimit}) for more details.
+
 @item KJ
 (str)@*
 Set the kanji type of the terminal. Valid strings are @samp{jis},
 @samp{euc} and @samp{sjis}.
+
+@item AF
+(str)@*
+Change character forground color in an ANSI conform way. This
+capability will almost always be set to @samp{\E[3%dm}
+(@samp{\E[3%p1%dm} on terminfo machines).
+
+@item AB
+(str)@*
+Same as @samp{AF}, but change background color.
+
+@item AX
+(bool)@*
+Does understand ANSI set default fg/bg color (@samp{\E[39m / \E[49m}).
+
+@item XC
+(str)@*
+Describe a translation of characters to strings depending on the
+current font.  (@pxref{Character Translation}).
 @end table
+
+@node Autonuke, Obuflimit, Special Capabilities, Termcap
+@section Autonuke
+@deffn Command autonuke @var{state}
+(none)@*
+Sets whether a clear screen sequence should nuke all the output
+that has not been written to the terminal. @xref{Obuflimit}.
+This property is set per display, not per window.
+@end deffn
+
+@deffn Command defautonuke @var{state}
+(none)@*
+Same as the @code{autonuke} command except that the default setting for
+new displays is also changed. Initial setting is @code{off}. 
+Note that you can use the special @code{AN} terminal capability if you
+want to have a terminal type dependent setting.
+@end deffn
+
+@node Obuflimit, Character Translation, Autonuke, Termcap
+@section Obuflimit
+@deffn Command obuflimit @var{[limit]}
+(none)@*
+If the output buffer contains more bytes than the specified limit, no
+more data will be read from the windows. The default value is 256. If
+you have a fast display (like @code{xterm}), you can set it to some 
+higher value. If no argument is specified, the current setting is displayed.
+This property is set per display, not per window.
+@end deffn
+
+@deffn Command defobuflimit @var{limit}
+(none)@*
+Same as the @code{obuflimit} command except that the default setting for new
+displays is also changed. Initial setting is 256 bytes. Note that you can use
+the special @code{OL} terminal capability if you want to have a terminal
+type dependent limit.
+@end deffn
+
+@node Character Translation, , Obuflimit, Termcap
+@section Character Translation
+@code{Screen} has a powerful mechanism to translate characters to
+arbitrary strings depending on the current font and terminal type.
+Use this feature if you want to work with a common standard character
+set (say ISO8851-latin1) even on terminals that scatter the more
+unusual characters over several national language font pages.
+
+Syntax:
+
+@example
+    XC=@var{<charset-mapping>}@{,,@var{<charset-mapping>}@}
+    @var{<charset-mapping>} := @var{<designator>}@var{<template>}@{,@var{<mapping>}@}
+    @var{<mapping>} := @var{<char-to-be-mapped>}@var{<template-arg>}
+@end example
+
+The things in braces may be repeated any number of times.
+
+A @var{<charset-mapping>} tells screen how to map characters
+in font @var{<designator>} (@samp{B}: Ascii, @samp{A}: UK,
+@samp{K}: german, etc.)
+to strings. Every @var{<mapping>} describes to what string a single
+character will be translated. A template mechanism is used, as 
+most of the time the codes have a lot in common (for example
+strings to switch to and from another charset). Each occurence
+of @samp{%} in @var{<template>} gets substituted with the 
+@var{template-arg}
+specified together with the character. If your strings are not
+similar at all, then use @samp{%} as a template and place the full
+string in @var{<template-arg>}. A quoting mechanism was added to make
+it possible to use a real @samp{%}. The @samp{\} character quotes the
+special characters @samp{\}, @samp{%}, and @samp{,}.
+
+Here is an example:
+
+@example
+    termcap hp700 'XC=B\E(K%\E(B,\304[,\326\\\\,\334]'
+@end example
+
+This tells @code{screen}, how to translate ISOlatin1 (charset @samp{B})
+upper case umlaut characters on a @code{hp700} terminal that has a
+german charset. @samp{\304} gets translated to
+@samp{\E(K[\E(B} and so on.
+Note that this line gets parsed *three* times before the internal
+lookup table is built, therefore a lot of quoting is needed to
+create a single @samp{\}.
+
+Another extension was added to allow more emulation: If a mapping
+translates the unquoted @samp{%} char, it will be sent to the terminal
+whenever screen switches to the corresponding @var{<designator>}.
+In this
+special case the template is assumed to be just @samp{%} because
+the charset switch sequence and the character mappings normaly
+haven't much in common.
+
+This example shows one use of the extension:
+@example
+    termcap xterm 'XC=K%,%\E(B,[\304,\\\\\326,]\334'
+@end example
+
+Here, a part of the german (@samp{K}) charset is emulated on an xterm.
+If screen has to change to the @samp{K} charset, @samp{\E(B} will be
+sent
+to the terminal, i.e. the ASCII charset is used instead. The
+template is just @samp{%}, so the mapping is straightforward:
+@samp{[} to @samp{\304}, @samp{\} to @samp{\326}, and @samp{]} to
+@samp{\334}.
 
 @node Message Line, Logging, Termcap, Top
 @chapter The Message Line
@@ -3273,19 +3479,20 @@ directory.
 @kindex H
 @deffn Command log [state]
 (@kbd{C-a H})@*
-Begins/ends logging of the current window to the file
+Begins/ends logging of the current window to the file 
 @file{screenlog.@var{n}} in the window's default directory, where
-@var{n} is the number of the current window.  If no parameter is given,
+@var{n} is the number of the current window.
+This filename can be changed with the @samp{logfile} command.
+If no parameter is given,
 the logging state is toggled.  The session log is
 appended to the previous contents of the file if it already exists.  The
 current contents and the contents of the scrollback history are not
 included in the session log.  Default is @samp{off}.
 @end deffn
 
-@deffn Command logdir directory
+@deffn Command logfile filename
 (none)@*
-Defines a directory where logfiles will be placed. If unset logfiles
-are written in @code{screen}s current working directory.
+Defines the name the logfiles will get. The default is @samp{screenlog.%n}.
 @end deffn
 
 @node Startup, Miscellaneous, Logging, Top
@@ -3346,6 +3553,7 @@ categories.
 * Version::                     Display the version of @code{screen}.
 * Zombie::                      Keep dead windows.
 * Printcmd::                    Set command for VT100 printer port emulation.
+* Sorendition::			Change the text highlighting method.
 @end menu
 
 @node At, Break,  , Miscellaneous
@@ -3458,9 +3666,8 @@ system).  For window-specific information use @code{info} (@pxref{Info}).
 @node Version, Zombie, Time, Miscellaneous
 @section Version
 @kindex v
-@kindex C-v
 @deffn Command version
-(@kbd{C-a v}, @kbd{C-a C-v})@*
+(@kbd{C-a v})@*
 Display the version and modification date in the message line.
 @end deffn
 
@@ -3484,7 +3691,7 @@ should only be called @code{defzombie}. Until we need this as a per window
 setting, the commands @code{zombie} and @code{defzombie} are synonymous.
 @end deffn
 
-@node Printcmd, , Zombie, Miscellaneous
+@node Printcmd, Sorendition, Zombie, Miscellaneous
 @section Printcmd
 @deffn Command printcmd @var{[cmd]}
 (none)@*
@@ -3498,6 +3705,21 @@ The ansi sequence @code{ESC \} ends printing and closes the pipe.
 
 Warning: Be careful with this command! If other user have write
 access to your terminal, they will be able to fire off print commands.
+@end deffn
+
+@node Sorendition, , Printcmd, Miscellaneous
+@section Sorendition
+@deffn Command sorendition @var{[attr [color]]}
+(none)@*
+Change the way screen does highlighting for text marking and printing
+messages.
+@var{attr} is a hexadecimal number and describes the attributes
+(inverse, underline, ...) the text will get.  @var{color}
+is a 2 digit number and changes the 
+forground/background of the highlighted text.
+Some knowledge of screen's internal character representation is
+needed to make the characters appear in the desired way. The default
+is currently @samp{10 99} (standout, default colors).
 @end deffn
 
 @node Environment, Files, Miscellaneous, Top
@@ -3687,10 +3909,6 @@ are ignored).  @samp{xn} is treated as a magic-margin indicator.
 But this is the only area where @code{vttest} is allowed to fail.
 
 @item
-@code{screen} does not support color, although this has repeatedly
-been asked for.
-
-@item
 It is not possible to change the environment variable @code{$TERMCAP}
 when reattaching under a different terminal type.
 
@@ -3840,5 +4058,4 @@ from the key sequences, since it is the same for all bindings.
 @shortcontents
 @contents
 @bye
-
 

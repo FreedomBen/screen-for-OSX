@@ -14,5 +14,6 @@ checktc.c		Termcap/info test program. Checks margin
 
 test.txt		Test file for alternate charset.
 
-tetris.c		The popular game.
+tetris.c		The popular game, by John Tromp. This is one of
+			the winners of the 1989 IOCCC contest.
 

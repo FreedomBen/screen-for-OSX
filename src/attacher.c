@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -32,9 +33,6 @@ RCS_ID("$Id$ FAU")
 #include "extern.h"
 
 #include <pwd.h>
-#ifdef SHADOWPW
-# include <shadow.h>
-#endif /* SHADOWPW */
 
 static sigret_t AttacherSigInt __P(SIGPROTOARG);
 #ifdef PASSWORD
@@ -269,7 +267,7 @@ int how;
 #endif
   ASSERT(how == MSG_ATTACH || how == MSG_CONT);
   strcpy(m.m.attach.envterm, attach_term);
-  debug1("attach: sending %d bytes... ", sizeof m);
+  debug1("attach: sending %d bytes... ", (int)sizeof(m));
 
   strncpy(m.m.attach.auser, LoginName, sizeof(m.m.attach.auser) - 1); 
   m.m.attach.auser[sizeof(m.m.attach.auser) - 1] = 0;
@@ -636,9 +634,7 @@ LockTerminal()
   sigret_t (*sigs[NSIG])__P(SIGPROTOARG);
 
   for (sig = 1; sig < NSIG; sig++)
-    {
-      sigs[sig] = signal(sig, SIG_IGN);
-    }
+    sigs[sig] = signal(sig, SIG_IGN);
   signal(SIGHUP, LockHup);
   printf("\n");
 
@@ -731,11 +727,7 @@ static void
 screen_builtin_lck()
 {
   char fullname[100], *cp1, message[BUFSIZ];
-  char c, *pass, mypass[9];
-#ifdef SHADOWPW
-  static struct spwd *sss;
-#endif
-  int t;
+  char *pass, mypass[9];
 
 #ifdef undef
   /* get password entry */
@@ -753,30 +745,8 @@ screen_builtin_lck()
     }
 #endif
   pass = ppp->pw_passwd;
-#ifdef SHADOWPW
-realpw:
-#endif /* SHADOWPW */
-  for (t = 0; t < 13; t++)
+  if (pass == 0)
     {
-      c = pass[t];
-      if (!(c == '.' || c == '/' ||
-            (c >= '0' && c <= '9') || 
-            (c >= 'a' && c <= 'z') || 
-            (c >= 'A' && c <= 'Z'))) 
-        break;
-    }
-  if (t < 13)
-    {
-      debug("builtin_lock: ppp->pw_passwd bad, has it a shadow?\n");
-#ifdef SHADOWPW
-      if (sss == 0)
-        sss = getspnam(ppp->pw_name);
-      if (sss && pass != sss->sp_pwdp)
-        {
-          pass = sss->sp_pwdp;
-          goto realpw;
-        }
-#endif /* SHADOWPW */
       if ((pass = getpass("Key:   ")))
         {
           strncpy(mypass, pass, 8);
@@ -801,8 +771,6 @@ realpw:
         }
       pass = 0;
     }
-  else
-    pass[13] = 0;		/* beware of linux's long passwords */
 
   debug("screen_builtin_lck looking in gcos field\n");
   strcpy(fullname, ppp->pw_gecos);

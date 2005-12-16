@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -24,7 +25,7 @@
 RCS_ID("$Id$ FAU")
 
 #include "config.h"
-#include "acl.h"
+#include "acls.h"
 #include "comm.h"
 
 /* Must be in alpha order ! */
@@ -56,6 +57,7 @@ struct comm comms[RC_LAST + 1] =
   { "bufferfile",	ARGS_ZEROONE },
 #endif
   { "c1",		NEED_FORE|ARGS_ZEROONE },
+  { "charset",          NEED_FORE|ARGS_ONE },
   { "chdir",		ARGS_ZEROONE },
   { "clear",		NEED_FORE|ARGS_ZERO },
 #ifdef MULTI
@@ -73,9 +75,11 @@ struct comm comms[RC_LAST + 1] =
   { "defautonuke",	ARGS_ONE },
 #endif
   { "defc1",		ARGS_ONE },
+  { "defcharset",       ARGS_ZEROONE },
   { "defescape",	ARGS_ONE },
   { "defflow",		ARGS_ONETWO },
   { "defgr",		ARGS_ONE },
+  { "defhstatus",	ARGS_ZEROONE },
 #ifdef KANJI
   { "defkanji",		ARGS_ONE },
 #endif
@@ -91,6 +95,7 @@ struct comm comms[RC_LAST + 1] =
   { "defwrap",		ARGS_ONE },
   { "defwritelock",	ARGS_ONE },
   { "detach",		NEED_DISPLAY|ARGS_ZERO },
+  { "digraph",		NEED_DISPLAY|ARGS_ZEROONE },
   { "displays",		NEED_DISPLAY|ARGS_ZERO },
   { "dumptermcap",	NEED_FORE|ARGS_ZERO },
   { "echo",		ARGS_ONETWO },
@@ -120,7 +125,7 @@ struct comm comms[RC_LAST + 1] =
   { "lockscreen",	NEED_DISPLAY|ARGS_ZERO },
 #endif
   { "log",		NEED_FORE|ARGS_ZEROONE },
-  { "logdir",		ARGS_ONE },
+  { "logfile",		ARGS_ZEROONE },
 #if defined(UTMPOK) && defined(LOGOUTOK)
   { "login",		NEED_FORE|ARGS_ZEROONE },
 #endif
@@ -187,6 +192,7 @@ struct comm comms[RC_LAST + 1] =
   { "silencewait",	ARGS_ONE },
   { "sleep",		ARGS_ONE },
   { "slowpaste",	ARGS_ONE },
+  { "sorendition",      ARGS_ZEROONETWO },
   { "startup_message",	ARGS_ONE },
   { "stuff",		NEED_DISPLAY|ARGS_ONE },
 #ifdef BSDJOBS
@@ -194,6 +200,7 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "term",		ARGS_ONE },
   { "termcap",		ARGS_TWOTHREE },
+  { "termcapinfo",	ARGS_TWOTHREE },
   { "terminfo",		ARGS_TWOTHREE },
   { "time",		ARGS_ZERO },
   { "title",		NEED_FORE|ARGS_ZEROONE },

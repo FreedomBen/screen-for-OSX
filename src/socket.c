@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -872,7 +873,7 @@ ReceiveMsg()
   if (left > 0)
     {
       if (left != sizeof(m))
-        Msg(0, "Message %d of %d bytes too small", left, sizeof(m));
+        Msg(0, "Message %d of %d bytes too small", left, (int)sizeof(m));
       else
 	debug("No data on socket.\n");
       return;

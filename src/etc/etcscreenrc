@@ -10,14 +10,11 @@
 
 #startup_message off
 
-#defflow on # will force iScreen to process ^S/^Q
+#defflow on # will force screen to process ^S/^Q
 
 deflogin on
 #autodetach off
 
-# 'vbell on' without the prepended 'set' keyword will change the default for 
-# subsequently opened windows. With the 'set' keyword we would change
-# the setting of the currently active window.
 vbell on
 vbell_msg "   Wuff  ----  Wuff!!  "
 
@@ -28,7 +25,7 @@ vbell_msg "   Wuff  ----  Wuff!!  "
 # G0 	we have a SEMI-GRAPHICS-CHARACTER-MODE
 # WS	this sequence resizes our window.
 # cs    this sequence changes the scrollregion
-# hs@	we have no hardware statusline. iScreen will only believe that
+# hs@	we have no hardware statusline. screen will only believe that
 #       there is a hardware status line if hs,ts,fs,ds are all set.
 # ts    to statusline
 # fs    from statusline
@@ -39,7 +36,7 @@ vbell_msg "   Wuff  ----  Wuff!!  "
 # DL    delete multiple lines
 # ic    insert one char (space)
 # IC    insert multiple chars
-# xo    terminal uses xon/xoff
+# nx    terminal uses xon/xoff
 
 termcap  facit|vt100|xterm LP:G0
 terminfo facit|vt100|xterm LP:G0
@@ -73,28 +70,18 @@ terminfo xterm 'is=\E[r\E[m\E[2J\E[H\E[?7h\E[?1;4;6l'
 #
 # Do not use xterms alternate window buffer. 
 # This one would not add lines to the scrollback buffer.
-termcap xterm|xterms|xs ti=\E7\E[?47l
-terminfo xterm|xterms|xs ti=\E7\E[?47l
-
-# xs is xterm's two letter name.
-# story ... in earlier versions I used xterms here ... buggy sequent termcap
-# routines allowes 32 :tc=...: references per lifetime.... gave lots of OOPS
-# at the 32. reattach. ... to avoid that, I added the name Xterm as an alias 
-# to xterm in our termcap file.
-# why I don't take the entry called xterm? well, I own a verion of xterm that
-# allows window resizing. My private .iscreenrc adds WS to this entry.
-
-termcap  xs 'hs:ts=\E]0;:fs=\007:ds=\E]0;Screen\007:cs=\E[%i%d;%dr:LP:G0:im=\E[4h:ei=\E[4l'
-terminfo xs 'hs:ts=\E]0;:fs=\007:ds=\E]0;Screen\007:cs=\E[%i%p1%d;%p2%dr:LP:G0:im=\E[4h:ei=\E[4l'
+#termcap xterm|xterms|xs ti=\E7\E[?47l
+#terminfo xterm|xterms|xs ti=\E7\E[?47l
 
 #make hp700 termcap/info better
 termcap  hp700 'Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@'
 terminfo hp700 'Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@'
 
 #wyse-75-42 must have defflow control (xo = "terminal uses xon/xoff")
+#(nowadays: nx = padding doesn't work, have to use xon/off)
 #essential to have it here, as this is a slow terminal.
-termcap wy75-42 xo:Z0=\E[?3h\E[31h:Z1=\E[?3l\E[31h
-terminfo wy75-42 xo:Z0=\E[?3h\E[31h:Z1=\E[?3l\E[31h
+termcap wy75-42 nx:xo:Z0=\E[?3h\E[31h:Z1=\E[?3l\E[31h
+terminfo wy75-42 nx:xo:Z0=\E[?3h\E[31h:Z1=\E[?3l\E[31h
 
 #remove some stupid / dangerous key bindings
 bind '^k'

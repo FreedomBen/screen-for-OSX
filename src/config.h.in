@@ -121,6 +121,7 @@
 # define MULTI
 # define MULTIUSER
 # define MAPKEYS
+# define COLOR
 #endif /* SIMPLESCREEN */
 #define KANJI
 
@@ -199,6 +200,10 @@
 
 #ifndef ISC
 #undef ISC
+#endif
+
+#ifndef sysV68
+#undef sysV68
 #endif
 
 #ifndef _POSIX_SOURCE

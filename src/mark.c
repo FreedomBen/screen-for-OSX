@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -50,6 +51,8 @@ static void MarkSetCursor __P((void));
 extern struct win *fore;
 extern struct display *display;
 extern char *null, *blank;
+extern struct mline mline_blank, mline_null;
+extern struct mchar mchar_so;
 
 #ifdef NETHACK
 extern nethackflag;
@@ -104,12 +107,12 @@ int y;
   register int x;
   register char *i;
 
-  for (x = markdata->left_mar, i = iWIN(y) + x; x < D_width - 1; x++)
+  for (x = markdata->left_mar, i = WIN(y)->image + x; x < D_width - 1; x++)
     if (*i++ != ' ')
       break;
   if (x == D_width - 1)
     x = markdata->left_mar;
-  return(x);
+  return x;
 }
 
 static int
@@ -119,12 +122,12 @@ int y;
   register int x;
   register char *i;
 
-  for (x = markdata->right_mar, i = iWIN(y) + x; x >= 0; x--)
+  for (x = markdata->right_mar, i = WIN(y)->image + x; x >= 0; x--)
     if (*i-- != ' ')
       break;
   if (x < 0)
     x = markdata->left_mar;
-  return(x);
+  return x;
 }
 
 
@@ -146,18 +149,20 @@ int *xp, *yp, flags, num;
 {
   int xx = D_width, yy = fore->w_histheight + D_height;
   register int sx, oq, q, x, y;
+  struct mline *ml;
 
   x = *xp;
   y = *yp;
   sx = (flags & NW_BACK) ? -1 : 1;
   if ((flags & NW_ENDOFWORD) && (flags & NW_MUSTMOVE))
     x += sx;
+  ml = WIN(y);
   for (oq = -1; ; x += sx, oq = q)
     {
       if (x >= xx || x < 0)
 	q = 0;
       else
-        q = is_letter(iWIN(y)[x]);
+        q = is_letter(ml->image[x]);
       if (oq >= 0 && oq != q)
 	{
 	  if (oq == 0 || !(flags & NW_ENDOFWORD))
@@ -177,12 +182,14 @@ int *xp, *yp, flags, num;
 	  x = -1;
 	  if (++y >= yy)
 	    return;
+	  ml = WIN(y);
 	}
       else if (x < 0)
 	{
 	  x = xx;
 	  if (--y < 0)
 	    return;
+	  ml = WIN(y);
 	}
     }
 }
@@ -204,6 +211,7 @@ char *pt;
   int i, j, from, to, ry, c, cf, font;
   int l = 0;
   char *im, *fo;
+  struct mline *ml;
 
   markdata->second = 0;
   if (y2 < y1 || ((y2 == y1) && (x2 < x1)))
@@ -227,10 +235,11 @@ char *pt;
     {
       if (redisplay != 2 && pt == 0 && ry > yend)
 	break;
+      ml = WIN(i);
       from = (i == y1) ? x1 : 0;
       if (from < markdata->left_mar)
 	from = markdata->left_mar;
-      for (to = D_width, im = iWIN(i) + to; to >= 0; to--)
+      for (to = D_width, im = ml->image + to; to >= 0; to--)
         if (*im-- != ' ')
 	  break;
       if (i == y2 && x2 < to)
@@ -243,11 +252,11 @@ char *pt;
 	continue;
       j = from;
 #ifdef KANJI
-      if (badkanji(fWIN(i), j))
+      if (badkanji(ml->font, j))
 	j--;
 #endif
       font = ASCII;
-      for (im = iWIN(i)+j, fo = fWIN(i)+j; j <= to; j++)
+      for (im = ml->image + j, fo = ml->font + j; j <= to; j++)
 	{
 	  cf = *fo++;
 	  c = *im++;
@@ -342,7 +351,7 @@ char *pt;
 	    }
 	  l += 3;
 	}
-      if (i != y2 && (to != D_width - 1 || iWIN(i)[to + 1] == ' '))
+      if (i != y2 && (to != D_width - 1 || ml->image[to + 1] == ' '))
 	{
 	  /* 
 	   * this code defines, what glues lines together
@@ -396,19 +405,22 @@ GetHistory()	/* return value 1 if u_copybuffer changed */
 {
   int i = 0, q = 0, xx, yy, x, y;
   char *linep;
+  struct mline *ml;
 
   x = fore->w_x;
   if (x >= D_width)
     x = D_width - 1;
   y = fore->w_y + fore->w_histheight;
   debug2("cursor is at x=%d, y=%d\n", x, y);
-  for (xx = x - 1, linep = iWIN(y) + xx; xx >= 0; xx--)
+  ml = WIN(y);
+  for (xx = x - 1, linep = ml->image + xx; xx >= 0; xx--)
     if ((q = *linep--) != ' ' )
       break;
   debug3("%c at (%d,%d)\n", q, xx, y);
   for (yy = y - 1; yy >= 0; yy--)
     {
-      linep = iWIN(yy);
+      ml = WIN(yy);
+      linep = ml->image;
       if (xx < 0 || eq(linep[xx], q))
 	{		/* line is matching... */
 	  for (i = D_width - 1, linep += i; i >= x; i--)
@@ -542,6 +554,15 @@ int *inlenp;
       cy = markdata->cy;
       switch (od)
 	{
+	case 'x':
+	  if (!markdata->second)
+	    break;
+	  markdata->cx = markdata->x1;
+	  markdata->cy = markdata->y1;
+	  markdata->x1 = cx;
+	  markdata->y1 = cy;
+	  revto(markdata->cx, markdata->cy);
+	  break;
 	case '\014':	/* CTRL-L Redisplay */
 	  Redisplay(0);
 	  GotoPos(cx, W2D(cy));
@@ -847,9 +868,7 @@ int *inlenp;
 	      y2 = cy;
 	      newcopylen = rem(markdata->x1, markdata->y1, x2, y2, 2, (char *)0, 0); /* count */
 	      if (D_user->u_copybuffer != NULL && !append_mode)
-		{
-		  UserFreeCopyBuffer(D_user);
-		}
+		UserFreeCopyBuffer(D_user);
 	      if (newcopylen > 0)
 		{
 		  /* the +3 below is for : cr + lf + \0 */
@@ -949,8 +968,12 @@ int tx, ty, line;
   int x, y, t, revst, reven, qq, ff, tt, st, en, ce = 0;
   int ystart = 0, yend = D_height-1;
   int i, ry;
-  char *wi, *wa, *wf;
+  char *wi;
+  struct mline *ml;
+  struct mchar mchar_marked;
  
+  mchar_marked = mchar_so;
+
   if (tx < 0)
     tx = 0;
   else if (tx > D_width - 1)
@@ -1022,32 +1045,29 @@ int tx, ty, line;
       st = y * D_width;
       ry = ystart;
     }
-  wi = iWIN(y);
-  wa = aWIN(y);
-  wf = fWIN(y);
+  ml = WIN(y);
   for (t = st; t <= en; t++, x++)
     {
       if (x >= D_width)
 	{
 	  x = 0;
 	  y++, ry++;
-	  wi = iWIN(y);
-	  wa = aWIN(y);
-	  wf = fWIN(y);
+	  ml = WIN(y);
 	}
       if (ry > yend)
 	break;
       if (t == st || x == 0)
 	{
-	  for (ce = D_width; ce >= 0; ce--)
-	    if (wi[ce] != ' ')
+	  wi = ml->image + D_width;
+	  for (ce = D_width; ce >= 0; ce--, wi--)
+	    if (*wi != ' ')
 	      break;
 	}
       if (x <= ce && x >= markdata->left_mar && x <= markdata->right_mar
           && (D_CLP || x < D_width-1 || ry < D_bot))
 	{
 #ifdef KANJI
-	  if (badkanji(wf, x))
+	  if (badkanji(ml->font, x))
 	      {
 	        t--;
 		x--;
@@ -1055,18 +1075,22 @@ int tx, ty, line;
 #endif
 	  GotoPos(x, W2D(y));
 #ifdef KANJI
-	  if (t >= revst - (wf[x] == KANJI) && t <= reven)
+	  if (t >= revst - (ml->font[x] == KANJI) && t <= reven)
 #else
 	  if (t >= revst && t <= reven)
 #endif
-	    SetAttrFont(A_SO, pastefont ? wf[x] : ASCII);
-	  else
-	    SetAttrFont(wa[x], wf[x]);
-	  PUTCHARLP(wi[x]);
-#ifdef KANJI
-	  if (wf[x] == KANJI)
 	    {
-	      PUTCHARLP(wi[++x]);
+	      if (pastefont)
+		mchar_marked.font = ml->font[x];
+	      SetRendition(&mchar_marked);
+	    }
+	  else
+	    SetRenditionMline(ml, x);
+	  PUTCHARLP(ml->image[x]);
+#ifdef KANJI
+	  if (ml->font[x] == KANJI)
+	    {
+	      PUTCHARLP(ml->image[++x]);
 	      t++;
 	    }
 #endif
@@ -1108,9 +1132,11 @@ int y;	/* NOTE: y is in DISPLAY coords system! */
 int xs, xe;
 int isblank;
 {
-  int x, i, rm;
+  int wy, x, i, rm;
   int sta, sto, cp;	/* NOTE: these 3 are in WINDOW coords system */
-  char *wi, *wa, *wf, *oldi;
+  char *wi;
+  struct mline *oml, *ml;
+  struct mchar mchar_marked;
 
   if (y < 0)	/* No special full page handling */
     return;
@@ -1118,16 +1144,19 @@ int isblank;
   markdata = (struct markdata *)D_lay->l_data;
   fore = D_fore;
 
-  wi = iWIN(D2W(y));
-  wa = aWIN(D2W(y));
-  wf = fWIN(D2W(y));
-  oldi = isblank ? blank : null;
- 
+  mchar_marked = mchar_so;
+
+
+  oml = isblank ? &mline_blank : &mline_null;
+  wy = D2W(y);
+  ml = WIN(wy);
+
   if (markdata->second == 0)
     {
-      DisplayLine(oldi, null, null, wi, wa, wf, y, xs, xe);
+      DisplayLine(oml, ml, y, xs, xe);
       return;
     }
+
  
   sta = markdata->y1 * D_width + markdata->x1;
   sto = markdata->cy * D_width + markdata->cx;
@@ -1135,11 +1164,11 @@ int isblank;
     {
       i=sta; sta=sto; sto=i;
     }
-  cp = D2W(y) * D_width + xs;
+  cp = wy * D_width + xs;
  
   rm = markdata->right_mar;
-  for (x = D_width; x >= 0; x--)
-    if (wi[x] != ' ')
+  for (x = D_width, wi = ml->image + D_width; x >= 0; x--, wi--)
+    if (*wi != ' ')
       break;
   if (x < rm)
     rm = x;
@@ -1148,28 +1177,30 @@ int isblank;
     if (cp >= sta && x >= markdata->left_mar)
       break;
 #ifdef KANJI
-  if (badkanji(wf, x))
+  if (badkanji(ml->font, x))
     x--;
 #endif
   if (x > xs)
-    DisplayLine(oldi, null, null, wi, wa, wf, y, xs, x-1);
+    DisplayLine(oml, ml, y, xs, x - 1);
   for (; x <= xe; x++, cp++)
     {
       if (cp > sto || x > rm || (!D_CLP && x >= D_width-1 && y == D_bot))
 	break;
+      if (pastefont)
+	mchar_marked.font = ml->font[x];
       GotoPos(x, y);
-      SetAttrFont(A_SO, pastefont ? wf[x] : ASCII);
-      PUTCHARLP(wi[x]);
+      SetRendition(&mchar_marked);
+      PUTCHARLP(ml->image[x]);
 #ifdef KANJI
-      if (wf[x] == KANJI)
+      if (ml->font[x] == KANJI)
 	{
-	  PUTCHARLP(wi[++x]);
+	  PUTCHARLP(ml->image[++x]);
 	  cp++;
 	}
 #endif
     }
   if (x <= xe)
-    DisplayLine(oldi, null, null, wi, wa, wf, y, x, xe);
+    DisplayLine(oml, ml, y, x, xe);
 }
 
 
@@ -1181,22 +1212,25 @@ MarkRewrite(ry, xs, xe, doit)
 int ry, xs, xe, doit;
 {
   int dx, x, y, st, en, t, rm;
-  char *a, *f, *i;
+  char *i;
+  struct mline *ml;
+  struct mchar mchar_marked;
+
+  mchar_marked = mchar_so;
 
   markdata = (struct markdata *)D_lay->l_data;
   fore = D_fore;
   y = D2W(ry);
+  ml = WIN(y);
   dx = xe - xs;
   if (doit)
     {
-      i = iWIN(y) + xs;
+      i = ml->image + xs;
       while (dx--)
         PUTCHARLP(*i++);
-      return(0);
+      return 0;
     }
   
-  a = aWIN(y) + xs,
-  f = fWIN(y) + xs;
   if (markdata->second == 0)
     st = en = -1;
   else
@@ -1209,7 +1243,7 @@ int ry, xs, xe, doit;
         }
     }
   t = y * D_width + xs;
-  for (rm=D_width, i=iWIN(y) + D_width; rm>=0; rm--)
+  for (rm = D_width, i = ml->image + D_width; rm >= 0; rm--)
     if (*i-- != ' ')
       break;
   if (rm > markdata->right_mar)
@@ -1219,15 +1253,17 @@ int ry, xs, xe, doit;
     {
       if (t >= st && t <= en && x >= markdata->left_mar && x <= rm)
         {
-	  if (D_attr != A_SO || (D_font != pastefont ? *f : ASCII))
+	  if (pastefont)
+	    mchar_marked.font = ml->font[x];
+	  if (!cmp_mchar(&D_rend, &mchar_marked))
 	    return EXPENSIVE;
         }
       else
         {
-	  if (D_attr != *a || D_font != *f)
+	  if (!cmp_mchar_mline(&D_rend, ml, x))
 	    return EXPENSIVE;
         }
-      a++, f++, t++, x++;
+      x++;
     }
   return xe - xs;
 }

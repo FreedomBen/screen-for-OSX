@@ -1,4 +1,5 @@
-.TH SCREEN 1 "28 Nov 1994"
+.\" vi:set wm=5
+.TH SCREEN 1 "15 Oct 1995"
 .if n .ds Q \&"
 .if n .ds U \&"
 .if t .ds Q ``
@@ -112,44 +113,20 @@ commands and their bindings. Each keystroke is discussed in
 the section \*QDEFAULT KEY BINDINGS\*U. The manual section \*QCUSTOMIZATION\*U
 deals with the contents of your .screenrc.
 .PP
-If possible, choose a version of your terminal's termcap that has automatic
-margins turned \fIoff\fP.
-This will ensure an accurate and optimal update of the screen
-in all circumstances.
-The next best thing is an auto-margin terminal that allows the last position
-on the screen to be updated without scrolling the screen (such as a VT100).
-This also allows the entire screen to be updated.
-Lastly, if all you've got is a \*Qtrue\*U auto-margin terminal
-.I screen
-will be content to use it, but updating a character put into the last position
-on the screen may not be possible until the screen scrolls or the character
-is moved into a safe position in some other way.
-This delay can be shortened by using a terminal with insert-character
+If your terminal is a \*Qtrue\*U auto-margin terminal (it doesn't allow
+the last position on the screen to be updated without scrolling the
+screen) consider to use a version of your terminal's termcap that has
+automatic margins turned \fIoff\fP. This will ensure an accurate and
+optimal update of the screen in all circumstances. Most terminals
+nowadays have \*Qmagic\*U margins (automatic margins plus usable last
+column). This is the VT100 style type and perfectly suited for
+\fIscreen\fP.
+If all you've got is a \*Qtrue\*U auto-margin terminal \fIscreen\fP
+will be content to use it, but updating a character put into the last
+position on the screen may not be possible until the screen scrolls or
+the character is moved into a safe position in some other way. This
+delay can be shortened by using a terminal with insert-character
 capability.
-.PP
-If your terminal is of the second type (firm-margined `am'), you will
-want to let
-.I screen
-know about this, since a normal termcap doesn't distinguish this type of
-automatic margins from a \*Qtrue\*U `am' terminal.
-You do this by specifying the `LP' capability in your termcap
-(see the \*Qtermcap\*U .screenrc command), or by using the
-.B \-L
-command-line option.
-.I Screen
-needs this information to correctly update the screen. Note that a `xv' together
-with an `am' flag effects like `LP'.
-.PP
-If you are using a \*Qtrue\*U auto-margin terminal (no `LP') at low baud
-rates, you may want to turn on a more optimal output mode by including the
-flag `OP' in your termcap entry, or by specifying the
-.B \-O
-command-line option.
-The trade-off is that
-.I screen
-will no-longer accurately emulate the VT100's line-end quirks (e.\|g. the
-screen will scroll after putting \fIone\fP character in the last screen
-position).
 
 
 .SH "COMMAND-LINE OPTIONS"
@@ -332,7 +309,7 @@ Switch to window number 0 \- 9.
 Toggle to the window displayed previously.
 Note that this binding defaults to the command character typed twice,
 unless overridden; for instance, if you use the option \*Q\fB\-e]x\fP\*U,
-this function becomes \*Q]]\*U, not \*Q]C-a\*U.
+this command becomes \*Q]]\*U, not \*Q]C-a\*U.
 .IP "\fBC-a a\fP	(meta)"
 Send the command character (C-a) to window. See \fIescape\fP command.
 .IP "\fBC-a A\fP	(title)"
@@ -436,11 +413,12 @@ Send a control-s to the current window.
 .IP "\fBC-a C-t\fP	(time)"
 .PD
 Show system information.
-.IP "\fBC-a v\fP"
-.PD 0
-.IP "\fBC-a C-v\fP	(version)"
+.IP "\fBC-a v\fP	(version)"
 .PD
 Display the version and compilation date.
+.IP "\fBC-a C-v\fP	(digraph)"
+.PD
+Enter digraph.
 .IP "\fBC-a w\fP"
 .PD 0
 .IP "\fBC-a C-w\fP	(windows)"
@@ -798,8 +776,7 @@ you have to press the key twice (i.e. escape the escape binding).
         bindkey -k F1 command
 .fi
 Make the F11 (not F1!) key an alternative screen
-escape (besides ^A). Note that \*QF11 F11\*U does not work in
-the current release of screen.
+escape (besides ^A).
 .sp
 .ne 3
 .B break
@@ -837,6 +814,22 @@ corresponding 7-bit code. The default setting is to process c1
 codes and can be changed with the \*Qdefc1\*U command. 
 Users with fonts that have usable characters in the
 c1 positions may want to turn this off.
+.sp
+.ne 3
+.BI "charset " set
+.PP
+Change the current character set slot designation and charset
+mapping.  The first four character of
+.I set
+are treated as charset designators while the fifth and sixth
+character must be in range '0' to '3' and set the GL/GR charset
+mapping. On every position a '.' may be used to indicate that
+the corresponding charset/mapping should not be changed
+(\fIset\fP is padded to six characters internally by appending '.'
+chars). New windows have "BBBB02" as default charset, unless a
+\*Qkanji\*U command is active.
+.br
+The current setting can be viewed with the \*Qinfo\*U command.
 .sp
 .ne 3
 .B chdir
@@ -1043,7 +1036,14 @@ to that file: \*QC-A [ g SPACE G $ >\*U.
 \fBC-g\fP gives information about the current line and column.
 .br
 .ti -2n
+\fBx\fP exchanges the first mark and the current cursor position. You
+can use this to adjust an already placed mark.
+.br
+.ti -2n
 \fB@\fP does nothing. Does not even exit copy mode.
+.br
+.ti -2n
+All keys not described here exit copy mode.
 .in -4n
 .sp
 .ne 3
@@ -1082,6 +1082,13 @@ Note that you can use the special `AN' terminal capability if you
 want to have a dependency on the terminal type.
 .sp
 .ne 3
+.BR "defcharset " [ \fIset ]
+.PP
+Like the \fBcharset\fP command except that the default setting for
+new windows is changed. Shows current default if called without
+argument.
+.sp
+.ne 3
 .BI "defescape " xy
 .PP
 Set the default command characters. This is equivalent to the
@@ -1106,6 +1113,23 @@ and
 .PP
 Same as the \fBgr\fP command except that the default setting for new
 windows is changed. Initial setting is `off'.
+.sp
+.ne 3
+.BR "defhstatus " [ \fIstatus ]
+.PP
+The hardstatus line that all new windows will get is set to
+.I status\fR.
+This command is useful to make the hardstatus of every window
+display the window number or title or the like.
+.I Status
+may contain the same directives as in the window messages, but
+the directive escape character is '^E' (octal 005) instead of '%'.
+This was done to make a misinterpretion of program generated
+hardstatus lines impossible.
+If the parameter
+.I status
+is omitted, the current default string is displayed.
+Per default the hardstatus line of new windows is empty.
 .sp
 .ne 3
 .BR "defkanji jis" | sjis | euc
@@ -1181,6 +1205,22 @@ with the
 option. (See also section \*QCOMMAND-LINE OPTIONS\*U.)
 .sp
 .ne 3
+.BR "digraph " [ \fIpreset ]
+.PP
+This command prompts the user for a digraph sequence. The next
+two characters typed are looked up in a builtin table and the
+resulting character is inserted in the input stream. For example,
+if the user enters 'a"', an a-umlaut will be inserted. If the
+first character entered is a 0 (zero),
+.I screen
+will treat the following charcters (up to three) as an octal
+number instead.  The optional argument
+.I preset
+is treated as user input, thus one can create an \*Qumlaut\*U key.
+For example the command "bindkey ^K digraph '"'" enables the user
+to generate an a-umlaut by typing CTRL-K a.
+.sp
+.ne 3
 .B dumptermcap
 .PP
 Write the termcap entry for the virtual terminal optimized for the currently
@@ -1244,11 +1284,11 @@ running subprocess in this window.
 When a subprocess is running the `kill' command will affect it instead of the
 windows process.
 .br
-Refer to the postscript file `fdpat.ips' for illustration of all 21 possible
-combinations. Each drawing shows the numbers 210 representing the three
-file descriptors of newcommand. The box marked `W' is usual pty that has
-the old process (shell) on its slave side. The box marked `P' is the
-secondary pty that now has
+Refer to the postscript file `fdpat.ips' for a confusing illustration
+of all 21 possible combinations. Each drawing shows the digits 2,1,0
+representing the three file descriptors of newcommand. The box marked
+`W' is usual pty that has the application-process on its slave side.
+The box marked `P' is the secondary pty that now has
 .I screen
 at its master side.
 .sp
@@ -1286,7 +1326,16 @@ exec !..| less
 .PP
 This adds a pager to the window output. The special character `|' is needed to
 give the user control over the pager although it gets its input from the
-original process.
+window's process. This works, because
+.I less
+listens on stderr (a behavior that
+.I screen
+would not expect without the `|') 
+when its stdin is not a tty. 
+.I Less 
+versions newer than 177 fail miserably here; good old
+.I pg
+still works.
 .IP
 !:sed -n s/.*Error.*/\e007/p
 .PP
@@ -1367,8 +1416,7 @@ The first pages list all the internal commands followed by their current
 bindings.
 Subsequent pages will display the custom commands, one command per key.
 Press space when you're done reading each page, or return to exit early.
-All other characters are ignored, except for the command character, which will
-allow you to execute commands even when the help screen is still visible.
+All other characters are ignored.
 See also \*QDEFAULT KEY BINDINGS\*U section.
 .sp
 .ne 3
@@ -1472,19 +1520,18 @@ is started) and is executed with the user's uid and gid.
 .PP
 Start/stop writing output of the current window to a file
 \*Qscreenlog.\fIn\fP\*U in the window's default directory, where \fIn\fP
-is the number of the current window. If no parameter is given, the state
+is the number of the current window. This filename can be changed with
+the `logfile' command. If no parameter is given, the state
 of logging is toggled. The session log is appended to the previous contents
 of the file if it already exists. The current contents and the contents
 of the scrollback history are not included in the session log.
 Default is `off'.
 .sp
 .ne 3
-.BI "logdir "directory
+.BI "logfile " filename
 .PP
-Defines a directory where logfiles will be placed. If unset logfiles are written
-in
-.IR screen's
-current working directory.
+Defines the name the logfiles will get. The default is
+\*Qscreenlog.%n\*U.
 .sp
 .ne 3
 .BR "login " [ on | off ]
@@ -1842,7 +1889,7 @@ is assigned to this window.
 Thus, the first window can be activated by \*Qselect 0\*U (there can be no more
 than 10 windows present simultaneously unless
 .I screen
-is compiled with a higher MAXWIN setting).
+was compiled with a higher MAXWIN setting).
 .sp
 .ne
 .BR "sessionname " [ \fIname ]
@@ -1916,6 +1963,22 @@ underlying system exposes flow control problems while pasting large amounts of
 text.
 .sp
 .ne 3
+.B sorendition
+.RB [ "\fIattr\fR " [ \fIcolor ]]
+.PP
+Change the way screen does highlighting for text marking and printing
+messages.
+.I Attr
+is a hexadecimal number and describes the attributes (inverse,
+underline, ...) the text will get.
+.I Color
+is a 2 digit number and changes the 
+forground/background of the highlighted text.
+Some knowledge of screen's internal character representation is
+needed to make the characters appear in the desired way. The default
+is currently 10 99 (standout, default colors).
+.sp
+.ne 3
 .B "startup_message on\fP|\fBoff"
 .PP
 Select whether you want to see the copyright notice during startup.
@@ -1956,14 +2019,16 @@ is VT100/ANSI compatible.
 The use of the \*Qterm\*U command is discouraged for non-default purpose.
 That is, one may want to specify special $TERM settings (e.g. vt100) for the
 next \*Qscreen rlogin othermachine\*U command. Use the command \*Qscreen -T vt100
-rlogin othermachine\*U rather than setting (\*Qterm vt100\*U) and resetting
-(\*Qterm screen\*U) the default before and after the \*Qscreen\*U command.
+rlogin othermachine\*U rather than setting and resetting the default.
 .sp
 .ne 3
 .BI termcap " term terminal-tweaks"
 .RI [ window-tweaks ]
 .br
 .BI terminfo " term terminal-tweaks"
+.RI [ window-tweaks ]
+.br
+.BI termcapinfo " term terminal-tweaks"
 .RI [ window-tweaks ]
 .PP
 Use this command to modify your terminal's termcap entry without going through
@@ -1973,9 +2038,14 @@ If your system works with terminfo-database rather than with
 termcap,
 .I screen
 will understand the `terminfo' command, which has the same effects as
-the `termcap' command. Thus users can write one .screenrc file that handles
-both cases, although terminfo syntax is slightly different
-from termcap syntax.
+the `termcap' command.  Two separate commands are provided, as there are subtle
+syntactic differences, e.g. when parameter interpolation (using `%') is
+required. Note that termcap names of the capabilities have to be used
+with the `terminfo' command. 
+.br
+In many cases, where the arguments are valid in both terminfo and termcap
+syntax, you can use the command `termcapinfo', which is just a shorthand
+for a pair of `termcap' and `terminfo' commands with identical arguments.
 .PP
 The first argument specifies which terminal(s) should be affected by this
 definition.
@@ -2094,7 +2164,7 @@ visual bell message. The default is 1 second.
 Print the current version and the compile date in the status line.
 .sp
 .ne 3
-.BI "wall " "message ..."
+.BI "wall " "message"
 .PP
 Write a message to all displays. The message will appear in the terminal's
 status line.
@@ -2336,7 +2406,7 @@ Here's some .screenrc examples:
 screen -t top 2 nice top
 .PP
 Adding this line to your .screenrc would start a nice-d version of the
-\*Qtop\*U command in window 2 name \*Qtop\*U rather than \*Qnice\*U.
+\*Qtop\*U command in window 2 named \*Qtop\*U rather than \*Qnice\*U.
 .sp
 .nf
 	shelltitle '> |csh'
@@ -2404,6 +2474,11 @@ PROMPT_COMMAND='echo -n -e "\e033k\e033\e134"'
 
 
 .SH "THE VIRTUAL TERMINAL"
+Each window in a 
+.I screen
+session emulates a VT100 terminal, with some extra functions added. The
+VT100 emulator is hardcoded, no other terminal types can be emulated.
+.br
 Usually
 .I screen
 tries to emulate as much of the VT100/ANSI standard
@@ -2519,6 +2594,16 @@ As a side-effect, programs running in different windows can
 send output to the printer simultaneously.
 Data sent to the printer is not displayed in the window.
 .PP
+.I Screen
+maintains a hardstatus line for every window. If a window
+gets selected, the display's hardstatus will be updated to match
+the window's hardstatus line. If the display has no hardstatus
+the line will be displayed as a standard screen message.
+The hardstatus line can be changed with the ANSI Application
+Program Command (APC): \*QESC_<string>ESC\e\*U. As a convenience
+for xterm users the sequence \*QESC]0..2;<string>^G\*U is
+also accepted.
+.PP
 Some capabilities are only put into the $TERMCAP
 variable of the virtual terminal if they can be efficiently
 implemented by the physical terminal.
@@ -2565,6 +2650,18 @@ Restore Cursor and Attributes
 .B "ESC c"
 Reset to Initial State
 .TP 27
+.B "ESC g"
+Visual Bell
+.TP 27
+.B "ESC \fPPn\fB p"
+Cursor Visibility (97801)
+.TP 27
+\h'\w'ESC 'u'Pn = \fB6\fP
+Invisible
+.TP 27
+\h'\w'ESC Pn = 'u'\fB7\fP
+Visible
+.TP 27
 .BR "ESC =" "	(V)"
 Application Keypad Mode
 .TP 27
@@ -2592,10 +2689,10 @@ Outputs a string directly to the host
 terminal without interpretation.
 .TP 27
 .BR "ESC _" "	(A)"
-Application Program Command (not used)
+Application Program Command (Hardstatus)
 .TP 27
 .BR "ESC ]" "	(A)"
-Operating System Command (not used)
+Operating System Command (Hardstatus, xterm title hack)
 .TP 27
 .BR "Control-N" "	(A)"
 Lock Shift G1 (SO)
@@ -2637,10 +2734,10 @@ Direct Cursor Addressing
 Erase in Display
 .TP 27
 \h'\w'ESC [ 'u'Pn = None or \fB0\fP
->From Cursor to End of Screen
+From Cursor to End of Screen
 .TP 27
 \h'\w'ESC [ Pn = 'u'\fB1\fP
->From Beginning of Screen to Cursor
+From Beginning of Screen to Cursor
 .TP 27
 \h'\w'ESC [ Pn = 'u'\fB2\fP
 Entire Screen
@@ -2649,10 +2746,10 @@ Entire Screen
 Erase in Line
 .TP 27
 \h'\w'ESC [ 'u'Pn = None or \fB0\fP
->From Cursor to End of Line
+From Cursor to End of Line
 .TP 27
 \h'\w'ESC [ Pn = 'u'\fB1\fP
->From Beginning of Line to Cursor
+From Beginning of Line to Cursor
 .TP 27
 \h'\w'ESC [ Pn = 'u'\fB2\fP
 Entire Line
@@ -2708,6 +2805,42 @@ Not Blinking
 \h'\w'ESC [ Ps = 'u'\fB27\fP	(A)
 Positive Image
 .TP 27
+\h'\w'ESC [ Ps = 'u'\fB30\fP	(A)
+Foreground Black
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB31\fP	(A)
+Foreground Red
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB32\fP	(A)
+Foreground Green
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB33\fP	(A)
+Foreground Yellow
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB34\fP	(A)
+Foreground Blue
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB35\fP	(A)
+Foreground Magenta
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB36\fP	(A)
+Foreground Cyan
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB37\fP	(A)
+Foreground White
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB39\fP	(A)
+Foreground Default
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB40\fP	(A)
+Background Black
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB...\fP
+...
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB49\fP	(A)
+Background Default
+.TP 27
 .B "ESC [ \fPPn\fB g"
 Tab Clear
 .TP 27
@@ -2738,6 +2871,12 @@ Insert Character
 .BR "ESC [ \fPPn\fB P" "	(A)"
 Delete Character
 .TP 27
+.B "ESC [ \fPPn\fB S"
+Scroll Scrolling Region Up
+.TP 27
+.B "ESC [ \fPPn\fB T"
+Scroll Scrolling Region Down
+.TP 27
 .B "ESC [ \fPPs\fB ;\fP...\fB; \fPPs\fB h"
 Set Mode
 .TP 27
@@ -2747,6 +2886,12 @@ Reset Mode
 \h'\w'ESC [ 'u'Ps = \fB4\fP	(A)
 Insert Mode
 .TP 27
+\h'\w'ESC [ Ps = 'u'\fB20\fP	(A)
+\fIAutomatic Linefeed\fP Mode
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB34\fP
+Normal Cursor Visibility
+.TP 27
 \h'\w'ESC [ Ps = 'u'\fB?1\fP	(V)
 Application Cursor Keys
 .TP 27
@@ -2754,13 +2899,16 @@ Application Cursor Keys
 Change Terminal Width to 132 columns
 .TP 27
 \h'\w'ESC [ Ps = 'u'\fB?5\fP	(V)
-Visible Bell (\fIOn\fP followed by \fIOff\fP)
+Reverse Video
 .TP 27
 \h'\w'ESC [ Ps = 'u'\fB?6\fP	(V)
 \fIOrigin\fP Mode
 .TP 27
 \h'\w'ESC [ Ps = 'u'\fB?7\fP	(V)
 \fIWrap\fP Mode
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB?25\fP	(V)
+Visible Cursor
 .TP 27
 .BR "ESC [ 5 i" "	(A)"
 Start relay to printer (ANSI Media Copy)
@@ -2773,6 +2921,9 @@ Resize the window to `Ph' lines and `Pw' columns (SunView special)
 .TP 27
 .B "ESC [ c"
 Send VT100 Identification String
+.TP 27
+.B "ESC [ x"
+Send Terminal Parameter Report
 .TP 27
 .B "ESC [ > c"
 Send VT220 Secondary Device Attributes String
@@ -2877,12 +3028,16 @@ Keypad enter	fe	stuff \e015
 The following table describes all terminal capabilities
 that are recognized by \fIscreen\fP and are not in the
 termcap(5) manual.
+You can place these capabilities in your termcap entries (in
+`/etc/termcap') or use them with the commands `termcap', `terminfo' and
+`termcapinfo' in your screenrc files. It is often not possible to place
+these capabilities in the terminfo database.
 .PP
 .ta 5n
 .TP 13
 .BI LP "	(bool)"
 Terminal has VT100 style margins (`magic margins'). Note that
-this capability is obsolete because \fIscreen\fP uses 'xn'
+this capability is obsolete because \fIscreen\fP uses the standard 'xn'
 instead.
 .TP 13
 .BI Z0 "	(str)"
@@ -2895,16 +3050,6 @@ Change width to 80 columns.
 Resize display. This capability has the desired width and height as
 arguments. \fISunView(tm)\fP example: '\eE[8;%d;%dt'.
 .TP 13
-.BI B8 "	(str)"
-Tell \fIscreen\fP to look out for characters with 8th bit set. If such
-a character is found \fIscreen\fP processes the specified string
-and than outputs the character with the 8th bit stripped off.
-Note that the string can contain any esc-sequences known to
-\fIscreen\fP, too. (Example: Single Shift G2 = \eEN.)
-.TP 13
-.BI OP "	(bool)"
-Don't do a full VT100 style margin emulation. Same as the -O option.
-.TP 13
 .BI NF "	(bool)"
 Terminal doesn't need flow control. Send ^S and ^Q direct to
 the application. Same as 'flow off'. The opposite of this
@@ -2915,7 +3060,7 @@ Terminal can deal with ISO 2022 font selection sequences.
 .TP 13
 .BI S0 "	(str)"
 Switch charset 'G0' to the specified charset. Default
-is '\eE(%d'.
+is '\eE(%.'.
 .TP 13
 .BI E0 "	(str)"
 Switch charset 'G0' back to standard charset. Default
@@ -2940,7 +3085,78 @@ Set the output buffer limit. See the 'obuflimit' command for more details.
 .BI KJ "	(str)"
 Set the kanji type of the terminal. Valid strings are \*Qjis\*U,
 \*Qeuc\*U and \*Qsjis\*U.
+.TP 13
+.BI AF "	(str)"
+Change character forground color in an ANSI conform way. This
+capability will almost always be set to '\eE[3%dm' ('\eE[3%p1%dm'
+on terminfo machines).
+.TP 13
+.BI AB "	(str)"
+Same as 'AF', but change background color.
+.TP 13
+.BI AX "	(bool)"
+Does understand ANSI set default fg/bg color (\eE[39m / \eE[49m).
+.TP 13
+.BI XC "	(str)"
+Describe a translation of characters to strings depending on the
+current font. More details follow in the next section.
 
+.SH CHARACTER TRANSLATION
+\fIScreen\fP has a powerful mechanism to translate characters to arbitrary
+strings depending on the current font and terminal type.
+Use this feature if you want to work with a common standard character
+set (say ISO8851-latin1) even on terminals that scatter the more
+unusual characters over several national language font pages.
+
+Syntax:
+.nf
+    \fBXC=\fP\fI<charset-mapping>\fP{\fB,,\fP\fI<charset-mapping>\fP}
+    \fI<charset-mapping>\fP := \fI<designator><template>\fP{\fB,\fP\fI<mapping>\fP}
+    \fI<mapping>\fP := \fI<char-to-be-mapped><template-arg>\fP
+.fi
+
+The things in braces may be repeated any number of times.
+
+A \fI<charset-mapping>\fP tells \fIscreen\fP how to map characters
+in font \fI<designator>\fP ('B': Ascii, 'A': UK, 'K': german, etc.)
+to strings. Every \fI<mapping>\fP describes to what string a single
+character will be translated. A template mechanism is used, as 
+most of the time the codes have a lot in common (for example
+strings to switch to and from another charset). Each occurence
+of '%' in \fI<template>\fP gets substituted with the \fI<template-arg>\fP
+specified together with the character. If your strings are not
+similar at all, then use '%' as a template and place the full
+string in \fI<template-arg>\fP. A quoting mechanism was added to make
+it possible to use a real '%'. The '\e' character quotes the
+special characters '\e', '%', and ','.
+
+Here is an example:
+
+    termcap hp700 'XC=B\eE(K%\eE(B,\e304[,\e326\e\e\e\e,\e334]'
+
+This tells \fIscreen\fP, how to translate ISOlatin1 (charset 'B')
+upper case umlaut characters on a hp700 terminal that has a
+german charset. '\e304' gets translated to '\eE(K[\eE(B' and so on.
+Note that this line gets parsed *three* times before the internal
+lookup table is built, therefore a lot of quoting is needed to
+create a single '\e'.
+
+Another extension was added to allow more emulation: If a mapping
+translates the unquoted '%' char, it will be sent to the terminal
+whenever \fIscreen\fP switches to the corresponding \fI<designator>\fP. In this
+special case the template is assumed to be just '%' because
+the charset switch sequence and the character mappings normaly
+haven't much in common.
+
+This example shows one use of the extension:
+
+    termcap xterm 'XC=K%,%\eE(B,[\e304,\e\e\e\e\e326,]\e334'
+
+Here, a part of the german ('K') charset is emulated on an xterm.
+If \fIscreen\fP has to change to the 'K' charset, '\eE(B' will be sent
+to the terminal, i.e. the ASCII charset is used instead. The
+template is just '%', so the mapping is straightforward: '['
+to '\e304', '\e' to '\e326', and ']' to '\e334'.
 
 .SH ENVIRONMENT
 .PD 0
@@ -3040,7 +3256,8 @@ GNU General Public License for more details.
 .PP
 You should have received a copy of the GNU General Public License
 along with this program (see the file COPYING); if not, write to the
-Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+Free Software Foundation, Inc.,
+59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
 
 .SH CONTRIBUTORS
 .nf
@@ -3073,7 +3290,7 @@ Gregory Neil Shapiro (gshapiro@wpi.WPI.EDU).
 
 
 .SH VERSION
-This is version 3.6.0. Its roots are a merge of a custom version
+This is version 3.7.0. Its roots are a merge of a custom version
 2.3PR7 by Wayne Davison
 and several enhancements to Oliver Laumann's version 2.0. Note that all versions
 numbered 2.x are copyright by Oliver Laumann.
@@ -3091,9 +3308,6 @@ has no clue about double-high or double-wide characters.
 But this is the only area where
 .I vttest
 is allowed to fail.
-.IP \(bu
-.I Screen
-does not support color, although this has repeatedly been asked for.
 .IP \(bu
 It is not possible to change the environment variable $TERMCAP when
 reattaching under a different terminal type.

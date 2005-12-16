@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  * $Id$ FAU
@@ -46,6 +47,7 @@ extern void  Panic __P(());
 extern void  DisplaySleep __P((int));
 extern void  Finit __P((int));
 extern void  MakeNewEnv __P((void));
+extern char *MakeWinMsg __P((char *, struct win *, int));
 
 /* ansi.c */
 extern void  Activate __P((int));
@@ -54,11 +56,9 @@ extern void  ResetCharsets __P((struct win *));
 extern void  WriteString __P((struct win *, char *, int));
 extern void  NewAutoFlow __P((struct win *, int));
 extern void  Redisplay __P((int));
-extern void  CheckLP __P((int));
-extern void  MakeBlankLine __P((char *, int));
 extern void  SetCurr __P((struct win *));
 extern void  ChangeAKA __P((struct win *, char *, int));
-extern void  AddLineToHist __P((struct win *, char **, char **, char **));
+extern void  SetCharsets __P((struct win *, char *));
 
 /* fileio.c */
 extern void  StartRc __P((char *));
@@ -146,6 +146,9 @@ extern int   OpenPTY __P((char **));
 /* process.c */
 extern void  InitKeytab __P((void));
 extern void  ProcessInput __P((char *, int));
+#ifdef MAPKEYS
+extern void  ProcessInput2 __P((char *, int));
+#endif
 extern int   FindCommnr __P((char *));
 extern void  DoCommand __P((char **));
 extern void  KillWindow __P((struct win *));
@@ -167,7 +170,10 @@ extern char *MakeTermcap __P((int));
 extern char *gettermcapstring __P((char *));
 #ifdef MAPKEYS
 extern int   remap __P((int, int));
+extern void  CheckEscape __P((void));
 #endif
+extern int   CreateTransTable __P((char *));
+extern void  FreeTransTable __P((void));
 
 /* attacher.c */
 extern int   Attach __P((int));
@@ -196,21 +202,25 @@ extern void  ClearDisplay __P((void));
 extern void  Clear __P((int, int, int, int, int, int, int));
 extern void  RefreshLine __P((int, int, int, int));
 extern void  RefreshStatus __P((void));
-extern void  DisplayLine __P((char *, char *, char *, char *, char *, char *, int, int, int));
+extern void  DisplayLine __P((struct mline *, struct mline *, int, int, int));
+
+extern void  CDisplayLine __P((struct mline *, int, int, int, int, int));
 extern void  FixLP __P((int, int));
 extern void  GotoPos __P((int, int));
 extern int   CalcCost __P((char *));
-extern void  ScrollH __P((int, int, int, int, char *, char *, char *));
+extern void  ScrollH __P((int, int, int, int, struct mline *));
 extern void  ScrollV __P((int, int, int, int, int));
 extern void  ChangeScrollRegion __P((int, int));
 extern void  InsertMode __P((int));
 extern void  KeypadMode __P((int));
 extern void  CursorkeysMode __P((int));
 extern void  ReverseVideo __P((int));
-extern void  CursorInvisible __P((int));
+extern void  CursorVisibility __P((int));
 extern void  SetFont __P((int));
 extern void  SetAttr __P((int));
-extern void  SetAttrFont __P((int, int));
+extern void  SetColor __P((int));
+extern void  SetRendition __P((struct mchar *));
+extern void  SetRenditionMline __P((struct mline *, int));
 extern void  MakeStatus __P((char *));
 extern void  RemoveStatus __P((void));
 extern void  SetLastPos __P((int, int));
@@ -230,8 +240,7 @@ extern int   badkanji __P((char *, int));
 #endif
 
 /* resize.c */
-extern int   ChangeScrollback __P((struct win *, int, int));
-extern int   ChangeWindowSize __P((struct win *, int, int));
+extern int   ChangeWindowSize __P((struct win *, int, int, int));
 extern void  ChangeScreenSize __P((int, int, int));
 extern void  CheckScreenSize __P((int));
 extern void  DoResize __P((int, int));

@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -73,13 +74,14 @@ static char DefaultPath[] = ":/usr/ucb:/bin:/usr/bin";
 struct NewWindow nwin_undef   = 
 {
   -1, (char *)0, (char **)0, (char *)0, (char *)0, -1, -1, 
-  -1, -1, -1, -1, -1, -1, -1, -1
+  -1, -1, -1, -1, -1, -1, -1, -1, (char *)0, (char *)0
 };
 
 struct NewWindow nwin_default = 
 { 
-  0, 0, ShellArgs, 0, screenterm, 0, 1*FLOW_NOW, 
-  LOGINDEFAULT, DEFAULTHISTHEIGHT, MON_OFF, WLOCK_AUTO, 1, 1, 0, 0
+  0, (char *)0, ShellArgs, (char *)0, screenterm, 0, 1*FLOW_NOW, 
+  LOGINDEFAULT, DEFAULTHISTHEIGHT, MON_OFF, WLOCK_AUTO,
+  1, 1, 0, 0, (char *)0, (char *)0
 };
 
 struct NewWindow nwin_options;
@@ -105,6 +107,8 @@ struct NewWindow *def, *new, *res;
 #ifdef KANJI
   res->kanji = new->kanji != nwin_undef.kanji ? new->kanji : def->kanji;
 #endif
+  res->hstatus = new->hstatus != nwin_undef.hstatus ? new->hstatus : def->hstatus;
+  res->charset = new->charset != nwin_undef.charset ? new->charset : def->charset;
 }
 
 int
@@ -170,18 +174,9 @@ struct NewWindow *newwin;
     p->w_cmdargs[i] = SaveStr(nwin.args[i]);
   p->w_cmdargs[i] = 0;
 
-  if (!(p->w_dlist = (struct displaylist *)malloc(sizeof(struct displaylist))))
-    {
-      free((char *)p);
-      close(f);
-      Msg(0, strnomem);
-      return -1;
-    }
-  p->w_dlist->next = NULL;
 #ifdef MULTIUSER
   if (NewWindowAcl(p))
     {
-      free((char *)p->w_dlist);
       free((char *)p);
       close(f);
       Msg(0, strnomem);
@@ -216,22 +211,26 @@ struct NewWindow *newwin;
     }
   else
     p->w_title = p->w_akachange = p->w_akabuf;
+  if (nwin.hstatus)
+    p->w_hstatus = SaveStr(nwin.hstatus);
   p->w_monitor = nwin.monitor;
   p->w_norefresh = 0;
   strncpy(p->w_tty, TtyName, MAXSTR - 1);
 
-  if (ChangeWindowSize(p, display ? D_defwidth : 80, display ? D_defheight : 24))
+#ifndef COPY_PASTE
+  nwin.histheight = 0;
+#endif
+  if (ChangeWindowSize(p, display ? D_defwidth : 80, display ? D_defheight : 24, nwin.histheight))
     {
       FreeWindow(p);
       return -1;
     }
-#ifdef COPY_PASTE
-  ChangeScrollback(p, nwin.histheight, p->w_width);
-#endif
 #ifdef KANJI
   p->w_kanji = nwin.kanji;
 #endif
   ResetWindow(p);	/* sets w_wrap, w_c1, w_gr */
+  if (nwin.charset)
+    SetCharsets(p, nwin.charset);
 
   if (ttyflag == TTY_FLAG_PLAIN)
     {
@@ -344,6 +343,7 @@ FreeWindow(wp)
 struct win *wp;
 {
   struct display *d;
+  int i;
 
 #ifdef PSEUDOS
   if (wp->w_pwin)
@@ -363,18 +363,18 @@ struct win *wp;
     console_window = 0;
   if (wp->w_logfp != NULL)
     fclose(wp->w_logfp);
-  ChangeWindowSize(wp, 0, 0);
+  ChangeWindowSize(wp, 0, 0, 0);
+  if (wp->w_hstatus)
+    free(wp->w_hstatus);
+  for (i = 0; wp->w_cmdargs[i]; i++)
+    free(wp->w_cmdargs[i]);
   for (d = displays; d; d = d->d_next)
     if (d->d_other == wp)
       d->d_other = 0;
-  while (wp->w_dlist)
-    {
-      struct displaylist* l;
-
-      l = wp->w_dlist->next;
-      free((char *)wp->w_dlist);
-      wp->w_dlist = l;
-    }
+#ifdef MULTIUSER
+  for (i = 0; i < ACL_BITS_PER_WIN; i++)
+    free((char *)wp->w_userbits[i]);
+#endif
   free((char *)wp);
 }
 
@@ -646,23 +646,21 @@ struct win *win;
 # endif
 	    }
 #endif
-	  debug("haha\n");
 	  SetTTY(newfd, modep);
 #ifdef TIOCSWINSZ
 	  glwz.ws_col = w;
 	  glwz.ws_row = h;
-	  debug("hoho\n");
 	  (void) ioctl(newfd, TIOCSWINSZ, (char *)&glwz);
 #endif
+	  /* Always turn off nonblocking mode */
+	  (void)fcntl(newfd, F_SETFL, 0);
 	}
-      debug("huhu\n");
 #ifndef TIOCSWINSZ
       sprintf(libuf, "LINES=%d", h);
       sprintf(cobuf, "COLUMNS=%d", w);
       NewEnv[5] = libuf;
       NewEnv[6] = cobuf;
 #endif
-      debug("hihi\n");
 #ifdef MAPKEYS
       NewEnv[2] = MakeTermcap(display == 0 || win->w_aflag);
 #else
@@ -671,11 +669,9 @@ struct win *win;
       else
 	NewEnv[2] = Termcap;
 #endif
-      debug("hyhy\n");
       strcpy(shellbuf, "SHELL=");
       strncpy(shellbuf + 6, ShellProg, MAXPATHLEN);
       shellbuf[MAXPATHLEN + 6] = 0;
-      debug("hzhz\n");
       NewEnv[4] = shellbuf;
       debug1("ForkWindow: NewEnv[4] = '%s'\n", shellbuf);
       if (term && *term && strcmp(screenterm, term) &&
@@ -886,7 +882,7 @@ char **av;
       }
   }
 #endif /* TIOCPKT */
-  pwin->p_pid = ForkWindow(av, NULL, NULL, t, w);
+  pwin->p_pid = ForkWindow(av, (char *)0, (char *)0, t, w);
   if ((r = pwin->p_pid) < 0)
     FreePseudowin(w);
   return r;
@@ -918,7 +914,7 @@ struct win *w;
  *  Clone routines. To be removed...
  */
 
-static void CloneTermcap __P((struct display *));
+static int CloneTermcap __P((struct display *));
 extern char **environ;
 
 
@@ -955,16 +951,27 @@ char **av;
       display = old;
       Msg(0, "Could not make display.");
       close(f);
+      close(sf);
       return -1;
     }
+  if (CloneTermcap(old))
+    {
+      FreeDisplay();
+      display = old;
+      close(sf);
+      return -1;
+    }
+
   SetMode(&D_OldMode, &D_NewMode);
   SetTTY(f, &D_NewMode);
+
   switch (fork())
     {
     case -1:
       FreeDisplay();
       display = old;
       Msg(errno, "fork");
+      close(sf);
       return -1;
     case 0:
       D_usertty[0] = 0;		/* for SendErrorMsg */
@@ -1016,7 +1023,6 @@ char **av;
       break;
     }
   close(sf);
-  CloneTermcap(old);
   InitTerm(0);
   Activate(0);
   if (D_fore == 0)
@@ -1026,12 +1032,22 @@ char **av;
 
 extern struct term term[];      /* terminal capabilities */
 
-static void
+static int
 CloneTermcap(old)
 struct display *old;
 {
   char *tp;
-  int i;
+  int i, l;
+
+  l = 0;
+  for (i = 0; i < T_N; i++)
+    if (term[i].type == T_STR && old->d_tcs[i].str)
+      l += strlen(old->d_tcs[i].str) + 1;
+  if ((D_tentry = (char *)malloc(l)) == 0)
+    {
+      Msg(0, strnomem);
+      return -1;
+    }
 
   tp = D_tentry;
   for (i = 0; i < T_N; i++)
@@ -1073,7 +1089,10 @@ struct display *old;
 #ifdef AUTO_NUKE
   D_auto_nuke = old->d_auto_nuke;
 #endif
+  if (D_CXC)
+    CreateTransTable(D_CXC);
   D_tcinited = 1;
+  return 0;
 }
 
 #endif

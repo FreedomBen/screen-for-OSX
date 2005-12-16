@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -34,10 +35,11 @@ RCS_ID("$Id$ FAU")
 # include <sys/resource.h>
 #endif
 
-extern char *blank;
 extern struct display *display;
 extern int eff_uid, real_uid;
 extern int eff_gid, real_gid;
+extern struct mline mline_old;
+extern char *null, *blank;
 
 char *
 SaveStr(str)
@@ -62,7 +64,7 @@ int err;
 
   static char er[20];
   if (err > 0 && err < sys_nerr)
-    return(sys_errlist[err]);
+    return sys_errlist[err];
   sprintf(er, "Error %d", err);
   return er;
 }
@@ -112,6 +114,15 @@ char *nam;
 #else /* apollo */
   if (nam == NULL)
     return NULL;
+# ifdef SVR4
+  /* unixware has /dev/pts012 as synonym for /dev/pts/12 */
+  if (!strncmp(nam, "/dev/pts", 8) && nam[8] >= '0' && nam[8] <= '9')
+    {
+      static char b[13];
+      sprintf(b, "pts/%d", atoi(nam + 8));
+      return b;
+    }
+# endif /* SVR4 */
   if (strncmp(nam, "/dev/", 5) == 0)
     return nam + 5;
 #endif /* apollo */
@@ -154,7 +165,7 @@ void (*func) __P(SIGPROTOARG);
   sv.sv_flags = SV_BSDSIG;
   if (sigvector(sig, &sv, &osv) < 0)
     return (void (*)__P(SIGPROTOARG))(BADSIG);
-  return (osv.sv_handler);
+  return osv.sv_handler;
 }
 # endif	/* hpux */
 #endif	/* POSIX */
@@ -266,7 +277,6 @@ int except;
 {
   int f;
 #ifdef SVR4
-  int getrlimit __P((int, struct rlimit *));
   struct rlimit rl;
   
   if ((getrlimit(RLIMIT_NOFILE, &rl) == 0) && rl.rlim_max != RLIM_INFINITY)
@@ -367,7 +377,7 @@ UserStatus()
   (void) signal(SIGCHLD, Usersigcld);
   if (i == -1)
     return -1;
-  return (WEXITSTATUS(wstat));
+  return WEXITSTATUS(wstat);
 #else
   return UserSTAT;
 #endif
@@ -428,3 +438,31 @@ int len;
   *p = 0;
   return p - buf;
 }
+
+
+#ifdef TERMINFO
+/*
+ * This is a replacement for the buggy _delay function from the termcap
+ * emulation of libcurses, which ignores ospeed.
+ */
+int
+_delay(delay, outc)
+register int delay;
+int (*outc)();
+{
+  int pad;
+  extern short ospeed;
+  static short osp2pad[] = {
+    0,2000,1333,909,743,666,500,333,166,83,55,41,20,10,5,2,1,1
+  };
+
+  if (ospeed <= 0 || ospeed >= sizeof(osp2pad)/sizeof(*osp2pad))
+    return 0;
+  pad =osp2pad[ospeed];
+  delay = (delay + pad / 2) / pad;
+  while (delay-- > 0)
+    (*outc)(0);
+  return 0;
+}
+#endif
+

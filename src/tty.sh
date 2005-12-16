@@ -32,7 +32,8 @@ exit 0
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -339,7 +340,7 @@ IF{LCRTBS}	| LCRTBS
 # endif /* TERMIO */
 #endif /* POSIX */
 
-#if defined(KANJI) && defined(TIOCKSET)
+#if defined(KANJI) && defined(TIOCKSET) && defined(KM_ASCII) && defined(KM_SYSSJIS)
   m->m_jtchars.t_ascii = 'J';
   m->m_jtchars.t_kanji = 'B';
   m->m_knjmode = KM_ASCII | KM_SYSSJIS;
@@ -377,7 +378,7 @@ struct mode *mp;
   ioctl(fd, TIOCSLTC, (char *)&mp->m_ltchars); /* moved here for apollo. jw */
 # endif
 #endif
-#if defined(KANJI) && defined(TIOCKSET)
+#if defined(KANJI) && defined(TIOCKSET) && defined(KM_ASCII) && defined(KM_SYSSJIS)
   ioctl(fd, TIOCKSETC, &mp->m_jtchars);
   ioctl(fd, TIOCKSET, &mp->m_knjmode);
 #endif
@@ -421,7 +422,7 @@ struct mode *mp;
   ioctl(fd, TIOCGETD, (char *)&mp->m_ldisc);
 # endif
 #endif
-#if defined(KANJI) && defined(TIOCKSET)
+#if defined(KANJI) && defined(TIOCKSET) && defined(KM_ASCII) && defined(KM_SYSSJIS)
   ioctl(fd, TIOCKGETC, &mp->m_jtchars);
   ioctl(fd, TIOCKGET, &mp->m_knjmode);
 #endif
@@ -628,7 +629,7 @@ int fd;
   /* The next lines should be obsolete. Can anybody check if they
    * are really needed on the BSD platforms?
    */
-# if defined(__osf__) || (BSD >= 199103)
+# if defined(__osf__) || (BSD >= 199103) || defined(ISC)
   setsid();	/* should be already done */
 #  ifdef TIOCSCTTY
   ioctl(fd, TIOCSCTTY, (char *)0);
@@ -808,10 +809,10 @@ struct mode *m;
 
 #ifdef POSIX
   debug("struct termios tio:\n");
-  debug1("c_iflag = %#x\n", m->tio.c_iflag);
-  debug1("c_oflag = %#x\n", m->tio.c_oflag);
-  debug1("c_cflag = %#x\n", m->tio.c_cflag);
-  debug1("c_lflag = %#x\n", m->tio.c_lflag);
+  debug1("c_iflag = %#x\n", (unsigned int)m->tio.c_iflag);
+  debug1("c_oflag = %#x\n", (unsigned int)m->tio.c_oflag);
+  debug1("c_cflag = %#x\n", (unsigned int)m->tio.c_cflag);
+  debug1("c_lflag = %#x\n", (unsigned int)m->tio.c_lflag);
   for (i = 0; i < sizeof(m->tio.c_cc)/sizeof(*m->tio.c_cc); i++)
     {
       debug2("c_cc[%d] = %#x\n", i, m->tio.c_cc[i]);

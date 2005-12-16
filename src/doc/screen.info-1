@@ -1,7 +1,7 @@
 This is Info file screen.info, produced by Makeinfo-1.55 from the input
 file ./screen.texinfo.
 
-   This file documents the the `Screen' virtual terminal manager.
+   This file documents the `Screen' virtual terminal manager.
 
    Copyright (c) 1993 Free Software Foundation, Inc.
 
@@ -26,7 +26,7 @@ Screen
 ******
 
    This file documents the `Screen' virtual terminal manager, version
-3.6.0.
+3.7.0.
 
 * Menu:
 
@@ -142,26 +142,19 @@ discussed in the section on keystrokes (*note Default Key Bindings::.).
 Another section (*note Customization::.) deals with the contents of your
 `.screenrc'.
 
-   If possible, choose a version of your terminal's termcap that has
+   If your terminal is a "true" auto-margin terminal (it doesn't allow
+the last position on the screen to be updated without scrolling the
+screen) consider to use a version of your terminal's termcap that has
 automatic margins turned *off*.  This will ensure an accurate and
-optimal update of the screen in all circumstances.  The next best thing
-is an auto-margin terminal that allows the last position on the screen
-to be updated without scrolling the screen (such as a VT100).  This also
-allows the entire screen to be updated.  If all you've got is a "true"
-auto-margin terminal, `screen' will be content to use it, but updating
-a character put into the last position on the screen may not be
-possible until the screen scrolls or the character is moved into a safe
-position in some other way.  This delay can be shortened by using a
-terminal with insert-character capability.
-
-   If your terminal is of the second type (firm-margined `am'), you will
-want to let `screen' know about this, since a normal termcap doesn't
-distinguish this type of automatic margins from a "true" `am' terminal.
-You do this by specifying the `xn' capability in your termcap (*note
-`termcap' command: Termcap.), or by using the `-L' command-line option.
-`screen' needs this information to correctly update the screen.  You
-don't need to worry about this if your terminal type starts with `vt',
-as `screen' assumes `xn' in that case.
+optimal update of the screen in all circumstances.  Most terminals
+nowadays have "magic" margins (automatic margins plus usable last
+column).  This is the VT100 style type and perfectly suited for
+`screen'.  If all you've got is a "true" auto-margin terminal `screen'
+will be content to use it, but updating a character put into the last
+position on the screen may not be possible until the screen scrolls or
+the character is moved into a safe position in some other way. This
+delay can be shortened by using a terminal with insert-character
+capability.
 
    *Note Special Capabilities::, for more information about telling
 `screen' what kind of terminal you have.
@@ -331,10 +324,9 @@ the files `.screenrc' in the user's home directory and
 following ways: For the global screenrc file `screen' searches for the
 environment variable `$SYSSCREENRC' (this override feature may be
 disabled at compile-time).  The user specific screenrc file is searched
-for in `$ISCREENRC', then `$SCREENRC', then ``$HOME'/.iscreenrc' and
-finally defaults to ``$HOME'/.screenrc'.  The command line option `-c'
-specifies which file to use (*note Invoking Screen::..  Commands in
-these files are used to set options, bind commands to keys, and to
+for in `$SCREENRC', then ``$HOME'/.screenrc'.  The command line option
+`-c' specifies which file to use (*note Invoking Screen::..  Commands
+in these files are used to set options, bind commands to keys, and to
 automatically establish one or more windows at the beginning of your
 `screen' session.  Commands are listed one per line, with empty lines
 being ignored.  A command's arguments are separated by tabs or spaces,
@@ -549,9 +541,12 @@ Thus, both `C-a c' and `C-a C-c' can be used to create a window.
      Show the load average and xref.  *Note Time::.
 
 `C-a v'
-`C-a C-v'
      (version)
      Display the version and compilation date.  *Note Version::.
+
+`C-a C-v'
+     (digraph)
+     Enter digraph.  *Note Digraph::.
 
 `C-a w'
 `C-a C-w'
@@ -560,7 +555,7 @@ Thus, both `C-a c' and `C-a C-c' can be used to create a window.
 
 `C-a W'
      (width)
-     Toggle between 80 and 132 columns.  *Note Width::.
+     Toggle between 80 and 132 columns.  *Note Window Size::.
 
 `C-a x'
 `C-a C-x'
@@ -681,6 +676,10 @@ Command Summary
 `c1 [STATE]'
      Change c1 code processing.  *Note Character Processing::.
 
+`charset SET'
+     Change character set slot designation.  *Note Character
+     Processing::.
+
 `chdir [DIRECTORY]'
      Change the current directory for future windows.  *Note Chdir::.
 
@@ -715,6 +714,10 @@ Command Summary
      Select default c1 processing behavior.  *Note Character
      Processing::.
 
+`defcharset [SET]'
+     Change defaul character set slot designation.  *Note Character
+     Processing::.
+
 `defescape XY'
      Set the default command and `meta' characters.  *Note Command
      Character::.
@@ -725,6 +728,9 @@ Command Summary
 `defgr STATE'
      Select default GR processing behavior.  *Note Character
      Processing::.
+
+`defhstatus [STATUS]'
+     Select default window hardstatus line.  *Note Hardstatus::.
 
 `defkanji WTYPE'
      Select default GR processing behavior.  *Note Character
@@ -757,6 +763,9 @@ Command Summary
 `detach'
      Disconnect `screen' from the terminal.  *Note Detach::.
 
+`digraph'
+     Enter digraph sequence.  *Note Digraph::.
+
 `dumptermcap'
      Write the window's termcap entry to a file.  *Note Dump Termcap::.
 
@@ -788,7 +797,7 @@ Command Summary
      Use the hardware status line.  *Note Hardware Status Line::.
 
 `height [LINES]'
-     Set display height.  *Note Height::.
+     Set display height.  *Note Window Size::.
 
 `help'
      Display current key bindings.  *Note Help::.
@@ -820,7 +829,7 @@ Command Summary
 `log [STATE]'
      Log all output in the current window.  *Note Log::.
 
-`logdir DIRECTORY'
+`logfile FILENAME'
      Place where to collect logfiles.  *Note Log::.
 
 `login [STATE]'
@@ -957,6 +966,9 @@ Command Summary
 `slowpaste MSEC'
      Slow down pasting in windows.  *Note Paste::.
 
+`sorendition [ATTR [COLOR]]'
+     Change text highlighting.  *Note Sorendition::.
+
 `startup_message STATE'
      Display copyright notice on startup.  *Note Startup::.
 
@@ -975,6 +987,9 @@ Command Summary
 
 `terminfo TERM TERMINAL-TWEAKS [WINDOW-TWEAKS]'
      Ditto, for terminfo systems.  *Note Termcap Syntax::.
+
+`termcapinfo TERM TERMINAL-TWEAKS [WINDOW-TWEAKS]'
+     Ditto, for both systems.  *Note Termcap Syntax::.
 
 `time'
      Display time and load average.  *Note Time::.
@@ -997,11 +1012,11 @@ Command Summary
 `version'
      Display `screen' version.  *Note Version::.
 
-`wall MESSAGE ...'
+`wall MESSAGE'
      Write a message to all displays.  *Note Multiuser Session::.
 
 `width [NUM]'
-     Set the width of the window.  *Note Width::.
+     Set the width of the window.  *Note Window Size::.
 
 `windows'
      List active windows.  *Note Windows::.
@@ -1034,7 +1049,8 @@ New Window
    This section describes the commands for creating a new window for
 running programs.  When a new window is created, the first available
 number from the range 0...9 is assigned to it.  There can be no more
-than 10 windows active at any one time.
+than 10 windows active at any one time unless `screen' was compiled
+with a higher MAXWIN setting.
 
 * Menu:
 
@@ -1157,8 +1173,7 @@ Term
      That is, one may want to specify special `$TERM' settings (e.g.
      vt100) for the next `screen rlogin othermachine' command. Use the
      command `screen -T vt100 rlogin othermachine' rather than setting
-     (`term vt100') and resetting (`term screen') the default before
-     and after the `screen' command.
+     and resetting the default.
 
 
 File: screen.info,  Node: Selecting,  Next: Session Management,  Prev: New Window,  Up: Top
@@ -1202,11 +1217,9 @@ Other Window
  - Command: other
      (`C-a C-a')
      Switch to the last window displayed.  Note that this command
-     defaults to the command character typed twice, unless overridden;
-     for instance, if you use the option `-e]x', this command becomes
-     `]]', not `]C-a' (*note Command Character::.).  On the other hand,
-     if you use the option `-e``', this command remains `` C-a', since
-     ```' is bound to `meta'.
+     defaults to the command character typed twice, unless overridden.
+     For instance, if you use the option `-e]x', this command becomes
+     `]]' (*note Command Character::.).
 
 
 File: screen.info,  Node: Select,  Prev: Other Window,  Up: Selecting
@@ -1409,7 +1422,7 @@ File: screen.info,  Node: Wall,  Next: Writelock,  Prev: Acldel,  Up: Multiuser 
 Wall
 ----
 
- - Command: wall MESSAGE ...
+ - Command: wall MESSAGE
      (none)
      Write a message to all displays. The message will appear in the
      terminal's status line.
@@ -1490,13 +1503,12 @@ terminal emulation itself.
 
 * Menu:
 
-* Naming Windows::               Control the name of the window
-* Autonuke::			Flush unseen output
+* Naming Windows::		Control the name of the window
 * Console::			See the host's console messages
 * Kill::                        Destroy an unwanted window
 * Login::                       Control `/etc/utmp' logging
 * Mode::                        Control the file mode of the pty
 * Monitor::                     Watch for activity in a window
-* Obuflimit::			Allow pending output when reading more
-* Windows::                     List the active windows
+* Windows::			List the active windows
+* Hardstatus::			Set a window's hardstatus line
 

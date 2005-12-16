@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -68,7 +69,7 @@ register char *str1, *str2;
 
   len1 = strlen(str1);
   if (len1 == 0)
-    return(str2);
+    return str2;
   add_colon = (str1[len1 - 1] != ':');
   if (str2)
     {
@@ -206,9 +207,9 @@ char *rcfilename;
 	  DisplaySleep(atoi(args[1]));
 	}
 #ifdef TERMINFO
-      else if (strcmp(args[0], "terminfo") == 0)
+      else if (!strcmp(args[0], "termcapinfo") || !strcmp(args[0], "terminfo"))
 #else
-      else if (strcmp(args[0], "termcap") == 0)
+      else if (!strcmp(args[0], "termcapinfo") || !strcmp(args[0], "termcap"))
 #endif
 	{
 	  if (!display)
@@ -272,9 +273,7 @@ char *rcfilename;
 
   debug("finishrc is going...\n");
   while (fgets(buf, sizeof buf, fp) != NULL)
-    {
-      RcLine(buf);
-    }
+    RcLine(buf);
   (void) fclose(fp);
   Free(rc_name);
   rc_name = "";
@@ -293,6 +292,7 @@ char *rcfilename;
  *	"$:terminfoname:"	-> "termcapvalue"
  *
  *	"\101"			-> "A"
+ *	"^a"			-> "\001"
  */
 char *
 expand_vars(ss)
@@ -304,6 +304,7 @@ char *ss;
   register char *s = ss;
   register char *v;
   char xbuf[11];
+  int i;
 
   while (*s && *s != '\0' && *s != '\n' && esize > 0)
     {
@@ -364,6 +365,17 @@ char *ss;
 	    p++;
 	  s = p;
 	}
+      else if (*s == '^' && !quofl)
+	{
+	  s++;
+	  i = *s++;
+	  if (i == '?')
+	    i = '\177';
+	  else
+	    i &= 0x1f;
+	  *e++ = i;
+	  esize--;
+	}
       else
 	{
 	  /*
@@ -374,8 +386,6 @@ char *ss;
 	    {
 	      if (s[1] >= '0' && s[1] <= '7')
 		{
-		  int i;
-
 		  s++;
 		  i = *s - '0';
 		  s++;
@@ -399,7 +409,9 @@ char *ss;
 		  if (s[1] == '$' || 
 		      (s[1] == '\\' && s[2] == '$') ||
 		      s[1] == '\'' || 
-		      (s[1] == '\\' && s[2] == '\''))
+		      (s[1] == '\\' && s[2] == '\'') ||
+		      s[1] == '^' || 
+		      (s[1] == '\\' && s[2] == '^'))
 		    s++;
 		}
 	    }
@@ -488,7 +500,7 @@ int dump;
 		}
 	      for (i = 0; i < D_height; i++)
 		{
-		  p = fore->w_image[i];
+		  p = fore->w_mlines[i].image;
 		  for (k = D_width - 1; k >= 0 && p[k] == ' '; k--)
 		    ;
 		  for (j = 0; j <= k; j++)
@@ -607,13 +619,10 @@ int *lenp;
 void
 KillBuffers()
 {
-  char fn[1024];
-  sprintf(fn, "%s", BufferFile);
-
   if (UserContext() > 0)
-    UserReturn(unlink(SockPath) ? errno : 0);
+    UserReturn(unlink(BufferFile) ? errno : 0);
   errno = UserStatus();
-  Msg(errno, "%s %sremoved", fn, errno ? "not " : "");
+  Msg(errno, "%s %sremoved", BufferFile, errno ? "not " : "");
 }
 #endif	/* COPY_PASTE */
 
@@ -642,7 +651,7 @@ char *mode;
   return fi;
 #else
   if (eff_uid == real_uid)
-    return(fopen(name, mode));
+    return fopen(name, mode);
   if (mode[0] && mode[1] == '+')
     flags = O_RDWR;
   else
@@ -654,16 +663,16 @@ char *mode;
   else if (mode[0] != 'r')
     {
       errno = EINVAL;
-      return(0);
+      return 0;
     }
   if ((fd = secopen(name, flags, 0666)) < 0)
-    return(0);
+    return 0;
   if ((fi = fdopen(fd, mode)) == 0)
     {
       close(fd);
-      return(0);
+      return 0;
     }
-  return(fi);
+  return fi;
 #endif
 }
 
@@ -690,7 +699,7 @@ int mode;
   return fd;
 #else
   if (eff_uid == real_uid)
-    return(open(name, flags, mode));
+    return open(name, flags, mode);
   /* Truncation/creation is done in UserContext */
   if ((flags & O_TRUNC) || ((flags & O_CREAT) && access(name, F_OK)))
     {
@@ -709,18 +718,18 @@ int mode;
 	{
 	  if (q > 0)
 	    errno = q;
-          return(-1);
+          return -1;
 	}
     }
   if (access(name, F_OK))
-    return(-1);
+    return -1;
   if ((fd = open(name, flags & ~(O_TRUNC | O_CREAT), 0)) < 0)
-    return(-1);
+    return -1;
   debug("open successful\n");
   if (fstat(fd, &stb))
     {
       close(fd);
-      return(-1);
+      return -1;
     }
   debug("fstat successful\n");
   if (stb.st_uid != real_uid)
@@ -742,10 +751,10 @@ int mode;
           debug1("secopen: permission denied (%03o)\n", stb.st_mode & 07777);
 	  close(fd);
 	  errno = EACCES;
-	  return(-1);
+	  return -1;
 	}
     }
   debug1("secopen ok - returning %d\n", fd);
-  return(fd);
+  return fd;
 #endif
 }

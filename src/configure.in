@@ -56,6 +56,11 @@ AC_PROG_AWK
 
 AC_PROG_INSTALL
 
+if test -f etc/toolcheck; then
+AC_CHECKING(for buggy tools)
+sh etc/toolcheck
+fi
+
 dnl
 dnl    ****  special unix variants  ****
 dnl
@@ -69,6 +74,10 @@ dnl if test `/bin/uname` = OSF1 || test -f /osf_boot; then
 dnl AC_DEFINE(OSF1)	# this disables MIPS again....
 dnl fi
 dnl fi
+
+if test -f /sysV68 ; then
+AC_DEFINE(sysV68)
+fi
 
 AC_CHECKING(for MIPS)
 if test -f /lib/libmld.a || test -f /usr/lib/libmld.a || test -f /usr/lib/cmplrs/cc/libmld.a; then
@@ -195,11 +204,11 @@ setreuid(0, 0);
 dnl
 dnl seteuid() check:
 dnl   linux seteuid was broken before V1.1.11
-dnl   NeXT, AUX and ultrix are still broken (no saved uid support)
+dnl   NeXT, AUX, ISC, and ultrix are still broken (no saved uid support)
 dnl   Solaris seteuid doesn't change the saved uid, bad for
 dnl     multiuser screen sessions
 AC_COMPILE_CHECK(seteuid, , [
-#if defined(linux) || defined(NeXT) || defined(_AUX_SOURCE) || defined(AUX) || defined(ultrix) || (defined(sun) && defined(SVR4))
+#if defined(linux) || defined(NeXT) || defined(_AUX_SOURCE) || defined(AUX) || defined(ultrix) || (defined(sun) && defined(SVR4)) || defined(ISC) || defined(sony_news)
 seteuid_is_broken(0);
 #else
 seteuid(0);
@@ -631,7 +640,23 @@ AC_COMPILE_CHECK(getutent, [#include <time.h> /* to get time_t on SCO */
 #define pututline _pututline
 #endif
 ],
-[int x = DEAD_PROCESS; struct utmp *y = pututline((struct utmp *)0); getutent();], AC_DEFINE(GETUTENT))
+[int x = DEAD_PROCESS; struct utmp *y = pututline((struct utmp *)0); getutent();], AC_DEFINE(GETUTENT),
+olibs="$LIBS"
+LIBS="$LIBS -lgen"
+AC_COMPILE_CHECK(getutent with -lgen, [#include <time.h>
+#include <sys/types.h>
+#if defined(SVR4) && !defined(DGUX)
+#include <utmpx.h>
+#define utmp utmpx
+#else
+#include <utmp.h>
+#endif
+#ifdef __hpux
+#define pututline _pututline
+#endif
+],
+[int x = DEAD_PROCESS; struct utmp *y = pututline((struct utmp *)0); getutent();], AC_DEFINE(GETUTENT), LIBS="$olibs")
+)
 AC_COMPILE_CHECK(ut_host, [#include <time.h>
 #include <sys/types.h>
 #if defined(SVR4) && !defined(DGUX)
@@ -669,7 +694,7 @@ AC_PROGRAM_EGREP(yes,
 fi
 if test -z "$load" ; then
 AC_CHECKING(for kernelfile)
-for core in /unix /vmunix /dynix /hp-ux /xelos /386bsd /kernel/unix /unicos /mach; do
+for core in /unix /vmunix /dynix /hp-ux /xelos /386bsd /kernel/unix /unicos /mach /stand/vmunix; do
   if test -f $core ; then
     break
   fi

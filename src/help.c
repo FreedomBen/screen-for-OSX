@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -34,6 +35,7 @@ char version[40];      /* initialised by main() */
 
 extern struct display *display;
 extern char *noargs[];
+extern struct mchar mchar_null;
 
 
 void
@@ -250,14 +252,12 @@ helppage()
   helpdata = (struct helpdata *)D_lay->l_data;
 
   if (helpdata->grow >= helpdata->maxrow)
-    { 
-      return(-1);
-    }
+    return -1;
   helpdata->refgrow = helpdata->grow;
   helpdata->refcommand_search = helpdata->command_search;
 
   /* Clear the help screen */
-  SetAttrFont(0, ASCII);
+  SetRendition(&mchar_null);
   ClearDisplay();
   
   sprintf(cbuf,"Screen key bindings, page %d of %d.", helpdata->grow / (D_height-5) + 1, helpdata->numpages);
@@ -325,7 +325,7 @@ helppage()
 	 helpdata->grow < helpdata->maxrow ? "for next page;" : "or");
   centerline(cbuf);
   SetLastPos(0, D_height-1);
-  return(0);
+  return 0;
 }
 
 static int
@@ -388,7 +388,9 @@ int key;
 {
   debug1("help: key found: %c\n", key);
   buf += strlen(buf);
-  if (key == ' ')
+  if (key < 0)
+    sprintf(buf, "unset");
+  else if (key == ' ')
     sprintf(buf, "sp");
   else buf[AddXChar(buf, key)] = 0;
 }
@@ -465,7 +467,8 @@ GNU General Public License for more details.\n\
 \n\
 You should have received a copy of the GNU General Public License \
 along with this program (see the file COPYING); if not, write to the \
-Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.\n\
+Free Software Foundation, Inc., \
+59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.\n\
 \n\
 Send bugreports, fixes, enhancements, t-shirts, money, beer & pizza to \
 screen@uni-erlangen.de\n";
@@ -546,7 +549,7 @@ copypage()
   struct copydata *copydata;
 
   copydata = (struct copydata *)D_lay->l_data;
-  SetAttrFont(0, ASCII);
+  SetRendition(&mchar_null);
   ClearDisplay();
   x = y = 0;
   cps = copydata->cps;
@@ -738,7 +741,7 @@ bindkeypage()
 
   bindkeydata = (struct bindkeydata *)D_lay->l_data;
 
-  SetAttrFont(0, ASCII);
+  SetRendition(&mchar_null);
   ClearDisplay();
 
   sprintf(tbuf, "%s key bindings, page %d of %d.", bindkeydata->title, bindkeydata->page, bindkeydata->pages);

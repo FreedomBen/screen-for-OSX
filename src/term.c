@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -110,6 +111,13 @@ struct term term[T_N] =
   { "sg", T_NUM  },
   { "ug", T_NUM  },
 
+/* color */
+  { "AF", T_STR  },
+  { "AB", T_STR  },
+  { "Sf", T_STR  },
+  { "Sb", T_STR  },
+  { "AX", T_FLG  },
+
 /* keypad/cursorkeys */
   { "ks", T_STR  },
   { "ke", T_STR  },
@@ -129,6 +137,7 @@ struct term term[T_N] =
 
 /* cursor visibility */
   { "vi", T_STR  },
+  { "vs", T_STR  },
   { "ve", T_STR  },
 
 /* margin handling */
@@ -155,7 +164,8 @@ struct term term[T_N] =
   { "as", T_STR  },
   { "ae", T_STR  },
   { "ac", T_STR  },
-  { "B8", T_STR  },
+  { "eA", T_STR  },
+  { "XC", T_STR  },
 
 /* keycaps */
 /* define T_CAPS */

@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -40,17 +41,13 @@ RCS_ID("$Id$ FAU")
 #include "extern.h"
 
 static void CheckMaxSize __P((int));
-static int ResizeScreenArray __P((struct win *, char ***, int, int, int));
-static void FreeArray __P((char ***, int));
-#ifdef COPY_PASTE
-static int ResizeHistArray __P((struct win *, char ***, int, int, int));
-static void FreeScrollback __P((struct win *));
-#endif
+static void FreeMline  __P((struct mline *));
+static int  AllocMline __P((struct mline *ml, int));
+static void MakeBlankLine __P((char *, int));
 
-extern int maxwidth;
 extern struct display *display, *displays;
-extern char *blank, *null, *OldImage, *OldAttr;
-extern char *OldFont;
+extern char *blank, *null;
+extern struct mline mline_blank, mline_null, mline_old;
 extern struct win *windows;
 extern int Z0width, Z1width;
 
@@ -61,6 +58,15 @@ extern int nethackflag;
 #if defined(TIOCGWINSZ) || defined(TIOCSWINSZ)
   struct winsize glwz;
 #endif
+
+static struct mline mline_zero = {
+ (char *)0,
+ (char *)0,
+ (char *)0
+#ifdef COLOR
+ ,(char *)0
+#endif
+};
 
 /*
  * ChangeFlag:   0: try to modify no window
@@ -113,7 +119,7 @@ int change_flag;
       debug("Trying to adapt all windows (-A)\n");
       for (p = windows; p; p = p->w_next)
 	if (p->w_display == 0 || p->w_display == display)
-          ChangeWindowSize(p, wi, he);
+          ChangeWindowSize(p, wi, he, p->w_histheight);
     }
   if (D_width == wi && D_height == he)
     {
@@ -184,7 +190,7 @@ int change_fore;
 	      else
 		wwi = Z1width;
 	    }
-          ChangeWindowSize(p, wwi, he);
+          ChangeWindowSize(p, wwi, he, p->w_histheight);
         }
     }
 }
@@ -213,212 +219,80 @@ int wi, he;
     }
 }
 
-#ifdef COPY_PASTE
-
-int
-ChangeScrollback(p, histheight, histwidth)
-struct win *p;
-int histheight, histwidth;
-{
-  if (histheight > MAXHISTHEIGHT)
-    histheight = MAXHISTHEIGHT;
-  debug2("ChangeScrollback(..., %d, %d)\n", histheight, histwidth);
-  debug2("  was %d, %d\n", p->w_histheight, p->w_width);
-
-  if (histheight == 0)
-    {
-      FreeScrollback(p);
-      return 0;
-    }
-
-  if (ResizeHistArray(p, &p->w_ihist, histwidth, histheight, 1)
-      || ResizeHistArray(p, &p->w_ahist, histwidth, histheight, 0)
-      || ResizeHistArray(p, &p->w_fhist, histwidth, histheight, 0))
-    {
-      debug("   failed, removing all histbuf\n");
-      FreeScrollback(p);
-      Msg(0, strnomem);
-      return -1;
-    }
-  if (p->w_histheight != histheight)
-    p->w_histidx = 0;
-  p->w_histheight = histheight;
-
-  return 0;
-}
 
 static void
-FreeScrollback(p)
-struct win *p;
+FreeMline(ml)
+struct mline *ml;
 {
-  FreeArray(&p->w_ihist, p->w_histheight);
-  FreeArray(&p->w_ahist, p->w_histheight);
-  FreeArray(&p->w_fhist, p->w_histheight);
-  p->w_histheight = 0;
+  if (ml->image)
+    free(ml->image);
+  if (ml->attr && ml->attr != null)
+    free(ml->attr);
+  if (ml->font && ml->font != null)
+    free(ml->font);
+#ifdef COLOR
+  if (ml->color && ml->color != null)
+    free(ml->color);
+#endif
+  *ml = mline_zero;
 }
 
 static int
-ResizeHistArray(p, arr, wi, hi, fillblank)
-struct win *p;
-char ***arr;
-int wi, hi, fillblank;
+AllocMline(ml, w)
+struct mline *ml;
+int w;
 {
-  char **narr, **np, **onp, **onpe;
-  int t, x, first;
-
-  if (p->w_width == wi && p->w_histheight == hi)
-    return(0);
-  if (p->w_histheight != hi)
-    {
-      if ((narr = (char **)calloc(sizeof(char *), hi)) == NULL)
-	{
-	  FreeArray(arr, p->w_histheight);
-	  return(-1);
-	}
-      np = narr;
-      onp = (*arr) + p->w_histidx;
-      onpe = (*arr) + p->w_histheight;
-      first = p->w_histheight - hi;
-      if (first < 0)
-	 np -= first;
-      for(t = 0; t < p->w_histheight; t++)
-	{
-	  ASSERT(*onp);
-          if (t - first >= 0 && t - first < hi)
-	    *np++ = *onp;
-	  else if (*onp != null)
-	    free(*onp);
-	  if (++onp == onpe)
-	    onp = *arr;
-	}
-      if (*arr)
-	free((char *)*arr);
-    }
-  else
-    narr = *arr;
- 
-  for (t=0, np=narr; t < hi; t++, np++)
-    {
-      if ((!fillblank && *np == 0) || *np == null)
-	{
-	  *np = null;
-	  continue;
-	}
-      x = p->w_width;
-      if (*np == 0)
-	{
-	  *np = (char *)malloc(wi + 1);
-          x = 0;
-	}
-      else if (p->w_width != wi)
-	{
-	  *np = (char *)xrealloc(*np, wi + 1);
-	}
-      if (*np == 0)
-	{
-	  FreeArray(&narr, hi);
-	  return -1;
-	}
-      if (x > wi)
-	x = wi;
-      if (fillblank)
-	bclear(*np + x, wi + 1 - x);
-      else
-	bzero(*np + x, wi + 1 - x);
-    }
-  *arr = narr;
-  return 0;
-}
-#endif /* COPY_PASTE */
-      
-
-static int
-ResizeScreenArray(p, arr, wi, hi, fillblank)
-struct win *p;
-char ***arr;
-int wi, hi, fillblank;
-{
-  int minr;
-  char **cp;
-
-  if (p->w_width == wi && p->w_height == hi)
-    return(0);
-
-  if (hi > p->w_height)
-    minr = p->w_height;
-  else
-    minr = hi;
-
-  if (p->w_height > hi)
-    {
-      for (cp = *arr; cp < *arr + (p->w_height - hi); cp++)
-        if (*cp != null)
-	  free(*cp);
-      bcopy((char *)(*arr + (p->w_height - hi)), (char *)(*arr),
-	    hi * sizeof(char *));
-    }
-  if (*arr && p->w_width != wi)
-    for (cp = *arr; cp < *arr + minr; cp++)
-      {
-	int x = p->w_width;
-
-	if (*cp == null)
-	  continue;
-	if ((*cp = (char *)xrealloc(*cp, (unsigned) wi + 1)) == 0)
-	  {
-	    FreeArray(arr, p->w_height);
-	    return(-1);
-	  }
-	if (x > wi)
-	  x = wi;
-	if (fillblank)
-	  bclear(*cp + x, wi + 1 - x);
-	else
-	  bzero(*cp + x, wi + 1 - x);
-      }
-  if (*arr)
-    *arr = (char **) xrealloc((char *) *arr, (unsigned) hi * sizeof(char *));
-  else
-    *arr = (char **) malloc((unsigned) hi * sizeof(char *));
-  if (*arr == NULL)
+  ml->image = malloc(w);
+  ml->attr  = null;
+  ml->font  = null;
+#ifdef COLOR
+  ml->color = null;
+#endif
+  if (ml->image == 0)
     return -1;
-  for (cp = *arr + p->w_height; cp < *arr + hi; cp++)
-    {
-      if (!fillblank)
-	{
-	  *cp = null;
-	  continue;
-	}
-      if ((*cp = malloc((unsigned) wi + 1)) == 0)
-	{
-	  while (--cp >= *arr)
-	    free(*cp);
-	  free((char *)*arr);
-	  *arr = NULL;
-          return -1;
-	}
-      bclear(*cp, wi + 1);
-    }
   return 0;
 }
 
-static void
-FreeArray(arr, hi)
-char ***arr;
-int hi;
-{
-  register char **p;
-  register int t;
 
-  if (*arr == 0)
-    return;
-  for (t = hi, p = *arr; t--; p++)
-    if (*p && *p != null)
-      free(*p);
-  free((char *)*arr);
-  *arr = 0;
+static int
+BcopyMline(mlf, xf, mlt, xt, l, w)
+struct mline *mlf, *mlt;
+int xf, xt, l, w;
+{
+  int r = 0;
+
+  bcopy(mlf->image + xf, mlt->image + xt, l);
+  if (mlf->attr != null && mlt->attr == null)
+    {
+      if ((mlt->attr = malloc(w)) == 0)
+	mlt->attr = null, r = -1;
+      bzero(mlt->attr, w);
+    }
+  if (mlt->attr != null)
+    bcopy(mlf->attr + xf, mlt->attr + xt, l);
+  if (mlf->font != null && mlt->font == null)
+    {
+      if ((mlt->font = malloc(w)) == 0)
+	mlt->font = null, r = -1;
+      bzero(mlt->font, w);
+    }
+  if (mlt->font != null)
+    bcopy(mlf->font + xf, mlt->font + xt, l);
+#ifdef COLOR
+  if (mlf->color != null && mlt->color == null)
+    {
+      if ((mlt->color = malloc(w)) == 0)
+	mlt->color = null, r = -1;
+      bzero(mlt->color, w);
+    }
+  if (mlt->color != null)
+    bcopy(mlf->color + xf, mlt->color + xt, l);
+#endif
+  return r;
 }
 
+
+static int maxwidth;
 
 static void
 CheckMaxSize(wi)
@@ -427,6 +301,7 @@ int wi;
   char *oldnull = null;
   struct win *p;
   int i;
+  struct mline *ml;
 
   wi = ((wi + 1) + 255) & ~255;
   if (wi <= maxwidth)
@@ -436,174 +311,88 @@ int wi;
   if (blank == 0)
     blank = malloc((unsigned) maxwidth);
   else
-    blank = xrealloc(blank, (unsigned) maxwidth);
+    blank = xrealloc(blank, maxwidth);
   if (null == 0)
     null = malloc((unsigned) maxwidth);
   else
-    null = xrealloc(null, (unsigned) maxwidth);
-  if (OldImage == 0)
-    OldImage = malloc((unsigned) maxwidth);
+    null = xrealloc(null, maxwidth);
+  if (mline_old.image == 0)
+    mline_old.image = malloc((unsigned) maxwidth);
   else
-    OldImage = xrealloc(OldImage, (unsigned) maxwidth);
-  if (OldAttr == 0)
-    OldAttr = malloc((unsigned) maxwidth);
+    mline_old.image = xrealloc(mline_old.image, maxwidth);
+  if (mline_old.attr == 0)
+    mline_old.attr = malloc((unsigned) maxwidth);
   else
-    OldAttr = xrealloc(OldAttr, (unsigned) maxwidth);
-  if (OldFont == 0)
-    OldFont = malloc((unsigned) maxwidth);
+    mline_old.attr = xrealloc(mline_old.attr, maxwidth);
+  if (mline_old.font == 0)
+    mline_old.font = malloc((unsigned) maxwidth);
   else
-    OldFont = xrealloc(OldFont, (unsigned) maxwidth);
-  if (!(blank && null && OldImage && OldAttr && OldFont))
+    mline_old.font = xrealloc(mline_old.font, maxwidth);
+#ifdef COLOR
+  if (mline_old.color == 0)
+    mline_old.color = malloc((unsigned) maxwidth);
+  else
+    mline_old.color = xrealloc(mline_old.color, maxwidth);
+  if (!(blank && null && mline_old.image && mline_old.attr
+                      && mline_old.font && mline_old.color))
     {
       Panic(0, "Out of memory -> Game over!!");
       /*NOTREACHED*/
     }
+#else
+  if (!(blank && null && mline_old.image && mline_old.attr
+                      && mline_old.font))
+    {
+      Panic(0, "Out of memory -> Game over!!");
+      /*NOTREACHED*/
+    }
+#endif
   MakeBlankLine(blank, maxwidth);
   bzero(null, maxwidth);
+
+  mline_blank.image = blank;
+  mline_blank.attr  = null;
+  mline_blank.font  = null;
+  mline_null.image = null;
+  mline_null.attr  = null;
+  mline_null.font  = null;
+#ifdef COLOR
+  mline_blank.color = null;
+  mline_null.color = null;
+#endif
 
   /* We have to run through all windows to substitute
    * the null references.
    */
   for (p = windows; p; p = p->w_next)
     {
-      for (i = 0; i < p->w_height; i++)
+      ml = p->w_mlines;
+      for (i = 0; i < p->w_height; i++, ml++)
 	{
-	  if (p->w_attr[i] == oldnull)
-	    p->w_attr[i] = null;
-	  if (p->w_font[i] == oldnull)
-	    p->w_font[i] = null;
+	  if (ml->attr == oldnull)
+	    ml->attr = null;
+	  if (ml->font == oldnull)
+	    ml->font = null;
+#ifdef COLOR
+	  if (ml->color== oldnull)
+	    ml->color= null;
+#endif
 	}
 #ifdef COPY_PASTE
-      for (i = 0; i < p->w_histheight; i++)
+      ml = p->w_hlines;
+      for (i = 0; i < p->w_histheight; i++, ml++)
 	{
-	  if (p->w_ahist[i] == oldnull)
-	    p->w_ahist[i] = null;
-	  if (p->w_fhist[i] == oldnull)
-	    p->w_fhist[i] = null;
+	  if (ml->attr == oldnull)
+	    ml->attr = null;
+	  if (ml->font == oldnull)
+	    ml->font = null;
+# ifdef COLOR
+	  if (ml->color== oldnull)
+	    ml->color= null;
+# endif
 	}
 #endif
     }
-}
-
-
-int
-ChangeWindowSize(p, wi, he)
-struct win *p;
-int wi, he;
-{
-  int t, scr;
-  
-  CheckMaxSize(wi);
-  
-  if (wi == p->w_width && he == p->w_height)
-    {
-      debug("ChangeWindowSize: No change.\n");
-      return 0;
-    }
-
-  debug2("ChangeWindowSize from (%d,%d) to ", p->w_width, p->w_height);
-  debug2("(%d,%d)\n", wi, he);
-  if (p->w_lay != &p->w_winlay)
-    {
-      debug("ChangeWindowSize: No resize because of overlay.\n");
-      return -1;
-    }
-  if (wi == 0 && he == 0)
-    {
-      FreeArray(&p->w_image, p->w_height);
-      FreeArray(&p->w_attr, p->w_height);
-      FreeArray(&p->w_font, p->w_height);
-      if (p->w_tabs)
-	free(p->w_tabs);
-      p->w_tabs = NULL;
-      p->w_width = 0;
-      p->w_height = 0;
-#ifdef COPY_PASTE
-      FreeScrollback(p);
-#endif
-      return 0;
-    }
-
-  /* when window gets smaller, scr is the no. of lines we scroll up */
-  scr = p->w_height - he;
-  if (scr < 0)
-    scr = 0;
-#ifdef COPY_PASTE
-  for (t = 0; t < scr; t++)
-    AddLineToHist(p, p->w_image+t, p->w_attr+t, p->w_font+t); 
-#endif
-  if (ResizeScreenArray(p, &p->w_image, wi, he, 1)
-      || ResizeScreenArray(p, &p->w_attr, wi, he, 0)
-      || ResizeScreenArray(p, &p->w_font, wi, he, 0))
-    {
-nomem:	  KillWindow(p);
-      Msg(0, "Out of memory -> Window destroyed !!");
-      return -1;
-    }
-  /* this won't change the D_height of the scrollback history buffer, but
-   * it will check the D_width of the lines.
-   */
-#ifdef COPY_PASTE
-  ChangeScrollback(p, p->w_histheight, wi);
-#endif
-
-  if (p->w_tabs == 0)
-    {
-      /* tabs get D_width+1 because 0 <= x <= wi */
-      if ((p->w_tabs = malloc((unsigned) wi + 1)) == 0)
-        goto nomem;
-      t = 8;
-    }
-  else
-    {
-      if ((p->w_tabs = xrealloc(p->w_tabs, (unsigned) wi + 1)) == 0)
-        goto nomem;
-      t = p->w_width;
-    }
-  for (t = (t + 7) & 8; t < wi; t += 8)
-    p->w_tabs[t] = 1; 
-  p->w_height = he;
-  p->w_width = wi;
-  if (p->w_x >= wi)
-    p->w_x = wi - 1;
-  if ((p->w_y -= scr) < 0)
-    p->w_y = 0;
-  if (p->w_Saved_x >= wi)
-    p->w_Saved_x = wi - 1;
-  if ((p->w_Saved_y -= scr) < 0)
-    p->w_Saved_y = 0;
-  if (p->w_autoaka > 0) 
-    if ((p->w_autoaka -= scr) < 1)
-      p->w_autoaka = 1;
-  p->w_top = 0;
-  p->w_bot = he - 1;
-#ifdef TIOCSWINSZ
-  if (p->w_ptyfd >= 0 && p->w_pid)
-    {
-      glwz.ws_col = wi;
-      glwz.ws_row = he;
-      debug("Setting pty winsize.\n");
-      if (ioctl(p->w_ptyfd, TIOCSWINSZ, (char *)&glwz))
-	debug2("SetPtySize: errno %d (fd:%d)\n", errno, p->w_ptyfd);
-# if defined(STUPIDTIOCSWINSZ) && defined(SIGWINCH)
-#  ifdef POSIX
-      pgrp = tcgetpgrp(p->w_ptyfd);
-#  else /* POSIX */
-      if (ioctl(p->w_ptyfd, TIOCGPGRP, (char *)&pgrp))
-	pgrp = 0;
-#  endif /* POSIX */
-      if (pgrp)
-	{
-	  debug1("Sending SIGWINCH to pgrp %d.\n", pgrp);
-	  if (killpg(pgrp, SIGWINCH))
-	    debug1("killpg: errno %d\n", errno);
-	}
-      else
-	debug1("Could not get pgrp: errno %d\n", errno);
-# endif /* STUPIDTIOCSWINSZ */
-    }
-#endif /* TIOCSWINSZ */
-  return 0;
 }
 
 
@@ -615,7 +404,347 @@ int len;
   register char *nmem;
 
   if ((nmem = realloc(mem, len)))
-    return(nmem);
+    return nmem;
   free(mem);
-  return((char *)0);
+  return (char *)0;
 }
+
+static void
+MakeBlankLine(p, n)
+register char *p;
+register int n;
+{
+  while (n--)
+    *p++ = ' ';
+}
+
+
+
+
+#ifdef COPY_PASTE
+
+#define OLDWIN(y) ((y < p->w_histheight) \
+        ? &p->w_hlines[(p->w_histidx + y) % p->w_histheight] \
+        : &p->w_mlines[y - p->w_histheight])
+
+#define NEWWIN(y) ((y < hi) ? &nhlines[y] : &nmlines[y - hi])
+	
+#else
+
+#define OLDWIN(y) (&p->w_mlines[y])
+#define NEWWIN(y) (&nmlines[y])
+
+#endif
+
+
+int
+ChangeWindowSize(p, wi, he, hi)
+struct win *p;
+int wi, he, hi;
+{
+  struct mline *mlf = 0, *mlt = 0, *ml, *nmlines, *nhlines;
+  int fy, ty, l, lx, lf, lt, yy, oty, addone;
+  int ncx, ncy, naka, t;
+
+  if (wi == 0)
+    he = hi = 0;
+
+  if (p->w_width == wi && p->w_height == he && p->w_histheight == hi)
+    {
+      debug("ChangeWindowSize: No change.\n");
+      return 0;
+    }
+
+  CheckMaxSize(wi);
+
+  /* just in case ... */
+  if (wi && (p->w_width != wi || p->w_height != he) && p->w_lay != &p->w_winlay)
+    {
+      debug("ChangeWindowSize: No resize because of overlay?\n");
+      return -1;
+    }
+
+  debug("ChangeWindowSize");
+  debug3(" from (%d,%d)+%d", p->w_width, p->w_height, p->w_histheight);
+  debug3(" to(%d,%d)+%d\n", wi, he, hi);
+
+  fy = p->w_histheight + p->w_height - 1;
+  ty = hi + he - 1;
+
+  nmlines = nhlines = 0;
+  ncx = 0;
+  ncy = 0;
+  naka = 0;
+
+  if (wi)
+    {
+      if (wi != p->w_width || he != p->w_height)
+	{
+	  if ((nmlines = (struct mline *)calloc(he, sizeof(struct mline))) == 0)
+	    {
+	      KillWindow(p);
+	      Msg(0, strnomem);
+	      return -1;
+	    }
+	}
+      else
+	{
+	  debug1("image stays the same: %d lines\n", he);
+	  nmlines = p->w_mlines;
+	  fy -= he;
+	  ty -= he;
+	  ncx = p->w_x;
+	  ncy = p->w_y;
+	  naka = p->w_autoaka;
+	}
+    }
+#ifdef COPY_PASTE
+  if (hi)
+    {
+      if ((nhlines = (struct mline *)calloc(hi, sizeof(struct mline))) == 0)
+	{
+	  Msg(0, "No memory for history buffer - turned off");
+	  hi = 0;
+	  ty = he - 1;
+	}
+    }
+#endif
+
+  /* special case: cursor is at magic margin position */
+  addone = 0;
+  if (p->w_width && p->w_x == p->w_width)
+    {
+      debug2("Special addone case: %d %d\n", p->w_x, p->w_y);
+      addone = 1;
+      p->w_x--;
+    }
+
+  debug2("fy %d ty %d\n", fy, ty);
+  if (fy >= 0)
+    mlf = OLDWIN(fy);
+  if (ty >= 0)
+    mlt = NEWWIN(ty);
+
+  while (fy >= 0 && ty >= 0)
+    {
+      if (p->w_width == wi)
+	{
+	  /* here is a simple shortcut: just copy over */
+	  *mlt = *mlf;
+          *mlf = mline_zero;
+	  if (fy == p->w_y + p->w_histheight)
+	    {
+	      ncx = p->w_x + addone;
+	      ncy = ty - hi >= 0 ? ty - hi : 0;
+	    }
+	  if (p->w_autoaka > 0 && fy == p->w_autoaka - 1 + p->w_histheight)
+	    naka = ty - hi >= 0 ? 1 + ty - hi : 0;
+	  if (--fy >= 0)
+	    mlf = OLDWIN(fy);
+	  if (--ty >= 0)
+	    mlt = NEWWIN(ty);
+	  continue;
+	}
+
+      /* calculate lenght */
+      for (l = p->w_width - 1; l > 0; l--)
+	if (mlf->image[l] != ' ' || mlf->attr[l])
+	  break;
+      if (fy == p->w_y + p->w_histheight && l < p->w_x)
+	l = p->w_x;	/* cursor is non blank */
+      l++;
+      lf = l;
+
+      /* add wrapped lines to length */
+      for (yy = fy - 1; yy >= 0; yy--)
+	{
+	  ml = OLDWIN(yy);
+	  if (ml->image[p->w_width] == ' ')
+	    break;
+	  l += p->w_width;
+	}
+
+      /* rewrap lines */
+      lt = (l - 1) % wi + 1;	/* lf is set above */
+      oty = ty;
+      while (l > 0 && fy >= 0 && ty >= 0)
+	{
+	  lx = lt > lf ? lf : lt;
+	  if (mlt->image == 0)
+	    {
+	      if (AllocMline(mlt, wi + 1))
+		goto nomem;
+    	      MakeBlankLine(mlt->image + lt, wi - lt);
+	      mlt->image[wi] = ((oty == ty) ? ' ' : 0);
+	    }
+	  if (BcopyMline(mlf, lf - lx, mlt, lt - lx, lx, wi + 1))
+	    goto nomem;
+
+	  /* did we copy the cursor ? */
+	  if (fy == p->w_y + p->w_histheight && lf - lx <= p->w_x && lf > p->w_x)
+	    {
+	      ncx = p->w_x + lt - lf + addone;
+	      ncy = ty - hi >= 0 ? ty - hi : 0;
+	    }
+	  /* did we copy autoaka line ? */
+	  if (p->w_autoaka > 0 && fy == p->w_autoaka - 1 + p->w_histheight && lf - lx <= 0)
+	    naka = ty - hi >= 0 ? 1 + ty - hi : 0;
+
+	  lf -= lx;
+	  lt -= lx;
+	  l  -= lx;
+	  if (lf == 0)
+	    {
+	      FreeMline(mlf);
+	      lf = p->w_width;
+	      if (--fy >= 0)
+	        mlf = OLDWIN(fy);
+	    }
+	  if (lt == 0)
+	    {
+	      lt = wi;
+	      if (--ty >= 0)
+	        mlt = NEWWIN(ty);
+	    }
+	}
+      ASSERT(l != 0 || fy == yy);
+    }
+  while (fy >= 0)
+    {
+      FreeMline(mlf);
+      if (--fy >= 0)
+	mlf = OLDWIN(fy);
+    }
+  while (ty >= 0)
+    {
+      if (AllocMline(mlt, wi + 1))
+	goto nomem;
+      MakeBlankLine(mlt->image, wi + 1);
+      if (--ty >= 0)
+	mlt = NEWWIN(ty);
+    }
+
+#ifdef DEBUG
+  if (nmlines != p->w_mlines)
+    for (fy = 0; fy < p->w_height + p->w_histheight; fy++)
+      {
+	ml = OLDWIN(fy);
+	ASSERT(ml->image == 0);
+      }
+#endif
+
+  if (p->w_mlines && p->w_mlines != nmlines)
+    free((char *)p->w_mlines);
+  p->w_mlines = nmlines;
+#ifdef COPY_PASTE
+  if (p->w_hlines && p->w_hlines != nhlines)
+    free((char *)p->w_hlines);
+  p->w_hlines = nhlines;
+#endif
+  nmlines = nhlines = 0;
+
+  /* change tabs */
+  if (p->w_width != wi)
+    {
+      if (wi)
+	{
+	  if (p->w_tabs == 0)
+	    {
+	      /* tabs get wi+1 because 0 <= x <= wi */
+	      p->w_tabs = malloc((unsigned) wi + 1);
+	      t = 8;
+	    }
+	  else
+	    {
+	      p->w_tabs = xrealloc(p->w_tabs, wi + 1);
+	      t = p->w_width;
+	    }
+	  if (p->w_tabs == 0)
+	    {
+	    nomem:
+	      if (nmlines)
+		{
+		  for (ty = he + hi - 1; ty >= 0; ty--)
+		    {
+		      mlt = NEWWIN(ty);
+		      FreeMline(mlt);
+		    }
+		  if (nmlines && p->w_mlines != nmlines)
+		    free((char *)nmlines);
+#ifdef COPY_PASTE
+		  if (nhlines && p->w_hlines != nhlines)
+		    free((char *)nhlines);
+#endif
+		}
+	      KillWindow(p);
+	      Msg(0, strnomem);
+	      return -1;
+	    }
+	  for (t = (t + 7) & 8; t < wi; t += 8)
+	    p->w_tabs[t] = 1; 
+	}
+      else
+	{
+	  if (p->w_tabs)
+	    free(p->w_tabs);
+	  p->w_tabs = 0;
+	}
+    }
+
+  /* Change w_Saved_y - this is only an estimate... */
+  p->w_Saved_y += ncy - p->w_y;
+
+  p->w_x = ncx;
+  p->w_y = ncy;
+  if (p->w_autoaka > 0)
+    p->w_autoaka = naka;
+
+  /* do sanity checks */
+  if (p->w_x > wi)
+    p->w_x = wi;
+  if (p->w_y >= he)
+    p->w_y = he - 1;
+  if (p->w_Saved_x > wi)
+    p->w_Saved_x = wi;
+  if (p->w_Saved_y < 0)
+    p->w_Saved_y = 0;
+  if (p->w_Saved_y >= he)
+    p->w_Saved_y = he - 1;
+
+  /* reset scrolling region */
+  p->w_top = 0;
+  p->w_bot = he - 1;
+
+  /* signal new size to window */
+#ifdef TIOCSWINSZ
+  if (wi && (p->w_width != wi || p->w_height != he) && p->w_ptyfd >= 0 && p->w_pid)
+    {
+      glwz.ws_col = wi;
+      glwz.ws_row = he;
+      debug("Setting pty winsize.\n");
+      if (ioctl(p->w_ptyfd, TIOCSWINSZ, (char *)&glwz))
+	debug2("SetPtySize: errno %d (fd:%d)\n", errno, p->w_ptyfd);
+    }
+#endif /* TIOCSWINSZ */
+
+  /* store new size */
+  p->w_width = wi;
+  p->w_height = he;
+#ifdef COPY_PASTE
+  p->w_histidx = 0;
+  p->w_histheight = hi;
+#endif
+
+#ifdef DEBUG
+  /* Test if everything was ok */
+  for (fy = 0; fy < p->w_height + p->w_histheight; fy++)
+    {
+      ml = OLDWIN(fy);
+      ASSERT(ml->image);
+      for (l = 0; l < p->w_width; l++)
+      ASSERT((unsigned char)ml->image[l] >= ' ');
+    }
+#endif
+  return 0;
+}
+

@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  * $Id$ FAU
@@ -55,7 +56,10 @@ enum state_t
   PRIN,				/* Printer mode */
   PRINESC,			/* ESC seen in printer mode */
   PRINCSI,			/* CSI seen in printer mode */
-  PRIN4				/* CSI 4 seen in printer mode */
+  PRIN4,			/* CSI 4 seen in printer mode */
+  TEK,				/* Tektronix mode */
+  TEKESC,			/* Tektronix escape */
+  TEKEND			/* Tektronix ending sequence */
 };
 
 enum string_t 

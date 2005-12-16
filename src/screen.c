@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -70,6 +71,15 @@ RCS_ID("$Id$ FAU")
 
 #include "patchlevel.h"
 
+/*
+ *  At the moment we only need the real password if the
+ *  builtin lock is used. Therefore disable SHADOWPW if
+ *  we do not really need it (kind of security thing).
+ */
+#ifndef LOCK
+# undef SHADOWPW
+#endif
+
 #include <pwd.h>
 #ifdef SHADOWPW
 # include <shadow.h>
@@ -107,7 +117,6 @@ char *ShellArgs[2];
 
 extern struct NewWindow nwin_undef, nwin_default, nwin_options;
 
-static char *MakeWinMsg __P((char *, int));
 static void  SigChldHandler __P((void));
 static sigret_t SigChld __P(SIGPROTOARG);
 static sigret_t SigInt __P(SIGPROTOARG);
@@ -116,10 +125,6 @@ static sigret_t FinitHandler __P(SIGPROTOARG);
 static void  DoWait __P((void));
 static void  WindowDied __P((struct win *));
 
-
-#ifdef PASSWORD
-extern char Password[];
-#endif
 
 int nversion;	/* numerical version, used for secondary DA */
 
@@ -140,7 +145,7 @@ char *RcFileName = NULL;
 extern char Esc;
 char *home;
 
-char *screenlogdir = NULL;
+char *screenlogfile;
 char *hardcopydir = NULL;
 char *BellString;
 char *VisualBellString;
@@ -344,6 +349,14 @@ char **av;
 #if (defined(AUX) || defined(_AUX_SOURCE)) && defined(POSIX)
   setcompat(COMPAT_POSIX|COMPAT_BSDPROT); /* turn on seteuid support */
 #endif
+#if defined(sun) && defined(SVR4)
+  {
+    /* Solaris' login blocks SIGHUP! This is _very bad_ */
+    sigset_t sset;
+    sigemptyset(&sset);
+    sigprocmask(SIG_SETMASK, &sset, 0);
+  }
+#endif
 
   /*
    *  First, close all unused descriptors
@@ -418,6 +431,7 @@ char **av;
   BellString = SaveStr("Bell in window %");
   VisualBellString = SaveStr("   Wuff,  Wuff!!  ");
   ActivityString = SaveStr("Activity in window %");
+  screenlogfile = SaveStr("screenlog.%n");
 #ifdef COPY_PASTE
   BufferFile = SaveStr(DEFAULT_BUFFERFILE);
 #endif
@@ -486,7 +500,7 @@ char **av;
 		    exit_with_usage(myname);
 		  ap = *++av;
 		}
-	      if (ParseEscape(NULL, ap))
+	      if (ParseEscape((struct user *)0, ap))
 		Panic(0, "Two characters are required with -e option.");
 	      break;
 	    case 'f':
@@ -772,6 +786,45 @@ char **av;
         }
       LoginName = ppp->pw_name;
     }
+  /* Do password sanity check..., allow ##user for SUN_C2 security */
+#ifdef SHADOWPW
+pw_try_again:
+#endif
+  n = 0;
+  if (ppp->pw_passwd[0] == '#' && ppp->pw_passwd[1] == '#' &&
+      strcmp(ppp->pw_passwd + 2, ppp->pw_name) == 0)
+    n = 13;
+  for (; n < 13; n++)
+    {
+      char c = ppp->pw_passwd[n];
+      if (!(c == '.' || c == '/' ||
+	    (c >= '0' && c <= '9') || 
+	    (c >= 'a' && c <= 'z') || 
+	    (c >= 'A' && c <= 'Z'))) 
+	break;
+    }
+#ifdef SHADOWPW
+  /* try to determine real password */
+  {
+    static struct spwd *sss;
+    if (n < 13 && sss == 0)
+      {
+	sss = getspnam(ppp->pw_name);
+	if (sss)
+	  {
+	    ppp->pw_passwd = SaveStr(sss->sp_pwdp);
+	    endspent();	/* this should delete all buffers ... */
+	    goto pw_try_again;
+	  }
+	endspent();	/* this should delete all buffers ... */
+      }
+  }
+#endif
+  if (n < 13)
+    ppp->pw_passwd = 0;
+  if (ppp->pw_passwd && strlen(ppp->pw_passwd) > 13)
+    ppp->pw_passwd[13] = 0;	/* beware of linux's long passwords */
+
   home = getenv("HOME");
 #if !defined(SOCKDIR) && defined(MULTIUSER)
   if (multi && !multiattach)
@@ -786,9 +839,6 @@ char **av;
     Panic(0, "LoginName too long - sorry.");
   if (strlen(home) > MAXPATHLEN - 25)
     Panic(0, "$HOME too long - sorry.");
-#ifdef PASSWORD
-  strcpy(Password, ppp->pw_passwd);
-#endif
 
   if (!detached && !lsflag)
     {
@@ -910,28 +960,23 @@ char **av;
     }
 
   if (stat(SockPath, &st) == -1)
+    Panic(errno, "Cannot access %s", SockPath);
+  if (!S_ISDIR(st.st_mode))
+    Panic(0, "%s is not a directory.", SockPath);
+#ifdef MULTIUSER
+  if (multi)
     {
-      Panic(errno, "Cannot access %s", SockPath);
+      if (st.st_uid != multi_uid)
+	Panic(0, "%s is not the owner of %s.", multi, SockPath);
     }
   else
-    {
-      if (!S_ISDIR(st.st_mode))
-	Panic(0, "%s is not a directory.", SockPath);
-#ifdef MULTIUSER
-      if (multi)
-	{
-	  if (st.st_uid != multi_uid)
-	    Panic(0, "%s is not the owner of %s.", multi, SockPath);
-	}
-      else
 #endif
-	{
-	  if (st.st_uid != real_uid)
-	    Panic(0, "You are not the owner of %s.", SockPath);
-	}
-      if ((st.st_mode & 0777) != 0700)
-	Panic(0, "Directory %s must have mode 700.", SockPath);
+    {
+      if (st.st_uid != real_uid)
+	Panic(0, "You are not the owner of %s.", SockPath);
     }
+  if ((st.st_mode & 0777) != 0700)
+    Panic(0, "Directory %s must have mode 700.", SockPath);
   SockName = SockPath + strlen(SockPath) + 1;
   *SockName = 0;
   (void) umask(oumask);
@@ -980,9 +1025,6 @@ char **av;
   if (rflag || xflag)
     {
       debug("screen -r: - is there anybody out there?\n");
-#ifdef SHADOWPW
-      setspent();  /* open shadow file while we are still root */
-#endif /* SHADOWPW */
       if (Attach(MSG_ATTACH))
 	{
 	  Attacher();
@@ -1043,9 +1085,6 @@ char **av;
         socknamebuf[NAME_MAX] = 0;
 #endif
       sprintf(SockPath + strlen(SockPath), "/%s", socknamebuf);
-#ifdef SHADOWPW
-      setspent();  /* open shadow file while we are still root */
-#endif /* SHADOWPW */
       setuid(real_uid);
       setgid(real_gid);
       eff_uid = real_uid;
@@ -1096,6 +1135,13 @@ char **av;
   freopen("/dev/null", "w", stderr);
   debug("-- screen.back debug started\n");
 
+  /*
+   * This guarantees that the session owner is listed, even when we
+   * start detached. From now on we should not refer to 'LoginName'
+   * any more, use users->u_name instead.
+   */
+  if (UserAdd(LoginName, (char *)0, (struct user **)0) < 0)
+    Panic(0, "Could not create user info");
   if (!detached)
     {
 #ifdef FORKDEBUG
@@ -1161,9 +1207,8 @@ char **av;
 #endif
     }
   else
-    {
-      MakeTermcap(1);
-    }
+    MakeTermcap(1);
+
 #ifdef LOADAV
   InitLoadav();
 #endif /* LOADAV */
@@ -1203,13 +1248,13 @@ char **av;
       debug("We open one default window, as screenrc did not specify one.\n");
       if (MakeWindow(&nwin) == -1)
 	{
-	  AddStr("Sorry, could not find a PTY.");
-	  sleep(2);
+	  Msg(0, "Sorry, could not find a PTY.");
+	  sleep(5);
 	  Finit(0);
 	  /* NOTREACHED */
 	}
     }
-  if (default_startup)
+  if (display && default_startup)
     display_copyright();
   signal(SIGCHLD, SigChld);
   signal(SIGINT, SigInt);
@@ -1309,7 +1354,7 @@ char **av;
        */
 #ifdef DEBUG
       if (tv.tv_sec)
-        debug1("select timeout %d seconds\n", tv.tv_sec);
+        debug1("select timeout %d seconds\n", (int)tv.tv_sec);
 #endif
       mkfdsets(&r, &w);
       if (GotSigChld && !tv.tv_sec)
@@ -1362,9 +1407,9 @@ char **av;
 		debug1("Flushing map sequence (%d runs)\n", D_seqruns);
 		fore = D_fore;
 		D_seqp -= D_seql;
-		while (D_seql)
-		  Process(&D_seqp, &D_seql);
+		ProcessInput2(D_seqp, D_seql);
 		D_seqp = D_kmaps[0].seq;
+		D_seql = 0;
 	      }
 	  }
 #endif
@@ -1728,7 +1773,7 @@ char **av;
 	    {
 	      p->w_bell = BELL_MSG;
 	      for (display = displays; display; display = display->d_next)
-	        Msg(0, MakeWinMsg(BellString, p->w_number));
+	        Msg(0, "%s", MakeWinMsg(BellString, p, '%'));
 	      if (p->w_monitor == MON_FOUND)
 		p->w_monitor = MON_DONE;
 	    }
@@ -1750,7 +1795,7 @@ char **av;
 	    {
 	      p->w_monitor = MON_MSG;
 	      for (display = displays; display; display = display->d_next)
-	        Msg(0, MakeWinMsg(ActivityString, p->w_number));
+	        Msg(0, "%s", MakeWinMsg(ActivityString, p, '%'));
 	    }
 	}
 #if defined(DEBUG) && !defined(SELECT_BROKEN)
@@ -1848,7 +1893,7 @@ SigHup SIGDEFARG
 
 /* 
  * the backend's Interrupt handler
- * we cannot D_insert the intrc directly, as we never know
+ * we cannot insert the intrc directly, as we never know
  * if fore is valid.
  */
 static sigret_t
@@ -1901,6 +1946,7 @@ CoreDump SIGDEFARG
       Kill(disp->d_userpid, SIG_BYE);
     }
 #if defined(SHADOWPW) && !defined(DEBUG) && !defined(DUMPSHADOW)
+  Kill(getpid(), SIGKILL);
   eexit(11);
 #else /* SHADOWPW && !DEBUG */
   abort();
@@ -2001,6 +2047,11 @@ DoWait()
 static sigret_t
 FinitHandler SIGDEFARG
 {
+#ifdef SIGHASARG
+  debug1("FinitHandler called, sig %d.\n", sigsig);
+#else
+  debug("FinitHandler called.\n");
+#endif
   Finit(1);
   SIGRETURN;
 }
@@ -2187,7 +2238,6 @@ int mode;
       SetTTY(D_userfd, &D_OldMode);
       fcntl(D_userfd, F_SETFL, 0);
     }
-  freetty();
   pid = D_userpid;
   debug2("display: %#x displays: %#x\n", (unsigned int)display, (unsigned int)displays);
   FreeDisplay();
@@ -2383,46 +2433,137 @@ unsigned long p1, p2, p3, p4, p5, p6;
 
 /*
  * '^' is allowed as an escape mechanism for control characters. jw.
+ * 
+ * Added time insertion using ideas/code from /\ndy Jones
+ *   (andy@lingua.cltr.uq.OZ.AU) - thanks a lot!
+ *
  */
-static char *
-MakeWinMsg(s, n)
+
+static const char days[]   = "SunMonTueWedThuFriSat";
+static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+
+char *
+MakeWinMsg(s, win, esc)
 register char *s;
-int n;
+struct win *win;
+int esc;
 {
   static char buf[MAXSTR];
   register char *p = buf;
   register int ctrl;
+  time_t now;
+  struct tm *tm;
+  int l;
 
+  tm = 0;
   ctrl = 0;
-  for (; *s && p < buf + MAXSTR - 1; s++, p++)
-    if (ctrl)
-      {
-        ctrl = 0;
-        if (*s == '^' || *s < 64)
-          *p = *s;
-        else 
-          *p = *s - 64;
-      }
-    else
-      {
-        switch (*s)
-          {
-          case '%':
-	    sprintf(p, "%d", n);
-	    p += strlen(p) - 1;
+  for (; *s && (l = buf + MAXSTR - 1 - p) > 0; s++, p++, l--)
+    {
+      *p = *s;
+      if (ctrl)
+	{
+	  ctrl = 0;
+	  if (*s != '^' && *s >= 64)
+	    *p &= 0x1f;
+	  continue;
+	}
+      if (*s != esc)
+	{
+	  if (esc == '%')
+	    {
+	      switch (*s)
+		{
+		case '~':
+		  *p = BELL;
+		  break;
+		case '^':
+		  ctrl = 1;
+		  *p-- = '^';
+		  break;
+		default:
+		  break;
+		}
+	    }
+	  continue;
+	}
+      if (s[1] == esc)	/* double escape ? */
+	{
+	  s++;
+	  continue;
+	}
+      switch (s[1])
+	{
+	case 'd': case 'D': case 'm': case 'M': case 'y': case 'Y':
+	case 'a': case 'A': case 's': case 'w': case 'W':
+	  s++;
+	  if (l < 4)
 	    break;
-          case '~':
-	    *p = BELL;
-	    break;
-	  case '^':
-	    ctrl = 1;
-	    *p-- = '^';
-	    break;
-          default:
-	    *p = *s;
-	    break;
-          }
-      }
+	  if (tm == 0)
+	    {
+	      (void)time(&now);
+	      tm = localtime(&now);
+	    }
+	  switch (*s)
+	    {
+	    case 'd':
+	      sprintf(p, "%02d", tm->tm_mday % 100);
+	      break;
+	    case 'D':
+	      sprintf(p, "%3.3s", days + 3 * tm->tm_wday);
+	      break;
+	    case 'm':
+	      sprintf(p, "%02d", tm->tm_mon + 1);
+	      break;
+	    case 'M':
+	      sprintf(p, "%3.3s", months + 3 * tm->tm_mon);
+	      break;
+	    case 'y':
+	      sprintf(p, "%02d", tm->tm_year % 100);
+	      break;
+	    case 'Y':
+	      sprintf(p, "%04d", tm->tm_year + 1900);
+	      break;
+	    case 'a':
+	      sprintf(p, tm->tm_hour >= 12 ? "pm" : "am");
+	      break;
+	    case 'A':
+	      sprintf(p, tm->tm_hour >= 12 ? "PM" : "AM");
+	      break;
+	    case 's':
+	      sprintf(p, "%02d", tm->tm_sec);
+	      break;
+	    case 'w':
+	      sprintf(p, "%2d:%02d", tm->tm_hour, tm->tm_min);
+	      break;
+	    case 'W':
+	      sprintf(p, "%2d:%02d", (tm->tm_hour + 11) % 12 + 1, tm->tm_min);
+	      break;
+	    default:
+	      break;
+	    }
+	  p += strlen(p) - 1;
+	  break;
+	case 't':
+	  if (strlen(win->w_title) < l)
+	    {
+	      strcpy(p, win->w_title);
+	      p += strlen(p) - 1;
+	    }
+	  /* FALLTHROUGH */
+	  s++;
+	  break;
+	case 'n':
+	  s++;
+	  /* FALLTHROUGH */
+	default:
+	  if (l > 10)
+	    {
+	      sprintf(p, "%d", win->w_number);
+	      p += strlen(p) - 1;
+	    }
+	  break;
+	}
+    }
   *p = '\0';
   return buf;
 }
@@ -2452,3 +2593,4 @@ int n;
     }
   debug1("DisplaySleep(%d) ending\n", n);
 }
+

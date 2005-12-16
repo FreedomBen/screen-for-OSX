@@ -1,7 +1,17 @@
+#
+# Example of a user's .screenrc file
+#
+
+# This is how one can set a reattach password:
 #password ODSJQf.4IJN7E    # "1234"
 
+# no annoying audible bell, please
 vbell on
+
+# detach on hangup
 autodetach on
+
+# don't display the copyright page
 startup_message off
 
 # Extend the vt100 desciption with some sequences.
@@ -14,7 +24,7 @@ terminfo vt100* ms:AL=\E[%p1%dL:DL=\E[%p1%dM:UP=\E[%p1%dA:DO=\E[%p1%dB:LE=\E[%p1
 termcap  xterm hs@:cs=\E[%i%d;%dr:im=\E[4h:ei=\E[4l
 terminfo xterm hs@:cs=\E[%i%p1%d;%p2%dr:im=\E[4h:ei=\E[4l
 
-#80/132 column switching must be enabled for Z0/Z1 to work
+#80/132 column switching must be enabled for ^AW to work
 #change init sequence to not switch width
 termcap  xterm Z0=\E[?3h:Z1=\E[?3l:is=\E[r\E[m\E[2J\E[H\E[?7h\E[?1;4;6l
 terminfo xterm Z0=\E[?3h:Z1=\E[?3l:is=\E[r\E[m\E[2J\E[H\E[?7h\E[?1;4;6l
@@ -60,16 +70,16 @@ register [ "\033:se noai\015a"
 register ] "\033:se ai\015a"
 bind ^] paste [.]
 
-terminfo xterm 'VR=\E[?5h:VN=\E[?5l:k1=\E[11~:k2=\E[12~:k3=\E[13~'
-termcap  xterm 'VR=\E[?5h:VN=\E[?5l:k1=\E[11~:k2=\E[12~:k3=\E[13~'
+# tell screen that xterm can switch to dark background and has function
+# keys.
+terminfo xterm 'VR=\E[?5h:VN=\E[?5l:k1=\E[11~:k2=\E[12~:k3=\E[13~:k4=\E[14~'
+termcap  xterm 'VR=\E[?5h:VN=\E[?5l:k1=\E[11~:k2=\E[12~:k3=\E[13~:k4=\E[14~'
 termcap  xterm 'kh=\E[1~:kI=\E[2~:kD=\E[3~:kH=\E[4~:kP=\E[5~:kN=\E[6~'
 terminfo xterm 'kh=\E[1~:kI=\E[2~:kD=\E[3~:kH=\E[4~:kP=\E[5~:kN=\E[6~'
 
-# xterm hardstatus: use the window title.
-termcap  xterm 'hs:ts=\E]0;:fs=\007:ds=\E]0;Screen\007'
-terminfo xterm 'hs:ts=\E]0;:fs=\007:ds=\E]0;Screen\007'
-
-termcap con80x* "xn:f0=\033Op:f1=\033Oq:f2=\033Or:f3=\033Os:f4=\033Ot:f5=\033Ou:f6=\033Ov:f7=\033Ow:f8=\033Ox:f9=\033Oy:f.=\033On:f,=\033Ol:fe=\033OM:f+=\033Ok:f-=\033Om:f*=\033Oj:f/=\033Oo:fq=\033OX:kN=\033[6~:kP=\033[5~"
+# special xterm hardstatus: use the window title.
+termcap  xterm 'hs:ts=\E]2;:fs=\007:ds=\E]0;Screen\007'
+terminfo xterm 'hs:ts=\E]2;:fs=\007:ds=\E]0;Screen\007'
 
 # advertise hardstatus support to $TERMCAP
 termcap  * '' 'hs:ts=\E_:fs=\E\\:ds=\E_\E\\'
@@ -77,3 +87,27 @@ terminfo * '' 'hs:ts=\E_:fs=\E\\:ds=\E_\E\\'
 
 # make the shell in every window a login shell
 #shell -$SHELL
+
+# shellaka '> |tcsh'
+# shellaka '$ |sh'
+
+terminfo wy75-42 'G0:S0=\E(K:E0=\E(B:C0=\104\133\126\134\134\135\144\173\166\174\174\175\137\176'
+
+terminfo wy75-42 'hs@'
+
+# our xterm has colors! (rxvt, too)
+termcap  xterm 'AF=\E[3%dm:AB=\E[4%dm'
+terminfo xterm 'AF=\E[3%p1%dm:AB=\E[4%p1%dm'
+
+# set every new windows hardstatus line to somenthing descriptive
+defhstatus "Screen: window \5 (\5t)"
+
+defscrollback 100
+
+#terminfo xterm 'vb=\E[?5h$<200/>\E[?5l'
+#termcap  xterm 'vi=\E[?25l:ve=\E[34h\E[?25h:vs=\E[34l'
+
+# emulate part of the 'K' charset
+termcap   xterm 'XC=K%,%\E(B,[\304,\\\\\326,]\334,{\344,|\366,}\374,~\337'
+terminfo  xterm 'XC=K%,%\E(B,[\304,\\\\\326,]\334,{\344,|\366,}\374,~\337'
+

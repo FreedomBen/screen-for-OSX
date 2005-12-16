@@ -7,10 +7,10 @@ Zhang (zhang@gmsds.ms.ornl.gov) and to screen@uni-erlangen.de
 
 =====================================================================
 
-*** ansi.h.orig	Sun Nov  6 23:55:35 1994
---- ansi.h	Mon Dec 19 22:14:04 1994
+*** ./ansi.h.orig	Fri Jan  2 19:12:05 1970
+--- ./ansi.h	Wed Nov 15 19:25:11 1995
 ***************
-*** 55,61 ****
+*** 56,62 ****
     PRIN,				/* Printer mode */
     PRINESC,			/* ESC seen in printer mode */
     PRINCSI,			/* CSI seen in printer mode */
@@ -18,22 +18,22 @@ Zhang (zhang@gmsds.ms.ornl.gov) and to screen@uni-erlangen.de
   };
   
   enum string_t 
---- 55,64 ----
+--- 56,65 ----
     PRIN,				/* Printer mode */
     PRINESC,			/* ESC seen in printer mode */
     PRINCSI,			/* CSI seen in printer mode */
 !   PRIN4,			/* CSI 4 seen in printer mode */
-!   TEK,				/* Tektronics mode */
-!   TEKESC,			/* Tektronics escape */
-!   TEKEND			/* Tektronics ending sequence */
+!   TEK,				/* Tektronix mode */
+!   TEKESC,			/* Tektronix escape */
+!   TEKEND			/* Tektronix ending sequence */
   };
   
   enum string_t 
-*** ansi.c.orig	Wed Dec 14 00:52:26 1994
---- ansi.c	Mon Dec 19 22:39:16 1994
+*** ./ansi.c.orig	Sun Oct 29 16:01:26 1995
+--- ./ansi.c	Wed Nov 15 19:25:11 1995
 ***************
-*** 698,703 ****
---- 698,708 ----
+*** 805,810 ****
+--- 805,815 ----
   	    case 'k':
   	      StartString(AKA);
   	      break;
@@ -44,10 +44,10 @@ Zhang (zhang@gmsds.ms.ornl.gov) and to screen@uni-erlangen.de
 + 	      break;
   	    default:
   	      if (Special(c))
-  		break;
+  	        {
 ***************
-*** 758,763 ****
---- 763,789 ----
+*** 868,873 ****
+--- 873,899 ----
   		  goto tryagain;
   		}
   	    }

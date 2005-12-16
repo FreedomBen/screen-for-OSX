@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -46,8 +47,6 @@ extern time_t Now;
 extern struct NewWindow nwin_default;	/* for ResetWindow() */
 extern int  nversion;
 
-int maxwidth;			/* maximum of all widths so far */
-
 int Z0width, Z1width;		/* widths for Z0/Z1 switching */
 
 static struct win *curr;	/* window we are working on */
@@ -59,7 +58,14 @@ char *printcmd = 0;
 
 char *blank;			/* line filled with spaces */
 char *null;			/* line filled with '\0' */
-char *OldImage, *OldAttr, *OldFont;	/* temporary buffers */
+
+struct mline mline_old;
+struct mline mline_blank;
+struct mline mline_null;
+
+struct mchar mchar_null;
+struct mchar mchar_blank = {' ' /* , 0, 0, ... */};
+struct mchar mchar_so    = {' ', A_SO /* , 0, 0, ... */};
 
 static void WinProcess __P((char **, int *));
 static void WinRedisplayLine __P((int, int, int, int));
@@ -71,7 +77,7 @@ static void WinRestore __P((void));
 static int  Special __P((int));
 static void DoESC __P((int, int));
 static void DoCSI __P((int, int));
-static void SetChar __P((int, int));
+static void SetChar __P((int));
 static void StartString __P((enum string_t));
 static void SaveChar __P((int));
 static void PrintStart __P((void));
@@ -86,7 +92,7 @@ static void BackSpace __P((void));
 static void Return __P((void));
 static void LineFeed __P((int));
 static void ReverseLineFeed __P((void));
-static void InsertAChar __P((int, int));
+static void InsertAChar __P((int));
 static void InsertChar __P((int));
 static void DeleteChar __P((int));
 static void DeleteLine __P((int));
@@ -109,13 +115,17 @@ static void CursorDown __P((int));
 static void CursorLeft __P((int));
 static void ASetMode __P((int));
 static void SelectRendition __P((void));
-static void RestorePosAttrFont __P((void));
+static void RestorePosRendition __P((void));
 static void FillWithEs __P((void));
-static void UpdateLine __P((char *, char *, char *, int, int, int ));
+static void UpdateLine __P((struct mline *, int, int, int ));
 static void FindAKA __P((void));
 static void Report __P((char *, int, int));
 static void FixLine __P((void));
 static void ScrollRegion __P((int));
+static void CheckLP __P((int));
+#ifdef COPY_PASTE
+static void AddLineToHist __P((struct win *, struct mline *));
+#endif
 
 
 /*
@@ -256,8 +266,8 @@ int y, from, to, isblank;
   if (y < 0)
     return;
   fore = D_fore;
-  DisplayLine(isblank ? blank: null, null, null, fore->w_image[y],
-              fore->w_attr[y], fore->w_font[y], y, from, to);
+  DisplayLine(isblank ? &mline_blank : &mline_null, &fore->w_mlines[y],
+              y, from, to);
 }
 
 static int
@@ -266,26 +276,37 @@ int y, x1, x2, doit;
 {
   register int cost, dx;
   register char *p, *f, *i;
+#ifdef COLOR
+  register char *c;
+#endif
 
   fore = D_fore;
   dx = x2 - x1;
   if (doit)
     {
-      i = fore->w_image[y] + x1;
+      i = fore->w_mlines[y].image + x1;
       while (dx-- > 0)
 	PUTCHAR(*i++);
-      return(0);
+      return 0;
     }
-  p = fore->w_attr[y] + x1;
-  f = fore->w_font[y] + x1;
+  p = fore->w_mlines[y].attr + x1;
+  f = fore->w_mlines[y].font + x1;
+#ifdef COLOR
+  c = fore->w_mlines[y].color + x1;
+#endif
 
   cost = dx = x2 - x1;
   if (D_insert)
     cost += D_EIcost + D_IMcost;
   while(dx-- > 0)
     {
-      if (*p++ != D_attr || *f++ != D_font)
+#ifdef COLOR
+      if (*p++ != D_rend.attr || *f++ != D_rend.font || *c++ != D_rend.color)
 	return EXPENSIVE;
+#else
+      if (*p++ != D_rend.attr || *f++ != D_rend.font)
+	return EXPENSIVE;
+#endif
     }
   return cost;
 }
@@ -295,8 +316,7 @@ WinClearLine(y, xs, xe)
 int y, xs, xe;
 {
   fore = D_fore;
-  DisplayLine(fore->w_image[y], fore->w_attr[y], fore->w_font[y],
-	      blank, null, null, y, xs, xe);
+  DisplayLine(&fore->w_mlines[y], &mline_blank, y, xs, xe);
 }
 
 static void
@@ -312,7 +332,7 @@ int wi, he;
 {
   fore = D_fore;
   if (fore)
-    ChangeWindowSize(fore, wi, he);
+    ChangeWindowSize(fore, wi, he, fore->w_histheight);
   return 0;
 }
 
@@ -326,7 +346,7 @@ WinRestore()
   SetFlow(fore->w_flow & FLOW_NOW);
   InsertMode(fore->w_insert);
   ReverseVideo(fore->w_revvid);
-  CursorInvisible(fore->w_curinv);
+  CursorVisibility(fore->w_curinv ? -1 : fore->w_curvvis);
   fore->w_active = 1;
 }
 
@@ -341,7 +361,11 @@ int norefresh;
   debug1("Activate(%d)\n", norefresh);
   if (display == 0)
     return;
-  RemoveStatus();
+  if (D_status)
+    {
+      Msg(0, "%s", "");	/* wait till mintime (keep gcc quiet) */
+      RemoveStatus();
+    }
   fore = D_fore;
   if (fore)
     {
@@ -371,87 +395,108 @@ register struct win *p;
   p->w_insert = 0;
   p->w_revvid = 0;
   p->w_curinv = 0;
+  p->w_curvvis = 0;
   p->w_autolf = 0;
   p->w_keypad = 0;
   p->w_cursorkeys = 0;
   p->w_top = 0;
   p->w_bot = p->w_height - 1;
   p->w_saved = 0;
-  p->w_Attr = 0;
-  p->w_Font = 0;
-  p->w_FontR = 0;
   p->w_x = p->w_y = 0;
   p->w_state = LIT;
   p->w_StringType = NONE;
   bzero(p->w_tabs, p->w_width);
   for (i = 8; i < p->w_width; i += 8)
     p->w_tabs[i] = 1;
+  p->w_rend = mchar_null;
   ResetCharsets(p);
 }
+
+#ifdef KANJI
+static char *kanjicharsets[3] = {
+  "BBBB02", 	/* jis */
+  "\002IBB01",	/* euc  */
+  "BIBB01"	/* sjis  */
+};
+#endif
 
 void
 ResetCharsets(p)
 register struct win *p;
 {
-  int i;
-
-  p->w_Charset = G0;
-  p->w_CharsetR = G2;
-  for (i = G0; i <= G3; i++)
-    p->w_charsets[i] = ASCII;
   p->w_gr = nwin_default.gr;
   p->w_c1 = nwin_default.c1;
-  p->w_ss = 0;
+  SetCharsets(p, "BBBB02");
+  if (nwin_default.charset)
+    SetCharsets(p, nwin_default.charset);
 #ifdef KANJI
-  switch(p->w_kanji)
+  if (p->w_kanji)
     {
-    case SJIS:
-      p->w_CharsetR = G1;
-      p->w_charsets[G1] = KANA;
       p->w_gr = 1;
-      p->w_c1 = 0;
-      break;
-    case EUC:
-      p->w_CharsetR = G1;
-      p->w_charsets[G1] = KANJI;
-      p->w_charsets[G2] = KANA;
-      p->w_gr = 1;
-      p->w_c1 = 1;
-      break;
-    default:
-      break;
+      if (p->w_kanji == SJIS)
+        p->w_c1 = 0;
+      SetCharsets(p, kanjicharsets[p->w_kanji]);
     }
 #endif
-  p->w_Font = p->w_charsets[p->w_Charset];
+}
+
+void
+SetCharsets(p, s)
+struct win *p;
+char *s;
+{
+  int i;
+
+  for (i = 0; i < 4 && *s; i++, s++)
+    if (*s != '.')
+      p->w_charsets[i] = ((*s == 'B') ? ASCII : *s);
+  if (*s && *s++ != '.')
+    p->w_Charset = s[-1] - '0';
+  if (*s && *s != '.')
+    p->w_CharsetR = *s - '0';
+  p->w_ss = 0;
+  p->w_FontL = p->w_charsets[p->w_Charset];
   p->w_FontR = p->w_charsets[p->w_CharsetR];
 }
 
 static void
 FixLine()
 {
-  if (curr->w_Attr && curr->w_attr[curr->w_y] == null)
+  struct mline *ml = &curr->w_mlines[curr->w_y];
+  if (curr->w_rend.attr && ml->attr == null)
     {
-      if ((curr->w_attr[curr->w_y] = (char *)malloc(curr->w_width + 1)) == 0)
+      if ((ml->attr = (char *)malloc(curr->w_width + 1)) == 0)
 	{
-	  curr->w_attr[curr->w_y] = null;
-	  curr->w_Attr = 0;
+	  ml->attr = null;
+	  curr->w_rend.attr = 0;
 	  Msg(0, "Warning: no space for attr - turned off");
 	}
-      else
-	bzero(curr->w_attr[curr->w_y], curr->w_width + 1);
+      bzero(ml->attr, curr->w_width + 1);
     }
-  if ((curr->w_Font || curr->w_FontR) && curr->w_font[curr->w_y] == null)
+  if ((curr->w_FontL || curr->w_FontR) && ml->font == null)
     {
-      if ((curr->w_font[curr->w_y] = (char *)malloc(curr->w_width + 1)) == 0)
+      if ((ml->font = (char *)malloc(curr->w_width + 1)) == 0)
 	{
-	  curr->w_font[curr->w_y] = null;
-	  curr->w_Font = curr->w_charsets[curr->w_ss ? curr->w_ss : curr->w_Charset] = 0;
+	  ml->font = null;
+	  curr->w_FontL = curr->w_charsets[curr->w_ss ? curr->w_ss : curr->w_Charset] = 0;
 	  curr->w_FontR = curr->w_charsets[curr->w_ss ? curr->w_ss : curr->w_CharsetR] = 0;
+	  curr->w_rend.font  = 0;
 	  Msg(0, "Warning: no space for font - turned off");
 	}
-      else
-	bzero(curr->w_font[curr->w_y], curr->w_width + 1);
+      bzero(ml->font, curr->w_width + 1);
     }
+#ifdef COLOR
+  if (curr->w_rend.color && ml->color == null)
+    {
+      if ((ml->color = (char *)malloc(curr->w_width + 1)) == 0)
+	{
+	  ml->color = null;
+	  curr->w_rend.color = 0;
+	  Msg(0, "Warning: no space for color - turned off");
+	}
+      bzero(ml->color, curr->w_width + 1);
+    }
+#endif
 }
 
 
@@ -495,38 +540,54 @@ register int len;
           curr->w_monitor = MON_FOUND;
 	}
     }
+
   do
     {
       c = (unsigned char)*buf++;
+      curr->w_rend.font = curr->w_FontL;	/* Default: GL */
 
-      /* The next part is only for speedup */
+      /* The next part is only for speedup
+       * (therefore no mchars are used) */
       if (curr->w_state == LIT &&
 #ifdef KANJI
-          curr->w_Font != KANJI && curr->w_Font != KANA && !curr->w_mbcs &&
+          curr->w_FontL != KANJI && curr->w_FontL != KANA && !curr->w_mbcs &&
 #endif
           c >= ' ' && 
-          ((c & 0x80) == 0 || ((c >= 0xa0 || !curr->w_c1) && !curr->w_gr && (display == 0 || !D_CB8))) &&
+          ((c & 0x80) == 0 || ((c >= 0xa0 || !curr->w_c1) && !curr->w_gr)) &&
           !curr->w_insert && !curr->w_ss && curr->w_x < cols - 1)
 	{
 	  register int currx;
 	  register char *imp, *atp, *fop, at, fo;
+#ifdef COLOR
+	  register char *cop, co;
+#endif
 
 	  if (c == '\177')
 	    continue;
 	  FixLine();
 	  currx = curr->w_x;
-	  imp = curr->w_image[curr->w_y] + currx;
-	  atp = curr->w_attr[curr->w_y] + currx;
-	  fop = curr->w_font[curr->w_y] + currx;
-	  at = curr->w_Attr;
-	  fo = curr->w_Font;
+	  imp = curr->w_mlines[curr->w_y].image + currx;
+	  atp = curr->w_mlines[curr->w_y].attr  + currx;
+	  fop = curr->w_mlines[curr->w_y].font  + currx;
+	  at = curr->w_rend.attr;
+	  fo = curr->w_rend.font;
+#ifdef COLOR
+	  cop = curr->w_mlines[curr->w_y].color + currx;
+	  co = curr->w_rend.color;
+#endif
 	  if (display)
 	    {
 	      if (D_x != currx || D_y != curr->w_y)
 		GotoPos(currx, curr->w_y);
-	      if (at != D_attr)
+	      /* This is not SetRendition because the compiler would
+               * not use registers if at/fo/co would be an mchar */
+	      if (at != D_rend.attr)
 		SetAttr(at);
-	      if (fo != D_font)
+#ifdef COLOR
+	      if (co != D_rend.color)
+		SetColor(co);
+#endif
+	      if (fo != D_rend.font)
 		SetFont(fo);
 	      if (D_insert)
 		InsertMode(0);
@@ -534,17 +595,25 @@ register int len;
 	  while (currx < cols - 1)
 	    {
 	      if (display)
-		AddChar(D_font != '0' ? c : D_c0_tab[c]);
+		{
+		  if (D_xtable && D_xtable[(int)(unsigned char)D_rend.font] && D_xtable[(int)(unsigned char)D_rend.font][c])
+		    AddStr(D_xtable[(int)(unsigned char)D_rend.font][c]);
+		  else
+		    AddChar(D_rend.font != '0' ? c : D_c0_tab[c]);
+	        }
 	      *imp++ = c;
 	      *atp++ = at;
 	      *fop++ = fo;
+#ifdef COLOR
+	      *cop++ = co;
+#endif
 	      currx++;
 skip:	      if (--len == 0)
 		break;
               c = (unsigned char)*buf++;
 	      if (c == '\177')
 		goto skip;
-	      if (c < ' ' || ((c & 0x80) && ((c < 0xa0 && curr->w_c1) || curr->w_gr || (display && D_CB8))))
+	      if (c < ' ' || ((c & 0x80) && ((c < 0xa0 && curr->w_c1) || curr->w_gr)))
 		break;
 	    }
 	  curr->w_x = currx;
@@ -555,18 +624,6 @@ skip:	      if (--len == 0)
 	}
       /* end of speedup code */
 
-      if ((c & 0x80) && display && D_CB8)
-	{
-	  FILE *logfp = wp->w_logfp;
-	  char *cb8 = D_CB8;
-	
-	  wp->w_logfp = NULL;	/* a little hack */
-	  D_CB8 = NULL;		/* dito */
-	  WriteString(wp, cb8, (int)strlen(cb8));
-	  wp->w_logfp = logfp;
-	  D_CB8 = cb8;
-	  c &= 0x7f;
-	}
     tryagain:
       switch (curr->w_state)
 	{
@@ -635,7 +692,7 @@ skip:	      if (--len == 0)
 	      break;
 	    }
 	  /* special xterm hack: accept SetStatus sequence. Yucc! */
-	  if (!(curr->w_StringType == OSC && c < ' '))
+	  if (!(curr->w_StringType == OSC && c < ' ' && c != '\005'))
 	    if (!curr->w_c1 || c != ('\\' ^ 0xc0))
 	      {
 		SaveChar(c);
@@ -748,6 +805,11 @@ skip:	      if (--len == 0)
 	    case 'k':
 	      StartString(AKA);
 	      break;
+	    case '\014':
+	      curr->w_state = TEK;
+	      RAW_PUTCHAR('\033');
+	      RAW_PUTCHAR(c);
+	      break;
 	    default:
 	      if (Special(c))
 	        {
@@ -812,6 +874,27 @@ skip:	      if (--len == 0)
 		}
 	    }
 	  break;
+	case TEK:
+	  switch (c)
+	    {
+	    case '@':
+	      if ((unsigned char)*(buf - 2) == ' ') /* XXX: Yucc! */
+		curr->w_state = TEKESC;
+	      /* FALLTHROUGH */
+	    default:
+	      RAW_PUTCHAR(c);
+	      break;
+	    }
+	  break;
+	case TEKESC:
+	  curr->w_state = (c == '\037') ? TEKEND : TEK;
+	  RAW_PUTCHAR(c);
+	  break;
+	case TEKEND:
+	  if (c == '\030')
+	    curr->w_state = LIT;
+	  RAW_PUTCHAR(c);
+	  break;
 	case LIT:
 	default:
 	  if (c < ' ')
@@ -821,7 +904,7 @@ skip:	      if (--len == 0)
 		  curr->w_intermediate = 0;
 		  curr->w_state = ESC;
 		  if (display && D_lp_missing && (D_CIC || D_IC || D_IM))
-		    UpdateLine(blank, null, null, D_bot, cols - 2, cols - 1);
+		    UpdateLine(&mline_blank, D_bot, cols - 2, cols - 1);
 		  if (curr->w_autoaka < 0)
 		    curr->w_autoaka = 0;
 		}
@@ -843,7 +926,7 @@ skip:	      if (--len == 0)
 		  break;
 		case 0xc0 ^ '[':
 		  if (display && D_lp_missing && (D_CIC || D_IC || D_IM))
-		    UpdateLine(blank, null, null, D_bot, cols - 2, cols - 1);
+		    UpdateLine(&mline_blank, D_bot, cols - 2, cols - 1);
 		  if (curr->w_autoaka < 0)
 		    curr->w_autoaka = 0;
 		  curr->w_NumArgs = 0;
@@ -860,7 +943,7 @@ skip:	      if (--len == 0)
 	      break;
 	    }
 
-	  font = c >= 0x80 ? curr->w_FontR : curr->w_Font;
+	  font = curr->w_rend.font = (c >= 0x80 ? curr->w_FontR : curr->w_FontL);
 #ifdef KANJI
 	  if (font == KANA && curr->w_kanji == SJIS && curr->w_mbcs == 0)
 	    {
@@ -897,7 +980,7 @@ skip:	      if (--len == 0)
 		      if (t <= 0x7e) t -= 0x1f;
 		      else if (t <= 0x9e) t -= 0x20;
 		      else t -= 0x7e, c++;
-		      font = KANJI;
+		      curr->w_rend.font = KANJI;
 		    }
 		  else
 		    {
@@ -920,21 +1003,16 @@ skip:	      if (--len == 0)
 	  if (c == '\177')
 	    break;
 	  if (display)
-	    {
-	      if (D_attr != curr->w_Attr)
-		SetAttr(curr->w_Attr);
-	      if (D_font != font)
-		SetFont(font);
-	    }
+	    SetRendition(&curr->w_rend);
 	  if (curr->w_x < cols - 1)
 	    {
 	      if (curr->w_insert)
-		InsertAChar(c, font);
+		InsertAChar(c);
 	      else
 		{
 		  if (display)
 		    PUTCHAR(c);
-		  SetChar(c, font);
+		  SetChar(c);
 		  curr->w_x++;
 		}
 	    }
@@ -943,11 +1021,11 @@ skip:	      if (--len == 0)
 	      if (display && curr->w_wrap && (D_CLP || !force_vt || D_COP))
 		{
 		  RAW_PUTCHAR(c);	/* don't care about D_insert */
-		  SetChar(c, font);
+		  SetChar(c);
 		  curr->w_x++;
 		  if (D_AM && !D_CLP)
 		    {
-                      SetChar(0, 0);
+                      SetChar(0);
 		      LineFeed(0);	/* terminal auto-wrapped */
 		    }
 		}
@@ -963,34 +1041,33 @@ skip:	      if (--len == 0)
 		      else
 			CheckLP(c);
 		    }
-		  SetChar(c, font);
+		  SetChar(c);
 		  if (curr->w_wrap)
 		    curr->w_x++;
 		}
 	    }
 	  else /* curr->w_x > cols - 1 */
 	    {
-              SetChar(0, 0);		/* we wrapped */
+              SetChar(0);		/* we wrapped */
 	      if (curr->w_insert)
 		{
 		  LineFeed(2);		/* cr+lf, handle LP */
-		  InsertAChar(c, font);
+		  InsertAChar(c);
 		}
 	      else
 		{
 		  if (display && D_AM && D_x != cols)	/* write char again */
 		    {
-		      SetAttrFont(curr->w_attr[curr->w_y][cols - 1],
-                                  curr->w_font[curr->w_y][cols - 1]);
-		      RAW_PUTCHAR(curr->w_image[curr->w_y][cols - 1]);
-		      SetAttrFont(curr->w_Attr, font);
+		      SetRenditionMline(&curr->w_mlines[curr->w_y], cols - 1);
+		      RAW_PUTCHAR(curr->w_mlines[curr->w_y].image[cols - 1]);
+		      SetRendition(&curr->w_rend);
 		      if (curr->w_y == D_bot)
 			D_lp_missing = 0;	/* just wrote it */
 		    }
 		  LineFeed((display == 0 || D_AM) ? 0 : 2);
 		  if (display)
 		    PUTCHAR(c);
-		  SetChar(c, font);
+		  SetChar(c);
 		  curr->w_x = 1;
 		}
 	    }
@@ -1004,8 +1081,9 @@ skip:	      if (--len == 0)
 #endif
 	  if (curr->w_ss)
 	    {
-	      SetFont(curr->w_Font = curr->w_charsets[curr->w_Charset]);
+	      curr->w_FontL = curr->w_charsets[curr->w_Charset];
 	      curr->w_FontR = curr->w_charsets[curr->w_CharsetR];
+	      SetFont(curr->w_FontL);
 	      curr->w_ss = 0;
 	    }
 	  break;
@@ -1097,7 +1175,7 @@ int c, intermediate;
 	case 'c':
 	  ClearScreen();
 	  ResetWindow(curr);
-	  SetAttrFont(0, ASCII);
+          SetRendition(&mchar_null);
 	  InsertMode(0);
 	  KeypadMode(0);
 	  CursorkeysMode(0);
@@ -1133,19 +1211,25 @@ int c, intermediate;
 	case 'N':		/* SS2 */
 	  if (curr->w_charsets[curr->w_Charset] != curr->w_charsets[G2]
 	      || curr->w_charsets[curr->w_CharsetR] != curr->w_charsets[G2])
-	    {
-	      curr->w_FontR = curr->w_Font = curr->w_charsets[curr->w_ss = G2];
-	    }
+	      curr->w_FontR = curr->w_FontL = curr->w_charsets[curr->w_ss = G2];
 	  else
 	    curr->w_ss = 0;
 	  break;
 	case 'O':		/* SS3 */
 	  if (curr->w_charsets[curr->w_Charset] != curr->w_charsets[G3]
 	      || curr->w_charsets[curr->w_CharsetR] != curr->w_charsets[G3])
-	    curr->w_FontR = curr->w_Font = curr->w_charsets[curr->w_ss = G3];
+	    curr->w_FontR = curr->w_FontL = curr->w_charsets[curr->w_ss = G3];
 	  else
 	    curr->w_ss = 0;
 	  break;
+        case 'g':		/* VBELL, private screen sequence */
+	  if (display == 0)
+	    curr->w_bell = BELL_ON;
+          else if (!D_VB)
+	    curr->w_bell = BELL_VISUAL;
+          else
+	    PutStr(D_VB);
+          break;
 	}
       break;
     case '#':
@@ -1319,7 +1403,7 @@ int c, intermediate;
  	    }
 	  if (a1 == curr->w_width && a2 == curr->w_height)
 	    break;
-          ChangeWindowSize(curr, a1, a2);
+          ChangeWindowSize(curr, a1, a2, curr->w_histheight);
 	  SetCurr(curr);
 	  if (display)
 	    Activate(0);
@@ -1377,7 +1461,10 @@ int c, intermediate;
 	  break;
 	case 'p':		/* obscure code from a 97801 term */
 	  if (a1 == 6 || a1 == 7)
-	    CursorInvisible(curr->w_curinv = 7 - a1);
+	    {
+	      curr->w_curinv = 7 - a1;
+	      CursorVisibility(curr->w_curinv ? -1 : curr->w_curvvis);
+	    }
 	  break;
 	case 'S':		/* obscure code from a 97801 term */
 	  ScrollRegion(a1 ? a1 : 1);
@@ -1412,7 +1499,7 @@ int c, intermediate;
 #endif
 		  curr->w_charsets[0] = curr->w_charsets[1] =
 		    curr->w_charsets[2] = curr->w_charsets[2] =
-		    curr->w_Font = curr->w_FontR = ASCII;
+		    curr->w_FontL = curr->w_FontR = ASCII;
 		  curr->w_Charset = 0;
 		  curr->w_CharsetR = 2;
 		  curr->w_ss = 0;
@@ -1422,7 +1509,7 @@ int c, intermediate;
 	      i = (i ? Z0width : Z1width);
 	      if (curr->w_width != i && (display == 0 || (D_CZ0 || D_CWS)))
 		{
-		  ChangeWindowSize(curr, i, curr->w_height);
+		  ChangeWindowSize(curr, i, curr->w_height, curr->w_histheight);
 		  SetCurr(curr);	/* update rows/cols */
 		  if (display)
 		    Activate(0);
@@ -1433,6 +1520,7 @@ int c, intermediate;
 	      /* This should be reverse video.
 	       * Because it is used in some termcaps to emulate
 	       * a visual bell we do this hack here.
+	       * (screen uses \Eg as special vbell sequence)
 	       */
 	      if (i)
 		ReverseVideo(1);
@@ -1473,7 +1561,8 @@ int c, intermediate;
 	 /* case 14:	   TEM:  transmit execution mode */
 	 /* case 16:	   EKEM: edit key execution mode */
 	    case 25:	/* TCEM: text cursor enable mode */
-	      CursorInvisible(curr->w_curinv = !i);
+	      curr->w_curinv = !i;
+	      CursorVisibility(curr->w_curinv ? -1 : curr->w_curvvis);
 	      break;
 	 /* case 40:	   132 col enable */
 	 /* case 42:	   NRCM: 7bit NRC character mode */
@@ -1494,16 +1583,21 @@ int c, intermediate;
 }
 
 
+/*
+ *  Store char in mline. Be sure, that w_Font is set correctly!
+ */
+
 static void
-SetChar(c, f)
-register int c, f;
+SetChar(c)
+register int c;
 {
   register struct win *p = curr;
+  register struct mline *ml;
 
   FixLine();
-  p->w_image[p->w_y][p->w_x] = c;
-  p->w_attr[p->w_y][p->w_x] = p->w_Attr;
-  p->w_font[p->w_y][p->w_x] = f;
+  ml = &p->w_mlines[p->w_y];
+  p->w_rend.image = c;
+  copy_mchar2mline(&p->w_rend, ml, p->w_x);
 }
 
 static void
@@ -1641,7 +1735,7 @@ int c, n;
     {
       curr->w_charsets[n] = c;
       if (curr->w_Charset == n)
-	SetFont(curr->w_Font = c);
+	SetFont(curr->w_FontL = c);
       if (curr->w_CharsetR == n)
         curr->w_FontR = c;
     }
@@ -1655,7 +1749,7 @@ int n;
   if (curr->w_Charset != n)
     {
       curr->w_Charset = n;
-      SetFont(curr->w_Font = curr->w_charsets[n]);
+      SetFont(curr->w_FontL = curr->w_charsets[n]);
     }
 }
 
@@ -1678,7 +1772,7 @@ SaveCursor()
   curr->w_saved = 1;
   curr->w_Saved_x = curr->w_x;
   curr->w_Saved_y = curr->w_y;
-  curr->w_SavedAttr = curr->w_Attr;
+  curr->w_SavedRend= curr->w_rend;
   curr->w_SavedCharset = curr->w_Charset;
   curr->w_SavedCharsetR = curr->w_CharsetR;
   bcopy((char *) curr->w_charsets, (char *) curr->w_SavedCharsets,
@@ -1693,14 +1787,15 @@ RestoreCursor()
       GotoPos(curr->w_Saved_x, curr->w_Saved_y);
       curr->w_x = curr->w_Saved_x;
       curr->w_y = curr->w_Saved_y;
-      curr->w_Attr = curr->w_SavedAttr;
-      SetAttr(curr->w_Attr);
+      curr->w_rend = curr->w_SavedRend;
       bcopy((char *) curr->w_SavedCharsets, (char *) curr->w_charsets,
 	    4 * sizeof(int));
       curr->w_Charset = curr->w_SavedCharset;
       curr->w_CharsetR = curr->w_SavedCharsetR;
       curr->w_ss = 0;
-      SetFont(curr->w_Font = curr->w_charsets[curr->w_Charset]);
+      curr->w_FontL = curr->w_charsets[curr->w_Charset];
+      curr->w_FontR = curr->w_charsets[curr->w_CharsetR];
+      SetRendition(&curr->w_rend);
     }
 }
 
@@ -1772,20 +1867,17 @@ ReverseLineFeed()
 }
 
 static void
-InsertAChar(c, f)
-int c, f;
+InsertAChar(c)
+int c;
 {
   register int y = curr->w_y, x = curr->w_x;
 
   if (x == cols)
     x--;
-  bcopy(curr->w_image[y], OldImage, cols);
-  bcopy(curr->w_attr[y], OldAttr, cols);
-  bcopy(curr->w_font[y], OldFont, cols);
-  bcopy(curr->w_image[y] + x, curr->w_image[y] + x + 1, cols - x - 1);
-  bcopy(curr->w_attr[y] + x, curr->w_attr[y] + x + 1, cols - x - 1);
-  bcopy(curr->w_font[y] + x, curr->w_font[y] + x + 1, cols - x - 1);
-  SetChar(c, f);
+  save_mline(&curr->w_mlines[y], cols);
+  if (cols - x - 1 > 0)
+    bcopy_mline(&curr->w_mlines[y], x, x + 1, cols - x - 1);
+  SetChar(c);
   curr->w_x = x + 1;
   if (!display)
     return;
@@ -1797,7 +1889,7 @@ int c, f;
 	D_lp_missing = 0;
     }
   else
-    UpdateLine(OldImage, OldAttr, OldFont, y, x, cols - 1);
+    UpdateLine(&mline_old, y, x, cols - 1);
 }
 
 static void
@@ -1808,23 +1900,18 @@ int n;
 
   if (n <= 0)
     return;
-  /* Hack to be compatible with the old screen versions */
-  if (curr->w_insert)
-    return;
   if (x == cols)
     x--;
-  bcopy(curr->w_image[y], OldImage, cols);
-  bcopy(curr->w_attr[y], OldAttr, cols);
-  bcopy(curr->w_font[y], OldFont, cols);
-  if (n > cols - x)
+  save_mline(&curr->w_mlines[y], cols);
+  if (n >= cols - x)
     n = cols - x;
-  bcopy(curr->w_image[y] + x, curr->w_image[y] + x + n, cols - x - n);
-  bcopy(curr->w_attr[y] + x, curr->w_attr[y] + x + n, cols - x - n);
-  bcopy(curr->w_font[y] + x, curr->w_font[y] + x + n, cols - x - n);
+  else
+    bcopy_mline(&curr->w_mlines[y], x, x + n, cols - x - n);
+
   ClearInLine(y, x, x + n - 1);
   if (!display)
     return;
-  ScrollH(y, x, curr->w_width - 1, -n, OldImage, OldAttr, OldFont);
+  ScrollH(y, x, curr->w_width - 1, -n, &mline_old);
   GotoPos(x, y);
 }
 
@@ -1836,18 +1923,16 @@ int n;
 
   if (x == cols)
     x--;
-  bcopy(curr->w_image[y], OldImage, cols);
-  bcopy(curr->w_attr[y], OldAttr, cols);
-  bcopy(curr->w_font[y], OldFont, cols);
-  if (n > cols - x)
+  save_mline(&curr->w_mlines[y], cols);
+
+  if (n >= cols - x)
     n = cols - x;
-  bcopy(curr->w_image[y] + x + n, curr->w_image[y] + x, cols - x - n);
-  bcopy(curr->w_attr[y] + x + n, curr->w_attr[y] + x, cols - x - n);
-  bcopy(curr->w_font[y] + x + n, curr->w_font[y] + x, cols - x - n);
+  else
+    bcopy_mline(&curr->w_mlines[y], x + n, x, cols - x - n);
   ClearInLine(y, cols - n, cols - 1);
   if (!display)
     return;
-  ScrollH(y, x, curr->w_width - 1, n, OldImage, OldAttr, OldFont);
+  ScrollH(y, x, curr->w_width - 1, n, &mline_old);
   GotoPos(x, y);
 }
 
@@ -1907,53 +1992,46 @@ static void
 ScrollUpMap(n)
 int n;
 {
-  char tmp[256 * sizeof(char *)];
+  char tmp[256 * sizeof(struct mline)];
   register int i, cnt1, cnt2;
-  register char **ppi, **ppa, **ppf;
+  struct mline *ml;
 #ifdef COPY_PASTE
   register int ii;
 #endif
 
   i = curr->w_top + n;
-  cnt1 = n * sizeof(char *);
-  cnt2 = (curr->w_bot - i + 1) * sizeof(char *);
-  ppi = curr->w_image + i;
-  ppa = curr->w_attr + i;
-  ppf = curr->w_font + i;
+  cnt1 = n * sizeof(struct mline);
+  cnt2 = (curr->w_bot - i + 1) * sizeof(struct mline);
 #ifdef COPY_PASTE
   for(ii = curr->w_top; ii < i; ii++)
-     AddLineToHist(curr, &curr->w_image[ii], &curr->w_attr[ii], &curr->w_font[ii]);
+     AddLineToHist(curr, &curr->w_mlines[ii]);
 #endif
+  ml = curr->w_mlines + i;
   for (i = n; i; --i)
     {
-      bclear(*--ppi, cols + 1);
-      bzero(*--ppa, cols + 1);
-      bzero(*--ppf, cols + 1);
+      --ml;
+      clear_mline(ml, 0, cols + 1);
     }
-  Scroll((char *) ppi, cnt1, cnt2, tmp);
-  Scroll((char *) ppa, cnt1, cnt2, tmp);
-  Scroll((char *) ppf, cnt1, cnt2, tmp);
+  Scroll((char *) ml, cnt1, cnt2, tmp);
 }
 
 static void
 ScrollDownMap(n)
 int n;
 {
-  char tmp[256 * sizeof(char *)];
+  char tmp[256 * sizeof(struct mline)];
   register int i, cnt1, cnt2;
-  register char **ppi, **ppa, **ppf;
+  struct mline *ml;
 
   i = curr->w_top;
-  cnt1 = (curr->w_bot - i - n + 1) * sizeof(char *);
-  cnt2 = n * sizeof(char *);
-  Scroll((char *) (ppi = curr->w_image + i), cnt1, cnt2, tmp);
-  Scroll((char *) (ppa = curr->w_attr + i), cnt1, cnt2, tmp);
-  Scroll((char *) (ppf = curr->w_font + i), cnt1, cnt2, tmp);
+  cnt1 = (curr->w_bot - i - n + 1) * sizeof(struct mline);
+  cnt2 = n * sizeof(struct mline);
+  ml = curr->w_mlines + i;
+  Scroll((char *) ml, cnt1, cnt2, tmp);
   for (i = n; i; --i)
     {
-      bclear(*ppi++, cols + 1);
-      bzero(*ppa++, cols + 1);
-      bzero(*ppf++, cols + 1);
+      clear_mline(ml, 0, cols + 1);
+      ml++;
     }
 }
 
@@ -2013,16 +2091,15 @@ static void
 ClearScreen()
 {
   register int i;
-  register char **ppi = curr->w_image, **ppa = curr->w_attr, **ppf = curr->w_font;
+  register struct mline *ml = curr->w_mlines;
 
   for (i = 0; i < rows; ++i)
     {
 #ifdef COPY_PASTE
-      AddLineToHist(curr, ppi, ppa, ppf);
+      AddLineToHist(curr, ml);
 #endif
-      bclear(*ppi++, cols + 1);
-      bzero(*ppa++, cols + 1);
-      bzero(*ppf++, cols + 1);
+      clear_mline(ml, 0, cols + 1);
+      ml++;
     }
   if (display)
     ClearDisplay();
@@ -2038,7 +2115,7 @@ ClearFromBOS()
   for (n = 0; n < y; ++n)
     ClearInLine(n, 0, cols - 1);
   ClearInLine(y, 0, x);
-  RestorePosAttrFont();
+  RestorePosRendition();
 }
 
 static void
@@ -2056,7 +2133,7 @@ ClearToEOS()
   ClearInLine(y, x, cols - 1);
   for (n = y + 1; n < rows; n++)
     ClearInLine(n, 0, cols - 1);
-  RestorePosAttrFont();
+  RestorePosRendition();
 }
 
 static void
@@ -2067,7 +2144,7 @@ ClearFullLine()
   if (display)
     Clear(0, y, 0, cols - 1, cols - 1, y, 1);
   ClearInLine(y, 0, cols - 1);
-  RestorePosAttrFont();
+  RestorePosRendition();
 }
 
 static void
@@ -2078,7 +2155,7 @@ ClearToEOL()
   if (display)
     Clear(x, y, 0, cols - 1, cols - 1, y, 1);
   ClearInLine(y, x, cols - 1);
-  RestorePosAttrFont();
+  RestorePosRendition();
 }
 
 static void
@@ -2089,7 +2166,7 @@ ClearFromBOL()
   if (display)
     Clear(0, y, 0, cols - 1, x, y, 1);
   ClearInLine(y, 0, x);
-  RestorePosAttrFont();
+  RestorePosRendition();
 }
 
 static void
@@ -2103,11 +2180,7 @@ int y, x1, x2;
   if (x2 == cols - 1)
     x2++;
   if ((n = x2 - x1 + 1) != 0)
-    {
-      bclear(curr->w_image[y] + x1, n);
-      bzero(curr->w_attr[y] + x1, n);
-      bzero(curr->w_font[y] + x1, n);
-    }
+    clear_mline(&curr->w_mlines[y], x1, n);
 }
 
 static void
@@ -2182,6 +2255,12 @@ int on;
 	case 20:
 	  curr->w_autolf = on;
 	  break;
+	case 34:
+	  curr->w_curvvis = !on;
+	  CursorVisibility(curr->w_curinv ? -1 : curr->w_curvvis);
+	  break;
+	default:
+	  break;
 	}
     }
 }
@@ -2196,11 +2275,22 @@ static char rendlist[] =
 static void
 SelectRendition()
 {
-  register int j, i = 0, a = curr->w_Attr;
+  register int j, i = 0, a = curr->w_rend.attr;
+#ifdef COLOR
+  register int c = curr->w_rend.color;
+#endif
 
   do
     {
       j = curr->w_args[i];
+#ifdef COLOR
+      if (j >= 30 && j <= 39)
+	c = (c & 0xf0) | (39 - j);
+      else if (j >= 40 && j <= 49)
+	c = (c & 0x0f) | ((49 - j) << 4);
+      if (j == 0)
+	c = 0;
+#endif
       if (j < 0 || j >= (sizeof(rendlist)/sizeof(*rendlist)))
 	continue;
       j = rendlist[j];
@@ -2210,7 +2300,12 @@ SelectRendition()
         a |= j;
     }
   while (++i < curr->w_NumArgs);
-  SetAttr(curr->w_Attr = a);
+  if (curr->w_rend.attr != a)
+    SetAttr(curr->w_rend.attr = a);
+#ifdef COLOR
+  if (curr->w_rend.color != c)
+    SetColor(curr->w_rend.color = c);
+#endif
 }
 
 static void
@@ -2222,9 +2317,8 @@ FillWithEs()
   curr->w_y = curr->w_x = 0;
   for (i = 0; i < rows; ++i)
     {
-      bzero(curr->w_attr[i], cols);
-      bzero(curr->w_font[i], cols);
-      p = curr->w_image[i];
+      clear_mline(&curr->w_mlines[i], 0, cols + 1);
+      p = curr->w_mlines[i].image;
       ep = p + cols;
       while (p < ep)
 	*p++ = 'E';
@@ -2235,51 +2329,47 @@ FillWithEs()
 
 
 static void
-UpdateLine(os, oa, of, y, from, to)
+UpdateLine(oml, y, from, to)
+struct mline *oml;
 int from, to, y;
-char *os, *oa, *of;
 {
   ASSERT(display);
-  DisplayLine(os, oa, of, curr->w_image[y], curr->w_attr[y],
-	      curr->w_font[y], y, from, to);
-  RestorePosAttrFont();
+  DisplayLine(oml, &curr->w_mlines[y], y, from, to);
+  RestorePosRendition();
 }
 
-void
+
+static void
 CheckLP(n_ch)
-char n_ch;
+int n_ch;
 {
-  register int y, x;
-  register char n_at, n_fo, o_ch, o_at, o_fo;
+  register int x;
+  register struct mline *ml;
 
   ASSERT(display);
+  ml = &curr->w_mlines[D_bot];
   x = cols - 1;
-  y = D_bot;
-  o_ch = curr->w_image[y][x];
-  o_at = curr->w_attr[y][x];
-  o_fo = curr->w_font[y][x];
 
-  n_at = curr->w_Attr;
-  n_fo = curr->w_Font;
+  curr->w_rend.image = n_ch;
 
-  D_lp_image = n_ch;
-  D_lp_attr = n_at;
-  D_lp_font = n_fo;
+  D_lpchar = curr->w_rend;
   D_lp_missing = 0;
-  if (n_ch == o_ch && n_at == o_at && n_fo == o_fo)
+
+  if (cmp_mchar_mline(&curr->w_rend, ml, x))
     return;
-  if (n_ch != ' ' || n_at || n_fo)
+  if (!cmp_mchar(&mchar_blank, &curr->w_rend))	/* is new not blank */
     D_lp_missing = 1;
-  if (o_ch != ' ' || o_at || o_fo)
+  if (!cmp_mchar_mline(&mchar_blank, ml, x))	/* is old char not blank? */
     {
-      if (D_attr && D_UT)
-	SetAttr(0);
-      if (D_DC)
+      /* old char not blank, new blank, try to delete */
+      if (D_UT)
+	SetRendition(&mchar_null);
+      if (D_CE)
+	PutStr(D_CE);
+      else if (D_DC)
 	PutStr(D_DC);
       else if (D_CDC)
 	CPutStr(D_CDC, 1);
-      else if (D_CE)
-	PutStr(D_CE);
       else
 	D_lp_missing = 1;
     }
@@ -2305,6 +2395,14 @@ int l;
   if (p->w_akachange != p->w_akabuf)
     if (p->w_akachange[0] == 0 || p->w_akachange[-1] == ':')
       p->w_title = p->w_akabuf + strlen(p->w_akabuf) + 1;
+
+  /* yucc */
+  if (p->w_hstatus)
+    {
+      display = p->w_display;
+      if (display)
+        RefreshStatus();
+    }
 }
 
 static void
@@ -2318,7 +2416,7 @@ FindAKA()
   y = (wp->w_autoaka > 0 && wp->w_autoaka <= wp->w_height) ? wp->w_autoaka - 1 : wp->w_y;
   cols = wp->w_width;
  try_line:
-  cp = line = wp->w_image[y];
+  cp = line = wp->w_mlines[y].image;
   if (wp->w_autoaka > 0 &&  *wp->w_akabuf != '\0')
     {
       for (;;)
@@ -2357,15 +2455,6 @@ FindAKA()
 }
 
 void
-MakeBlankLine(p, n)
-register char *p;
-register int n;
-{
-  while (n--)
-    *p++ = ' ';
-}
-
-void
 SetCurr(wp)
 struct win *wp;
 {
@@ -2378,11 +2467,12 @@ struct win *wp;
 }
 
 static void
-RestorePosAttrFont()
+RestorePosRendition()
 {
+  if (!display)
+    return;
   GotoPos(curr->w_x, curr->w_y);
-  SetAttr(curr->w_Attr);
-  SetFont(curr->w_Font);
+  SetRendition(&curr->w_rend);
 }
 
 /* Send a terminal report as if it were typed. */ 
@@ -2405,24 +2495,33 @@ int n1, n2;
 }
 
 #ifdef COPY_PASTE
-void
-AddLineToHist(wp, pi, pa, pf)
+static void
+AddLineToHist(wp, ml)
 struct win *wp;
-char **pi, **pa, **pf;
+struct mline *ml;
 {
   register char *q, *o;
+  struct mline *hml;
 
   if (wp->w_histheight == 0)
     return;
-  q = *pi; *pi = wp->w_ihist[wp->w_histidx]; wp->w_ihist[wp->w_histidx] = q;
-  q = *pa; o = wp->w_ahist[wp->w_histidx]; wp->w_ahist[wp->w_histidx] = q;
+  hml = &wp->w_hlines[wp->w_histidx];
+  q = ml->image; ml->image = hml->image; hml->image = q;
+
+  q = ml->attr; o = hml->attr; hml->attr = q; ml->attr = null;
   if (o != null)
     free(o);
  
-  q = *pf; o = wp->w_fhist[wp->w_histidx]; wp->w_fhist[wp->w_histidx] = q;
+  q = ml->font; o = hml->font; hml->font = q; ml->font = null;
   if (o != null)
     free(o);
-  *pa = *pf = null;
+
+#ifdef COLOR
+  q = ml->color; o = hml->color; hml->color = q; ml->color = null;
+  if (o != null)
+    free(o);
+#endif
+
   if (++wp->w_histidx >= wp->w_histheight)
     wp->w_histidx = 0;
 }

@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  * $Id$ FAU
@@ -305,6 +306,21 @@ extern int errno;
 #endif
 #if defined(S_IFDIR) && defined(S_IFMT) && !defined(S_ISDIR)
 #define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
+#endif
+
+/*
+ * SunOS 4.1.3: `man 2V open' has only one line that mentions O_NOBLOCK:
+ *
+ *     O_NONBLOCK     Same as O_NDELAY above.
+ *
+ * on the very same SunOS 4.1.3, I traced the open system call and found
+ * that an open("/dev/ttyy08", O_RDWR|O_NONBLOCK|O_NOCTTY) was blocked,
+ * whereas open("/dev/ttyy08", O_RDWR|O_NDELAY  |O_NOCTTY) went through.
+ *
+ * For this simple reason I now favour O_NDELAY. jw. 4.5.95
+ */
+#if defined(sun) && !defined(SVR4)
+# undef O_NONBLOCK
 #endif
 
 #if !defined(O_NONBLOCK) && defined(O_NDELAY)

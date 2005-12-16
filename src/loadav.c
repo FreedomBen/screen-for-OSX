@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -27,7 +28,17 @@ RCS_ID("$Id$ FAU")
 #include <fcntl.h>
 #ifdef ultrix
 # include <sys/fixpoint.h>
-#endif /* ultrix */
+#endif
+
+/* mach stuff included here to prevent index macro conflict */
+#ifdef NeXT
+# include <sys/version.h>
+# if KERNEL_MAJOR_VERSION > 2
+#  include <mach/mach.h>
+# else
+#  include <mach.h>
+# endif
+#endif
 
 #include "config.h"
 #include "screen.h"
@@ -114,8 +125,6 @@ GetLoadav()
 #if defined(NeXT) && !defined(LOADAV_DONE)
 #define LOADAV_DONE
 
-#include <mach/mach.h>
-
 static processor_set_t default_set;
 
 void
@@ -172,6 +181,10 @@ extern int nlist __P((char *, struct nlist *));
 static struct nlist nl[2];
 static int kmemf;
 
+#ifdef _IBMR2
+# define nlist(u,l) knlist(l,1,sizeof(*l))
+#endif
+
 void
 InitLoadav()
 {
@@ -189,11 +202,7 @@ InitLoadav()
 # endif
   debug2("Searching in %s for %s\n", LOADAV_UNIX, nl[0].n_name);
   nlist(LOADAV_UNIX, nl);
-# ifndef _IBMR2
   if (nl[0].n_value == 0)
-# else
-  if (nl[0].n_value == 0 || lseek(kmemf, (off_t) nl[0].n_value, 0) == (off_t)-1 || read(kmemf, (char *)&nl[0].n_value, sizeof(nl[0].n_value)) != sizeof(nl[0].n_value))
-# endif
     {
       close(kmemf);
       return;

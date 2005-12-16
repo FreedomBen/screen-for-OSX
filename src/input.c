@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -34,6 +35,7 @@ static void InpRedisplayLine __P((int, int, int, int));
 static void InpSetCursor __P((void));
 
 extern struct display *display;
+extern struct mchar mchar_blank, mchar_so;
 
 struct inpdata
 {
@@ -166,7 +168,14 @@ int *plen;
     {
       ch = *pbuf++;
       len--;
-      if (inpdata->inpmode & INP_RAW)
+      if (inpdata->inpmode & INP_EVERY)
+	{
+	  inpdata->inpbuf[inpdata->inplen] = ch;
+	  inpdata->inpbuf[inpdata->inplen + 1] = ch;	/* gross */
+	  (*inpdata->inpfinfunc)(inpdata->inpbuf, inpdata->inplen);
+	  ch = inpdata->inpbuf[inpdata->inplen];
+	}
+      else if (inpdata->inpmode & INP_RAW)
 	{
           (*inpdata->inpfinfunc)(&ch, 1);	/* raw */
 	  if (ch)
@@ -178,7 +187,7 @@ int *plen;
 	  if (!(inpdata->inpmode & INP_NOECHO))
 	    {
 	      GotoPos(x, STATLINE);
-	      SetAttrFont(A_SO, ASCII);
+	      SetRendition(&mchar_so);
 	      PUTCHAR(ch);
 	      x++;
 	    }
@@ -190,7 +199,7 @@ int *plen;
 	    {
 	      x--;
 	      GotoPos(x, STATLINE);
-	      SetAttrFont(0, ASCII);
+	      SetRendition(&mchar_blank);
 	      PUTCHAR(' ');
 	      GotoPos(x, STATLINE);
 	    }
@@ -247,7 +256,7 @@ int y, xs, xe, isblank;
   r = inpdata->inpstringlen;
   if (v > 0 && q < r)
     {
-      SetAttrFont(A_SO, ASCII);
+      SetRendition(&mchar_so);
       l = v;
       if (l > r-q)
 	l = r-q;
@@ -259,7 +268,7 @@ int y, xs, xe, isblank;
   r += inpdata->inplen;
   if (!(inpdata->inpmode & INP_NOECHO) && v > 0 && q < r)
     {
-      SetAttrFont(A_SO, ASCII);
+      SetRendition(&mchar_so);
       l = v;
       if (l > r-q)
 	l = r-q;
@@ -271,7 +280,7 @@ int y, xs, xe, isblank;
   r = D_width;
   if (!isblank && v > 0 && q < r)
     {
-      SetAttrFont(0, ASCII);
+      SetRendition(&mchar_blank);
       l = v;
       if (l > r-q)
 	l = r-q;

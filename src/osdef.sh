@@ -29,6 +29,9 @@ cat << EOF > osdef0.c
 #if defined(UTMPOK) && defined (GETTTYENT) && !defined(GETUTENT)
 #include <ttyent.h>
 #endif
+#ifdef SVR4
+# include <sys/resource.h>
+#endif
 EOF
 cat << EOF > osdef2.sed
 1i\\

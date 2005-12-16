@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  */
@@ -42,6 +43,8 @@ extern int  use_hardstatus;
 extern int  MsgMinWait;
 extern int  Z0width, Z1width;
 extern char *blank, *null;
+extern struct mline mline_blank, mline_null;
+extern struct mchar mchar_null, mchar_blank, mchar_so;
 
 /*
  * tputs needs this to calculate the padding
@@ -91,7 +94,7 @@ void
 DefClearLine(y, xs, xe)
 int y, xs, xe;
 {
-  DisplayLine(null, null, null, blank, null, null, y, xs, xe);
+  DisplayLine(&mline_null, &mline_blank, y, xs, xe);
 }
 
 /*ARGSUSED*/
@@ -123,8 +126,8 @@ DefRestore()
   ChangeScrollRegion(0, D_height - 1);
   KeypadMode(0);
   CursorkeysMode(0);
-  CursorInvisible(0);
-  SetAttrFont(0, ASCII);
+  CursorVisibility(0);
+  SetRendition(&mchar_null);
   SetFlow(FLOW_NOW);
 }
 
@@ -173,6 +176,9 @@ struct mode *Mode;
 {
   struct user **u;
 
+  if (!*(u = FindUserPtr(uname)) && UserAdd(uname, (char *)0, u))
+    return 0;	/* could not find or add user */
+
 #ifdef MULTI
   if ((display = (struct display *)malloc(sizeof(*display))) == 0)
     return 0;
@@ -196,8 +202,12 @@ struct mode *Mode;
   D_obufp = D_obuf;
   D_printfd = -1;
   D_userpid = pid;
-#ifdef POSIX
+#if defined(POSIX) || defined(TERMIO)
+# ifdef POSIX
   switch (cfgetospeed(&D_OldMode.tio))
+# else
+  switch (D_OldMode.tio.c_cflag & CBAUD)
+# endif
     {
 #ifdef B0
     case B0: D_dospeed = 0; break;
@@ -255,20 +265,13 @@ struct mode *Mode;
 #endif
     default: ;
     }
-#else
-# ifndef TERMIO
+#else	/* POSIX || TERMIO */
   D_dospeed = (short) D_OldMode.m_ttyb.sg_ospeed;
-# endif
-#endif
+#endif	/* POSIX || TERMIO */
   debug1("New displays ospeed = %d\n", D_dospeed);
   strcpy(D_usertty, utty);
   strcpy(D_termname, term);
 
-  if (!*(u = FindUserPtr(uname)) && UserAdd(uname, NULL, u))
-    {
-      FreeDisplay();
-      return NULL;	/* could not find or add user */
-    }
   D_user = *u;
   D_lay = &BlankLayer;
   D_layfn = BlankLayer.l_layfn;
@@ -281,7 +284,15 @@ FreeDisplay()
   struct win *p;
 #ifdef MULTI
   struct display *d, **dp;
+#endif
 
+  FreeTransTable();
+  freetty();
+  if (D_tentry)
+    free(D_tentry);
+  D_tentry = 0;
+  D_tcinited = 0;
+#ifdef MULTI
   for (dp = &displays; (d = *dp) ; dp = &d->d_next)
     if (d == display)
       break;
@@ -336,8 +347,11 @@ int adapt;
 #endif
   D_keypad = 0;
   D_cursorkeys = 0;
+  PutStr(D_ME);
+  PutStr(D_EA);
   PutStr(D_CE0);
-  D_font = ASCII;
+  D_rend = mchar_null;
+  D_atyp = 0;
   if (adapt == 0)
     ResizeDisplay(D_defwidth, D_defheight);
   ChangeScrollRegion(0, D_height - 1);
@@ -358,7 +372,7 @@ FinitTerm()
     {
       ResizeDisplay(D_defwidth, D_defheight);
       DefRestore();
-      SetAttrFont(0, ASCII);
+      SetRendition(&mchar_null);
 #ifdef MAPKEYS
       PutStr(D_KE);
       PutStr(D_CCE);
@@ -427,9 +441,8 @@ int c;
       return;
     }
   D_lp_missing = 1;
-  D_lp_image = c;
-  D_lp_attr = D_attr;
-  D_lp_font = D_font;
+  D_rend.image = c;
+  D_lpchar = D_rend;
 }
 
 /*
@@ -443,7 +456,7 @@ int c;
 {
   ASSERT(display);
 #ifdef KANJI
-  if (D_font == KANJI)
+  if (D_rend.font == KANJI)
     {
       int t = c;
       if (D_mbcs == 0)
@@ -468,7 +481,7 @@ int c;
 	}
       D_mbcs = t;
     }
-  else if (D_font == KANA)
+  else if (D_rend.font == KANA)
     {
       if (D_kanji == EUC)
 	{
@@ -476,18 +489,15 @@ int c;
 	  c |= 0x80;
 	}
       else if (D_kanji == SJIS)
-	{
-	  c |= 0x80;
-	}
+	c |= 0x80;
     }
   kanjiloop:
 #endif
-  if (D_font == '0')
-    {
-      AddChar(D_c0_tab[c]);
-    }
+  if (D_xtable && D_xtable[(int)(unsigned char)D_rend.font] && D_xtable[(int)(unsigned char)D_rend.font][(int)(unsigned char)c])
+    AddStr(D_xtable[(int)(unsigned char)D_rend.font][(int)(unsigned char)c]);
   else
-    AddChar(c);
+    AddChar(D_rend.font != '0' ? c : D_c0_tab[(int)(unsigned char)c]);
+
   if (++D_x >= D_width)
     {
       if (D_AM == 0)
@@ -612,16 +622,21 @@ int on;
 }
 
 void
-CursorInvisible(on)
-int on;
+CursorVisibility(v)
+int v;
 {
-  if (display && D_curinv != on && D_VI)
+  if (display && D_curvis != v)
     {
-      D_curinv = on;
-      if (D_curinv)
+      if (D_curvis)
+	PutStr(D_VE);		/* do this always, just to be safe */
+      D_curvis = 0;
+      if (v == -1 && D_VI)
 	PutStr(D_VI);
+      else if (v == 1 && D_VS)
+	PutStr(D_VS);
       else
-	PutStr(D_VE);
+	return;
+      D_curvis = v;
     }
 }
 
@@ -640,15 +655,12 @@ CalcCost(s)
 register char *s;
 {
   ASSERT(display);
-  if (s)
-    {
-      StrCost = 0;
-      ospeed = D_dospeed;
-      tputs(s, 1, CountChars);
-      return StrCost;
-    }
-  else
+  if (!s)
     return EXPENSIVE;
+  StrCost = 0;
+  ospeed = D_dospeed;
+  tputs(s, 1, CountChars);
+  return StrCost;
 }
 
 void
@@ -678,11 +690,9 @@ int x2, y2;
   dx = x2 - x1;
   dy = y2 - y1;
   if (dy == 0 && dx == 0)
-    {
-      return;
-    }
-  if (!D_MS && (D_attr || D_font != ASCII))	/* Safe to move ? */
-    SetAttrFont(0, ASCII);
+    return;
+  if (!D_MS)		/* Safe to move ? */
+    SetRendition(&mchar_null);
   if (y1 < 0			/* don't know the y position */
       || (y2 > D_bot && y1 <= D_bot)	/* have to cross border */
       || (y2 < D_top && y1 >= D_top))	/* of scrollregion ?    */
@@ -859,8 +869,8 @@ int x1, y1, xs, xe, x2, y2, uselayfn;
     x1--;
   if (x2 == D_width)
     x2--;
-  if (D_attr && D_UT)	/* Safe to erase ? */
-    SetAttr(0);
+  if (D_UT)	/* Safe to erase ? */
+    SetRendition(&mchar_null);
   if (D_lp_missing && y1 <= D_bot && xe >= D_width - 1)
     {
       if (y2 > D_bot || (y2 == D_bot && x2 >= D_width - 1))
@@ -915,7 +925,7 @@ int x1, y1, xs, xe, x2, y2, uselayfn;
       if (uselayfn)
         ClearLine(y, x1, xxe);
       else
-	DisplayLine(null, null, null, blank, null, null, y, x1, xxe);
+	DisplayLine(&mline_null, &mline_blank, y, x1, xxe);
     }
 }
 
@@ -951,9 +961,9 @@ int cur_only;
 
 
 void
-ScrollH(y, xs, xe, n, oi, oa, of)
+ScrollH(y, xs, xe, n, oml)
 int y, xs, xe, n;
-char *oi, *oa, *of;
+struct mline *oml;
 {
   int i;
 
@@ -962,12 +972,12 @@ char *oi, *oa, *of;
   if (xe != D_width - 1)
     {
       RefreshLine(y, xs, xe, 0);
-      /* UpdateLine(oi, oa, of, y, xs, xe); */
+      /* UpdateLine(oml, y, xs, xe); */
       return;
     }
   GotoPos(xs, y);
-  if (D_attr && D_UT)
-    SetAttr(0);
+  if (D_UT)
+    SetRendition(&mchar_null);
   if (n > 0)
     {
       if (D_CDC && !(n == 1 && D_DC))
@@ -980,7 +990,7 @@ char *oi, *oa, *of;
       else
 	{
 	  RefreshLine(y, xs, xe, 0);
-	  /* UpdateLine(oi, oa, of, y, xs, xe); */
+	  /* UpdateLine(oml, y, xs, xe); */
 	  return;
 	}
     }
@@ -1003,7 +1013,7 @@ char *oi, *oa, *of;
 	    }
 	  else
 	    {
-	      /* UpdateLine(oi, oa, of, y, xs, xe); */
+	      /* UpdateLine(oml, y, xs, xe); */
 	      RefreshLine(y, xs, xe, 0);
 	      return;
 	    }
@@ -1093,8 +1103,8 @@ int xs, ys, xe, ye, n;
 
   aldlfaster = (n > 1 && ye == D_bot && ((up && D_CDL) || (!up && D_CAL)));
 
-  if (D_attr && D_UT)
-    SetAttr(0);
+  if (D_UT)
+    SetRendition(&mchar_null);
   if ((up || D_SR) && D_top == ys && D_bot == ye && !aldlfaster)
     {
       if (up)
@@ -1149,7 +1159,7 @@ register int new;
 {
   register int i, j, old, typ;
 
-  if (!display || (old = D_attr) == new)
+  if (!display || (old = D_rend.attr) == new)
     return;
   typ = D_atyp;
   if ((new & old) != old)
@@ -1159,7 +1169,14 @@ register int new;
       if ((typ & ATYP_S))
         PutStr(D_SE);
       if ((typ & ATYP_M))
-        PutStr(D_ME);
+	{
+          PutStr(D_ME);
+#ifdef COLOR
+	  /* ansi attrib handling: \E[m resets color, too */
+	  if (D_CAF || D_CAB)
+	    D_rend.color = 0;
+#endif
+	}
       old = 0;
       typ = 0;
     }
@@ -1175,7 +1192,7 @@ register int new;
 	  typ |= D_attrtyp[i];
 	}
     }
-  D_attr = new;
+  D_rend.attr = new;
   D_atyp = typ;
 }
 
@@ -1183,13 +1200,23 @@ void
 SetFont(new)
 int new;
 {
-  if (!display || D_font == new)
+  if (!display || D_rend.font == new)
     return;
-  D_font = new;
+  D_rend.font = new;
 #ifdef KANJI
   if ((new == KANJI || new == KANA) && D_kanji)
     return;	/* all done in RAW_PUTCHAR */
 #endif
+  if (D_xtable && D_xtable[(int)(unsigned char)new] &&
+      D_xtable[(int)(unsigned char)new][256])
+    {
+      PutStr(D_xtable[(int)(unsigned char)new][256]);
+      return;
+    }
+
+  if (!D_CG0 && new != '0')
+    new = ASCII;
+
   if (new == ASCII)
     PutStr(D_CE0);
 #ifdef KANJI
@@ -1203,12 +1230,73 @@ int new;
     CPutStr(D_CS0, new);
 }
 
+#ifdef COLOR
 void
-SetAttrFont(newattr, newcharset)
-int newattr, newcharset;
+SetColor(new)
+int new;
 {
-  SetAttr(newattr);
-  SetFont(newcharset);
+  int of, ob, f, b;
+
+  if (!display || D_rend.color == new)
+    return;
+  of = D_rend.color & 0xf;
+  ob = (D_rend.color >> 4) & 0xf;
+  f = new & 0xf;
+  b = (new >> 4) & 0xf;
+
+  if (!D_CAX && ((f == 0 && f != of) || (b == 0 && b != ob)))
+    {
+      int oattr;
+
+      oattr = D_rend.attr;
+      AddStr("\033[m");
+      D_rend.attr = 0;
+      D_rend.color = 0;
+      of = ob = 0;
+      SetAttr(oattr);
+    }
+  if (D_CAF || D_CAB)
+    {
+      if (f != of)
+	CPutStr(D_CAF, 9 - f);
+      if (b != ob)
+	CPutStr(D_CAB, 9 - b);
+    }
+  D_rend.color = new;
+}
+#endif
+
+void
+SetRendition(mc)
+struct mchar *mc;
+{
+  if (!display)
+    return;
+  if (D_rend.attr != mc->attr)
+    SetAttr(mc->attr);
+#ifdef COLOR
+  if (D_rend.color != mc->color)
+    SetColor(mc->color);
+#endif
+  if (D_rend.font != mc->font)
+    SetFont(mc->font);
+}
+
+void
+SetRenditionMline(ml, x)
+struct mline *ml;
+int x;
+{
+  if (!display)
+    return;
+  if (D_rend.attr != ml->attr[x])
+    SetAttr(ml->attr[x]);
+#ifdef COLOR
+  if (D_rend.color != ml->color[x])
+    SetColor(ml->color[x]);
+#endif
+  if (D_rend.font != ml->font[x])
+    SetFont(ml->font[x]);
 }
 
 void
@@ -1278,7 +1366,7 @@ char *msg;
 	{
 	  debug1("using STATLINE %d\n", STATLINE);
 	  GotoPos(0, STATLINE);
-          SetAttrFont(A_SO, ASCII);
+          SetRendition(&mchar_so);
 	  InsertMode(0);
 	  AddStr(msg);
           D_x = -1;
@@ -1286,7 +1374,7 @@ char *msg;
       else
 	{
 	  debug("using HS\n");
-          SetAttrFont(0, ASCII);
+          SetRendition(&mchar_null);
 	  InsertMode(0);
 	  if (D_hstatus)
 	    PutStr(D_DS);
@@ -1341,7 +1429,7 @@ RemoveStatus()
   else
     {
       /*
-      SetAttrFont(0, ASCII);
+      SetRendition(&mchar_null);
       if (D_hstatus)
         PutStr(D_DS);
       */
@@ -1357,24 +1445,30 @@ RemoveStatus()
 void
 RefreshStatus()
 {
+  char *buf;
+
   if (D_HS)
     {
-      SetAttrFont(0, ASCII);
+      SetRendition(&mchar_null);
       if (D_hstatus)
         PutStr(D_DS);
       if (D_fore && D_fore->w_hstatus)
 	{
+	  buf = MakeWinMsg(D_fore->w_hstatus, D_fore, '\005');
 	  CPutStr(D_TS, 0);
-	  if (strlen(D_fore->w_hstatus) > D_WS)
-	    AddStrn(D_fore->w_hstatus, D_WS);
+	  if (strlen(buf) > D_WS)
+	    AddStrn(buf, D_WS);
 	  else
-	    AddStr(D_fore->w_hstatus);
+	    AddStr(buf);
 	  PutStr(D_FS);
 	  D_hstatus = 1;
 	}
     }
   else if (D_fore && D_fore->w_hstatus)
-    Msg(0, D_fore->w_hstatus);
+    {
+      buf = MakeWinMsg(D_fore->w_hstatus, D_fore, '\005');
+      Msg(0, "%s", buf);
+    }
 }
 
 void
@@ -1387,8 +1481,8 @@ int y, from, to, isblank;
   if (isblank == 0 && D_CE && to == D_width - 1)
     {
       GotoPos(from, y);
-      if (D_attr && D_UT)
-	SetAttr(0);
+      if (D_UT)
+	SetRendition(&mchar_null);
       PutStr(D_CE);
       isblank = 1;
     }
@@ -1399,20 +1493,21 @@ void
 FixLP(x2, y2)
 register int x2, y2;
 {
-  int oldattr = D_attr, oldfont = D_font;
+  struct mchar oldrend;
 
   ASSERT(display);
+  oldrend = D_rend;
   GotoPos(x2, y2);
-  SetAttrFont(D_lp_attr, D_lp_font);
-  PUTCHAR(D_lp_image);
+  SetRendition(&D_lpchar);
+  PUTCHAR(D_lpchar.image);
   D_lp_missing = 0;
-  SetAttrFont(oldattr, oldfont);
+  SetRendition(&oldrend);
 }
 
 void
-DisplayLine(os, oa, of, s, as, fs, y, from, to)
+DisplayLine(oml, ml, y, from, to)
+struct mline *oml, *ml;
 int from, to, y;
-register char *os, *oa, *of, *s, *as, *fs;
 {
   register int x;
   int last2flag = 0, delete_lp = 0;
@@ -1422,8 +1517,7 @@ register char *os, *oa, *of, *s, *as, *fs;
   ASSERT(from >= 0 && from < D_width);
   ASSERT(to >= 0 && to < D_width);
   if (!D_CLP && y == D_bot && to == D_width - 1)
-    if (D_lp_missing
-	|| s[to] != os[to] || as[to] != oa[to] || of[to] != fs[to])
+    if (D_lp_missing || !cmp_mline(oml, ml, to))
       {
 	if ((D_IC || D_IM) && from < to)
 	  {
@@ -1435,55 +1529,52 @@ register char *os, *oa, *of, *s, *as, *fs;
 	  {
 	    to--;
 	    delete_lp = (D_CE || D_DC || D_CDC);
-	    D_lp_missing = (s[to] != ' ' || as[to] || fs[to]);
-	    D_lp_image = s[to];
-	    D_lp_attr = as[to];
-	    D_lp_font = fs[to];
+	    D_lp_missing = !cmp_mchar_mline(&mchar_blank, ml, to);
+	    copy_mline2mchar(&D_lpchar, ml, to);
 	  }
       }
     else
       to--;
-  for (x = from; x <= to; ++x)
+  for (x = from; x <= to; x++)
     {
       if (x || D_x != D_width || D_y != y - 1)
         {
-	  if (x < to || x != D_width - 1 || s[x + 1] == ' ')
-	    if (s[x] == os[x] && as[x] == oa[x] && of[x] == fs[x])
+	  if (x < to || x != D_width - 1 || ml->image[x + 1] == ' ')
+	    if (cmp_mline(oml, ml, x))
 	      continue;
 	  GotoPos(x, y);
         }
 #ifdef KANJI
-      if (badkanji(fs, x))
+      if (badkanji(ml->font, x))
 	{
 	  x--;
 	  GotoPos(x, y);
 	}
 #endif
-      SetAttr(as[x]);
-      SetFont(fs[x]);
-      PUTCHAR(s[x]);
+      SetRenditionMline(ml, x);
+      PUTCHAR(ml->image[x]);
 #ifdef KANJI
-      if (fs[x] == KANJI)
-	PUTCHAR(s[++x]);
+      if (ml->font[x] == KANJI)
+	PUTCHAR(ml->image[++x]);
 #endif
     }
-  if (to == D_width - 1 && y < D_height - 1 && s[to + 1] == ' ')
+  if (to == D_width - 1 && y < D_height - 1 && ml->image[to + 1] == ' ')
     GotoPos(0, y + 1);
   if (last2flag)
     {
       GotoPos(x, y);
-      SetAttr(as[x + 1]);
-      SetFont(fs[x + 1]);
-      PUTCHAR(s[x + 1]);
+      SetRenditionMline(ml, x + 1);
+      PUTCHAR(ml->image[x + 1]);
       GotoPos(x, y);
-      SetAttr(as[x]);
-      SetFont(fs[x]);
-      INSERTCHAR(s[x]);
+      SetRenditionMline(ml, x);
+      INSERTCHAR(ml->image[x]);
     }
   else if (delete_lp)
     {
-      if (D_attr && D_UT)
-	SetAttr(0);
+      if (D_UT)
+	{
+	  SetRendition(&mchar_null);
+	}
       if (D_DC)
 	PutStr(D_DC);
       else if (D_CDC)
@@ -1571,7 +1662,7 @@ int block;
   if ((newlay = (struct layer *)malloc(sizeof(struct layer))) == 0)
     {
       Msg(0, "No memory for layer struct");
-      return(-1);
+      return -1;
     }
   data = 0;
   if (datasize)
@@ -1580,7 +1671,7 @@ int block;
 	{
 	  free((char *)newlay);
 	  Msg(0, "No memory for layer data");
-	  return(-1);
+	  return -1;
 	}
       bzero(data, datasize);
     }
@@ -1596,7 +1687,7 @@ int block;
   D_lay = newlay;
   D_layfn = newlay->l_layfn;
   Restore();
-  return(0);
+  return 0;
 }
 
 void
@@ -1741,9 +1832,12 @@ void
 NukePending()
 {/* Nuke pending output in current display, clear screen */
   register int len;
-  int oldfont = D_font, oldattr = D_attr, oldtop = D_top, oldbot = D_bot;
+  int oldtop = D_top, oldbot = D_bot;
+  struct mchar oldrend;
   int oldkeypad = D_keypad, oldcursorkeys = D_cursorkeys;
+  int oldcurvis = D_curvis;
 
+  oldrend = D_rend;
   len = D_obufp - D_obuf;
   debug1("NukePending: nuking %d chars\n", len);
   
@@ -1769,6 +1863,7 @@ NukePending()
       PutStr(D_SE);
       PutStr(D_UE);
     }
+  /* FIXME: reset color! */
   /* Check for toggle */
   if (D_IM && strcmp(D_IM, D_EI))
     PutStr(D_EI);
@@ -1783,15 +1878,17 @@ NukePending()
   D_cursorkeys = 0;
 #endif
   PutStr(D_CE0);
-  D_font = ASCII;
-  D_attr = 0;
+  D_rend = mchar_null;
   D_atyp = 0;
   PutStr(D_DS);
   D_hstatus = 0;
+  PutStr(D_VE);
+  D_curvis = 0;
   ChangeScrollRegion(oldtop, oldbot);
-  SetAttrFont(oldattr, oldfont);
+  SetRendition(&oldrend);
   KeypadMode(oldkeypad);
   CursorkeysMode(oldcursorkeys);
+  CursorVisibility(oldcurvis);
   if (D_CWS)
     {
       debug("ResizeDisplay: using WS\n");

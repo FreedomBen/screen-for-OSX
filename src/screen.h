@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA
  *
  ****************************************************************
  * $Id$ FAU
@@ -37,7 +38,7 @@
 #include "osdef.h"
 
 #include "ansi.h"
-#include "acl.h"
+#include "acls.h"
 #include "comm.h"
 #include "overlay.h"
 #include "term.h"
@@ -119,13 +120,14 @@ struct mode
   int m_ldisc;
   int m_lmode;
 # endif /* TERMIO */
-#if defined(KANJI) && defined(TIOCKSET)
+#if defined(KANJI) && defined(TIOCKSET) && defined(KM_ASCII) && defined(KM_SYSSJIS)
   struct jtchars m_jtchars;
   int m_knjmode;
 # endif
 #endif /* POSIX */
 };
 
+#include "image.h"
 #include "display.h"
 #include "window.h"
 
@@ -228,6 +230,7 @@ extern char strnomem[];
 #define INP_COOKED	0
 #define INP_NOECHO	1
 #define INP_RAW		2
+#define INP_EVERY	4
 
 
 #ifdef MULTIUSER
