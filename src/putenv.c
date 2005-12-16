@@ -1,11 +1,11 @@
-/* Copyright (c) 1991
+/* Copyright (c) 1993
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 1, or (at your option)
+ * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -16,17 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
  * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- * Noteworthy contributors to screen's design and implementation:
- *	Wayne Davison (davison@borland.com)
- *	Patrick Wolfe (pat@kai.com, kailand!pat)
- *	Bart Schaefer (schaefer@cse.ogi.edu)
- *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
- *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
- *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
- *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
- *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
- *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
  */
@@ -64,14 +53,16 @@
  *    copying the entire environment onto the heap the first time you
  *    call putenv(), then doing realloc() uniformly later on.
  */
+#include "rcs.h"
+RCS_ID("$Id$ FAU")
+
 #include "config.h"
 
-#if defined(NEEDSETENV)
+#if defined(NEEDPUTENV)
 
 #define EXTRASIZE 5        /* increment to add to env. size */
 
-char *index(), *malloc(), *realloc();
-int   strlen();
+char *malloc(), *realloc();
 
 static int  envsize = -1;    /* current size of environment */
 extern char **environ;        /* the global which is your env. */
@@ -80,32 +71,40 @@ static int  findenv();        /* look for a name in the env. */
 static int  newenv();        /* copy env. from stack to heap */
 static int  moreenv();        /* incr. size of env. */
 
-int unsetenv(name)
+int
+unsetenv(name)
 char *name;
 {
   register int i;
   
+  if (envsize < 0)
+    {				/* first time putenv called */
+      if (newenv() < 0)		/* copy env. to heap */
+	return -1;
+    }
   i = findenv(name);
-  if (i<0)
-    return;			/* Already here */
+  if (i < 0)
+    return 0;			/* Already here */
   
   free(environ[i]);
   if (envsize > 0)
     envsize--;
   for (; environ[i]; i++)
     environ[i] = environ[i+1];
+  return 0;			/* Already here */
 }
 
-int putenv(string)
+int
+putenv(string)
 char *string;
 { 
-  register int  i, j;
+  register int  i;
   register char *p;
   
   if (envsize < 0)
     {				/* first time putenv called */
       if (newenv() < 0)		/* copy env. to heap */
-	return (-1);
+	return -1;
     }
   
   i = findenv(string);		/* look for name in environment */
@@ -116,26 +115,27 @@ char *string;
       if (i >= (envsize - 1))
 	{			/* need new slot */
 	  if (moreenv() < 0)
-	    return (-1);
+	    return -1;
 	}
       p = malloc(strlen(string) + 1);
       if (p == 0)		/* not enough core */
-	return (-1);
+	return -1;
       environ[i + 1] = 0;	/* new end of env. */
     }
   else
     {			/* name already in env. */
       p = realloc(environ[i], strlen(string) + 1);
       if (p == 0)
-	return (-1);
+	return -1;
     }
   sprintf(p, "%s", string); /* copy into env. */
   environ[i] = p;
   
-  return (0);
+  return 0;
 }
 
-static int  findenv(name)
+static int
+findenv(name)
 char *name;
 {
   register char *namechar, *envchar;
@@ -153,10 +153,11 @@ char *name;
         }
       found = ((*namechar == '\0' || *namechar == '=') && *envchar == '=');
     }
-  return (found ? i - 1 : -1);
+  return found ? i - 1 : -1;
 }
 
-static int newenv()
+static int
+newenv()
 { 
   register char **env, *elem;
   register int i, esize;
@@ -166,7 +167,7 @@ static int newenv()
   esize = i + EXTRASIZE + 1;
   env = (char **)malloc(esize * sizeof (elem));
   if (env == 0)
-    return (-1);
+    return -1;
 
   for (i = 0; environ[i]; i++)
     { 
@@ -180,10 +181,11 @@ static int newenv()
   env[i] = 0;
   environ = env;
   envsize = esize;
-  return (0);
+  return 0;
 }
 
-static int moreenv()
+static int
+moreenv()
 { 
   register int  esize;
   register char **env;
@@ -191,12 +193,12 @@ static int moreenv()
   esize = envsize + EXTRASIZE;
   env = (char **)realloc(environ, esize * sizeof (*env));
   if (env == 0)
-    return (-1);
+    return -1;
   environ = env;
   envsize = esize;
-  return (0);
+  return 0;
 }
 
-#endif /* NEEDSETENV */
+#endif /* NEEDPUTENV */
 
 

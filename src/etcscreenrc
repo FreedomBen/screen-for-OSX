@@ -1,24 +1,37 @@
+#3.3
 # This is a global screenrc file
+# Install this file as /usr/local/etc/screenrc. See config.h
 #
 # Flaws of termcap and standard settings are done here.
+# Note: This file should not be shared between different hosts.
 #       The 'termcap' lines are written in termcap syntax.
 #       The syntax for a terminfo based host is slightly different.
 #
 #echo "-----------------------------------------------------------------------"
 #echo ""
-#echo "     This is iScreen version 3.2  -- Enjoy"
+#echo "     This is iScreen version 3.2.13  -- Enjoy :-)"
+#echo ""
+#echo "     Coredumps zu mir, Beschwerden nach /dev/null! "
+#echo "     Vorbeugend bitte schon mal alle screenrc files"
+#echo "     genau einmal mit ~jnweiger/trojan_horse/newsyntax bearbeiten!"
+#echo "     -- und in hartnaeckigen Faellen screen.old verwenden"
 #echo ""
 #echo "            Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)"
 #echo "-----------------------------------------------------------------------"
-#sleep 2
+#echo "       >>>>>>>>>>>> Press RETURN to continue <<<<<<<<<<<<"
+#sleep 5
+#startup_message off
 
-# Disable the big copyright notice.
-startup_message off
+#defflow on # will force iScreen to process ^S/^Q
 
-# Make utmp entries.
-login on
+deflogin on
+autodetach off
 
-autodetach on
+# 'vbell on' without the prepended 'set' keyword will change the default for 
+# subsequently opened windows. With the 'set' keyword we would change
+# the setting of the currently active window.
+vbell on
+vbell_msg "   Wuff  ----  Wuff!!  "
 
 # all termcap entries are now duplicated as terminfo entries.
 # only difference should be the slightly modified syntax, and check for
@@ -38,6 +51,7 @@ autodetach on
 # DL    delete multiple lines
 # ic    insert one char (space)
 # IC    insert multiple chars
+# xo    terminal uses xon/xoff
 
 termcap  facit|vt100|xterm LP:G0
 terminfo facit|vt100|xterm LP:G0
@@ -52,8 +66,8 @@ termcap  facit al=\E[L\E[K:AL@:dl@:DL@:cs=\E[%i%d;%dr:ic@
 terminfo facit al=\E[L\E[K:AL@:dl@:DL@:cs=\E[%i%p1%d;%p2%dr:ic@
 
 #make sun termcap/info better
-termcap  sun up=^K:AL=\E[%dL:DL=\E[%dM:UP=\E[%dA:DO=\E[%dB:LE=\E[%dD:RI=\E[%dC:IC=\E[%d@:WS=1000\E[8;%d;%dt
-terminfo sun up=^K:AL=\E[%p1%dL:DL=\E[%p1%dM:UP=\E[%p1%dA:DO=\E[%p1%dB:LE=\E[%p1%dD:RI=\E[%p1%dC:IC=\E[%p1%d@:WS=\E[8;%p1%d;%p2%dt$<1000>
+termcap  sun 'up=^K:AL=\E[%dL:DL=\E[%dM:UP=\E[%dA:DO=\E[%dB:LE=\E[%dD:RI=\E[%dC:IC=\E[%d@:WS=1000\E[8;%d;%dt'
+terminfo sun 'up=^K:AL=\E[%p1%dL:DL=\E[%p1%dM:UP=\E[%p1%dA:DO=\E[%p1%dB:LE=\E[%p1%dD:RI=\E[%p1%dC:IC=\E[%p1%d@:WS=\E[8;%p1%d;%p2%dt$<1000>'
 
 #xterm understands both im/ic and doesn't have a status line.
 #Note: Do not specify im and ic in the real termcap/info file as
@@ -61,15 +75,33 @@ terminfo sun up=^K:AL=\E[%p1%dL:DL=\E[%p1%dM:UP=\E[%p1%dA:DO=\E[%p1%dB:LE=\E[%p1
 termcap  xterm|fptwist hs@:cs=\E[%i%d;%dr:im=\E[4h:ei=\E[4l
 terminfo xterm|fptwist hs@:cs=\E[%i%p1%d;%p2%dr:im=\E[4h:ei=\E[4l
 
-#xterms is xterm with status line in title bar
-termcap  xterms hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%d;%dr:LP:G0:im=\E[4h:ei=\E[4l
-terminfo xterms hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%p1%d;%p2%dr:LP:G0:im=\E[4h:ei=\E[4l
+# xs is xterm's two letter name.
+# story ... in earlier versions I used xterms here ... buggy sequent termcap
+# routines allowes 32 :tc=...: references per lifetime.... gave lots of OOPS
+# at the 32. reattach. ... to avoid that, I added the name Xterm as an alias 
+# to xterm in our termcap file.
+# why I don't take the entry called xterm? well, I own a verion of xterm that
+# allows window resizing. My private .iscreenrc adds WS to this entry.
+
+termcap  xs 'hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%d;%dr:LP:G0:im=\E[4h:ei=\E[4l'
+terminfo xs 'hs:ts=\E]0;:fs=\007:ds=\E]0;iScreen\007:cs=\E[%i%p1%d;%p2%dr:LP:G0:im=\E[4h:ei=\E[4l'
 
 #make hp700 termcap/info better
-termcap  hp700 Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@
-terminfo hp700 Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@
+termcap  hp700 'Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@'
+terminfo hp700 'Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@'
 
-#wyse-75-42 must have flow control (xo = "terminal uses xon/xoff")
+#wyse-75-42 must have defflow control (xo = "terminal uses xon/xoff")
 #essential to have it here, as this is a slow terminal.
-termcap wy75-42 xo
-terminfo wy75-42 xo
+termcap wy75-42 xo:Z0=\E[?3h\E[31h:Z1=\E[?3l\E[31h
+terminfo wy75-42 xo:Z0=\E[?3h\E[31h:Z1=\E[?3l\E[31h
+
+#remove some stupid / dangerous key bindings
+bind '^k'
+#bind 'L'
+bind '^\'
+#make them better
+bind '\\' quit
+bind 'K' kill
+bind 'I' login on
+bind 'O' login off
+bind '}' history

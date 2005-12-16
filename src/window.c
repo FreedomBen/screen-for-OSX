@@ -1,11 +1,11 @@
-/* Copyright (c) 1991
+/* Copyright (c) 1993
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 1, or (at your option)
+ * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -17,585 +17,695 @@
  * along with this program (see the file COPYING); if not, write to the
  * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
- * Noteworthy contributors to screen's design and implementation:
- *	Wayne Davison (davison@borland.com)
- *	Patrick Wolfe (pat@kai.com, kailand!pat)
- *	Bart Schaefer (schaefer@cse.ogi.edu)
- *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
- *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
- *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
- *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
- *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
- *	Marc Boucher (marc@CAM.ORG)
- *
  ****************************************************************
  */
 
-#ifndef lint
-  static char rcs_id[] = "$Id$ FAU";
-#endif
+#include "rcs.h"
+RCS_ID("$Id$ FAU")
 
-#include <stdio.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <signal.h>
+#include <fcntl.h>
 #ifndef sun
 #include <sys/ioctl.h>
 #endif
-#ifdef BSDI
-# include <string.h>
-#endif /* BSDI */
-
-#ifdef ISC
-# include <sys/tty.h>
-# include <sys/sioctl.h>
-# include <sys/pty.h>
-#endif
-
-#ifdef MIPS
-extern int errno;
+#ifdef SVR4	/* for solaris 2.1 */
+# include <sys/stropts.h>
 #endif
 
 #include "config.h"
 #include "screen.h"
 #include "extern.h"
 
-static void FreeScrollback __P((struct win *));
+extern struct display *displays, *display;
+extern struct win *windows, *fore, *wtab[], *console_window;
+extern char *ShellArgs[];
+extern char screenterm[];
+extern char HostName[];
+extern int default_monitor, TtyMode;
+extern struct LayFuncs WinLf;
+extern int real_uid, real_gid;
+extern char Termcap[];
+extern char **NewEnv;
 
-static int ResizeHistArray __P((struct win *, char ***, int, int, int));
-static int ResizeScreenArray __P((struct win *, char ***, int, int, int));
-static void FreeArray __P((char ***, int));
-
-extern TermcapCOLS, TermcapROWS;
-extern int maxwidth;
-extern int default_width, default_height, screenwidth, screenheight;
-extern char *blank, *null, *OldImage, *OldAttr;
-extern char *OldFont, *LastMsg;
-extern struct win *wtab[], *fore;
-extern int WinList, ForeNum;
-extern char *Z0, *Z1, *WS;
-extern int Z0width, Z1width;
-
-extern int Detached;
-
-#if defined(TIOCGWINSZ) || defined(TIOCSWINSZ)
-  struct winsize glwz;
+#if defined(TIOCSWINSZ) || defined(TIOCGWINSZ)
+extern struct winsize glwz;
 #endif
 
-/*
- * ChangeFlag:   0: try to modify no window
- *               1: modify fore (and try to modify no other)
- *               2: modify all windows
- *
- * Note: Activate() is only called if change_flag == 1
- *       i.e. on a WINCH event
- */
+
+static int OpenDevice __P((char *, int, int *, char **));
+static int ForkWindow __P((char **, char *, char *, char *, struct win *));
+static void execvpe __P((char *, char **, char **));
+
+
+char DefaultShell[] = "/bin/sh";
+static char DefaultPath[] = ":/usr/ucb:/bin:/usr/bin";
+
+
+struct NewWindow nwin_undef   = 
+{
+  -1, (char *)0, (char **)0, (char *)0, (char *)0, -1, -1, 
+  -1, -1, -1, (struct pseudowin *)0
+};
+
+struct NewWindow nwin_default = 
+{ 
+  0, 0, ShellArgs, 0, screenterm, 0, 1*FLOW_NOW, 
+  LOGINDEFAULT, DEFAULTHISTHEIGHT, -1, (struct pseudowin *)0 
+};
+
+struct NewWindow nwin_options;
 
 void
-CheckScreenSize(change_flag)
-int change_flag;
+nwin_compose(def, new, res)
+struct NewWindow *def, *new, *res;
 {
-  int width, height, n;
-  struct win *p;
-
-  if (Detached)
-    {
-      debug("CheckScreenSize: Detached -> No check.\n");
-      return;
-    }
-#ifdef TIOCGWINSZ
-  if (ioctl(0, TIOCGWINSZ, &glwz) != 0)
-    {
-      debug1("CheckScreenSize: ioctl(0, TIOCGWINSZ) errno %d\n", errno);
-      width = TermcapCOLS;
-      height = TermcapROWS;
-    }
-  else
-    {
-      width = glwz.ws_col;
-      height = glwz.ws_row;
-      if (width == 0)
-        width = TermcapCOLS;
-      if (height == 0)
-        height = TermcapROWS;
-    }
-#else
-  width = TermcapCOLS;
-  height = TermcapROWS;
-#endif
-  
-  debug2("CheckScreenSize: screen is (%d,%d)\n", width, height);
-
-  if (change_flag == 2)
-    {
-      for (n = WinList; n != -1; n = p->WinLink)
-        {
-          p = wtab[n];
-          ChangeWindowSize(p, width, height);
-	}
-    }
-  if (screenwidth == width && screenheight == height)
-    {
-      debug("CheckScreenSize: No change -> return.\n");
-      return;
-    }
-  ChangeScreenSize(width, height, change_flag);
-  if (change_flag == 1 && WinList != -1)	/* was HasWindow */
-    Activate(fore->norefresh);
-}
-
-void
-ChangeScreenSize(width, height, change_fore)
-int width, height;
-int change_fore;
-{
-  struct win *p;
-  int n, wwi;
-
-  if (screenwidth == width && screenheight == height)
-    {
-      debug("ChangeScreenSize: no change\n");
-      return;
-    }
-  debug3("ChangeScreenSize to (%d,%d) (change_fore: %d)\n",width, height, change_fore);
-  screenwidth = width;
-  screenheight = height;
-
-  if (WS)
-    {
-      default_width = TermcapCOLS;
-      default_height = TermcapROWS;
-    }
-  else
-    {
-      if (Z0 && (width == Z0width || width == Z1width) &&
-          (TermcapCOLS == Z0width || TermcapCOLS == Z1width))
-        default_width = TermcapCOLS;
-      else
-        default_width = width;
-      default_height = height;
-    }
-  debug2("Default size: (%d,%d)\n",default_width, default_height);
-  if (change_fore)
-    {
-      if (WinList != -1 && change_fore) /* was HasWindow */
-        {
-          debug("Trying to change fore.\n");
-          ChangeWindowSize(fore, width, height);
-        }
-    }
-  if (WS == NULL)
-    {
-      /* We have to adapt all windows */
-      for (n = WinList; n != -1; n = p->WinLink)
-        {
-          p = wtab[n];
-          debug1("Trying to change window %d.\n",n);
-          wwi = width;
-          if (Z0 && (width==Z0width || width==Z1width))
-	    {
-	      if (p->width > (Z0width + Z1width) / 2)
-		wwi = Z0width;
-	      else
-		wwi = Z1width;
-	    }
-          ChangeWindowSize(p, wwi, height);
-        }
-    }
+  res->StartAt = new->StartAt != nwin_undef.StartAt ? new->StartAt : def->StartAt;
+  res->aka = new->aka != nwin_undef.aka ? new->aka : def->aka;
+  res->args = new->args != nwin_undef.args ? new->args : def->args;
+  res->dir = new->dir != nwin_undef.dir ? new->dir : def->dir;
+  res->term = new->term != nwin_undef.term ? new->term : def->term;
+  res->aflag = new->aflag != nwin_undef.aflag ? new->aflag : def->aflag;
+  res->flowflag = new->flowflag != nwin_undef.flowflag ? new->flowflag : def->flowflag;
+  res->lflag = new->lflag != nwin_undef.lflag ? new->lflag : def->lflag;
+  res->histheight = new->histheight != nwin_undef.histheight ? new->histheight : def->histheight;
+  res->monitor = new->monitor != nwin_undef.monitor ? new->monitor : def->monitor;
+  res->pwin = new->pwin;
 }
 
 int
-ChangeScrollback(p, histheight, histwidth)
-struct win *p;
-int histheight, histwidth;
+MakeWindow(newwin)
+struct NewWindow *newwin;
 {
-  if (histheight > MAXHISTHEIGHT)
-    histheight = MAXHISTHEIGHT;
-  debug2("ChangeScrollback(..., %d, %d)\n", histheight, histwidth);
-  debug2("  was %d, %d\n", p->histheight, p->width);
+  register struct win **pp, *p;
+  register int n;
+  int f = -1;
+  struct NewWindow nwin;
+  int ttyflag;
+  char *TtyName;
 
-  if (histheight == 0)
+  debug1("NewWindow: StartAt %d\n", newwin->StartAt);
+  debug1("NewWindow: aka     %s\n", newwin->aka?newwin->aka:"NULL");
+  debug1("NewWindow: dir     %s\n", newwin->dir?newwin->dir:"NULL");
+  debug1("NewWindow: term    %s\n", newwin->term?newwin->term:"NULL");
+  nwin_compose(&nwin_default, newwin, &nwin);
+  debug1("NWin: aka     %s\n", nwin.aka ? nwin.aka : "NULL");
+  pp = wtab + nwin.StartAt;
+
+  do
     {
-      FreeScrollback(p);
-      return 0;
+      if (*pp == 0)
+	break;
+      if (++pp == wtab + MAXWIN)
+	pp = wtab;
+    }
+  while (pp != wtab + nwin.StartAt);
+  if (*pp)
+    {
+      Msg(0, "No more windows.");
+      return -1;
     }
 
-  if (ResizeHistArray(p, &p->ihist, histwidth, histheight, 1)
-      || ResizeHistArray(p, &p->ahist, histwidth, histheight, 0)
-      || ResizeHistArray(p, &p->fhist, histwidth, histheight, 0))
+#if defined(USRLIMIT) && defined(UTMPOK)
+  /*
+   * Count current number of users, if logging windows in.
+   */
+  if (nwin.lflag && CountUsers() >= USRLIMIT)
     {
-      debug("   failed, removing all histbuf\n");
-      FreeScrollback(p);
-      Msg_nomem;
-      return (-1);
+      Msg(0, "User limit reached.  Window will not be logged in.");
+      nwin.lflag = 0;
     }
-  if (p->histheight != histheight)
-    p->histidx = 0;
-  p->histheight = histheight;
+#endif
+  n = pp - wtab;
+  debug1("Makewin creating %d\n", n);
 
-  return(0);
+  if ((f = OpenDevice(nwin.args[0], nwin.lflag, &ttyflag, &TtyName)) < 0)
+    return -1;
+
+  if ((p = (struct win *) malloc(sizeof(struct win))) == 0)
+    {
+      close(f);
+      Msg(0, strnomem);
+      return -1;
+    }
+  bzero((char *) p, (int) sizeof(struct win));
+  p->w_dupto = -1;
+  p->w_winlay.l_next = 0;
+  p->w_winlay.l_layfn = &WinLf;
+  p->w_winlay.l_data = (char *)p;
+  p->w_lay = &p->w_winlay;
+  p->w_display = display;
+  p->w_number = n;
+  p->w_ptyfd = f;
+  p->w_aflag = nwin.aflag;
+  p->w_flow = nwin.flowflag | ((nwin.flowflag & FLOW_AUTOFLAG) ? (FLOW_AUTO|FLOW_NOW) : FLOW_AUTO);
+  if (!nwin.aka)
+    nwin.aka = Filename(nwin.args[0]);
+  strncpy(p->w_cmd, nwin.aka, MAXSTR - 1);
+  if ((nwin.aka = rindex(p->w_cmd, '|')) != NULL)
+    {
+      *nwin.aka++ = '\0';
+      nwin.aka += strlen(nwin.aka);
+      p->w_akapos = nwin.aka - p->w_cmd;
+      p->w_autoaka = 0;
+    }
+  else
+    p->w_akapos = 0;
+  if ((p->w_monitor = nwin.monitor) == -1)
+    p->w_monitor = default_monitor;
+  p->w_norefresh = 0;
+  strncpy(p->w_tty, TtyName, MAXSTR - 1);
+
+  if (ChangeWindowSize(p, display ? d_defwidth : 80, display ? d_defheight : 24))
+    {
+      FreeWindow(p);
+      return -1;
+    }
+#ifdef COPY_PASTE
+  ChangeScrollback(p, nwin.histheight, p->w_width);
+#endif
+  ResetWindow(p);	/* sets p->w_wrap */
+
+  if (ttyflag == TTY_FLAG_PLAIN)
+    {
+      p->w_t.flags |= TTY_FLAG_PLAIN;
+      p->w_pid = 0;
+    }
+  else
+    {
+      debug("forking...\n");
+      p->w_pwin = NULL;
+      p->w_pid = ForkWindow(nwin.args, nwin.dir, nwin.term, TtyName, p);
+      if (p->w_pid < 0)
+	{
+	  FreeWindow(p);
+	  return -1;
+	}
+    }
+  /*
+   * Place the newly created window at the head of the most-recently-used list.
+   */
+  if (display && d_fore)
+    d_other = d_fore;
+  *pp = p;
+  p->w_next = windows;
+  windows = p;
+#ifdef UTMPOK
+  debug1("MakeWindow will %slog in.\n", nwin.lflag?"":"not ");
+  if (nwin.lflag == 1)
+    {
+      if (display)
+        SetUtmp(p);
+      else
+	p->w_slot = (slot_t) 0;
+    }
+  else
+    p->w_slot = (slot_t) -1;
+#endif
+  SetForeWindow(p);
+  Activate(p->w_norefresh);
+  return n;
 }
 
-static void FreeScrollback(p)
-struct win *p;
+void
+FreeWindow(wp)
+struct win *wp;
 {
-  FreeArray(&p->ihist, p->histheight);
-  FreeArray(&p->ahist, p->histheight);
-  FreeArray(&p->fhist, p->histheight);
-  p->histheight = 0;
+  struct display *d;
+
+  if (wp->w_pwin)
+    FreePseudowin(wp);
+#ifdef UTMPOK
+  RemoveUtmp(wp);
+#endif
+  (void) chmod(wp->w_tty, 0666);
+  (void) chown(wp->w_tty, 0, 0);
+  close(wp->w_ptyfd);
+  if (wp == console_window)
+    console_window = 0;
+  if (wp->w_logfp != NULL)
+    fclose(wp->w_logfp);
+  ChangeWindowSize(wp, 0, 0);
+  for (d = displays; d; d = d->_d_next)
+    if (d->_d_other == wp)
+      d->_d_other = 0;
+  free(wp);
 }
 
 static int
-ResizeHistArray(p, arr, wi, hi, fillblank)
-struct win *p;
-char ***arr;
-int wi, hi, fillblank;
+OpenDevice(arg, lflag, typep, namep)
+char *arg;
+int lflag;
+int *typep;
+char **namep;
 {
-  char **narr, **np, **onp, **onpe;
-  int t, x, first;
+  struct stat st;
+  int f;
 
-  if (p->width == wi && p->histheight == hi)
-    return(0);
-  if (p->histheight != hi)
+  if ((stat(arg, &st)) == 0 && (st.st_mode & S_IFCHR))
     {
-      if ((narr = (char **)calloc(sizeof(char *), hi)) == NULL)
+      if (access(arg, R_OK | W_OK) == -1)
 	{
-	  FreeArray(arr, p->histheight);
-	  return(-1);
+	  Msg(errno, "Cannot access line '%s' for R/W", arg); 
+	  return -1;
 	}
-      np = narr;
-      onp = (*arr) + p->histidx;
-      onpe = (*arr) + p->histheight;
-      first = p->histheight - hi;
-      if (first<0)
-	 np-=first;
-      for(t=0; t<p->histheight; t++)
-	{
-          if (t-first >=0 && t-first < hi)
-	    *np++ = *onp;
-	  else
-	    Free(*onp);
-	  if (++onp == onpe)
-	    onp = *arr;
-	}
-      if (*arr)
-	Free(*arr);
+      debug("OpenDevice: OpenTTY\n");
+      if ((f = OpenTTY(arg)) < 0)
+	return -1;
+      *typep = TTY_FLAG_PLAIN;
+      *namep = arg;
     }
   else
-    narr = *arr;
- 
-  for (t=0, np=narr; t<hi; t++, np++)
     {
-      x = p->width;
-      if (*np == 0)
+      *typep = 0;    /* for now we hope it is a program */
+      f = OpenPTY(namep);
+      if (f == -1)
 	{
-	  *np = (char *)malloc(wi);
-          x = 0;
+	  Msg(0, "No more PTYs.");
+	  return -1;
 	}
-      else if (p->width != wi)
-	{
-	  *np = (char *)xrealloc(*np, wi);
-	}
-      if (*np == 0)
-	{
-	  FreeArray(&narr, hi);
-	  return(-1);
-	}
-      if (x<wi)
-	{
-	  if (fillblank)
-	    bclear(*np+x, wi-x);
-	  else
-	    bzero(*np+x, wi-x);
-	}
-    }
-  *arr = narr;
-  return(0);
-}
-      
-
-static int
-ResizeScreenArray(p, arr, wi, hi, fillblank)
-struct win *p;
-char ***arr;
-int wi, hi, fillblank;
-{
-  int minr;
-  char **cp;
-
-  if (p->width == wi && p->height == hi)
-    return(0);
-
-  if (hi > p->height)
-    minr = p->height;
-  else
-    minr = hi;
-
-  if (p->height > hi)
-    {
-      for (cp = *arr; cp < *arr + (p->height - hi); cp++)
-	Free(*cp);
-      bcopy((char *)(*arr + (p->height - hi)), (char *)(*arr),
-	    hi * sizeof(char *));
-    }
-  if (*arr && p->width != wi)
-    for (cp = *arr; cp < *arr + minr; cp++)
+#ifdef TIOCPKT
       {
-	if ((*cp = (char *)xrealloc(*cp, (unsigned) wi)) == 0)
+	int flag = 1;
+
+	if (ioctl(f, TIOCPKT, &flag))
 	  {
-	    FreeArray(arr, p->height);
-	    return(-1);
-	  }
-	if (wi > p->width)
-	  {
-	    if (fillblank)
-	      bclear(*cp + p->width, wi - p->width);
-	    else
-	      bzero(*cp + p->width, wi - p->width);
+	    Msg(errno, "TIOCPKT ioctl");
+	    close(f);
+	    return -1;
 	  }
       }
-  if (*arr)
-    *arr = (char **) xrealloc((char *) *arr, (unsigned) hi * sizeof(char *));
-  else
-    *arr = (char **) malloc((unsigned) hi * sizeof(char *));
-  if (*arr == 0)
-    return(-1);
-  for (cp = *arr + p->height; cp < *arr + hi; cp++)
-    {
-      if ((*cp = malloc((unsigned) wi)) == 0)
-	{
-	  while (--cp >= *arr)
-	    Free(*cp);
-	  Free(*arr);
-          return(-1);
-	}
-      if (fillblank)
-	bclear(*cp, wi);
-      else
-	bzero(*cp, wi);
+#endif /* TIOCPKT */
     }
-  return(0);
+  (void) fcntl(f, F_SETFL, FNDELAY);
+#ifdef PTYGROUP
+  (void) chown(*namep, real_uid, PTYGROUP);
+#else
+  (void) chown(*namep, real_uid, real_gid);
+#endif
+#ifdef UTMPOK
+  (void) chmod(*namep, lflag ? TtyMode : (TtyMode & ~022));
+#else
+  (void) chmod(*namep, TtyMode);
+#endif
+  return f;
+}
+
+/*
+ * Fields w_width, w_height, aflag, number (and w_tty)
+ * are read from struct win *win. No fields written.
+ * If pwin is nonzero, filedescriptors are distributed 
+ * between win->w_tty and open(ttyn)
+ *
+ */
+static int 
+ForkWindow(args, dir, term, ttyn, win)
+char **args, *dir, *term, *ttyn;
+struct win *win;
+{
+  struct pseudowin *pwin = win->w_pwin;
+  int pid;
+  char tebuf[25];
+  char ebuf[10];
+#ifndef TIOCSWINSZ
+  char libuf[20], cobuf[20];
+#endif
+  int i, newfd, pat, wfdused;
+  int w = win->w_width;
+  int h = win->w_height;
+
+  switch (pid = fork())
+    {
+    case -1:
+      Msg(errno, "fork");
+      return -1;
+    case 0:
+      signal(SIGHUP, SIG_DFL);
+      signal(SIGINT, SIG_DFL);
+      signal(SIGQUIT, SIG_DFL);
+      signal(SIGTERM, SIG_DFL);
+#ifdef BSDJOBS
+      signal(SIGTTIN, SIG_DFL);
+      signal(SIGTTOU, SIG_DFL);
+#endif
+      if (setuid(real_uid) || setgid(real_gid))
+	{
+	  SendErrorMsg("Setuid/gid: %s", sys_errlist[errno]);
+	  eexit(1);
+	}
+      if (dir && *dir && chdir(dir) == -1)
+	{
+	  SendErrorMsg("Cannot chdir to %s: %s", dir, sys_errlist[errno]);
+	  eexit(1);
+	}
+
+      if (display)
+	{
+	  brktty(d_userfd);
+	  freetty();
+	}
+      else
+	brktty(-1);
+#ifdef DEBUG
+      if (dfp != stderr)
+	fclose(dfp);
+#endif
+      closeallfiles(win->w_ptyfd);
+#ifdef DEBUG
+      if ((dfp = fopen("/tmp/debug/screen.child", "a")) == 0)
+	dfp = stderr;
+      else
+	(void) chmod("/tmp/debug/screen.child", 0666);
+      debug1("=== ForkWindow: pid %d\n", getpid());
+#endif
+      /* 
+       * distribute filedescriptors between the ttys
+       */
+      pat = pwin ? pwin->fdpat : 
+		   ((F_PFRONT<<(F_PSHIFT*2)) | (F_PFRONT<<F_PSHIFT) | F_PFRONT);
+      newfd = -1;
+      wfdused = 0;
+      /* Close the three /dev/null descriptors */
+      close(0);
+      close(1);
+      close(2);
+      for(i = 0; i < 3; i++)
+	{
+	  if (pat & F_PFRONT << F_PSHIFT * i)
+	    {
+	      if (newfd < 0)
+		{
+		  if ((newfd = open(ttyn, O_RDWR)) < 0)
+		    {
+		      SendErrorMsg("Cannot open %s: %s",
+				   ttyn, sys_errlist[errno]);
+		      eexit(1);
+		    }
+		}
+	      else
+		dup(newfd);
+	    }
+	  else
+	    {
+	      dup(win->w_ptyfd);
+	      wfdused = 1;
+	    }
+	}
+      if (wfdused)
+	{
+	    /* 
+	     * the pseudo window process should not be surprised with a 
+	     * nonblocking filedescriptor. Poor Backend!
+	     */
+	    debug1("Clearing NDELAY on window-fd(%d)\n", win->w_ptyfd);
+	    if (fcntl(win->w_ptyfd, F_SETFL, 0))
+	      SendErrorMsg("Warning: ForkWindow clear NDELAY fcntl failed, %d", errno);
+	}
+      close(win->w_ptyfd);
+
+      if (newfd >= 0)
+	{
+	  struct mode fakemode, *modep;
+#ifdef SVR4
+	  if (ioctl(newfd, I_PUSH, "ptem"))
+	    {
+	      SendErrorMsg("Cannot I_PUSH ptem %s %s", ttyn, sys_errlist[errno]);
+	      eexit(1);
+	    }
+	  if (ioctl(newfd, I_PUSH, "ldterm"))
+	    {
+	      SendErrorMsg("Cannot I_PUSH ldterm %s %s", ttyn, sys_errlist[errno]);
+	      eexit(1);
+	    }
+	  if (ioctl(newfd, I_PUSH, "ttcompat"))
+	    {
+	      SendErrorMsg("Cannot I_PUSH ttcompat %s %s", ttyn, sys_errlist[errno]);
+	      eexit(1);
+	    }
+#endif
+	  if (fgtty(newfd))
+	    SendErrorMsg("fgtty: %s (%d)", sys_errlist[errno], errno);
+	  if (display)
+	    {
+	      debug("ForkWindow: using display tty mode for new child.\n");
+	      modep = &d_OldMode;
+	    }
+	  else
+	    {
+	      debug("No display - creating tty setting\n");
+	      modep = &fakemode;
+	      InitTTY(modep, 0);
+#ifdef DEBUGGGGGGGGGGGGGG
+	      DebugTTY(modep);
+#endif
+	    }
+	  /* We only want echo if the users input goes to the pseudo
+	   * and the pseudo's stdout is not send to the window.
+	   */
+	  if (pwin && (!(pat & F_UWP) || (pat & F_PBACK << F_PSHIFT)))
+	    {
+	      debug1("clearing echo on pseudywin fd (pat %x)\n", pat);
+#if defined(POSIX) || defined(TERMIO)
+	      modep->tio.c_lflag &= ~ECHO;
+	      modep->tio.c_iflag &= ~ICRNL;
+#else
+	      modep->m_ttyb.sg_flags &= ~ECHO;
+#endif
+	    }
+	  SetTTY(newfd, modep);
+#ifdef TIOCSWINSZ
+	  glwz.ws_col = w;
+	  glwz.ws_row = h;
+	  (void) ioctl(newfd, TIOCSWINSZ, &glwz);
+#endif
+	}
+#ifndef TIOCSWINSZ
+      sprintf(libuf, "LINES=%d", h);
+      sprintf(cobuf, "COLUMNS=%d", w);
+      NewEnv[4] = libuf;
+      NewEnv[5] = cobuf;
+#endif
+      if (win->w_aflag)
+	NewEnv[2] = MakeTermcap(1);
+      else
+	NewEnv[2] = Termcap;
+      if (term && *term && strcmp(screenterm, term) &&
+	  (strlen(term) < 20))
+	{
+	  char *s1, *s2, tl;
+
+	  sprintf(tebuf, "TERM=%s", term);
+	  debug2("Makewindow %d with %s\n", win->w_number, tebuf);
+	  tl = strlen(term);
+	  NewEnv[1] = tebuf;
+	  if ((s1 = index(Termcap, '|')))
+	    {
+	      if ((s2 = index(++s1, '|')))
+		{
+		  if (strlen(Termcap) - (s2 - s1) + tl < 1024)
+		    {
+		      bcopy(s2, s1 + tl, strlen(s2) + 1);
+		      bcopy(term, s1, tl);
+		    }
+		}
+	    }
+	}
+      sprintf(ebuf, "WINDOW=%d", win->w_number);
+      NewEnv[3] = ebuf;
+
+      debug1("calling execvpe %s\n", *args);
+      execvpe(*args, args, NewEnv);
+      debug1("exec error: %d\n", errno);
+      SendErrorMsg("Cannot exec %s: %s", *args, sys_errlist[errno]);
+      exit(1);
+    default:
+      return pid;
+    } /* end fork switch */
+  /* NOTREACHED */
 }
 
 static void
-FreeArray(arr, hi)
-char ***arr;
-int hi;
+execvpe(prog, args, env)
+char *prog, **args, **env;
 {
-  register char **p;
-  register int t;
+  register char *path = NULL, *p;
+  char buf[1024];
+  char *shargs[MAXARGS + 1];
+  register int i, eaccess = 0;
 
-  if (*arr == 0)
-    return;
-  for (t = hi, p = *arr; t--; p++)
-    if (*p)
-      Free(*p);
-  Free(*arr);
+  for (i = 0; i < 3; i++)
+    if (!strncmp("../" + i, prog, 3 - i))
+      path = "";
+  if (!path && !(path = getenv("PATH")))
+    path = DefaultPath;
+  do
+    {
+      p = buf;
+      while (*path && *path != ':')
+	*p++ = *path++;
+      if (p > buf)
+	*p++ = '/';
+      strcpy(p, prog);
+      execve(buf, args, env);
+      switch (errno)
+	{
+	case ENOEXEC:
+	  shargs[0] = DefaultShell;
+	  shargs[1] = buf;
+	  for (i = 1; (shargs[i + 1] = args[i]) != NULL; ++i)
+	    ;
+	  execve(DefaultShell, shargs, env);
+	  return;
+	case EACCES:
+	  eaccess = 1;
+	  break;
+	case ENOMEM:
+	case E2BIG:
+	case ETXTBSY:
+	  return;
+	}
+    } while (*path++);
+  if (eaccess)
+    errno = EACCES;
 }
-
 
 int
-ChangeWindowSize(p, width, height)
-struct win *p;
-int width, height;
+winexec(av)
+char **av;
 {
-  int t, scr;
+  char **pp;
+  char *p, *s, *t;
+  int i, r = 0, l = 0;
+  struct pseudowin *pwin;
+  struct win *w;
+  extern struct display *display;
+  extern struct win *windows;
   
-  if (width > maxwidth)
+  if ((w = display ? fore : windows) == NULL)
+    return -1;
+  if (!*av || w->w_pwin)
     {
-      maxwidth = width;
-      debug1("New maxwidth: %d\n", maxwidth);
-      if (blank == 0)
-        blank = malloc((unsigned) maxwidth);
-      else
-        blank = xrealloc(blank, (unsigned) maxwidth);
-      if (null == 0)
-        null = malloc((unsigned) maxwidth);
-      else
-        null = xrealloc(null, (unsigned) maxwidth);
-      if (OldImage == 0)
-        OldImage = malloc((unsigned) maxwidth);
-      else
-        OldImage = xrealloc(OldImage, (unsigned) maxwidth);
-      if (OldAttr == 0)
-        OldAttr = malloc((unsigned) maxwidth);
-      else
-        OldAttr = xrealloc(OldAttr, (unsigned) maxwidth);
-      if (OldFont == 0)
-        OldFont = malloc((unsigned) maxwidth);
-      else
-        OldFont = xrealloc(OldFont, (unsigned) maxwidth);
-      if (LastMsg == 0)
-        {
-          LastMsg = malloc((unsigned) maxwidth + 1);
-          *LastMsg = 0;
-        }
-      else
-        LastMsg = xrealloc(LastMsg, (unsigned) maxwidth + 1);
-      LastMsg[maxwidth]=0;
-      if (!(blank && null && OldImage && OldAttr && OldFont && LastMsg))
-	{
-nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) 
-	    ;
-	  if (t >= 0)
-	    KillWindow(t);
-	  Msg(0, "Out of memory -> Window destroyed !!");
-	  return(-1);
-	}
-      MakeBlankLine(blank, maxwidth);
-      bzero(null, maxwidth);
+      Msg(0, "Filter running: %s", w->w_pwin ? w->w_pwin->p_cmd : "(none)");
+      return -1;
     }
-  
-  if (width == p->width && height == p->height)
+  if (!(pwin = (struct pseudowin *)malloc(sizeof(struct pseudowin))))
     {
-      debug("ChangeWindowSize: No change.\n");
-      return(0);
+      Msg(0, strnomem);
+      return -1;
     }
+  bzero((char *)pwin, (int)sizeof(*pwin));
 
-  debug2("ChangeWindowSize from (%d,%d) to ", p->width, p->height);
-  debug2("(%d,%d)\n", width, height);
-
-  if (width == 0 && height == 0)
+  /* allow ^a:!!./ttytest as a short form for ^a:exec !.. ./ttytest */
+  for (s = *av; *s == ' '; s++)
+    ;
+  for (p = s; *p == ':' || *p == '.' || *p == '!'; p++)
+    ;
+  if (*p != '|')
+    while (*p && p > s && p[-1] == '.')
+      p--;
+  if (*p == '|')
     {
-      FreeArray(&p->image, p->height);
-      FreeArray(&p->attr, p->height);
-      FreeArray(&p->font, p->height);
-      if (p->tabs)
-	Free(p->tabs);
-      p->width = 0;
-      p->height = 0;
-      FreeScrollback(p);
-      return(0);
+      l = F_UWP;
+      p++;
     }
-
-  /* when window gets smaller, scr is the no. of lines we scroll up */
-  scr = p->height - height;
-  if (scr < 0)
-    scr = 0;
-  for (t = 0; t < scr; t++)
-    AddLineToHist(p, p->image+t, p->attr+t, p->font+t); 
-  if (ResizeScreenArray(p, &p->image, width, height, 1)
-      || ResizeScreenArray(p, &p->attr, width, height, 0)
-      || ResizeScreenArray(p, &p->font, width, height, 0))
-    {
-      goto nomem;
-    }
-  /* this won't change the height of the scrollback history buffer, but
-   * it will check the width of the lines.
-   */
-  ChangeScrollback(p, p->histheight, width);
-
-  if (p->tabs == 0)
-    {
-      /* tabs get width+1 because 0 <= x <= width */
-      if ((p->tabs = malloc((unsigned) width + 1)) == 0)
-        goto nomem;
-      t = 8;
-    }
+  if (*p) 
+    av[0] = p;
   else
-    {
-      if ((p->tabs = xrealloc(p->tabs, (unsigned) width + 1)) == 0)
-        goto nomem;
-      t = p->width;
-    }
-  for (t = (t + 7) & 8; t < width; t += 8)
-    p->tabs[t] = 1; 
-  p->height = height;
-  p->width = width;
-  if (p->x >= width)
-    p->x = width - 1;
-  if ((p->y -= scr) < 0)
-    p->y = 0;
-  if (p->Saved_x >= width)
-    p->Saved_x = width - 1;
-  if ((p->Saved_y -= scr) < 0)
-    p->Saved_y = 0;
-  if (p->autoaka > 0) 
-    if ((p->autoaka -= scr) < 1)
-      p->autoaka = 1;
-  p->top = 0;
-  p->bot = height - 1;
-#ifdef TIOCSWINSZ
-  if (p->ptyfd && p->wpid)
-    {
-      glwz.ws_col = width;
-      glwz.ws_row = height;
-      debug("Setting pty winsize.\n");
-      if (ioctl(p->ptyfd, TIOCSWINSZ, &glwz))
-	debug2("SetPtySize: errno %d (fd:%d)\n", errno, p->ptyfd);
-# if defined(STUPIDTIOCSWINSZ) && defined(SIGWINCH)
-#  ifdef POSIX
-      pgrp = tcgetpgrp(p->ptyfd);
-#  else
-      if (ioctl(p->ptyfd, TIOCGPGRP, &pgrp))
-	pgrp = 0;
-#  endif
-      if (pgrp)
-	{
-	  debug1("Sending SIGWINCH to pgrp %d.\n", pgrp);
-	  if (killpg(pgrp, SIGWINCH))
-	    debug1("killpg: errno %d\n", errno);
-	}
-      else
-	debug1("Could not get pgrp: errno %d\n", errno);
-# endif /* STUPIDTIOCSWINSZ */
-    }
-#endif
-  return(0);
-}
+    av++;
 
+  t = pwin->p_cmd;
+  for (i = 0; i < 3; i++)
+    {
+      *t = (s < p) ? *s++ : '.';
+      switch (*t++)
+	{
+	case '.':
+	case '|':
+	  l |= F_PFRONT << (i * F_PSHIFT);
+	  break;
+	case '!':
+	  l |= F_PBACK << (i * F_PSHIFT);
+	  break;
+	case ':':
+	  l |= F_PBOTH << (i * F_PSHIFT);
+	  break;
+	}
+    }
+  
+  if (l & F_UWP)
+    {
+      *t++ = '|';
+      if ((l & F_PMASK) == F_PFRONT)
+	{
+	  *pwin->p_cmd = '!';
+	  l ^= F_PFRONT | F_PBACK;
+	}
+    }
+  if (!(l & F_PBACK))
+    l |= F_UWP;
+  *t++ = ' ';
+  pwin->fdpat = l;
+  debug1("winexec: '%#x'\n", pwin->fdpat);
+  
+  l = MAXSTR - 4;
+  for (pp = av; *pp; pp++)
+    {
+      p = *pp;
+      while (*p && l-- > 0)
+        *t++ = *p++;
+      if (l <= 0)
+	break;
+      *t++ = ' ';
+    }
+  *--t = '\0';
+  debug1("%s\n", pwin->p_cmd);
+  
+  if ((pwin->p_ptyfd = OpenDevice(av[0], 0, &l, &t)) < 0)
+    {
+      free(pwin);
+      return -1;
+    }
+  strncpy(pwin->p_tty, t, MAXSTR - 1);
+  w->w_pwin = pwin;
+  if (l == TTY_FLAG_PLAIN)
+    {
+      FreePseudowin(w);
+      Msg(0, "Cannot handle a TTY as a pseudo win.");
+      return -1;
+    }
+#ifdef TIOCPKT
+  {
+    int flag = 0;
+
+    if (ioctl(pwin->p_ptyfd, TIOCPKT, &flag))
+      {
+	Msg(errno, "TIOCPKT ioctl");
+	FreePseudowin(w);
+	return -1;
+      }
+  }
+#endif /* TIOCPKT */
+  pwin->p_pid = ForkWindow(av, NULL, NULL, t, w);
+  if ((r = pwin->p_pid) < 0)
+    FreePseudowin(w);
+  return r;
+}
 
 void
-ResizeScreen(wi)
-struct win *wi;
+FreePseudowin(w)
+struct win *w;
 {
-  int width, height;
+  struct pseudowin *pwin = w->w_pwin;
 
-  if (wi)
-    {
-      width = wi->width;
-      height = wi->height;
-    }
-  else
-    {
-      width = default_width;
-      height = default_height;
-    }
-  if (screenwidth == width && screenheight == height)
-    {
-      debug("ResizeScreen: No change\n");
-      return;
-    }
-  debug2("ResizeScreen: to (%d,%d).\n", width, height);
-  if (WS)
-    {
-      debug("ResizeScreen: using WS\n");
-      WSresize(width, height);
-      ChangeScreenSize(width, height, 0);
-    }
-  else if (Z0 && (width == Z0width || width == Z1width))
-    {
-      debug("ResizeScreen: using Z0/Z1\n");
-      PutStr(width == Z0width ? Z0 : Z1);
-      ChangeScreenSize(width, screenheight, 0);
-    }
-  if (screenwidth != width || screenheight != height)
-    {
-      debug2("BUG: Cannot resize from (%d,%d)",screenwidth, screenheight);
-      debug2(" to (%d,%d) !!\n", width, height);
-      if (wi)
-	ChangeWindowSize(wi, screenwidth, screenheight);
-    }
+  ASSERT(pwin);
+  if (fcntl(w->w_ptyfd, F_SETFL, FNDELAY))
+    Msg(errno, "Warning: FreePseudowin: NDELAY fcntl failed");
+  (void) chmod(pwin->p_tty, 0666);
+  (void) chown(pwin->p_tty, 0, 0);
+  if (pwin->p_ptyfd >= 0)
+    close(pwin->p_ptyfd);
+  free(pwin);
+  w->w_pwin = NULL;
 }
 
-char *
-xrealloc(mem, len)
-char *mem;
-int len;
-{
-  register char *nmem;
-
-  if (nmem = realloc(mem, len))
-    return(nmem);
-  free(mem);
-  return((char *)0);
-}

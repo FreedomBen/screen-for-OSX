@@ -1,11 +1,11 @@
-/* Copyright (c) 1991
+/* Copyright (c) 1993
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 1, or (at your option)
+ * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -16,17 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program (see the file COPYING); if not, write to the
  * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- * Noteworthy contributors to screen's design and implementation:
- *	Wayne Davison (davison@borland.com)
- *	Patrick Wolfe (pat@kai.com, kailand!pat)
- *	Bart Schaefer (schaefer@cse.ogi.edu)
- *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
- *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
- *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
- *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
- *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
- *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
  * $Id$ FAU
@@ -49,7 +38,35 @@
 #define A_BL	(1<<ATTR_BL)
 #define A_MAX	(1<<(NATTR-1))
 
-/* Types of movement used by GotoPos() */
+/*
+ *  Parser state
+ */
+enum state_t 
+{
+  LIT,				/* Literal input */
+  ESC,				/* Start of escape sequence */
+  ASTR,				/* Start of control string */
+  STRESC,			/* ESC seen in control string */
+  CSI,				/* Reading arguments in "CSI Pn ;...*/
+  PRIN,				/* Printer mode */
+  PRINESC,			/* ESC seen in printer mode */
+  PRINCSI,			/* CSI seen in printer mode */
+  PRIN4				/* CSI 4 seen in printer mode */
+};
+
+enum string_t 
+{
+  NONE,
+  DCS,				/* Device control string */
+  OSC,				/* Operating system command */
+  APC,				/* Application program command */
+  PM,				/* Privacy message */
+  AKA				/* a.k.a. for current screen */
+};
+
+/*
+ *  Types of movement used by GotoPos()
+ */
 enum move_t {
 	M_NONE,
 	M_UP,
@@ -76,6 +93,6 @@ enum move_t {
 #ifdef TOPSTAT
 #define STATLINE	 (0)
 #else
-#define STATLINE	 (screenheight-1)
+#define STATLINE	 (d_height-1)
 #endif
 
