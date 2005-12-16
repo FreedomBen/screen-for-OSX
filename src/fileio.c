@@ -106,6 +106,7 @@ extern char display_tty[];
 extern struct win *fore;
 extern char screenterm[];
 extern int join_with_cr;
+extern int quitc;
 extern struct mode OldMode, NewMode;
 extern int HasWindow;
 extern char mark_key_tab[];
@@ -168,7 +169,8 @@ char *RCNames[] =
 {
   "activity", "all", "autodetach", "bell", "bind", "bufferfile", "chdir",
   "crlf", "echo", "escape", "flow", "hardcopy_append", "hardstatus", "login", 
-  "markkeys", "mode", "monitor", "msgminwait", "msgwait", "nethack", "password",
+  "markkeys", "mode", "monitor", "msgminwait", "msgwait", "nethack", 
+  "nuke","password",
   "pow_detach_msg", "redraw", "refresh", "screen", "scrollback", "shell", 
   "shellaka", "sleep", "slowpaste", "startup_message", "term", "termcap",
   "terminfo", "vbell", "vbell_msg", "vbellwait", "visualbell",
@@ -197,6 +199,7 @@ enum RCcases
   RC_MSGMINWAIT,
   RC_MSGWAIT,
   RC_NETHACK,
+  RC_NUKE,
   RC_PASSWORD,
   RC_POW_DETACH_MSG,
   RC_REDRAW,
@@ -643,7 +646,7 @@ char *ubuf;
   register char *buf, *p, **pp, **ap;
   register int argc, setflag;
   int q, qq;
-  char key;
+  unsigned char key;
   int low, high, mid, x;
 
   buf = expand_env_vars(ubuf); 
@@ -906,6 +909,33 @@ char *ubuf;
     case RC_VISUALBELL_MSG:
       ParseSaveStr(argc, ap, &VisualBellString, "vbell_msg");
       debug1(" new vbellstr '%s'\n", VisualBellString);
+      return;
+    case RC_NUKE:
+      if (argc != 2 && argc != 1)
+	{
+	  DeadlyMsg = 0; 
+	  Msg(0, "%s: nuke: zero or one argument required.", rc_name);
+	  return;
+	}
+      if (argc == 1)
+#if defined(TERMIO) || defined(POSIX)
+	quitc = 0377;
+#else
+	quitc = -1;
+#endif
+      else
+	{
+	  if (ParseChar(ap[1], &key) == NULL)
+	    {
+	      DeadlyMsg = 0; 
+	      Msg(0, "%s: bind: character, ^x, or (octal) \\032 expected.",
+		  rc_name);
+	      return;
+	    }
+	  quitc = key;
+	  if (HasWindow)
+	    SetNuke();
+	}
       return;
     case RC_MODE:
       if (argc != 2)

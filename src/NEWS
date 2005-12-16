@@ -1,3 +1,12 @@
+3.3 
+---
+
+This version supports asyncronous output, and flushes the pending output
+whenever the screen is cleared, thus it behaves very nicely on slow (<= 38K)
+lines.
+
+Also, it does not set the 'BELL' flag when a bell occurs in the current window.
+
 3.2b (unofficial)
 -----------------
 

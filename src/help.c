@@ -151,6 +151,7 @@ display_help()
   int col, crow, n, key = 0;
   enum keytype typ = ktab[0].type;
   char buf[256], Esc_buf[5], cbuf[256];
+  char bb[1000];
 
   if (!help_page++)
     {
@@ -204,7 +205,7 @@ display_help()
   
   sprintf(cbuf,"Screen key bindings, page %d of %d.", help_page, numpages);
   centerline(cbuf);
-  printf("\n");
+  DefPutStr("\n");
   crow = 2;
 
   *Esc_buf = '\0';
@@ -237,9 +238,10 @@ display_help()
 	       * Format is up to 10 chars of name, 1 spaces, 14 chars of key
 	       * bindings, and a space.
 	       */
-	      printf("%-10.10s %-14.14s ", KeyNames[n + 1], buf);
+	      sprintf(bb,"%-10.10s %-14.14s ", KeyNames[n + 1], buf);
+	      DefPutStr(bb);
 	    }
-	  printf("\r\n");
+	  DefPutStr("\r\n");
           grow++;
         }
       else if (grow-2-numrows >= numskip 
@@ -255,12 +257,14 @@ display_help()
 	    command_search++;
 	  buf[0] = '\0';
 	  add_key_to_buf(buf, command_search);
-	  printf("%-4s", buf);
+	  sprintf(bb,"%-4s", buf);
+	  DefPutStr(bb);
 	  col = 4;
 	  if (typ != KEY_CREATE)
 	    {
 	      col += strlen(KeyNames[(int)typ - 1]) + 1;
-	      printf("%s ", KeyNames[(int)typ - 1]);
+	      sprintf(bb,"%s ", KeyNames[(int)typ - 1]);
+	      DefPutStr(bb);
 	    }
 	  pp = ktab[command_search++].args;
 	  while (pp && (cp = *pp) != NULL)
@@ -281,24 +285,27 @@ display_help()
 		    {
 		      n = cp[col];
 		      cp[col] = '\0';
-		      printf("%s$", *pp);
+		      sprintf(bb,"%s$", *pp);
+		      DefPutStr(bb);
 		      cp[col] = (char) n;
 	  	    }
 	          break;
 	        }
-	      printf("%s%c", cp, (screenwidth - col != 1 || !pp[1]) ? ' ' : '$');
+	      sprintf(bb,"%s%c", cp,
+		(screenwidth - col != 1 || !pp[1]) ? ' ' : '$');
+	      DefPutStr(bb);
 	      pp++;
 	    }
-	  printf("\r\n");
+	  DefPutStr("\r\n");
 	  grow++;
 	}
       else
 	{
-          putchar('\n');
+          DefPutChar('\n');
 	  grow++;
 	}
     }
-  printf("\n");
+  DefPutStr("\n");
   sprintf(cbuf,"[Press Space %s Return to end; %s to begin a command.]",
 	 grow < maxrow ? "for next page;" : "or", Esc_buf);
   centerline(cbuf);
@@ -334,11 +341,13 @@ static void
 centerline(str)
 char *str;
 {
+  char buf[300];
   int l;
   l = (screenwidth - 1 + strlen(str)) / 2;
   if (l > screenwidth - 1)
     l = screenwidth - 1;
-  printf("%*.*s\r\n", l, l, str);
+  sprintf(buf,"%*.*s\r\n", l, l, str);
+  DefPutStr(buf);
 }
 
 static void
@@ -458,6 +467,7 @@ copypage()
   char *ws;
   int x, y, l;
   char cbuf[80];
+  char buf[2000];
 
   ClearDisplay();
   x = y = 0;
@@ -479,18 +489,20 @@ copypage()
 	l = screenwidth - 1;
       if (x && x + l >= screenwidth - 2)
 	{
-	  printf("\r\n");
+	  DefPutStr("\r\n");
 	  x = 0;
 	  if (++y > screenheight - 4)
             break;
 	}
       if (x)
 	{
-	  putchar(' ');
+	  DefPutChar(' ');
 	  x++;
 	}
-      if (l)
-        printf("%*.*s", l, l, ws);
+      if (l) {
+        sprintf(buf,"%*.*s", l, l, ws);
+	DefPutStr(buf);
+      }
       x += l;
       cps += l;
       if (*cps == 0 && savedcps)
@@ -500,7 +512,7 @@ copypage()
 	}
       if (*cps == '\n')
 	{
-	  printf("\r\n");
+	  DefPutStr("\r\n");
 	  x = 0;
 	  if (++y > screenheight - 4)
             break;
@@ -509,11 +521,11 @@ copypage()
 	cps++;
     }
   while (y++ < screenheight - 2)
-    printf("\r\n");
+    DefPutStr("\r\n");
   sprintf(cbuf,"[Press Space %s Return to end.]",
 	 *cps ? "for next page;" : "or");
   centerline(cbuf);
-  fflush(stdout);
+  /* fflush(stdout); */
   SetLastPos(0, screenheight-1);
 }
   

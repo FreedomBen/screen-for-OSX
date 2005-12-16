@@ -139,6 +139,7 @@ extern int ovl_blockfore;
 extern void (*ovl_process)();
 extern int help_page;
 extern int screenwidth, screenheight;
+extern int screenx, screeny;		/* cursor position */
 extern char display_tty[];
 extern int default_width, default_height;
 extern int Z0width, Z1width;
@@ -158,6 +159,10 @@ extern sys_nerr;
 extern char *sys_errlist[];
 extern char mark_key_tab[];
 
+extern char *obuf; /* All characters go through here before being displayed */
+extern int obuf_len; /* The length of the obuf (contents)*/
+extern int obuf_size;/* The current size of the obuf */
+
 #if defined(TIOCSWINSZ) || defined(TIOCGWINSZ)
 extern struct winsize glwz;
 #endif
@@ -167,12 +172,13 @@ static void MakeNewEnv __P((void));
 static int Attach __P((int));
 static void Attacher __P((void));
 static void SigHandler __P((void));
-static sig_t AttacherSigInt __P(SIGPROTOARG);
+static sig_t AttacherSigInt __P((int));
 static sig_t SigChld __P(SIGPROTOARG);
 static sig_t SigInt __P(SIGPROTOARG);
 static sig_t CoreDump __P((int));
 static void DoWait __P((void));
 static sig_t Finit __P((int));
+sig_t NukePending __P(SIGPROTOARG);
 static void InitKeytab __P((void));
 static void SetForeWindow __P((int));
 static int NextWindow __P((void));
@@ -262,6 +268,11 @@ int auto_detach = 1;
 int iflag, rflag, dflag, lsflag, quietflag, wipeflag;
 int adaptflag, loginflag = -1, allflag;
 static intrc, startc, stopc;
+#if defined(TERMIO) || defined(POSIX)
+int quitc=0377;
+#else
+int quitc = -1;
+#endif
 char HostName[MAXSTR];
 int Detached, Suspended;
 int DeadlyMsg = 1;
@@ -1098,6 +1109,7 @@ char **av;
   signal(SIGCHLD, SigChld);
 #endif
   signal(SIGINT, SigInt);
+  signal(SIGQUIT, NukePending);
   tv.tv_usec = 0;
   if (rflag == 2)
     {
@@ -1146,13 +1158,20 @@ char **av;
 	  if (inlen[n] > 0)
 #endif
 	    FD_SET(wtab[n]->ptyfd, &w);
-      if (!Detached)
+      if (!Detached) {
 	FD_SET(0, &r);
+	if (obuf_len)
+	  FD_SET(1, &w);
+      }
       for (n = WinList; n != -1; n = p->WinLink)
 	{
 	  p = wtab[n];
 	  if (p->active && status && !BellDisplayed && !HS)
 	    continue;
+	  if (p->active && obuf_len > OBUF_LIMIT) 
+	    {
+	      continue;
+	    }
 	  if (p->outlen > 0)
 	    continue;
 	  if (in_ovl && ovl_blockfore && n == ForeNum)
@@ -1190,7 +1209,8 @@ char **av;
 	  write(wtab[ForeNum]->ptyfd, buf, 1);
 	  debug1("Backend wrote interrupt to %d\n", ForeNum);
 	  InterruptPlease = 0;
-
+	  /* NukePending(); */ /* Nuke any output pending out of orbit ! */
+	  /* I'm not sure about whether we want to do this or not... */
 	  continue;
 	}
       if (GotSignal && !status)
@@ -1249,6 +1269,7 @@ char **av;
       /* Read, process, and store the user input */
       if (nsel && FD_ISSET(0, &r))
 	{
+	  int i;
           nsel--;
 	  if (!HS)
 	    RemoveStatus();
@@ -1287,8 +1308,9 @@ char **av;
 	      if (inlen[n] > 0 && len == 0)
 		inbuf_ct++;
 	    }
-	  if (inbuf_ct > 0)
+	  if (inbuf_ct > 0) {
 	    continue;
+	 }
 	}
       if (GotSignal && !status)
 	{
@@ -1332,12 +1354,15 @@ char **av;
 	  SigHandler();
 	  continue;
 	}
+
       /* Read and process the output from the window descriptors */
       for (n = WinList; n != -1; n = p->WinLink)
 	{
 	  p = wtab[n];
+	  if (n == ForeNum && obuf_len > OBUF_LIMIT)
+		 continue;
 	  if (in_ovl && ovl_blockfore && n == ForeNum)
-	    continue;
+		 continue;
 	  if (p->outlen)
 	    WriteString(p, p->outbuf, p->outlen);
 	  else if (nsel && FD_ISSET(p->ptyfd, &r))
@@ -1381,7 +1406,11 @@ char **av;
 	    {
 	      if (!BellDisplayed)
 		{
-		  p->bell = BELL_DONE;
+		  if (!p->active)
+		    p->bell = BELL_DONE;
+		  else
+			 p->bell = BELL_OFF;
+			
 		  Msg(0, VisualBellString);
 		  BellDisplayed = 1;
 		}
@@ -1392,6 +1421,23 @@ char **av;
 	      Msg(0, MakeWinMsg(ActivityString, n));
 	    }
 	}
+
+      if (nsel && FD_ISSET(1, &w)) 
+	{
+	  nsel --;
+	  if (obuf_len) 
+	    {
+	      int dumped;
+	      dumped = write(1,obuf,
+		obuf_len>OBUF_GRAIN?OBUF_GRAIN:obuf_len);
+	      if (dumped >= 0) 
+		{
+		  obuf_len -= dumped;
+		  bcopy(obuf+dumped,obuf,obuf_len);
+		}
+	    }
+	}
+	  
       if (GotSignal && !status)
 	SigHandler();
 #ifdef DEBUG
@@ -1463,13 +1509,14 @@ sig_t SigHup(SIGDEFARG)
 
 /*
  * the frontend's Interrupt handler
- * we forward SIGINT to the backend
+ * we forward SIGINT and SIGQUIT to the backend
  */
 static sig_t 
-AttacherSigInt(SIGDEFARG)
+AttacherSigInt(sig)
+int sig;
 {
-  Kill(MasterPid, SIGINT);
-  signal(SIGINT, AttacherSigInt);
+  Kill(MasterPid, sig);
+  signal(sig, AttacherSigInt);
 # ifndef SIGVOID
   return (sig_t) 0;
 # endif
@@ -2984,9 +3031,10 @@ struct mode *op, *np;
     intrc = op->tio.c_cc[VINTR];
   else
     intrc = np->tio.c_cc[VINTR] = 0377;
-  np->tio.c_cc[VQUIT] = 0377;
+  np->tio.c_cc[VQUIT] = quitc;
   if (flow == 0)
     {
+      np->tio.c_cc[VQUIT] = 0377;
       np->tio.c_cc[VINTR] = 0377;
 #ifdef VSTART
       np->tio.c_cc[VSTART] = 0377;
@@ -3015,15 +3063,16 @@ struct mode *op, *np;
 #else
   startc = op->m_tchars.t_startc;
   stopc = op->m_tchars.t_stopc;
+  op->m_tchars.t_quitc = quitc;
   if (iflag)
     intrc = op->m_tchars.t_intrc;
   else
     intrc = np->m_tchars.t_intrc = -1;
   np->m_ttyb.sg_flags &= ~(CRMOD | ECHO);
   np->m_ttyb.sg_flags |= CBREAK;
-  np->m_tchars.t_quitc = -1;
   if (flow == 0)
     {
+      np->m_tchars.t_quitc = -1;
       np->m_tchars.t_intrc = -1;
       np->m_tchars.t_startc = -1;
       np->m_tchars.t_stopc = -1;
@@ -3036,6 +3085,30 @@ struct mode *op, *np;
 }
 
 void
+SetNuke()
+{
+#if defined(TERMIO) || defined(POSIX)
+  if (flow)
+    {
+      NewMode.tio.c_cc[VQUIT] = quitc;
+    }
+# ifdef POSIX
+  if (tcsetattr(0, TCSADRAIN, &NewMode.tio))
+# else
+  if (ioctl(0, TCSETA, &NewMode.tio) != 0)
+# endif
+    debug1("SetFlow: ioctl errno %d\n", errno);
+#else
+  if (flow)
+    {
+      NewMode.m_tchars.t_quitc = quitc;
+    }
+  if (ioctl(0, TIOCSETC, &NewMode.m_tchars) != 0)
+    debug1("SetFlow: ioctl errno %d\n", errno);
+#endif				/* defined(TERMIO) || defined(POSIX) */
+}
+
+void
 SetFlow(on)
 int on;
 {
@@ -3044,6 +3117,7 @@ int on;
 #if defined(TERMIO) || defined(POSIX)
   if (on)
     {
+      NewMode.tio.c_cc[VQUIT] = quitc;
       NewMode.tio.c_cc[VINTR] = intrc;
 #ifdef VSTART
       NewMode.tio.c_cc[VSTART] = startc;
@@ -3056,6 +3130,7 @@ int on;
   else
     {
       NewMode.tio.c_cc[VINTR] = 0377;
+      NewMode.tio.c_cc[VQUIT] = 0377;
 #ifdef VSTART
       NewMode.tio.c_cc[VSTART] = 0377;
 #endif
@@ -3076,12 +3151,14 @@ int on;
       NewMode.m_tchars.t_intrc = intrc;
       NewMode.m_tchars.t_startc = startc;
       NewMode.m_tchars.t_stopc = stopc;
+      NewMode.m_tchars.t_quitc = quitc;
     }
   else
     {
       NewMode.m_tchars.t_intrc = -1;
       NewMode.m_tchars.t_startc = -1;
       NewMode.m_tchars.t_stopc = -1;
+      NewMode.m_tchars.t_quitc = -1;
     }
   if (ioctl(0, TIOCSETC, &NewMode.m_tchars) != 0)
     debug1("SetFlow: ioctl errno %d\n", errno);
@@ -3399,6 +3476,7 @@ static void Attacher()
   signal(SIG_LOCK, DoLock);
 #endif
   signal(SIGINT, AttacherSigInt);
+  signal(SIGQUIT, AttacherSigInt);
 #ifdef BSDJOBS
   signal(SIG_STOP, SigStop);
 #endif
@@ -3743,7 +3821,7 @@ int mode;
 #endif
 #endif
     case D_LOCK:
-      ClearDisplay();
+      ClearDisplayNow();
       sign = SIG_LOCK;
       /* tell attacher to lock terminal with a lockprg. */
       break;
@@ -3964,3 +4042,22 @@ int n;
   return buf;
 }
 
+sig_t
+NukePending(SIGDEFARG)
+{/* Kill any screen output that is pending, may be called as signal
+  * handler
+  */
+  
+# ifdef POSIX
+  tcflush(1, TCOFLUSH);
+# else
+  (void) ioctl(1, TIOCFLUSH, (char *) 1);
+# endif
+  if (obuf_len) 
+    {
+      /* We could be anywhere, since we have dumped some ouptut */
+      screenx = -1;
+      screeny = -1; 
+    }
+  obuf_len=0;
+}

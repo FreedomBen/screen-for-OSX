@@ -1,3 +1,8 @@
+Mon Nov  2 14:12:36 EST 1992 Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
+
+	* Version 3.3
+	* Output buffering, and flushing with SIGQUIT.
+
 Wed Oct 28 14:34:21 1992  David J. MacKenzie  (djm@goldman.gnu.ai.mit.edu)
 
 	* Version 3.2b.

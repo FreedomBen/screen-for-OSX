@@ -243,6 +243,11 @@ enum string_t
  */
 #define IOSIZE		80
 
+#define OBUF_GRAIN 80 /* Actual output is in chunks with this maximum size */
+#define OBUF_MIN 10000 /* obuf size is a multiple of this */
+#define OBUF_LIMIT 10000  /* How many characters can be piled up before we
+  * stop input from the foreground screen */
+
 /*
  * if a nasty user really wants to try a history of 2000 lines on all 10
  * windows, he will allocate 5 MegaBytes of memory, which is quite enough.

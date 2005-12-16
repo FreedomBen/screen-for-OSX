@@ -65,11 +65,13 @@
  *                     SockName. sysvish 14 character restriction considered.
  * 31.01.92 -- 3.02.00 Ultrix port, Irix 3.3 SGI port, shadow pw support,
  *                     data loss on stdin overflow fixed. "refresh off".
+ * 31.07.92 -- 3.03.00 Defered output. Allows quick screen swapping. 'nuke'
+ *                     command added which disposes of pending output.
  */
 
 #define ORIGIN "FAU"
 #define REV 3
-#define VERS 2
+#define VERS 3
 #define PATCHLEVEL 0
-#define DATE "10/28/92"
-#define STATE "b"
+#define DATE "11/02/92"
+#define STATE "a"

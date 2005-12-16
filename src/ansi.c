@@ -71,6 +71,10 @@ int insert;			/* insert mode */
 int keypad;			/* application keypad */
 int flow = 1;			/* flow control */
 
+char *obuf;  /* All characters go through here before being displayed */
+int obuf_len; /* The length of the obuf (contents)*/
+int obuf_size;/* The current size of the obuf */
+
 int status;			/* status is displayed */
 static int status_lastx, status_lasty;
 
@@ -736,6 +740,7 @@ int norefresh;
   if (display)
     RemoveStatus();
   display = fore->active = 1;
+  obuf_len = 0;
   ResizeScreen(fore);
   SetCurr(fore);
   debug3("Fore (%d) has size %dx%d", ForeNum, curr->width, curr->height);
@@ -886,7 +891,7 @@ int len;
 		  break;
 		case DCS:
 		  if (display)
-		    printf("%s", curr->string);
+		    PutStr(curr->string);
 		  break;
 		case AKA:
 		  if (curr->akapos == 0 && !*curr->string)
@@ -1501,9 +1506,9 @@ RAW_PUTCHAR(c)
 int c;
 {
   if (GlobalCharset == '0')
-    putchar(c0_tab[c]);
+    DefPutChar(c0_tab[c]);
   else
-    putchar(c);
+    DefPutChar(c);
   if (screenx < screenwidth - 1)
     screenx++;
   else
@@ -1523,7 +1528,22 @@ PutChar(c)
 int c;
 {
   /* this PutChar for ESC-sequences only */
-  putchar(c);
+  DefPutChar(c);
+}
+
+void
+PutCharNow(c)
+int c;
+{
+	putchar(c);
+}
+
+void
+PutStrNow(s)
+char *s;
+{
+  if (display && s)
+    tputs(s, 1, PutCharNow);
 }
 
 void
@@ -2414,6 +2434,8 @@ static void ClearScreen()
     }
   if (display)
     {
+      NukePending();
+      PutStr(ME);
       PutStr(CL);
       screenx = screeny = 0;
       lp_missing = 0;
@@ -2717,6 +2739,10 @@ int cur_only;
 {
   register int i, stop;
 
+  if (!cur_only) {
+	 NukePending();
+	 PutStr(ME); /* Just in case we were in a highlight mode */
+  }
   PutStr(CL);
   screenx = screeny = 0;
   lp_missing = 0;
@@ -3055,11 +3081,13 @@ int y, xs, xe, isblank;
   r = inpstringlen;
   if (v > 0 && q < r)
     {
+		char buf[1000];
       SaveSetAttr(A_SO, ASCII);
       l = v;
       if (l > r-q)
 	l = r-q;
-      printf("%-*.*s", l, l, inpstring + q - s);
+      sprintf(buf,"%-*.*s", l, l, inpstring + q - s);
+      DefPutStr(buf);
       q += l;
       v -= l;
     }
@@ -3067,11 +3095,13 @@ int y, xs, xe, isblank;
   r += inplen;
   if (v > 0 && q < r)
     {
+		char buf[1000];
       SaveSetAttr(A_SO, ASCII);
       l = v;
       if (l > r-q)
 	l = r-q;
-      printf("%-*.*s", l, l, inpbuf + q - s);
+      sprintf(buf,"%-*.*s", l, l, inpbuf + q - s);
+      DefPutStr(buf);
       q += l;
       v -= l;
     }
@@ -3079,11 +3109,13 @@ int y, xs, xe, isblank;
   r = screenwidth;
   if (!isblank && v > 0 && q < r)
     {
+		char buf[1000];
       SaveSetAttr(0, ASCII);
       l = v;
       if (l > r-q)
 	l = r-q;
-      printf("%-*.*s", l, l, "");
+      sprintf(buf,"%-*.*s", l, l, "");
+      DefPutStr(buf);
       q += l;
     }
   SetLastPos(q, y);
@@ -3175,7 +3207,7 @@ char *msg;
 	  GotoPos(0, STATLINE);
           SaveSetAttr(A_SO, ASCII);
 	  InsertMode(0);
-	  printf("%s", msg);
+	  DefPutStr( msg);
           screenx = -1;
 	}
       else
@@ -3184,10 +3216,10 @@ char *msg;
           SaveSetAttr(0, ASCII);
 	  InsertMode(0);
 	  CPutStr(TS, 0);
-	  printf("%s", msg);
+	  PutStr( msg);
 	  PutStr(FS);
 	}
-      (void) fflush(stdout);
+      /* (void) fflush(stdout); */
       (void) time(&TimeDisplayed);
     }
 }
@@ -3215,6 +3247,14 @@ RemoveStatus()
       SaveSetAttr(0, ASCII);
       PutStr(DS);
     }
+}
+
+void
+ClearDisplayNow()
+{
+  PutStrNow(CL);
+  screeny = screenx = 0;
+  fflush(stdout);
 }
 
 void
@@ -3497,4 +3537,38 @@ char *cap;
       return(res);
     }
   return (tgetnum(cap));
+}
+
+DefPutStr(s)
+char *s;
+{/* Deferred Put string */
+  int len = strlen(s);
+  while (obuf_len + len > obuf_size) 
+    {
+      obuf_size += OBUF_MIN;
+      if (obuf)
+	obuf = realloc(obuf,obuf_size);
+      else
+	obuf = malloc(obuf_size);
+      if (!obuf)
+	Msg_nomem;
+    }
+  strcpy(obuf+obuf_len,s);
+  obuf_len+=len;
+}
+   
+DefPutChar(c)
+{/* Deferred putchar. The character will be output in main select loop */
+  if (obuf_len >= obuf_size) 
+    {
+      obuf_size += OBUF_MIN;
+      if (obuf)
+	obuf = realloc(obuf,obuf_size);
+      else
+	obuf = malloc(obuf_size);
+      if (!obuf)
+	Msg_nomem;
+    }
+  obuf[obuf_len] = c;
+  obuf_len++;
 }
