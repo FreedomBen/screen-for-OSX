@@ -17,7 +17,11 @@ screen \- screen manager with VT100/ANSI terminal emulation
 ] [
 .B \-e\fIxy\fP
 ] [
-.B \fIcmd args\fP ]
+.BR \fIcmd args\fP ]
+.br
+.B screen \-r
+[
+.BR \fIhost.tty\fP ]
 .ta .5i 1.8i
 .SH DESCRIPTION
 .I screen
@@ -25,7 +29,8 @@ is a full-screen window manager that
 multiplexes a physical terminal between several processes (typically
 interactive shells).  Each virtual terminal provides the functions
 of the DEC VT100 terminal and, in addition, several control functions
-from the ANSI X3.64 (ISO 6429) standard (e.g. insert/delete line).
+from the ANSI X3.64 (ISO 6429) and ISO 2022 standards
+(e.\|g. insert/delete line and support for multiple character sets).
 .PP
 When
 .I screen
@@ -45,7 +50,7 @@ screen csh
 .PP
 will create a window with a C-Shell and switch to that window.
 When the process associated with the currently displayed window
-terminates (e.g. ^D has been typed to a shell),
+terminates (e.\|g. ^D has been typed to a shell),
 .I screen
 switches to the previously displayed window;
 when no more windows are left,
@@ -56,6 +61,37 @@ When \*Q/etc/utmp\*U is writable by
 .IR screen ,
 an appropriate record is written to this file for each window and
 removed when the window is terminated.
+.PP
+The
+.B \-r
+option is used to resume a
+.I screen
+session that has been \fIdetached\fP from the terminal by means
+of the \*Qdetach\*U command key (see below).
+This mechanism allows a user to disconnect
+.I screen
+together with all currently active windows from the terminal
+and resume it at a later point in time, e.\|g. at a later
+login session, and possibly on a different terminal.
+The type of terminal on which a detached
+.I screen
+is resumed must of course be compatible to the type of terminal
+on which
+.I screen
+has originally been invoked.
+When more than one detached
+.I screen
+exist, the
+.B \-r
+option displays a list of
+.I host.tty
+pairs identifying the detached
+.IR screens .
+In this case an additional
+.I host.tty
+argument can be given to resume a specific
+.I screen
+session.
 .SH "COMMAND KEYS"
 The standard way to create a new window is to type \*QC-a c\*U (the notation
 \*QC-x\*U will be used as a shorthand for Control-x in this manual; x is
@@ -80,6 +116,18 @@ Kill the current window and switch to the previously displayed window.
 .IP "\fBC-a C-\e\fP"
 Kill all windows and terminate
 .IR screen .
+.IP "\fBC-a d\fP or \fBC-a C-d\fP"
+Detach
+.I screen
+(disconnect it from the terminal and put it into the
+background).
+A detached
+.I screen
+can be resumed by invoking
+.I screen
+with the
+.B \-r
+option.
 .IP "\fBC-a C-a\fP\0\0\0\0\0"
 Switch to the previously displayed window.
 .IP "\fBC-a 0\fP to \fBC-a 9\fP"
@@ -119,10 +167,13 @@ started in the window is displayed; the current window is marked with a
 Print in the message line the time of day, the host name, the load averages
 over 1, 5, and 15 minutes (if this is available on your system),
 the cursor position of the current window in the form \*Q(colum,row)\*U
-starting with \*U(0,0)\*U, and an indication if flow control
+starting with \*U(0,0)\*U, an indication if flow control
 and (for the current window)
 insert mode, origin mode, wrap mode, and keypad application
-mode are enabled or not (indicated by a '+' or '-').
+mode are enabled or not (indicated by a '+' or '-'),
+the currently active character set (\fIG0\fP, \fIG1\fP, \fIG2\fP,
+or \fIG3\fP), and the terminal character sets that are currently
+designated as \fIG0\fP through \fIG3\fP.
 .IP "\fBC-a v\fP or \fBC-a C-v\fP"
 Display the version.
 .IP "\fBC-a a\fP\0\0\0\0\0"
@@ -134,7 +185,7 @@ Send a Control-q to the program running in the window.
 .IP
 .PP
 The
-.B -e
+.B \-e
 option can be used to specify a different command character and
 a character which, when typed immediately after the command character,
 generates a literal command character.
@@ -142,7 +193,7 @@ The defaults for these two characters are \*QC-a\*U and `a'.
 (Note that the function to switch to the previous window is actually the
 command character typed twice; for instance, when
 .I screen
-is called with the option \*Q\fB-e]x\fP\*U (or \*Q\fB-e ]x\fP\*U),
+is called with the option \*Q\fB\-e]x\fP\*U (or \*Q\fB\-e ]x\fP\*U),
 this function becomes \*Q]]\*U).
 .SH CUSTOMIZATION
 When
@@ -165,7 +216,7 @@ The following initialization commands are recognized by
 .B "escape \fIxy\fP"
 .PP
 Set the command character to \fIx\fP and the character generating a literal
-command character to \fIy\fP (see the -e option above).
+command character to \fIy\fP (see the \-e option above).
 .PP
 .ne 3
 .B "bell \fImessage\fP"
@@ -182,6 +233,13 @@ The default message is
 .PP
 An empty message can be supplied to the \*Qbell\*U command to suppress
 output of a message line (bell "").
+.PP
+.ne 3
+.B "mode \fImode\fP"
+.PP
+The mode of each newly allocated pseudo-tty is set to \fImode\fP.
+\fIMode\fP is an octal number.
+When no \*Qmode\*U command is given, mode 0622 is used.
 .PP
 .ne 3
 .B "screen [\fIn\fP] [\fIcmds args\fP]"
@@ -235,7 +293,7 @@ of the shell running in the window).
 Bind a function to a key.
 By default, each function provided by
 .I screen
-is bound to one or more keys as indicated by the above table, e.g. the
+is bound to one or more keys as indicated by the above table, e.\|g. the
 function to create a new window is bound to \*QC-c\*U and \*Qc\*U.
 The \*Qbind\*U command can be used to redefine the key bindings and to
 define new bindings.
@@ -251,6 +309,7 @@ The \fIfunction\fP argument can be one of the following keywords:
 	shell	Create new window with a shell
 	kill	Kill the current window
 	quit	Kill all windows and terminate
+	detach	Detach \fIscreen\fP
 	other	Switch to previously displayed window
 	next	Switch to the next window
 	prev	Switch to the previous window
@@ -308,9 +367,9 @@ This enables the user to send XON and XOFF characters to the
 program running in a window (this is required by the \fIemacs\fP
 editor, for instance).
 The command line options 
-.B -n
+.B \-n
 and
-.B -f
+.B \-f
 can be used to turn flow control off or on, respectively, independently
 of the `NF' capability.
 .PP
@@ -349,6 +408,33 @@ namely scrolling, clear screen, and direct cursor addressing
 .I screen
 does not run on hardcopy terminals or on terminals that overstrike).
 .PP
+When the boolean `G0' capability is present in the termcap entry
+for the terminal on which
+.I screen
+has been called, the terminal emulation of
+.I screen
+supports multiple character sets.
+This allows an application to make use of, for instance,
+the VT100 graphics character set or national character sets.
+The following control functions from ISO 2022 are supported:
+\fIlock shift G0\fP (\fISI\fP), \fIlock shift G1\fP (\fISO\fP),
+\fIlock shift G2\fP, \fIlock shift G3\fP, \fIsingle shift G2\fP,
+and \fIsingle shift G3\fP.
+When a virtual terminal is created or reset, the ASCII character
+set is designated as \fIG0\fP through \fIG3\fP.
+.PP
+When the `po' and `pf' capabilities are present in the terminal's
+termcap entry, applications running in a
+.I screen
+window can send output to the printer port of the terminal.
+This allows a user to have an application in one window
+sending output to a printer connected to the terminal, while all
+other windows are still active (the printer port is enabled
+and disabled again for each chunk of output).
+As a side-effect, programs running in different windows can
+send output to the printer simultaneously.
+Data sent to the printer is not displayed in the window.
+.PP
 Some capabilities are only put into the TERMCAP
 variable of the virtual terminal if they can be efficiently
 implemented by the physical terminal.
@@ -358,7 +444,7 @@ scrolling regions.
 If
 .I screen
 is called with the
-.B -a
+.B \-a
 option, \fIall\fP capabilities are put into the environment,
 even if
 .I screen
@@ -366,8 +452,8 @@ must redraw parts of the display in order to implement a function.
 .PP
 The following is a list of control sequences recognized by
 .IR screen .
-\*Q(V)\*U and \*Q(A)\*U indicate VT100-specific and ANSI-specific
-functions, respectively.
+\*Q(V)\*U and \*Q(A)\*U indicate VT100-specific and ANSI- or
+ISO-specific functions, respectively.
 .PP
 .nf
 .TP 20
@@ -415,6 +501,36 @@ functions, respectively.
 .TP 20
 .B "ESC ]"
 (A)	Operating System Command (not used)
+.TP 20
+.B "Control-N"
+(A)	Lock Shift G1 (SO)
+.TP 20
+.B "Control-O"
+(A)	Lock Shift G0 (SI)
+.TP 20
+.B "ESC n"
+(A)	Lock Shift G2
+.TP 20
+.B "ESC o"
+(A)	Lock Shift G3
+.TP 20
+.B "ESC N"
+(A)	Single Shift G2
+.TP 20
+.B "ESC O"
+(A)	Single Shift G3
+.TP 20
+.B "ESC ( Pcs"
+(A)	Designate character set as G0
+.TP 20
+.B "ESC ) Pcs"
+(A)	Designate character set as G1
+.TP 20
+.B "ESC * Pcs"
+(A)	Designate character set as G2
+.TP 20
+.B "ESC + Pcs"
+(A)	Designate character set as G3
 .TP 20
 .B "ESC [ Pn ; Pn H"
 	Direct Cursor Addressing
@@ -544,6 +660,12 @@ functions, respectively.
 .TP 20
 \h'\w'ESC 'u'\fB?7\fP
 (V)	\fIWrap\fP Mode
+.TP 20
+.B "ESC [ 5 i"
+(A)	Start relay to printer (ANSI Media Copy)
+.TP 20
+.B "ESC [ 4 i"
+(A)	Stop relay to printer (ANSI Media Copy)
 .fi
 .SH FILES
 .nf
@@ -552,15 +674,13 @@ $(HOME)/.screenrc	\fIscreen\fP initialization commands
 .br
 $(HOME)/.screen	Directory created by \fIscreen\fP
 .br
-$(HOME)/.screen/\fItty\fP	Socket created by \fIscreen\fP
+$(HOME)/.screen/\fIhost.tty\fP	Socket created by \fIscreen\fP
 .br
 hardcopy.[0-9]	Screen images created by the hardcopy function
 .br
 /etc/termcap	Terminal capability data base
 .br
 /etc/utmp	Login records
-.br
-/etc/ttys	Terminal initialization data
 .fi
 .SH "SEE ALSO"
 termcap(5), utmp(5)
@@ -583,7 +703,7 @@ is running on a VT100.
 `dm' (delete mode), `xn', and `xs' are not handled
 correctly (they are ignored). 
 .PP
-Different character sets are not supported.
+The \fIGR\fP set of ISO 2022 is not supported.
 .PP
 `ms' is not advertised in the termcap entry (in order to compensate
 a bug in

@@ -1,4 +1,4 @@
-/* Copyright (c) 1987, Oliver Laumann, Technical University of Berlin.
+/* Copyright (c) 1987,1988 Oliver Laumann, Technical University of Berlin.
  * Not derived from licensed software.
  *
  * Permission is granted to freely use, copy, modify, and redistribute
@@ -8,7 +8,7 @@
  * not modified.
  */
 
-char AnsiVersion[] = "ansi 1.0g 27-Apr-87";
+char AnsiVersion[] = "ansi 2.0a 19-Oct-88";
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -33,8 +33,14 @@ enum move_t {
     M_CR,
 };
 
-#define MAXARGS      64
 #define EXPENSIVE    1000
+
+#define G0           0
+#define G1           1
+#define G2           2
+#define G3           3
+
+#define ASCII        0
 
 extern char *getenv(), *tgetstr(), *tgoto(), *malloc();
 
@@ -45,6 +51,7 @@ char Term[] = "TERM=screen";
 char Termcap[1024];
 char *blank;
 char PC;
+int ISO2022;
 time_t TimeDisplayed;
 
 static char tbuf[1024], tentry[1024];
@@ -52,13 +59,11 @@ static char *tp = tentry;
 static char *TI, *TE, *BL, *VB, *BC, *CR, *NL, *CL, *IS, *CM;
 static char *US, *UE, *SO, *SE, *CE, *CD, *DO, *SR, *SF, *AL;
 static char *CS, *DL, *DC, *IC, *IM, *EI, *UP, *ND, *KS, *KE;
-static char *MB, *MD, *MH, *MR, *ME;
+static char *MB, *MD, *MH, *MR, *ME, *PO, *PF;
+static char *CDC, *CDL, *CAL;
 static AM;
-static args[MAXARGS];
-static char GotArg[MAXARGS];
-static NumArgs;
-static char GlobalAttr, TmpAttr;
-static char *OldImage, *OldAttr;
+static char GlobalAttr, TmpAttr, GlobalCharset, TmpCharset;
+static char *OldImage, *OldAttr, *OldFont;
 static last_x, last_y;
 static struct win *curr;
 static display = 1;
@@ -80,7 +85,7 @@ static char TermcapConst[] = "TERMCAP=\
 SC|screen|VT 100/ANSI X3.64 virtual terminal|\\\n\
 \t:DO=\\E[%dB:LE=\\E[%dD:RI=\\E[%dC:UP=\\E[%dA:bs:bt=\\E[Z:\\\n\
 \t:cd=\\E[J:ce=\\E[K:cl=\\E[2J\\E[H:cm=\\E[%i%d;%dH:ct=\\E[3g:\\\n\
-\t:do=\\E[B:nd=\\E[C:pt:rc=\\E8:rs=\\Ec:sc=\\E7:st=\\EH:up=\\E[A:";
+\t:do=\\E[B:nd=\\E[C:pt:rc=\\E8:rs=\\Ec:sc=\\E7:st=\\EH:up=\\E[A:le=^H:";
 
 InitTerm () {
     register char *s;
@@ -161,6 +166,9 @@ InitTerm () {
     CS = tgetstr ("cs", &tp);
     DC = tgetstr ("dc", &tp);
     IC = tgetstr ("ic", &tp);
+    CDC = tgetstr ("DC", &tp);
+    CDL = tgetstr ("DL", &tp);
+    CAL = tgetstr ("AL", &tp);
     IM = tgetstr ("im", &tp);
     EI = tgetstr ("ei", &tp);
     if (tgetflag ("in"))
@@ -173,11 +181,16 @@ InitTerm () {
 	EI = 0;
     KS = tgetstr ("ks", &tp);
     KE = tgetstr ("ke", &tp);
+    ISO2022 = tgetflag ("G0");
+    PO = tgetstr ("po", &tp);
+    if (!(PF = tgetstr ("pf", &tp)))
+	PO = 0;
     blank = malloc (cols);
     null = malloc (cols);
     OldImage = malloc (cols);
     OldAttr = malloc (cols);
-    if (!(blank && null && OldImage && OldAttr))
+    OldFont = malloc (cols);
+    if (!(blank && null && OldImage && OldAttr && OldFont))
 	Msg (0, "Out of memory.");
     MakeBlankLine (blank, cols);
     bzero (null, cols);
@@ -236,18 +249,18 @@ char *MakeTermcap (aflag) {
 	AddCap ("mr=\\E[7m:");
     if (MB || MD || MH || MR)
 	AddCap ("me=\\E[0m:");
-    if ((CS && SR) || AL || aflag) {
+    if ((CS && SR) || AL || CAL || aflag) {
 	AddCap ("sr=\\EM:");
 	AddCap ("al=\\E[L:");
 	AddCap ("AL=\\E[%dL:");
     }
-    if (CS || DL || aflag) {
+    if (CS || DL || CDL || aflag) {
 	AddCap ("dl=\\E[M:");
 	AddCap ("DL=\\E[%dM:");
     }
     if (CS)
 	AddCap ("cs=\\E[%i%d;%dr:");
-    if (DC || aflag) {
+    if (DC || CDC || aflag) {
 	AddCap ("dc=\\E[P:");
 	AddCap ("DC=\\E[%dP:");
     }
@@ -261,6 +274,12 @@ char *MakeTermcap (aflag) {
 	AddCap ("ks=\\E=:");
     if (KE)
 	AddCap ("ke=\\E>:");
+    if (ISO2022)
+	AddCap ("G0:");
+    if (PO) {
+	AddCap ("po=\\E[5i:");
+	AddCap ("pf=\\E[4i:");
+    }
     for (pp = KeyCaps; *pp; ++pp)
 	if (p = tgetstr (*pp, &tp)) {
 	    MakeString (*pp, buf, p);
@@ -269,7 +288,7 @@ char *MakeTermcap (aflag) {
     return Termcap;
 }
 
-MakeString (cap, buf, s) char *cap, *buf; register char *s; {
+static MakeString (cap, buf, s) char *cap, *buf; register char *s; {
     register char *p = buf;
     register unsigned c;
 
@@ -299,11 +318,12 @@ Activate (wp) struct win *wp; {
     display = 1;
     NewRendition (GlobalAttr, curr->LocalAttr);
     GlobalAttr = curr->LocalAttr;
-    InsertMode (curr->insert);
-    KeypadMode (curr->keypad);
+    NewCharset (GlobalCharset, curr->charsets[curr->LocalCharset]);
+    GlobalCharset = curr->charsets[curr->LocalCharset];
     if (CS)
 	PutStr (tgoto (CS, curr->bot, curr->top));
     Redisplay ();
+    KeypadMode (curr->keypad);
 }
 
 ResetScreen (p) register struct win *p; {
@@ -324,6 +344,10 @@ ResetScreen (p) register struct win *p; {
     p->x = p->y = 0;
     p->state = LIT;
     p->StringType = NONE;
+    p->ss = 0;
+    p->LocalCharset = G0;
+    for (i = G0; i <= G3; i++)
+	p->charsets[i] = ASCII;
 }
 
 WriteString (wp, buf, len) struct win *wp; register char *buf; {
@@ -341,43 +365,81 @@ WriteString (wp, buf, len) struct win *wp; register char *buf; {
 	    continue;
 NextChar:
 	switch (curr->state) {
+	case PRIN:
+	    switch (c) {
+	    case '\033':
+		curr->state = PRINESC; break;
+	    default:
+		PrintChar (c);
+	    }
+	    break;
+	case PRINESC:
+	    switch (c) {
+	    case '[':
+		curr->state = PRINCSI; break;
+	    default:
+		PrintChar ('\033'); PrintChar (c);
+		curr->state = PRIN;
+	    }
+	    break;
+	case PRINCSI:
+	    switch (c) {
+	    case '4':
+		curr->state = PRIN4; break;
+	    default:
+		PrintChar ('\033'); PrintChar ('['); PrintChar (c);
+		curr->state = PRIN;
+	    }
+	    break;
+	case PRIN4:
+	    switch (c) {
+	    case 'i':
+		curr->state = LIT;
+		PrintFlush ();
+		break;
+	    default:
+		PrintChar ('\033'); PrintChar ('['); PrintChar ('4');
+		PrintChar (c);
+		curr->state = PRIN;
+	    }
+	    break;
 	case TERM:
 	    switch (c) {
-		case '\\':
-		    curr->state = LIT;
-		    *(curr->stringp) = '\0';
-		    if (curr->StringType == PM && display) {
-			MakeStatus (curr->string, curr);
-			if (status && len > 1) {
-			    curr->outlen = len-1;
-			    bcopy (buf, curr->outbuf, curr->outlen);
-			    return;
-			}
+	    case '\\':
+		curr->state = LIT;
+		*(curr->stringp) = '\0';
+		if (curr->StringType == PM && display) {
+		    MakeStatus (curr->string, curr);
+		    if (status && len > 1) {
+			curr->outlen = len-1;
+			bcopy (buf, curr->outbuf, curr->outlen);
+			return;
 		    }
-		    break;
-		default:
-		    curr->state = STR;
-		    AddChar ('\033');
-		    AddChar (c);
+		}
+		break;
+	    default:
+		curr->state = STR;
+		AddChar ('\033');
+		AddChar (c);
 	    }
 	    break;
 	case STR:
 	    switch (c) {
-		case '\0':
-		    break;
-		case '\033':
-		    curr->state = TERM; break;
-		default:
-		    AddChar (c);
+	    case '\0':
+		break;
+	    case '\033':
+		curr->state = TERM; break;
+	    default:
+		AddChar (c);
 	    }
 	    break;
 	case ESC:
 	    switch (c) {
 	    case '[':
-		NumArgs = 0;
+		curr->NumArgs = 0;
 		intermediate = 0;
-		bzero ((char *)args, MAXARGS * sizeof (int));
-		bzero (GotArg, MAXARGS);
+		bzero ((char *)curr->args, MAXARGS * sizeof (int));
+		bzero (curr->GotArg, MAXARGS);
 		curr->state = CSI;
 		break;
 	    case ']':
@@ -406,20 +468,22 @@ NextChar:
 	    switch (c) {
 	    case '0': case '1': case '2': case '3': case '4':
 	    case '5': case '6': case '7': case '8': case '9':
-		if (NumArgs < MAXARGS) {
-		    args[NumArgs] = 10 * args[NumArgs] + c - '0';
-		    GotArg[NumArgs] = 1;
+		if (curr->NumArgs < MAXARGS) {
+		    curr->args[curr->NumArgs] =
+                        10 * curr->args[curr->NumArgs] + c - '0';
+		    curr->GotArg[curr->NumArgs] = 1;
 		}
 		break;
 	    case ';': case ':':
-		NumArgs++; break;
+		curr->NumArgs++; break;
 	    default:
 		if (Special (c))
 		    break;
 		if (c >= '@' && c <= '~') {
-		    NumArgs++;
+		    curr->NumArgs++;
 		    DoCSI (c, intermediate);
-		    curr->state = LIT;
+		    if (curr->state != PRIN)
+			curr->state = LIT;
 		} else if ((c >= ' ' && c <= '/') || (c >= '<' && c <= '?')) {
 		    intermediate = intermediate ? -1 : c;
 		} else {
@@ -435,27 +499,10 @@ NextChar:
 		    curr->state = ESC;
 		} else if (c < ' ') {
 		    break;
-		} else if (curr->x < cols-1) {
-		    if (curr->insert) {
-			InsertAChar (c);
-		    } else {
-			if (display)
-			    putchar (c);
-			SetChar (c);
-		    }
-		    curr->x++;
-		} else if (curr->x == cols-1) {
-		    SetChar (c);
-		    if (!(AM && curr->y == rows-1)) {
-			if (display)
-			    putchar (c);
-			Goto (-1, -1, curr->y, curr->x);
-		    }
-		    curr->x++;
 		} else {
-		    if (curr->wrap) {
-			Return ();
-			LineFeed ();
+		    if (curr->ss)
+			NewCharset (GlobalCharset, curr->charsets[curr->ss]);
+		    if (curr->x < cols-1) {
 			if (curr->insert) {
 			    InsertAChar (c);
 			} else {
@@ -463,13 +510,40 @@ NextChar:
 				putchar (c);
 			    SetChar (c);
 			}
-			curr->x = 1;
-		    } else curr->x = cols;
+			curr->x++;
+		    } else if (curr->x == cols-1) {
+			SetChar (c);
+			if (!(AM && curr->y == curr->bot)) {
+			    if (display)
+				putchar (c);
+			    Goto (-1, -1, curr->y, curr->x);
+			}
+			curr->x++;
+		    } else {
+			if (curr->wrap) {
+			    Return ();
+			    LineFeed ();
+			    if (curr->insert) {
+				InsertAChar (c);
+			    } else {
+				if (display)
+				    putchar (c);
+				SetChar (c);
+			    }
+			    curr->x = 1;
+			} else curr->x = cols;
+		    }
+		    if (curr->ss) {
+			NewCharset (curr->charsets[curr->ss], GlobalCharset);
+			curr->ss = 0;
+		    }
 		}
 	    }
 	}
     } while (--len);
     curr->outlen = 0;
+    if (curr->state == PRIN)
+	PrintFlush ();
 }
 
 static Special (c) register c; {
@@ -487,6 +561,10 @@ static Special (c) register c; {
 	return 1;
     case '\t':
 	ForwardTab (); return 1;
+    case '\017':   /* SI */
+	MapCharset (G0); return 1;
+    case '\016':   /* SO */
+	MapCharset (G1); return 1;
     }
     return 0;
 }
@@ -519,6 +597,8 @@ static DoESC (c, intermediate) {
 	    Goto (curr->y, curr->x, 0, 0);
 	    NewRendition (GlobalAttr, 0);
 	    SetRendition (0);
+	    NewCharset (GlobalCharset, ASCII);
+	    GlobalCharset = ASCII;
 	    if (curr->insert)
 		InsertMode (0);
 	    if (curr->keypad)
@@ -535,6 +615,22 @@ static DoESC (c, intermediate) {
 	    KeypadMode (0);
 	    curr->keypad = 0;
 	    break;
+	case 'n':   /* LS2 */
+	    MapCharset (G2); break;
+	case 'o':   /* LS3 */
+	    MapCharset (G3); break;
+	case 'N':   /* SS2 */
+	    if (GlobalCharset == curr->charsets[G2])
+		curr->ss = 0;
+	    else
+		curr->ss = G2;
+	    break;
+	case 'O':   /* SS3 */
+	    if (GlobalCharset == curr->charsets[G3])
+		curr->ss = 0;
+	    else
+		curr->ss = G3;
+	    break;
 	}
 	break;
     case '#':
@@ -544,23 +640,31 @@ static DoESC (c, intermediate) {
 	    break;
 	}
 	break;
+    case '(':
+	DesignateCharset (c, G0); break;
+    case ')':
+	DesignateCharset (c, G1); break;
+    case '*':
+	DesignateCharset (c, G2); break;
+    case '+':
+	DesignateCharset (c, G3); break;
     }
 }
 
 static DoCSI (c, intermediate) {
-    register i, a1 = args[0], a2 = args[1];
+    register i, a1 = curr->args[0], a2 = curr->args[1];
 
-    if (NumArgs >= MAXARGS)
-	NumArgs = MAXARGS;
-    for (i = 0; i < NumArgs; ++i)
-	if (args[i] == 0)
-	    GotArg[i] = 0;
+    if (curr->NumArgs >= MAXARGS)
+	curr->NumArgs = MAXARGS;
+    for (i = 0; i < curr->NumArgs; ++i)
+	if (curr->args[i] == 0)
+	    curr->GotArg[i] = 0;
     switch (intermediate) {
     case 0:
 	switch (c) {
 	case 'H': case 'f':
-	    if (!GotArg[0]) a1 = 1;
-	    if (!GotArg[1]) a2 = 1;
+	    if (!curr->GotArg[0]) a1 = 1;
+	    if (!curr->GotArg[1]) a2 = 1;
 	    if (curr->origin)
 		a1 += curr->top;
 	    if (a1 < 1)
@@ -577,7 +681,7 @@ static DoCSI (c, intermediate) {
 	    curr->x = a2;
 	    break;
 	case 'J':
-	    if (!GotArg[0] || a1 < 0 || a1 > 2)
+	    if (!curr->GotArg[0] || a1 < 0 || a1 > 2)
 		a1 = 0;
 	    switch (a1) {
 	    case 0:
@@ -591,8 +695,8 @@ static DoCSI (c, intermediate) {
 	    }
 	    break;
 	case 'K':
-	    if (!GotArg[0] || a1 < 0 || a2 > 2)
-		a1 = 0;
+	    if (!curr->GotArg[0] || a1 < 0 || a1 > 2)
+		a1 %= 3;
 	    switch (a1) {
 	    case 0:
 		ClearToEOL (); break;
@@ -603,22 +707,22 @@ static DoCSI (c, intermediate) {
 	    }
 	    break;
 	case 'A':
-	    CursorUp (GotArg[0] ? a1 : 1);
+	    CursorUp (curr->GotArg[0] ? a1 : 1);
 	    break;
 	case 'B':
-	    CursorDown (GotArg[0] ? a1 : 1);
+	    CursorDown (curr->GotArg[0] ? a1 : 1);
 	    break;
 	case 'C':
-	    CursorRight (GotArg[0] ? a1 : 1);
+	    CursorRight (curr->GotArg[0] ? a1 : 1);
 	    break;
 	case 'D':
-	    CursorLeft (GotArg[0] ? a1 : 1);
+	    CursorLeft (curr->GotArg[0] ? a1 : 1);
 	    break;
 	case 'm':
 	    SelectRendition ();
 	    break;
 	case 'g':
-	    if (!GotArg[0] || a1 == 0)
+	    if (!curr->GotArg[0] || a1 == 0)
 		curr->tabs[curr->x] = 0;
 	    else if (a1 == 3)
 		bzero (curr->tabs, cols);
@@ -626,8 +730,8 @@ static DoCSI (c, intermediate) {
 	case 'r':
 	    if (!CS)
 		break;
-	    if (!GotArg[0]) a1 = 1;
-	    if (!GotArg[1]) a2 = rows;
+	    if (!curr->GotArg[0]) a1 = 1;
+	    if (!curr->GotArg[1]) a2 = rows;
 	    if (a1 < 1 || a2 > rows || a1 >= a2)
 		break;
 	    curr->top = a1-1;
@@ -643,26 +747,26 @@ static DoCSI (c, intermediate) {
 	    }
 	    break;
 	case 'I':
-	    if (!GotArg[0]) a1 = 1;
+	    if (!curr->GotArg[0]) a1 = 1;
 	    while (a1--)
 		ForwardTab ();
 	    break;
 	case 'Z':
-	    if (!GotArg[0]) a1 = 1;
+	    if (!curr->GotArg[0]) a1 = 1;
 	    while (a1--)
 		BackwardTab ();
 	    break;
 	case 'L':
-	    InsertLine (GotArg[0] ? a1 : 1);
+	    InsertLine (curr->GotArg[0] ? a1 : 1);
 	    break;
 	case 'M':
-	    DeleteLine (GotArg[0] ? a1 : 1);
+	    DeleteLine (curr->GotArg[0] ? a1 : 1);
 	    break;
 	case 'P':
-	    DeleteChar (GotArg[0] ? a1 : 1);
+	    DeleteChar (curr->GotArg[0] ? a1 : 1);
 	    break;
 	case '@':
-	    InsertChar (GotArg[0] ? a1 : 1);
+	    InsertChar (curr->GotArg[0] ? a1 : 1);
 	    break;
 	case 'h':
 	    SetMode (1);
@@ -670,12 +774,18 @@ static DoCSI (c, intermediate) {
 	case 'l':
 	    SetMode (0);
 	    break;
+	case 'i':
+	    if (PO && curr->GotArg[0] && a1 == 5) {
+		curr->stringp = curr->string;
+		curr->state = PRIN;
+	    }
+	    break;
 	}
 	break;
     case '?':
 	if (c != 'h' && c != 'l')
 	    break;
-	if (!GotArg[0])
+	if (!curr->GotArg[0])
 	    break;
 	i = (c == 'h');
 	if (a1 == 5) {
@@ -712,11 +822,17 @@ static PutStr (s) char *s; {
 	tputs (s, 1, PutChar);
 }
 
+static CPutStr (s, c) char *s; {
+    if (display && s)
+	tputs (tgoto (s, 0, c), 1, PutChar);  /* XXX */
+}
+
 static SetChar (c) register c; {
     register struct win *p = curr;
 
     p->image[p->y][p->x] = c;
     p->attr[p->y][p->x] = p->LocalAttr;
+    p->font[p->y][p->x] = p->charsets[p->ss ? p->ss : p->LocalCharset];
 }
 
 static StartString (type) enum string_t type; {
@@ -726,15 +842,33 @@ static StartString (type) enum string_t type; {
 }
 
 static AddChar (c) {
-    if (curr->stringp > curr->string+MAXSTR-1)
+    if (curr->stringp >= curr->string+MAXSTR-1)
 	curr->state = LIT;
     else
 	*(curr->stringp)++ = c;
 }
 
+static PrintChar (c) {
+    if (curr->stringp >= curr->string+MAXSTR-1)
+	PrintFlush ();
+    else
+	*(curr->stringp)++ = c;
+}
+
+static PrintFlush () {
+    if (curr->stringp > curr->string) {
+	tputs (PO, 1, PutChar);
+	(void) fflush (stdout);
+	(void) write (1, curr->string, curr->stringp - curr->string);
+	tputs (PF, 1, PutChar);
+	(void) fflush (stdout);
+	curr->stringp = curr->string;
+    }
+}
+
 /* Insert mode is a toggle on some terminals, so we need this hack:
  */
-InsertMode (on) {
+static InsertMode (on) {
     if (on) {
 	if (!insert)
 	    PutStr (IM);
@@ -745,7 +879,7 @@ InsertMode (on) {
 
 /* ...and maybe keypad application mode is a toggle, too:
  */
-KeypadMode (on) {
+static KeypadMode (on) {
     if (on) {
 	if (!keypad)
 	    PutStr (KS);
@@ -754,11 +888,47 @@ KeypadMode (on) {
     keypad = on;
 }
 
+static DesignateCharset (c, n) {
+    curr->ss = 0;
+    if (c == 'B')
+	c = ASCII;
+    if (curr->charsets[n] != c) {
+	curr->charsets[n] = c;
+	if (curr->LocalCharset == n) {
+	    NewCharset (GlobalCharset, c);
+	    GlobalCharset = c;
+	}
+    }
+}
+
+static MapCharset (n) {
+    curr->ss = 0;
+    if (curr->LocalCharset != n) {
+	curr->LocalCharset = n;
+	NewCharset (GlobalCharset, curr->charsets[n]);
+	GlobalCharset = curr->charsets[n];
+    }
+}
+
+static NewCharset (old, new) {
+    char buf[8];
+
+    if (old == new)
+	return;
+    if (ISO2022) {
+	sprintf (buf, "\033(%c", new == ASCII ? 'B' : new);
+	PutStr (buf);
+    }
+}
+
 static SaveCursor () {
     curr->saved = 1;
     curr->Saved_x = curr->x;
     curr->Saved_y = curr->y;
     curr->SavedLocalAttr = curr->LocalAttr;
+    curr->SavedLocalCharset = curr->LocalCharset;
+    bcopy ((char *)curr->charsets, (char *)curr->SavedCharsets,
+	4 * sizeof (int));
 }
 
 static RestoreCursor () {
@@ -766,6 +936,11 @@ static RestoreCursor () {
 	curr->LocalAttr = curr->SavedLocalAttr;
 	NewRendition (GlobalAttr, curr->LocalAttr);
 	GlobalAttr = curr->LocalAttr;
+	bcopy ((char *)curr->SavedCharsets, (char *)curr->charsets,
+	    4 * sizeof (int));
+	curr->LocalCharset = curr->SavedLocalCharset;
+	NewCharset (GlobalCharset, curr->charsets[curr->LocalCharset]);
+	GlobalCharset = curr->charsets[curr->LocalCharset];
 	Goto (curr->y, curr->x, curr->Saved_y, curr->Saved_x);
 	curr->x = curr->Saved_x;
 	curr->y = curr->Saved_y;
@@ -773,11 +948,11 @@ static RestoreCursor () {
 }
 
 /*ARGSUSED*/
-CountChars (c) {
+static CountChars (c) {
     StrCost++;
 }
 
-CalcCost (s) register char *s; {
+static CalcCost (s) register char *s; {
     if (s) {
 	StrCost = 0;
 	tputs (s, 1, CountChars);
@@ -802,7 +977,7 @@ static Goto (y1, x1, y2, x2) {
     dy = y2 - y1;
     if (dy == 0 && dx == 0)
 	return;
-    if (y1 == -1 || x1 == -1) {
+    if (y1 == -1 || x1 == -1 || y2 >= curr->bot || y2 <= curr->top) {
 DoCM:
 	PutStr (tgoto (CM, x2, y2));
 	return;
@@ -868,7 +1043,7 @@ DoCM:
 
 static RewriteCost (y, x1, x2) {
     register cost, dx;
-    register char *p = curr->attr[y]+x1;
+    register char *p = curr->attr[y]+x1, *f = curr->font[y]+x1;
 
     if (AM && y == rows-1 && x2 == cols-1)
 	return EXPENSIVE;
@@ -878,7 +1053,7 @@ static RewriteCost (y, x1, x2) {
     if (curr->insert)
 	cost += EIcost + IMcost;
     do {
-	if (*p++ != GlobalAttr)
+	if (*p++ != GlobalAttr || *f++ != GlobalCharset)
 	    return EXPENSIVE;
     } while (--dx);
     return cost;
@@ -907,6 +1082,7 @@ static LineFeed () {
     if (curr->y == curr->bot) {
 	ScrollUpMap (curr->image);
 	ScrollUpMap (curr->attr);
+	ScrollUpMap (curr->font);
     } else if (curr->y < rows-1) {
 	curr->y++;
     }
@@ -917,6 +1093,7 @@ static ReverseLineFeed () {
     if (curr->y == curr->top) {
 	ScrollDownMap (curr->image);
 	ScrollDownMap (curr->attr);
+	ScrollDownMap (curr->font);
 	if (SR) {
 	    PutStr (SR);
 	} else if (AL) {
@@ -936,8 +1113,10 @@ static InsertAChar (c) {
 	x--;
     bcopy (curr->image[y], OldImage, cols);
     bcopy (curr->attr[y], OldAttr, cols);
+    bcopy (curr->font[y], OldFont, cols);
     bcopy (curr->image[y]+x, curr->image[y]+x+1, cols-x-1);
     bcopy (curr->attr[y]+x, curr->attr[y]+x+1, cols-x-1);
+    bcopy (curr->font[y]+x, curr->font[y]+x+1, cols-x-1);
     SetChar (c);
     if (!display)
 	return;
@@ -949,7 +1128,7 @@ static InsertAChar (c) {
 	if (!curr->insert)
 	    InsertMode (0);
     } else {
-	RedisplayLine (OldImage, OldAttr, y, x, cols-1);
+	RedisplayLine (OldImage, OldAttr, OldFont, y, x, cols-1);
 	++x;
 	Goto (y, last_x, y, x);
     }
@@ -962,10 +1141,12 @@ static InsertChar (n) {
 	return;
     bcopy (curr->image[y], OldImage, cols);
     bcopy (curr->attr[y], OldAttr, cols);
+    bcopy (curr->font[y], OldFont, cols);
     if (n > cols-x)
 	n = cols-x;
     bcopy (curr->image[y]+x, curr->image[y]+x+n, cols-x-n);
     bcopy (curr->attr[y]+x, curr->attr[y]+x+n, cols-x-n);
+    bcopy (curr->font[y]+x, curr->font[y]+x+n, cols-x-n);
     ClearInLine (0, y, x, x+n-1);
     if (!display)
 	return;
@@ -980,7 +1161,7 @@ static InsertChar (n) {
 	    InsertMode (0);
 	Goto (y, x+n, y, x);
     } else {
-	RedisplayLine (OldImage, OldAttr, y, x, cols-1);
+	RedisplayLine (OldImage, OldAttr, OldFont, y, x, cols-1);
 	Goto (y, last_x, y, x);
     }
 }
@@ -992,18 +1173,22 @@ static DeleteChar (n) {
 	return;
     bcopy (curr->image[y], OldImage, cols);
     bcopy (curr->attr[y], OldAttr, cols);
+    bcopy (curr->font[y], OldFont, cols);
     if (n > cols-x)
 	n = cols-x;
     bcopy (curr->image[y]+x+n, curr->image[y]+x, cols-x-n);
     bcopy (curr->attr[y]+x+n, curr->attr[y]+x, cols-x-n);
+    bcopy (curr->font[y]+x+n, curr->font[y]+x, cols-x-n);
     ClearInLine (0, y, cols-n, cols-1);
     if (!display)
 	return;
-    if (DC) {
+    if (CDC && !(n == 1 && DC)) {
+	CPutStr (CDC, n);
+    } else if (DC) {
 	for (i = n; i; i--)
 	    PutStr (DC);
     } else {
-	RedisplayLine (OldImage, OldAttr, y, x, cols-1);
+	RedisplayLine (OldImage, OldAttr, OldFont, y, x, cols-1);
 	Goto (y, last_x, y, x);
     }
 }
@@ -1017,11 +1202,16 @@ static DeleteLine (n) {
     for (i = n; i; i--) {
 	ScrollUpMap (curr->image);
 	ScrollUpMap (curr->attr);
+	ScrollUpMap (curr->font);
     }
-    if (DL) {
+    if (DL || CDL) {
 	Goto (curr->y, curr->x, curr->y, 0);
-	for (i = n; i; i--)
-	    PutStr (DL);
+	if (CDL && !(n == 1 && DL)) {
+	    CPutStr (CDL, n);
+	} else {
+	    for (i = n; i; i--)
+		PutStr (DL);
+	}
 	Goto (curr->y, 0, curr->y, curr->x);
     } else if (CS) {
 	PutStr (tgoto (CS, curr->bot, curr->top));
@@ -1043,11 +1233,16 @@ static InsertLine (n) {
     for (i = n; i; i--) {
 	ScrollDownMap (curr->image);
 	ScrollDownMap (curr->attr);
+	ScrollDownMap (curr->font);
     }
-    if (AL) {
+    if (AL || CAL) {
 	Goto (curr->y, curr->x, curr->y, 0);
-	for (i = n; i; i--)
-	    PutStr (AL);
+	if (CAL && !(n == 1 && AL)) {
+	    CPutStr (CAL, n);
+	} else {
+	    for (i = n; i; i--)
+		PutStr (AL);
+	}
 	Goto (curr->y, 0, curr->y, curr->x);
     } else if (CS && SR) {
 	PutStr (tgoto (CS, curr->bot, curr->top));
@@ -1063,7 +1258,7 @@ static InsertLine (n) {
 static ScrollUpMap (pp) char **pp; {
     register char *tmp = pp[curr->top];
 
-    bcopy (pp+curr->top+1, pp+curr->top,
+    bcopy ((char *)(pp+curr->top+1), (char *)(pp+curr->top),
 	(curr->bot-curr->top) * sizeof (char *));
     if (pp == curr->image)
 	bclear (tmp, cols);
@@ -1075,7 +1270,7 @@ static ScrollUpMap (pp) char **pp; {
 static ScrollDownMap (pp) char **pp; {
     register char *tmp = pp[curr->bot];
 
-    bcopy (pp+curr->top, pp+curr->top+1,
+    bcopy ((char *)(pp+curr->top), (char *)(pp+curr->top+1),
 	(curr->bot-curr->top) * sizeof (char *));
     if (pp == curr->image)
 	bclear (tmp, cols);
@@ -1113,6 +1308,7 @@ static ClearScreen () {
     for (i = 0; i < rows; ++i) {
 	bclear (curr->image[i], cols);
 	bzero (curr->attr[i], cols);
+	bzero (curr->font[i], cols);
     }
 }
 
@@ -1170,6 +1366,7 @@ static ClearInLine (displ, y, x1, x2) {
     if (n = x2 - x1 + 1) {
 	bclear (curr->image[y]+x1, n);
 	bzero (curr->attr[y]+x1, n);
+	bzero (curr->font[y]+x1, n);
 	if (displ && display) {
 	    if (x2 == cols-1 && CE) {
 		Goto (curr->y, curr->x, y, x1);
@@ -1181,12 +1378,12 @@ static ClearInLine (displ, y, x1, x2) {
 		--n;
 	    if (n == 0)
 		return;
-	    SaveAttr ();
+	    SaveAttr (0);
 	    Goto (curr->y, curr->x, y, x1);
 	    for (i = n; i > 0; i--)
 		putchar (' ');
 	    curr->y = y; curr->x = x1 + n;
-	    RestoreAttr ();
+	    RestoreAttr (0);
 	}
     }
 }
@@ -1228,8 +1425,8 @@ static CursorLeft (n) register n; {
 static SetMode (on) {
     register i;
 
-    for (i = 0; i < NumArgs; ++i) {
-	switch (args[i]) {
+    for (i = 0; i < curr->NumArgs; ++i) {
+	switch (curr->args[i]) {
 	case 4:
 	    curr->insert = on;
 	    InsertMode (on);
@@ -1241,10 +1438,10 @@ static SetMode (on) {
 static SelectRendition () {
     register i, old = GlobalAttr;
 
-    if (NumArgs == 0)
+    if (curr->NumArgs == 0)
 	SetRendition (0);
-    else for (i = 0; i < NumArgs; ++i)
-	SetRendition (args[i]);
+    else for (i = 0; i < curr->NumArgs; ++i)
+	SetRendition (curr->args[i]);
     NewRendition (old, GlobalAttr);
 }
 
@@ -1311,14 +1508,16 @@ static NewRendition (old, new) register old, new; {
 	PutStr (MR);
 }
 
-static SaveAttr () {
-    NewRendition (GlobalAttr, 0);
+static SaveAttr (newattr) {
+    NewRendition (GlobalAttr, newattr);
+    NewCharset (GlobalCharset, ASCII);
     if (curr->insert)
 	InsertMode (0);
 }
 
-static RestoreAttr () {
-    NewRendition (0, GlobalAttr);
+static RestoreAttr (oldattr) {
+    NewRendition (oldattr, GlobalAttr);
+    NewCharset (ASCII, GlobalCharset);
     if (curr->insert)
 	InsertMode (1);
 }
@@ -1328,15 +1527,16 @@ static FillWithEs () {
     register char *p, *ep;
 
     curr->y = curr->x = 0;
-    NewRendition (GlobalAttr, 0);
-    SetRendition (0);
+    SaveAttr (0);
     for (i = 0; i < rows; ++i) {
 	bzero (curr->attr[i], cols);
+	bzero (curr->font[i], cols);
 	p = curr->image[i];
 	ep = p + cols;
 	for ( ; p < ep; ++p)
 	    *p = 'E';
     }
+    RestoreAttr (0);
     Redisplay ();
 }
 
@@ -1345,24 +1545,32 @@ static Redisplay () {
 
     PutStr (CL);
     TmpAttr = GlobalAttr;
+    TmpCharset = GlobalCharset;
+    InsertMode (0);
     last_x = last_y = 0;
     for (i = 0; i < rows; ++i)
-	DisplayLine (blank, null, curr->image[i], curr->attr[i], i, 0, cols-1);
+	DisplayLine (blank, null, null, curr->image[i], curr->attr[i],
+	    curr->font[i], i, 0, cols-1);
+    if (curr->insert)
+	InsertMode (1);
     NewRendition (TmpAttr, GlobalAttr);
+    NewCharset (TmpCharset, GlobalCharset);
     Goto (last_y, last_x, curr->y, curr->x);
 }
 
-static DisplayLine (os, oa, s, as, y, from, to)
-	register char *os, *oa, *s, *as; {
-    register i, x, a;
+static DisplayLine (os, oa, of, s, as, fs, y, from, to)
+	register char *os, *oa, *of, *s, *as, *fs; {
+    register i, x, a, f;
 
     if (to == cols)
 	--to;
     if (AM && y == rows-1 && to == cols-1)
 	--to;
     a = TmpAttr;
+    f = TmpCharset;
     for (x = i = from; i <= to; ++i, ++x) {
-	if (s[i] == os[i] && as[i] == oa[i] && as[i] == a)
+	if (s[i] == os[i] && as[i] == oa[i] && as[i] == a
+		          && of[i] == fs[i] && fs[i] == f)
 	    continue;
 	Goto (last_y, last_x, y, x);
 	last_y = y;
@@ -1371,20 +1579,28 @@ static DisplayLine (os, oa, s, as, y, from, to)
 	    NewRendition (TmpAttr, a);
 	    TmpAttr = a;
 	}
+	if ((f = fs[i]) != TmpCharset) {
+	    NewCharset (TmpCharset, f);
+	    TmpCharset = f;
+	}
 	putchar (s[i]);
 	last_x++;
     }
 }
 
-static RedisplayLine (os, oa, y, from, to) char *os, *oa; {
+static RedisplayLine (os, oa, of, y, from, to) char *os, *oa, *of; {
     if (curr->insert)
 	InsertMode (0);
     NewRendition (GlobalAttr, 0);
     TmpAttr = 0;
+    NewCharset (GlobalCharset, ASCII);
+    TmpCharset = ASCII;
     last_y = y;
     last_x = from;
-    DisplayLine (os, oa, curr->image[y], curr->attr[y], y, from, to);
+    DisplayLine (os, oa, of, curr->image[y], curr->attr[y],
+	curr->font[y], y, from, to);
     NewRendition (TmpAttr, GlobalAttr);
+    NewCharset (TmpCharset, GlobalCharset);
     if (curr->insert)
 	InsertMode (1);
 }
@@ -1415,14 +1631,10 @@ MakeStatus (msg, wp) char *msg; struct win *wp; {
 	status = 1;
 	StatLen = t - msg;
 	Goto (curr->y, curr->x, rows-1, 0);
-	NewRendition (GlobalAttr, A_SO);
-	if (curr->insert)
-	    InsertMode (0);
+	SaveAttr (A_SO);
 	printf ("%s", msg);
-	if (curr->insert)
-	    InsertMode (1);
-	NewRendition (A_SO, GlobalAttr);
-	fflush (stdout);
+	RestoreAttr (A_SO);
+	(void) fflush (stdout);
 	time (&TimeDisplayed);
     }
     curr = ocurr;
@@ -1439,7 +1651,7 @@ RemoveStatus (p) struct win *p; {
     curr = p;
     display = 1;
     Goto (-1, -1, rows-1, 0);
-    RedisplayLine (null, null, rows-1, 0, StatLen);
+    RedisplayLine (null, null, null, rows-1, 0, StatLen);
     Goto (rows-1, last_x, curr->y, curr->x);
     curr = ocurr;
     display = odisplay;

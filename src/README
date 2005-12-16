@@ -2,8 +2,8 @@
 screens (UNIX ttys) on a single physical terminal; each screen has its own
 set of processes connected to it (typically interactive shells).  Each
 virtual terminal created by "screen" emulates a DEC VT100 plus several ANSI
-X3.64 functions (including DEC VT102 features such as line and character
-deletion and insertion).
+X3.64 and ISO 2022 functions (including DEC VT102 features such as line and
+character deletion and insertion).
 
 Since "screen" uses pseudo-ttys, the select system call, and UNIX-domain
 sockets, it will not run under a system that does not include these
@@ -36,42 +36,38 @@ and Control-Q.  This is the reason why I have an alias like
 in my .cshrc file.
 
 
-I have published a beta-test release of screen in the non-moderated
-sources newsgroup four months ago.  Since then I have received numerous
-suggestions for enhancements and improvements, many of which I have
-included in this release of "screen".  One person reported that screen
-does not work correctly on the Ann Arbor Guru-XL; I have not been able
-to track the problem down without having more detailed information than
-just the termcap entry.
+Major changes between this and the previous release are:
 
-Major changes between this and the beta-test release are:
+*  "screen" allows you to `detach' the "screen" session from the physical
+   terminal and resume it at a later point in time (possibly on a
+   different terminal or in a different login session).
 
-    -  "screen" now creates an entry in /etc/utmp for each virtual
-       terminal
-    -  the owner of the tty file for a virtual terminal is set properly
-       (provided that "screen" is set-uid with owner root)
-    -  the -c option has been eliminated; you can now start a command
-       in a new window with "screen [cmd [args]]"
-    -  a (user-settable) notification can be displayed in the current
-       window's message line when the bell is rung in a background window
-    -  a "chdir" command can be placed into ".screenrc" to facilitate
-       creation of windows in specific directories
-    -  flow control can be disabled by means of a command line option or
-       a special termcap symbol (necessary for EMACS)
-    -  "C-a s" and "C-a q" can be used to send a Control-S or a Control-Q,
-       respectively (for certain terminals)
-    -  it is no longer necessary to specify the full pathname when a
-       command is started in a new window (and with the "bind" command)
-    -  "C-a ." can be used to write the current termcap entry to a file
-       (useful for "rlogin" which does not propagate TERMCAP)
-    -  "C-a C-t" displays status information (e.g. the load average and
-       the virtual terminal's parameters) in the message line
-    -  "C-a C-\" closes all windows and terminates screen
+  To get an impression of this functionality do the following:
+
+     - call "screen" and create a couple of windows
+     - type Control-A Control-D (screen terminates; you are back
+       in the shell)
+     - call "screen -r" to resume the detached "screen"
+
+*  "screen" supports multiple character sets and the ISO 2022 control
+   functions to designate and switch between character sets.
+   This allows you, for instance, to make use of the VT100 graphics
+   character set or national character sets
+
 
 Before typing "make", you should have a look into the Makefile.
 If your system maintains a 4.3-BSD-style load average, add -DLOADAV to
-the compiler options.  In addition, you must set -DGETTTYENT if your
-system has the new format /etc/ttys and the getttyent(3) routines.
+the compiler options.  If the load average maintained by your system
+is in the Sun format (three longs; not three doubles), set -DSUNLOADAV
+in addition to -DLOADAV.
+
+In addition, you must set -DGETTTYENT if your system has the new format
+/etc/ttys and the getttyent(3) routines.
+
+If the bcopy() from your system's C library supports overlapping
+source and destination addresses, add -DUSEBCOPY.  Otherwise screen
+uses its own (possibly slower) version of bcopy().  If you are in
+doubt or don't know what bcopy() is, leave the option out.
 
 "screen" should be granted read and write access to /etc/utmp and, if
 -DLOADAV has been specified, read access to /vmunix and /dev/kmem.
@@ -82,10 +78,9 @@ major disadvantages, except that w(1) and some other utilities may have
 some problems with the tty files of your virtual terminals.
 
 
-Have fun,
+Regards,
     Oliver Laumann
     Technical University of Berlin,
     Communications and Operating Systems Research Group.
 
     net@tub.BITNET     US: pyramid!tub!net     Europe: unido!tub!net
-
