@@ -28,22 +28,19 @@ RCS_ID("$Id$ FAU")
 #include <ctype.h>
 
 #include <fcntl.h>
+
 #ifdef sgi
 # include <sys/sysmacros.h>
-#endif /* sgi */
-
-#ifdef ISC
-# include <sys/bsdtypes.h>
 #endif
+
 #include <sys/stat.h>
-#ifndef sgi
-# include <sys/file.h>
-#endif /* sgi */
 #ifndef sun
 # include <sys/ioctl.h>
-#endif /* sun */
+#endif
 
-#include <signal.h>
+#ifndef SIGINT
+# include <signal.h>
+#endif
 
 #include "config.h"
 
@@ -51,7 +48,7 @@ RCS_ID("$Id$ FAU")
 # include <sys/stropts.h>
 #endif
 
-#ifdef SYSV
+#if defined(SYSV) && !defined(ISC)
 # include <sys/utsname.h>
 #endif
 
@@ -64,6 +61,10 @@ RCS_ID("$Id$ FAU")
 # include <sys/sioctl.h>
 # include <sys/pty.h>
 #endif /* ISC */
+
+#if (defined(AUX) || defined(_AUX_SOURCE)) && defined(POSIX)
+# include <compat.h>
+#endif
 
 #include "screen.h"
 
@@ -108,9 +109,10 @@ extern struct NewWindow nwin_undef, nwin_default, nwin_options;
 
 static char *MakeWinMsg __P((char *, int));
 static void  SigChldHandler __P((void));
-static sig_t SigChld __P(SIGPROTOARG);
-static sig_t SigInt __P(SIGPROTOARG);
-static sig_t CoreDump __P((int));
+static sigret_t SigChld __P(SIGPROTOARG);
+static sigret_t SigInt __P(SIGPROTOARG);
+static sigret_t CoreDump __P(SIGPROTOARG);
+static sigret_t FinitHandler __P(SIGPROTOARG);
 static void  DoWait __P((void));
 static void  WindowDied __P((struct win *));
 
@@ -119,6 +121,7 @@ static void  WindowDied __P((struct win *));
 extern char Password[];
 #endif
 
+int nversion;	/* numerical version, used for secondary DA */
 
 /* the attacher */
 struct passwd *ppp;
@@ -127,14 +130,10 @@ char *attach_term;
 char *LoginName;
 struct mode attach_Mode;
 
-
-#ifdef SOCKDIR
-char *SockDir = SOCKDIR;
-#else
-char *SockDir = ".iscreen";
-#endif
-extern char SockPath[], *SockNamePtr, *SockName;
+char SockPath[MAXPATHLEN];
+char *SockName, *SockMatch;	/* SockName is pointer in SockPath */
 int ServerSocket = -1;
+
 char **NewEnv = NULL;
 
 char *RcFileName = NULL;
@@ -173,15 +172,18 @@ int MasterPid;
 int real_uid, real_gid, eff_uid, eff_gid;
 int default_startup;
 int slowpaste;
-int ZombieKey;
+int ZombieKey_destroy, ZombieKey_resurrect;
 
 #ifdef NETHACK
 int nethackflag = 0;
 #endif
+#ifdef MAPKEYS
+int maptimeout = 300000;
+#endif
 
 
-struct win *fore = NULL;
-struct win *windows = NULL;
+struct win *fore;
+struct win *windows;
 struct win *console_window;
 
 
@@ -199,7 +201,7 @@ char strnomem[] = "Out of memory.";
 #endif
 
 
-static int InterruptPlease = 0;
+static int InterruptPlease;
 static int GotSigChld;
 
 
@@ -211,30 +213,30 @@ fd_set *rp, *wp;
 
   FD_ZERO(rp);
   FD_ZERO(wp);
-  for (display = displays; display; display = display->_d_next)
+  for (display = displays; display; display = display->d_next)
     {
-      if (d_obufp != d_obuf)
-	FD_SET(d_userfd, wp);
+      if (D_obufp != D_obuf)
+	FD_SET(D_userfd, wp);
 
-      FD_SET(d_userfd, rp);	/* Do that always */
+      FD_SET(D_userfd, rp);	/* Do that always */
 
       /* read from terminal if there is room in the destination buffer
        *
        * Removed, so we can always input a command sequence
        *
-       * if (d_fore == 0)
+       * if (D_fore == 0)
        *   continue;
-       * if (W_UWP(d_fore))
+       * if (W_UWP(D_fore))
        *   {
        *      check pseudowin buffer
-       *      if (d_fore->w_pwin->p_inlen < sizeof(d_fore->w_pwin->p_inbuf))
-       *      FD_SET(d_userfd, rp);
+       *      if (D_fore->w_pwin->p_inlen < sizeof(D_fore->w_pwin->p_inbuf))
+       *      FD_SET(D_userfd, rp);
        *   }
        * else
        *   {
        *     check window buffer
-       *     if (d_fore->w_inlen < sizeof(d_fore->w_inbuf))
-       *     FD_SET(d_userfd, rp);
+       *     if (D_fore->w_inlen < sizeof(D_fore->w_inbuf))
+       *     FD_SET(D_userfd, rp);
        *   }
        */
     }
@@ -263,7 +265,7 @@ fd_set *rp, *wp;
 #endif
 
       display = p->w_display;
-      if (p->w_active && d_status && !d_status_bell && !(use_hardstatus && HS))
+      if (p->w_active && D_status && !D_status_bell && !(use_hardstatus && D_HS))
 	continue;
       if (p->w_outlen > 0)
 	continue;
@@ -273,7 +275,7 @@ fd_set *rp, *wp;
      * Don't accept input from window or pseudowin if there is to much 
      * output pending on display .
      */
-      if (p->w_active && (d_obufp - d_obuf) > d_obufmax)
+      if (p->w_active && (D_obufp - D_obuf) > D_obufmax)
 	{
 	  debug1("too much output pending, window %d\n", p->w_number);
 	  continue;  
@@ -321,6 +323,7 @@ char **av;
   struct timeval tv;
   int nsel;
   char buf[IOSIZE], *myname = (ac == 0) ? "screen" : av[0];
+  char *SockDir;
   struct stat st;
   int buflen, tmp;
 #ifdef _MODE_T			/* (jw) */
@@ -328,7 +331,7 @@ char **av;
 #else
   int oumask;
 #endif
-#ifdef SYSV
+#if defined(SYSV) && !defined(ISC)
   struct utsname utsnam;
 #endif
   struct NewWindow nwin;
@@ -336,6 +339,10 @@ char **av;
   struct display *ndisplay;
 #ifdef MULTIUSER
   char *sockp;
+#endif
+
+#if (defined(AUX) || defined(_AUX_SOURCE)) && defined(POSIX)
+  setcompat(COMPAT_POSIX|COMPAT_BSDPROT); /* turn on seteuid support */
 #endif
 
   /*
@@ -357,6 +364,7 @@ char **av;
 #endif
   sprintf(version, "%d.%.2d.%.2d%s (%s) %s", REV, VERS,
 	  PATCHLEVEL, STATE, ORIGIN, DATE);
+  nversion = REV * 10000 + VERS * 100 + PATCHLEVEL;
   debug2("-- screen debug started %s (%s)\n", *av, version);
 #ifdef POSIX
   debug("POSIX\n");
@@ -376,8 +384,11 @@ char **av;
 #if defined(SIGWINCH) && defined(TIOCGWINSZ)
   debug("Window changing enabled\n");
 #endif
-#ifdef NOREUID
-  debug("NOREUID\n");
+#ifdef HAVE_SETREUID
+  debug("SETREUID\n");
+#endif
+#ifdef HAVE_SETEUID
+  debug("SETEUID\n");
 #endif
 #ifdef hpux
   debug("hpux\n");
@@ -540,7 +551,7 @@ char **av;
 		  lsflag = 1;
 		  if (ac > 1)
 		    {
-		      SockName = *++av;
+		      SockMatch = *++av;
 		      ac--;
 		    }
 		  break;
@@ -586,13 +597,13 @@ char **av;
 #endif
 	      if (ap[2])
 		{
-		  SockName = ap + 2;
+		  SockMatch = ap + 2;
 		  if (ac != 1)
 		    exit_with_usage(myname);
 		}
 	      else if (ac > 1 && *av[1] != '-')
 		{
-		  SockName = *++av;
+		  SockMatch = *++av;
 		  ac--;
 		}
 #ifdef MULTI
@@ -610,12 +621,12 @@ char **av;
 	      if (!dflag)
 		dflag = 2;
 	      if (ap[2])
-		SockName = ap + 2;
+		SockMatch = ap + 2;
 	      if (ac == 2)
 		{
 		  if (*av[1] != '-')
 		    {
-		      SockName = *++av;
+		      SockMatch = *++av;
 		      ac--;
 		    }
 		}
@@ -640,13 +651,13 @@ char **av;
 	      break;
 	    case 'S':
 	      if (ap[2])
-		SockName = ap + 2;
+		SockMatch = ap + 2;
 	      else
 		{
 		  if (--ac == 0)
 		    exit_with_usage(myname);
-		  SockName = *++av;
-		  if (!*SockName)
+		  SockMatch = *++av;
+		  if (!*SockMatch)
 		    exit_with_usage(myname);
 		}
 	      break;
@@ -660,7 +671,7 @@ char **av;
       else
 	break;
     }
-  if (dflag && mflag && SockName && !(rflag || xflag))
+  if (dflag && mflag && SockMatch && !(rflag || xflag))
     detached = 1;
   nwin = nwin_options;
   if (ac)
@@ -680,6 +691,24 @@ char **av;
 #endif /* SIGBUS */
       signal(SIGSEGV, CoreDump);
     }
+
+  /* make the write() calls return -1 on all errors */
+#ifdef SIGXFSZ
+  /*
+   * Ronald F. Guilmette, Oct 29 '94, bug-gnu-utils@prep.ai.mit.edu:
+   * It appears that in System V Release 4, UNIX, if you are writing
+   * an output file and you exceed the currently set file size limit,
+   * you _don't_ just get the call to `write' returning with a
+   * failure code.  Rather, you get a signal called `SIGXFSZ' which,
+   * if neither handled nor ignored, will cause your program to crash
+   * with a core dump.
+   */
+  signal(SIGXFSZ, SIG_IGN);
+#endif
+#ifdef SIGPIPE
+  signal(SIGPIPE, SIG_IGN);
+#endif
+
   if (!ShellProg)
     {
       register char *sh;
@@ -691,36 +720,38 @@ char **av;
 #ifdef NETHACK
   nethackflag = (getenv("NETHACKOPTIONS") != NULL);
 #endif
+
 #ifdef MULTIUSER
   own_uid = multi_uid = real_uid;
-  if (SockName && (sockp = index(SockName, '/')))
+  if (SockMatch && (sockp = index(SockMatch, '/')))
     {
       if (eff_uid)
-        Panic(0, "Must run suid root for multi support.");
+        Panic(0, "Must run suid root for multiuser support.");
       *sockp = 0;
-      multi = SockName;
-      SockName = sockp + 1;
+      multi = SockMatch;
+      SockMatch = sockp + 1;
       if (*multi)
 	{
 	  struct passwd *mppp;
-	  if ((mppp = getpwnam(multi)) == (struct passwd *) 0)
+	  if ((mppp = getpwnam(multi)) == (struct passwd *)0)
 	    Panic(0, "Cannot identify account '%s'.", multi);
 	  multi_uid = mppp->pw_uid;
 	  multi_home = SaveStr(mppp->pw_dir);
-#ifdef MULTI
+# ifdef MULTI
 	  if (rflag || lsflag)
 	    {
 	      xflag = 1;
 	      rflag = 0;
 	    }
-#endif
+# endif
 	  detached = 0;
 	  multiattach = 1;
 	}
     }
-  if (SockName && *SockName == 0)
-    SockName = 0;
-#endif
+  if (SockMatch && *SockMatch == 0)
+    SockMatch = 0;
+#endif /* MULTIUSER */
+
   if ((LoginName = getlogin()) && LoginName[0] != '\0')
     {
       if ((ppp = getpwnam(LoginName)) != (struct passwd *) 0)
@@ -741,12 +772,12 @@ char **av;
         }
       LoginName = ppp->pw_name;
     }
-  home = getenv("HOME");	/* may or may not return a result. jw. */
+  home = getenv("HOME");
 #if !defined(SOCKDIR) && defined(MULTIUSER)
   if (multi && !multiattach)
     {
       if (home && strcmp(home, ppp->pw_dir))
-        Panic(0, "$HOME must match passwd entry for multi screens");
+        Panic(0, "$HOME must match passwd entry for multiuser screens.");
     }
 #endif
   if (home == 0 || *home == '\0')
@@ -783,9 +814,9 @@ char **av;
 	Panic(0, "Cannot open '%s' - please check.", attach_tty);
       close(n);
       debug1("attach_tty is %s\n", attach_tty);
-      if ((attach_term = getenv("TERM")) == 0)
+      if ((attach_term = getenv("TERM")) == 0 || *attach_term == 0)
 	Panic(0, "Please set a terminal type.");
-      if (strlen(attach_term) > sizeof(d_termname) - 1)
+      if (strlen(attach_term) > sizeof(D_termname) - 1)
 	Panic(0, "$TERM too long - sorry.");
       GetTTY(0, &attach_Mode);
 #ifdef DEBUGGGGGGGGGGGGGGG
@@ -852,13 +883,17 @@ char **av;
       else
 	{
 	  SockDir = SOCKDIR;
-	  if (stat(SockDir, &st))
+	  if (lstat(SockDir, &st))
 	    {
 	      if (mkdir(SockDir, eff_uid ? 0777 : 0755) == -1)
 		Panic(errno, "Cannot make directory '%s'", SockDir);
 	    }
 	  else
 	    {
+	      if (!S_ISDIR(st.st_mode))
+		Panic(0, "'%s' must be a directory.", SockDir);
+              if (eff_uid == 0 && st.st_uid != eff_uid)
+		Panic(0, "Directory '%s' must be owned by root.", SockDir);
 	      n = eff_uid ? 0777 : 0755;
 	      if ((st.st_mode & 0777) != n)
 		Panic(0, "Directory '%s' must have mode %03o.", SockDir, n);
@@ -880,11 +915,7 @@ char **av;
     }
   else
     {
-#ifdef _POSIX_SOURCE
-      if (S_ISDIR(st.st_mode) == 0)
-#else
-      if ((st.st_mode & S_IFMT) != S_IFDIR)
-#endif
+      if (!S_ISDIR(st.st_mode))
 	Panic(0, "%s is not a directory.", SockPath);
 #ifdef MULTIUSER
       if (multi)
@@ -901,43 +932,39 @@ char **av;
       if ((st.st_mode & 0777) != 0700)
 	Panic(0, "Directory %s must have mode 700.", SockPath);
     }
-  strcat(SockPath, "/");
-  SockNamePtr = SockPath + strlen(SockPath);
+  SockName = SockPath + strlen(SockPath) + 1;
+  *SockName = 0;
   (void) umask(oumask);
-  debug2("SockPath: %s  SockName: %s\n", SockPath, SockName ? SockName : "NULL");
+  debug2("SockPath: %s  SockMatch: %s\n", SockPath, SockMatch ? SockMatch : "NULL");
 
 #if defined(SYSV) && !defined(ISC)
   if (uname(&utsnam) == -1)
-    Panic(0, "uname() failed, errno = %d.", errno);
-  else
-    {
-      strncpy(HostName, utsnam.nodename, MAXSTR);
-      HostName[(sizeof(utsnam.nodename) <= MAXSTR) ? 
-               sizeof(utsnam.nodename) : MAXSTR] = '\0';
-    }
+    Panic(errno, "uname");
+  strncpy(HostName, utsnam.nodename, sizeof(utsnam.nodename) < MAXSTR ? sizeof(utsnam.nodename) : MAXSTR - 1);
+  HostName[sizeof(utsnam.nodename) < MAXSTR ? sizeof(utsnam.nodename) : MAXSTR - 1] = '\0';
 #else
   (void) gethostname(HostName, MAXSTR);
-#endif
   HostName[MAXSTR - 1] = '\0';
+#endif
   if ((ap = index(HostName, '.')) != NULL)
     *ap = '\0';
 
   if (lsflag)
     {
-      int i;
+      int i, fo;
 
 #ifdef MULTIUSER
       if (multi)
 	real_uid = multi_uid;
+#endif
       setuid(real_uid);
       setgid(real_gid);
       eff_uid = real_uid;
       eff_gid = real_gid;
-#endif
-      i = FindSocket(0, (int *)NULL);
-      /* MakeClientSocket appended the last (Sock)Name there: */
-      *SockNamePtr = '\0';
-      if (i == 0)
+      i = FindSocket((int *)NULL, &fo, SockMatch);
+      if (quietflag)
+        exit(10 + i);
+      if (fo == 0)
 	{
 #ifdef NETHACK
           if (nethackflag)
@@ -946,7 +973,7 @@ char **av;
 #endif /* NETHACK */
           Panic(0, "No Sockets found in %s.\n", SockPath);
         }
-      Panic(0, "%d Socket%s in %s.\n", i, i > 1 ? "s" : "", SockPath);
+      Panic(0, "%d Socket%s in %s.\n", fo, fo > 1 ? "s" : "", SockPath);
       /* NOTREACHED */
     }
   signal(SIG_BYE, AttacherFinit);	/* prevent races */
@@ -970,10 +997,9 @@ char **av;
       eexit(0);
       /* NOTREACHED */
     }
-  if (!SockName && !mflag)
+  if (!SockMatch && !mflag)
     {
       register char *sty;
-      int s;
 
       if ((sty = getenv("STY")) != 0 && *sty != '\0')
 	{
@@ -981,19 +1007,13 @@ char **av;
 	  setgid(real_gid);
 	  eff_uid = real_uid;
 	  eff_gid = real_gid;
-	  if ((s = MakeClientSocket(1, sty)) > 0)
-	    {
-	      nwin_options.args = av;
-	      SendCreateMsg(s, &nwin);
-	      close(s);
-	    }
+	  nwin_options.args = av;
+	  SendCreateMsg(sty, &nwin);
 	  exit(0);
 	  /* NOTREACHED */
 	}
     }
   nwin_compose(&nwin_default, &nwin_options, &nwin_default);
-  if (SockName && !*SockName)
-    SockName = NULL;
   switch (MasterPid = fork())
     {
     case -1:
@@ -1011,20 +1031,18 @@ char **av;
 #endif
       if (detached)
         exit(0);
-      if (SockName)
-	{
-	  /* user started us with -S option */
-	  sprintf(socknamebuf, "%d.%s", MasterPid, SockName);
-	}
+      if (SockMatch)
+	sprintf(socknamebuf, "%d.%s", MasterPid, SockMatch);
       else
-	{
-	  sprintf(socknamebuf, "%d.%s.%s", MasterPid, stripdev(attach_tty),
-		  HostName);
-	}
+	sprintf(socknamebuf, "%d.%s.%s", MasterPid, stripdev(attach_tty), HostName);
       for (ap = socknamebuf; *ap; ap++)
 	if (*ap == '/')
 	  *ap = '-';
-      SockName = socknamebuf;
+#ifdef NAME_MAX
+      if (strlen(socknamebuf) > NAME_MAX)
+        socknamebuf[NAME_MAX] = 0;
+#endif
+      sprintf(SockPath + strlen(SockPath), "/%s", socknamebuf);
 #ifdef SHADOWPW
       setspent();  /* open shadow file while we are still root */
 #endif /* SHADOWPW */
@@ -1063,7 +1081,11 @@ char **av;
   }
 #endif
   if (!detached)
-    n = dup(0);
+    {
+      /* reopen tty. must do this, because fd 0 may be RDONLY */
+      if ((n = secopen(attach_tty, O_RDWR, 0)) < 0)
+	Panic(0, "Cannot reopen '%s' - please check.", attach_tty);
+    }
   else
     n = -1;
   freopen("/dev/null", "r", stdin);
@@ -1084,21 +1106,30 @@ char **av;
 	Panic(0, "Could not alloc display");
     }
 
-  if (SockName)
+  if (SockMatch)
     {
       /* user started us with -S option */
-      sprintf(socknamebuf, "%d.%s", getpid(), SockName);
+      sprintf(socknamebuf, "%d.%s", (int)getpid(), SockMatch);
     }
   else
     {
-      sprintf(socknamebuf, "%d.%s.%s", getpid(), stripdev(attach_tty),
+      sprintf(socknamebuf, "%d.%s.%s", (int)getpid(), stripdev(attach_tty),
 	      HostName);
     }
   for (ap = socknamebuf; *ap; ap++)
     if (*ap == '/')
       *ap = '-';
-  SockName = socknamebuf;
+#ifdef NAME_MAX
+  if (strlen(socknamebuf) > NAME_MAX)
+    {
+      debug2("Socketname %s truncated to %d chars\n", socknamebuf, NAME_MAX);
+      socknamebuf[NAME_MAX] = 0;
+    }
+#endif
+  sprintf(SockPath + strlen(SockPath), "/%s", socknamebuf);
+  
   ServerSocket = MakeServerSocket();
+  InitKeytab();
 #ifdef ETCSCREENRC
 # ifdef ALLOW_SYSSCREENRC
   if ((ap = getenv("SYSSCREENRC")))
@@ -1118,10 +1149,10 @@ char **av;
       if (InitTermcap(0, 0))
 	{
 	  debug("Could not init termcap - exiting\n");
-	  fcntl(d_userfd, F_SETFL, 0);	/* Flush sets NDELAY */
+	  fcntl(D_userfd, F_SETFL, 0);	/* Flush sets FNBLOCK */
 	  freetty();
-	  if (d_userpid)
-	    Kill(d_userpid, SIG_BYE);
+	  if (D_userpid)
+	    Kill(D_userpid, SIG_BYE);
 	  eexit(1);
 	}
       InitTerm(0);
@@ -1138,22 +1169,21 @@ char **av;
 #endif /* LOADAV */
   MakeNewEnv();
   signal(SIGHUP, SigHup);
-  signal(SIGINT, Finit);
-  signal(SIGQUIT, Finit);
-  signal(SIGTERM, Finit);
+  signal(SIGINT, FinitHandler);
+  signal(SIGQUIT, FinitHandler);
+  signal(SIGTERM, FinitHandler);
 #ifdef BSDJOBS
   signal(SIGTTIN, SIG_IGN);
   signal(SIGTTOU, SIG_IGN);
 #endif
-  InitKeytab();
   if (display)
     {
-      brktty(d_userfd);
-      SetMode(&d_OldMode, &d_NewMode);
+      brktty(D_userfd);
+      SetMode(&D_OldMode, &D_NewMode);
       /* Note: SetMode must be called _before_ FinishRc. */
-      SetTTY(d_userfd, &d_NewMode);
-      if (fcntl(d_userfd, F_SETFL, FNDELAY))
-	Msg(errno, "Warning: NDELAY fcntl failed");
+      SetTTY(D_userfd, &D_NewMode);
+      if (fcntl(D_userfd, F_SETFL, FNBLOCK))
+	Msg(errno, "Warning: NBLOCK fcntl failed");
     }
   else
     brktty(-1);		/* just try */
@@ -1218,8 +1248,8 @@ char **av;
 	    }
 	  else
 	    {
-	      for (display = displays; display; display = display->_d_next)
-	        if (p != d_fore)
+	      for (display = displays; display; display = display->d_next)
+	        if (p != D_fore)
 		  Msg(0, "Window %d: silence for %d seconds", 
 		      p->w_number, p->w_tstamp.seconds);
 	      p->w_tstamp.lastio = Now;
@@ -1229,14 +1259,14 @@ char **av;
       /*
        * check to see if message line should be removed
        */
-      for (display = displays; display; display = display->_d_next)
+      for (display = displays; display; display = display->d_next)
 	{
 	  int time_left;
 
-	  if (d_status == 0)
+	  if (D_status == 0)
 	    continue;
 	  debug("checking status...\n");
-	  time_left = d_status_time + (d_status_bell?VBellWait:MsgWait) - Now;
+	  time_left = D_status_time + (D_status_bell?VBellWait:MsgWait) - Now;
 	  if (time_left > 0)
 	    {
 	      if (tv.tv_sec == 0 || time_left < tv.tv_sec)
@@ -1250,6 +1280,31 @@ char **av;
 	    }
 	}
       /*
+       * check to see if a mapping timeout should happen
+       */
+#ifdef MAPKEYS
+      tv.tv_usec = 0;
+      for (display = displays; display; display = display->d_next)
+	if (D_seql)
+	  {
+	    int j;
+	    struct kmap *km;
+
+	    km = (struct kmap *)(D_seqp - D_seql - KMAP_SEQ);
+	    j = *(D_seqp - 1 + (KMAP_OFF - KMAP_SEQ));
+	    if (j == 0)
+	      j = D_nseqs - (km - D_kmaps);
+	    for (; j; km++, j--)
+	      if (km->nr & KMAP_NOTIMEOUT)
+		break;
+	    if (j)
+	      continue;
+            tv.tv_sec = 0;
+	    tv.tv_usec = maptimeout;
+	    break;
+	  }
+#endif
+      /*
        * check for I/O on all available I/O descriptors
        */
 #ifdef DEBUG
@@ -1262,14 +1317,57 @@ char **av;
 	  SigChldHandler();
 	  continue;
 	}
-      if ((nsel = select(FD_SETSIZE, &r, &w, (fd_set *)0, tv.tv_sec ? &tv : (struct timeval *) 0)) < 0)
+      if ((nsel = select(FD_SETSIZE, &r, &w, (fd_set *)0, (tv.tv_sec || tv.tv_usec) ? &tv : (struct timeval *) 0)) < 0)
 	{
 	  debug1("Bad select - errno %d\n", errno);
+#if defined(sgi) && defined(SVR4)
+	  /* Ugly workaround for braindead IRIX5.2 select.
+	   * read() should return EIO, not select()!
+	   */
+	  if (errno == EIO)
+	    {
+	      debug("IRIX5.2 workaround: searching for bad display\n");
+	      for (display = displays; display; )
+		{
+		  FD_ZERO(&r);
+		  FD_ZERO(&w);
+		  FD_SET(D_userfd, &r);
+		  FD_SET(D_userfd, &w);
+		  tv.tv_sec = tv.tv_usec = 0;
+		  if (select(FD_SETSIZE, &r, &w, (fd_set *)0, &tv) == -1)
+		    {
+		      if (errno == EINTR)
+			continue;
+		      SigHup(SIGARG);
+		      break;
+		    }
+		  display = display->d_next;
+		}
+	    }
+	  else
+#endif
 	  if (errno != EINTR)
 	    Panic(errno, "select");
 	  errno = 0;
 	  nsel = 0;
 	}
+#ifdef MAPKEYS
+      else
+	for (display = displays; display; display = display->d_next)
+	  {
+	    if (D_seql == 0)
+	      continue;
+	    if ((nsel == 0 && tv.tv_sec == 0 && tv.tv_usec) || D_seqruns++ * 50000 > maptimeout)
+	      {
+		debug1("Flushing map sequence (%d runs)\n", D_seqruns);
+		fore = D_fore;
+		D_seqp -= D_seql;
+		while (D_seql)
+		  Process(&D_seqp, &D_seql);
+		D_seqp = D_kmaps[0].seq;
+	      }
+	  }
+#endif
 #ifdef SELECT_BROKEN
       /* 
        * Sequents select emulation counts an descriptor which is
@@ -1420,29 +1518,29 @@ char **av;
 	    {
 	      int maxlen;
 
-	      ndisplay = display->_d_next;
+	      ndisplay = display->d_next;
 	      /* 
-	       * stuff d_obuf into user's tty
+	       * stuff D_obuf into user's tty
 	       */
-	      if (FD_ISSET(d_userfd, &w)) 
+	      if (FD_ISSET(D_userfd, &w)) 
 		{
 		  int size = OUTPUT_BLOCK_SIZE;
 
-		  len = d_obufp - d_obuf;
+		  len = D_obufp - D_obuf;
 		  if (len < size)
 		    size = len;
 		  ASSERT(len >= 0);
-		  size = write(d_userfd, d_obuf, size);
+		  size = write(D_userfd, D_obuf, size);
 		  if (size >= 0) 
 		    {
 		      len -= size;
 		      if (len)
 		        {
-			  bcopy(d_obuf + size, d_obuf, len);
+			  bcopy(D_obuf + size, D_obuf, len);
 		          debug2("ASYNC: wrote %d - remaining %d\n", size, len);
 			}
-		      d_obufp -= size;
-		      d_obuffree += size;
+		      D_obufp -= size;
+		      D_obuffree += size;
 		    } 
 		  else
 		    {
@@ -1459,35 +1557,26 @@ char **av;
 	       * O.k. All streams are fed, now look what comes back
 	       * to us. First of all: user input.
 	       */
-	      if (! FD_ISSET(d_userfd, &r))
+	      if (! FD_ISSET(D_userfd, &r))
 		continue;
-	      if (d_status && !(use_hardstatus && HS))
+	      if (D_status && !(use_hardstatus && D_HS))
 		RemoveStatus();
-	      if (d_fore == 0)
+	      if (D_fore == 0)
 		maxlen = IOSIZE;
 	      else
 		{
 #ifdef PSEUDOS
-		  if (W_UWP(d_fore))
-		    maxlen = sizeof(d_fore->w_pwin->p_inbuf) - d_fore->w_pwin->p_inlen;
+		  if (W_UWP(D_fore))
+		    maxlen = sizeof(D_fore->w_pwin->p_inbuf) - D_fore->w_pwin->p_inlen;
 		  else
 #endif
-		    maxlen = sizeof(d_fore->w_inbuf) - d_fore->w_inlen;
+		    maxlen = sizeof(D_fore->w_inbuf) - D_fore->w_inlen;
 		}
 	      if (maxlen > IOSIZE)
 		maxlen = IOSIZE;
 	      if (maxlen <= 0)
 		maxlen = 1;	/* Allow one char for command keys */
-	      if (d_ESCseen)
-		{
-		  if (maxlen == 1)
-		    maxlen = 2;	/* Allow one char for command keys */
-		  buf[0] = d_user->u_Esc;
-		  buflen = read(d_userfd, buf + 1, maxlen - 1) + 1;
-		  d_ESCseen = 0;
-		}
-	      else
-		buflen = read(d_userfd, buf, maxlen);
+	      buflen = read(D_userfd, buf, maxlen);
 	      if (buflen < 0)
 		{
 		  if (errno == EINTR)
@@ -1638,14 +1727,14 @@ char **av;
 	  if (p->w_bell == BELL_ON)
 	    {
 	      p->w_bell = BELL_MSG;
-	      for (display = displays; display; display = display->_d_next)
+	      for (display = displays; display; display = display->d_next)
 	        Msg(0, MakeWinMsg(BellString, p->w_number));
 	      if (p->w_monitor == MON_FOUND)
 		p->w_monitor = MON_DONE;
 	    }
 	  else if (p->w_bell == BELL_VISUAL)
 	    {
-	      if (display && !d_status_bell)
+	      if (display && !D_status_bell)
 		{
 		  /*
 		   * Stop the '!' appearing in the ^A^W display if it is an 
@@ -1653,18 +1742,18 @@ char **av;
 		   */
 		  p->w_bell = BELL_OFF; 
 		  Msg(0, VisualBellString);
-		  if (d_status)
-		    d_status_bell = 1;
+		  if (D_status)
+		    D_status_bell = 1;
 		}
 	    }
 	  if (p->w_monitor == MON_FOUND)
 	    {
 	      p->w_monitor = MON_MSG;
-	      for (display = displays; display; display = display->_d_next)
+	      for (display = displays; display; display = display->d_next)
 	        Msg(0, MakeWinMsg(ActivityString, p->w_number));
 	    }
 	}
-#if defined(DEBUG) && !defined(_SEQUENT_)
+#if defined(DEBUG) && !defined(SELECT_BROKEN)
       if (nsel)
 	debug1("*** Left over nsel: %d\n", nsel);
 #endif
@@ -1676,14 +1765,15 @@ static void
 WindowDied(p)
 struct win *p;
 {
-  if (ZombieKey)
+  if (ZombieKey_destroy)
     {
-      char buf[100];
-      struct tm *tp;
+      char buf[100], *s;
       time_t now;
 
       (void) time(&now);
-      tp = localtime(&now);
+      s = ctime(&now);
+      if (s && *s)
+        s[strlen(s) - 1] = '\0';
       debug3("window %d (%s) going into zombie state fd %d",
 	     p->w_number, p->w_title, p->w_ptyfd);
 #ifdef UTMPOK
@@ -1696,7 +1786,7 @@ struct win *p;
       p->w_pid = 0;
       ResetWindow(p);
       p->w_y = p->w_bot;
-      sprintf(buf, "\n=== Window terminated at %2d:%02d:%02d ===", tp->tm_hour, tp->tm_min, tp->tm_sec);
+      sprintf(buf, "\n\r=== Window terminated (%s) ===", s ? s : "?");
       WriteString(p, buf, strlen(buf));
     }
   else
@@ -1730,43 +1820,39 @@ SigChldHandler()
     debug2("SigChldHandler: stat '%s' o.k. (%03o)\n", SockPath, st.st_mode);
 }
 
-static sig_t
-SigChld(SIGDEFARG)
+static sigret_t
+SigChld SIGDEFARG
 {
   debug("SigChld()\n");
   GotSigChld = 1;
-#ifndef SIGVOID
-  return((sig_t) 0);
-#endif
+  SIGRETURN;
 }
 
-sig_t
-SigHup(SIGDEFARG)
+sigret_t
+SigHup SIGDEFARG
 {
   if (display == 0)
     return;
   debug("SigHup()\n");
-  if (d_userfd >= 0)
+  if (D_userfd >= 0)
     {
-      close(d_userfd);
-      d_userfd = -1;
+      close(D_userfd);
+      D_userfd = -1;
     }
-  if (auto_detach || displays->_d_next)
+  if (auto_detach || displays->d_next)
     Detach(D_DETACH);
   else
     Finit(0);
-#ifndef SIGVOID
-  return((sig_t) 0);
-#endif
+  SIGRETURN;
 }
 
 /* 
  * the backend's Interrupt handler
- * we cannot d_insert the intrc directly, as we never know
+ * we cannot D_insert the intrc directly, as we never know
  * if fore is valid.
  */
-static sig_t
-SigInt(SIGDEFARG)
+static sigret_t
+SigInt SIGDEFARG
 {
 #if HAZARDOUS
   char buf[1];
@@ -1782,45 +1868,44 @@ SigInt(SIGDEFARG)
   debug("SigInt() careful\n");
   InterruptPlease = 1;
 #endif
-#ifndef SIGVOID
-  return((sig_t) 0);
-#endif
+  SIGRETURN;
 }
 
-static sig_t
-CoreDump(sig)
-int sig;
+static sigret_t
+CoreDump SIGDEFARG
 {
   struct display *disp;
   char buf[80];
 
-#ifdef SYSVSIGS
-  signal(sig, SIG_IGN);
-#endif /* SYSV */
+#if defined(SYSVSIGS) && defined(SIGHASARG)
+  signal(sigsig, SIG_IGN);
+#endif
   setgid(getgid());
   setuid(getuid());
   unlink("core");
-  sprintf(buf, "\r\n[screen caught signal %d.%s]\r\n", sig,
+#ifdef SIGHASARG
+  sprintf(buf, "\r\n[screen caught signal %d.%s]\r\n", sigsig,
+#else
+  sprintf(buf, "\r\n[screen caught a fatal signal.%s]\r\n",
+#endif
 #if defined(SHADOWPW) && !defined(DEBUG) && !defined(DUMPSHADOW)
               ""
 #else /* SHADOWPW  && !DEBUG */
               " (core dumped)"
 #endif /* SHADOWPW  && !DEBUG */
               );
-  for (disp = displays; disp; disp = disp->_d_next)
+  for (disp = displays; disp; disp = disp->d_next)
     {
-      fcntl(disp->_d_userfd, F_SETFL, 0);
-      write(disp->_d_userfd, buf, strlen(buf));
-      Kill(disp->_d_userpid, SIG_BYE);
+      fcntl(disp->d_userfd, F_SETFL, 0);
+      write(disp->d_userfd, buf, strlen(buf));
+      Kill(disp->d_userpid, SIG_BYE);
     }
 #if defined(SHADOWPW) && !defined(DEBUG) && !defined(DUMPSHADOW)
-  eexit(sig);
+  eexit(11);
 #else /* SHADOWPW && !DEBUG */
   abort();
 #endif /* SHADOWPW  && !DEBUG */
-#ifndef SIGVOID
-  return((sig_t) 0);
-#endif
+  SIGRETURN;
 }
 
 static void
@@ -1880,7 +1965,7 @@ DoWait()
 		    }
 #endif
 		  /* Try to restart process */
-# ifdef NETHACK	
+# ifdef NETHACK
                   if (nethackflag)
 		    Msg(0, "You regain consciousness.");
 		  else
@@ -1913,7 +1998,14 @@ DoWait()
 }
 
 
-sig_t
+static sigret_t
+FinitHandler SIGDEFARG
+{
+  Finit(1);
+  SIGRETURN;
+}
+
+void
 Finit(i)
 int i;
 {
@@ -1930,19 +2022,19 @@ int i;
   if (ServerSocket != -1)
     {
       debug1("we unlink(%s)\n", SockPath);
-#ifndef NOREUID
-      setreuid(eff_uid, real_uid);
-      setregid(eff_gid, real_gid);
+#ifdef USE_SETEUID
+      xseteuid(real_uid);
+      xsetegid(real_gid);
 #endif
       (void) unlink(SockPath);
-#ifndef NOREUID
-      setreuid(real_uid, eff_uid);
-      setregid(real_gid, eff_gid);
+#ifdef USE_SETEUID
+      xseteuid(eff_uid);
+      xsetegid(eff_gid);
 #endif
     }
-  for (display = displays; display; display = display->_d_next)
+  for (display = displays; display; display = display->d_next)
     {
-      if (d_status)
+      if (D_status)
 	RemoveStatus();
       FinitTerm();
 #ifdef UTMPOK
@@ -1950,25 +2042,23 @@ int i;
 #endif
       AddStr("[screen is terminating]\r\n");
       Flush();
-      SetTTY(d_userfd, &d_OldMode);
-      fcntl(d_userfd, F_SETFL, 0);
+      SetTTY(D_userfd, &D_OldMode);
+      fcntl(D_userfd, F_SETFL, 0);
       freetty();
-      Kill(d_userpid, SIG_BYE);
+      Kill(D_userpid, SIG_BYE);
     }
   /*
    * we _cannot_ call eexit(i) here, 
    * instead of playing with the Socket above. Sigh.
    */
   exit(i);
-#ifndef SIGVOID
-  return((sig_t) 0);
-#endif
 }
 
 void
 eexit(e)
 int e;
 {
+  debug("eexit\n");
   if (ServerSocket != -1)
     {
       debug1("we unlink(%s)\n", SockPath);
@@ -2005,7 +2095,7 @@ int mode;
     return;
   signal(SIGHUP, SIG_IGN);
   debug1("Detach(%d)\n", mode);
-  if (d_status)
+  if (D_status)
     RemoveStatus();
   FinitTerm();
   switch (mode)
@@ -2054,7 +2144,7 @@ int mode;
       break;
     }
 #ifdef UTMPOK
-  if (displays->_d_next == 0)
+  if (displays->d_next == 0)
     {
       for (p = windows; p; p = p->w_next)
 	if (p->w_slot != (slot_t) -1)
@@ -2078,27 +2168,27 @@ int mode;
     }
   RestoreLoginSlot();
 #endif
-  if (d_fore)
+  if (D_fore)
     {
-      ReleaseAutoWritelock(display, d_fore);
-      if (d_fore->w_tstamp.seconds)
-        d_fore->w_tstamp.lastio = Now;
-      d_fore->w_active = 0;
-      d_fore->w_display = 0;
-      d_lay = &BlankLayer;
-      d_layfn = d_lay->l_layfn;
-      d_user->u_detachwin = d_fore->w_number;
+      ReleaseAutoWritelock(display, D_fore);
+      if (D_fore->w_tstamp.seconds)
+        D_fore->w_tstamp.lastio = Now;
+      D_fore->w_active = 0;
+      D_fore->w_display = 0;
+      D_lay = &BlankLayer;
+      D_layfn = D_lay->l_layfn;
+      D_user->u_detachwin = D_fore->w_number;
     }
-  while (d_lay != &BlankLayer)
+  while (D_lay != &BlankLayer)
     ExitOverlayPage();
-  if (d_userfd >= 0)
+  if (D_userfd >= 0)
     {
       Flush();
-      SetTTY(d_userfd, &d_OldMode);
-      fcntl(d_userfd, F_SETFL, 0);
+      SetTTY(D_userfd, &D_OldMode);
+      fcntl(D_userfd, F_SETFL, 0);
     }
   freetty();
-  pid = d_userpid;
+  pid = D_userpid;
   debug2("display: %#x displays: %#x\n", (unsigned int)display, (unsigned int)displays);
   FreeDisplay();
   if (displays == 0)
@@ -2134,14 +2224,11 @@ MakeNewEnv()
   for (op = environ; *op; ++op)
     ;
   if (NewEnv)
-    free(NewEnv);
+    free((char *)NewEnv);
   NewEnv = np = (char **) malloc((unsigned) (op - environ + 7 + 1) * sizeof(char **));
   if (!NewEnv)
     Panic(0, strnomem);
-  SockName = SockNamePtr;
-  if (strlen(SockNamePtr) > MAXSTR - 5)
-    SockName = "?";
-  sprintf(stybuf, "STY=%s", SockNamePtr);
+  sprintf(stybuf, "STY=%s", strlen(SockName) <= MAXSTR - 5 ? SockName : "?");
   *np++ = stybuf;	                /* NewEnv[0] */
   *np++ = Term;	                /* NewEnv[1] */
   np++;		/* room for SHELL */
@@ -2202,17 +2289,14 @@ unsigned long p1, p2, p3, p4, p5, p6;
   if (err)
     {
       p += strlen(p);
-      if (err > 0 && err < sys_nerr)
-	sprintf(p, ": %s", sys_errlist[err]);
-      else
-	sprintf(p, ": Error %d", err);
+      sprintf(p, ": %s", strerror(err));
     }
   debug2("Msg('%s') (%#x);\n", buf, (unsigned int)display);
   if (display)
     MakeStatus(buf);
   else if (displays)
     {
-      for (display = displays; display; display = display->_d_next)
+      for (display = displays; display; display = display->d_next)
 	MakeStatus(buf);
     }
   else
@@ -2257,39 +2341,37 @@ unsigned long p1, p2, p3, p4, p5, p6;
   if (err)
     {
       p += strlen(p);
-      if (err > 0 && err < sys_nerr)
-	sprintf(p, ": %s", sys_errlist[err]);
-      else
-	sprintf(p, ": Error %d", err);
+      sprintf(p, ": %s", strerror(err));
     }
   debug1("Panic('%s');\n", buf);
   if (displays == 0)
     printf("%s\r\n", buf);
   else
-    for (display = displays; display; display = display->_d_next)
+    for (display = displays; display; display = display->d_next)
       {
-        if (d_status)
+        if (D_status)
 	  RemoveStatus();
         FinitTerm();
         Flush();
 #ifdef UTMPOK
         RestoreLoginSlot();
 #endif
-        SetTTY(d_userfd, &d_OldMode);
-        fcntl(d_userfd, F_SETFL, 0);
-        write(d_userfd, buf, strlen(buf));
-        write(d_userfd, "\n", 1);
+        SetTTY(D_userfd, &D_OldMode);
+        fcntl(D_userfd, F_SETFL, 0);
+        write(D_userfd, buf, strlen(buf));
+        write(D_userfd, "\n", 1);
         freetty();
-	if (d_userpid)
-	  Kill(d_userpid, SIG_BYE);
+	if (D_userpid)
+	  Kill(D_userpid, SIG_BYE);
       }
 #ifdef MULTIUSER
   if (tty_oldmode >= 0)
     {
-# ifdef NOREUID
-      setuid(eff_uid);
+# ifdef USE_SETEUID
+      if (setuid(own_uid))
+        xseteuid(own_uid);	/* XXX: may be a loop. sigh. */
 # else
-      setreuid(real_uid, eff_uid);
+      setuid(own_uid);
 # endif
       debug1("Panic: changing back modes from %s\n", attach_tty);
       chmod(attach_tty, tty_oldmode);
@@ -2362,11 +2444,11 @@ int n;
   t.tv_usec = 0;
   t.tv_sec = n;
   FD_ZERO(&r);
-  FD_SET(d_userfd, &r);
+  FD_SET(D_userfd, &r);
   if (select(FD_SETSIZE, &r, (fd_set *)0, (fd_set *)0, &t) > 0)
     {
       debug("display activity stopped sleep\n");
-      read(d_userfd, &buf, 1);
+      read(D_userfd, &buf, 1);
     }
   debug1("DisplaySleep(%d) ending\n", n);
 }

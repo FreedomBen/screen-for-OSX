@@ -27,41 +27,47 @@ RCS_ID("$Id$ FAU")
 #include <sys/stat.h>
 #include <signal.h>
 #include <fcntl.h>
+#if !defined(sun) && !defined(B43) && !defined(ISC) && !defined(pyr) && !defined(_CX_UX)
+# include <time.h>
+#endif
+#include <sys/time.h>
 #ifndef sun
 #include <sys/ioctl.h>
 #endif
 
 
 #include "config.h"
-#include "screen.h"
-#include "extern.h"
 
-#if defined(sun) && defined(SVR4)
+#ifdef SVR4
 # include <sys/stropts.h>
 #endif
 
+#include "screen.h"
+#include "extern.h"
+
 extern struct comm comms[];
 extern char *rc_name;
-extern char *RcFileName, *home, *extra_incap, *extra_outcap;
+extern char *RcFileName, *home;
 extern char *BellString, *ActivityString, *ShellProg, *ShellArgs[];
 extern char *hardcopydir, *screenlogdir;
 extern char *VisualBellString;
 extern int VBellWait, MsgWait, MsgMinWait, SilenceWait;
-extern char SockPath[], *SockNamePtr;
+extern char SockPath[], *SockName;
 extern int TtyMode, auto_detach;
 extern int iflag;
-extern int default_wrap;
-extern int use_hardstatus, visual_bell, default_monitor;
+extern int use_hardstatus, visual_bell;
+extern char *printcmd;
 extern int default_startup;
 extern int slowpaste, defobuflimit;
-extern int ZombieKey;
+extern int ZombieKey_destroy;
+extern int ZombieKey_resurrect;
 #ifdef AUTO_NUKE
 extern int defautonuke;
 #endif
 extern int intrc, origintrc; /* display? */
 extern struct NewWindow nwin_default, nwin_undef;
 #ifdef COPY_PASTE
-extern int join_with_cr;
+extern int join_with_cr, pastefont;
 extern char mark_key_tab[];
 extern char *BufferFile;
 #endif
@@ -69,9 +75,17 @@ extern char *BufferFile;
 extern char *BufferFile, *PowDetachString;
 #endif
 extern time_t Now;
+#ifdef MAPKEYS
+extern struct term term[];      /* terminal capabilities */
+extern int maptimeout;
+extern char *kmapdef[];
+extern char *kmapadef[];
+extern char *kmapmdef[];
+#endif
+
 
 static int  CheckArgNum __P((int, char **));
-static void FreeKey __P((int));
+static void ClearAction __P((struct action *));
 static int  NextWindow __P((void));
 static int  PreviousWindow __P((void));
 static int  MoreWindows __P((void));
@@ -91,7 +105,6 @@ static int  ParseWinNum __P((struct action *act, int *));
 static int  ParseOct __P((struct action *act, int *));
 static char *ParseChar __P((char *, char *));
 static int  IsNum __P((char *, int));
-static int  IsNumColon __P((char *, int, char *, int));
 static void InputColon __P((void));
 static void Colonfin __P((char *, int));
 static void InputSelect __P((void));
@@ -130,28 +143,37 @@ extern int nethackflag;
 #endif
 
 
-struct win *wtab[MAXWIN];	/* window table */
-struct action ktab[256];	/* command key translation table */
-
+struct win *wtab[MAXWIN];	/* window table, should be dynamic */
 
 #ifdef MULTIUSER
 extern char *multi;
 #endif
 #ifdef PASSWORD
 int CheckPassword;
-char Password[20];
+char Password[30];
 #endif
 
 struct plop plop_tab[MAX_PLOP_DEFS];
 
-#ifdef PTYMODE
-int TtyMode = PTYMODE;
-#else
-int TtyMode = 0622;
+#ifndef PTYMODE
+# define PTYMODE 0622
 #endif
+
+int TtyMode = PTYMODE;
 int hardcopy_append = 0;
 int all_norefresh = 0;
 
+struct action ktab[256];	/* command key translation table */
+
+#ifdef MAPKEYS
+struct action umtab[KMAP_KEYS+KMAP_AKEYS+KMAP_EXT];
+struct action dmtab[KMAP_KEYS+KMAP_AKEYS+KMAP_EXT];
+struct action mmtab[KMAP_KEYS+KMAP_AKEYS+KMAP_EXT];
+
+char *kmap_extras[KMAP_EXT];
+int kmap_extras_fl[KMAP_EXT];
+
+#endif
 
 char *noargs[1];
 
@@ -159,12 +181,64 @@ void
 InitKeytab()
 {
   register unsigned int i;
+#ifdef MAPKEYS
+  char *argarr[2];
+#endif
 
   for (i = 0; i < sizeof(ktab)/sizeof(*ktab); i++)
     {
       ktab[i].nr = RC_ILLEGAL;
       ktab[i].args = noargs;
     }
+#ifdef MAPKEYS
+  for (i = 0; i < KMAP_KEYS+KMAP_AKEYS+KMAP_EXT; i++)
+    {
+      umtab[i].nr = RC_ILLEGAL;
+      umtab[i].args = noargs;
+      dmtab[i].nr = RC_ILLEGAL;
+      dmtab[i].args = noargs;
+      mmtab[i].nr = RC_ILLEGAL;
+      mmtab[i].args = noargs;
+    }
+  argarr[1] = 0;
+  for (i = 0; i < NKMAPDEF; i++)
+    {
+      if (i + KMAPDEFSTART < T_CAPS)
+	continue;
+      if (i + KMAPDEFSTART >= T_CAPS + KMAP_KEYS)
+	continue;
+      if (kmapdef[i] == 0)
+	continue;
+      argarr[0] = kmapdef[i];
+      dmtab[i + (KMAPDEFSTART - T_CAPS)].nr = RC_STUFF;
+      dmtab[i + (KMAPDEFSTART - T_CAPS)].args = SaveArgs(argarr);
+    }
+  for (i = 0; i < NKMAPADEF; i++)
+    {
+      if (i + KMAPADEFSTART < T_CURSOR)
+	continue;
+      if (i + KMAPADEFSTART >= T_CURSOR + KMAP_AKEYS)
+	continue;
+      if (kmapadef[i] == 0)
+	continue;
+      argarr[0] = kmapadef[i];
+      dmtab[i + (KMAPADEFSTART - T_CURSOR + KMAP_KEYS)].nr = RC_STUFF;
+      dmtab[i + (KMAPADEFSTART - T_CURSOR + KMAP_KEYS)].args = SaveArgs(argarr);
+    }
+  for (i = 0; i < NKMAPMDEF; i++)
+    {
+      if (i + KMAPMDEFSTART < T_CAPS)
+	continue;
+      if (i + KMAPMDEFSTART >= T_CAPS + KMAP_KEYS)
+	continue;
+      if (kmapmdef[i] == 0)
+	continue;
+      argarr[0] = kmapmdef[i];
+      argarr[1] = 0;
+      mmtab[i + (KMAPMDEFSTART - T_CAPS)].nr = RC_STUFF;
+      mmtab[i + (KMAPMDEFSTART - T_CAPS)].args = SaveArgs(argarr);
+    }
+#endif
 
   ktab['h'].nr = RC_HARDCOPY;
 #ifdef BSDJOBS
@@ -198,8 +272,6 @@ InitKeytab()
   ktab['C'].nr = RC_CLEAR;
   ktab['Z'].nr = RC_RESET;
   ktab['H'].nr = RC_LOG;
-  ktab[(int)(unsigned char)DefaultEsc].nr = RC_OTHER;
-  ktab[(int)(unsigned char)DefaultMetaEsc].nr = RC_META;
   ktab['M'].nr = RC_MONITOR;
   ktab['?'].nr = RC_HELP;
   for (i = 0; i < ((MAXWIN < 10) ? MAXWIN : 10); i++)
@@ -215,6 +287,13 @@ InitKeytab()
   ktab[':'].nr = RC_COLON;
 #ifdef COPY_PASTE
   ktab['['].nr = ktab[Ctrl('[')].nr = RC_COPY;
+  {
+    char *args[2];
+    args[0] = ".";
+    args[1] = NULL;
+    ktab[']'].args = SaveArgs(args);
+    ktab[Ctrl(']')].args = SaveArgs(args);
+  }
   ktab[']'].nr = ktab[Ctrl(']')].nr = RC_PASTE;
   ktab['{'].nr = RC_HISTORY;
   ktab['}'].nr = RC_HISTORY;
@@ -232,15 +311,16 @@ InitKeytab()
   ktab['b'].nr = ktab[Ctrl('b')].nr = RC_BREAK;
   ktab['B'].nr = RC_POW_BREAK;
   ktab['_'].nr = RC_SILENCE;
+  ktab[(int)(unsigned char)DefaultEsc].nr = RC_OTHER;
+  ktab[(int)(unsigned char)DefaultMetaEsc].nr = RC_META;
 }
 
 static void
-FreeKey(key)
-int key;
+ClearAction(act)
+struct action *act;
 {
   char **p;
 
-  struct action *act = &ktab[key];
   if (act->nr == RC_ILLEGAL)
     return;
   act->nr = RC_ILLEGAL;
@@ -248,10 +328,11 @@ int key;
     return;
   for (p = act->args; *p; p++)
     free(*p);
-  free(act->args);
+  free((char *)act->args);
   act->args = noargs;
 }
 
+#if 0
 void
 ProcessInput(ibuf, ilen)
 char *ibuf;
@@ -262,12 +343,12 @@ int ilen;
 
   while (display)
     {
-      fore = d_fore;
+      fore = D_fore;
       slen = ilen;
       s = ibuf;
       while (ilen > 0)
 	{
-	  if (*s++ == d_user->u_Esc)
+	  if (*s++ == D_user->u_Esc)
 	    break;
 	  ilen--;
 	}
@@ -275,7 +356,7 @@ int ilen;
       while (slen)
 	Process(&ibuf, &slen);
       if (--ilen == 0)
-	d_ESCseen = 1;
+	D_ESCseen = 1;
       if (ilen <= 0)
 	return;
       DoAction(&ktab[(int)(unsigned char)*s], (int)(unsigned char)*s);
@@ -283,7 +364,147 @@ int ilen;
       ilen--;
     }
 }
+#endif
 
+
+void
+ProcessInput(ibuf, ilen)
+char *ibuf;
+int ilen;
+{
+  int ch, slen;
+  char *s;
+#ifdef MAPKEYS
+  struct action *act;
+  int i, l;
+#endif
+
+  if (display == 0 || ilen == 0)
+    return;
+  slen = ilen;
+  s = ibuf;
+  while (D_ESCseen)
+    {
+      D_ESCseen = 0;
+      fore = D_fore;
+      DoAction(&ktab[(int)(unsigned char)*s], (int)(unsigned char)*s);
+      ibuf = ++s;
+      slen = --ilen;
+      if (display == 0 || ilen == 0)
+        return;
+    }
+  while(ilen-- > 0)
+    {
+      ch = *(unsigned char *)s++;
+#ifdef MAPKEYS
+      if (D_dontmap)
+        D_dontmap = 0;
+      else if (D_nseqs)
+        for (;;)
+	  {
+	    if (*(unsigned char *)D_seqp != ch)
+	      {
+		l = *((unsigned char *)D_seqp + (KMAP_OFF - KMAP_SEQ));
+		if (l)
+		  {
+		    D_seqp += sizeof(struct kmap) * l;
+		    continue;
+		  }
+		if (D_seql)
+		  {
+		    D_seqp -= D_seql;
+		    while (D_seql)
+		      Process(&D_seqp, &D_seql);
+		  }
+		D_seqp = D_kmaps[0].seq;
+		D_mapdefault = 0;
+		break;
+	      }
+	    if (D_seql++ == 0)
+	      {
+		slen -= ilen + 1;
+		while (slen)
+		  Process(&ibuf, &slen);
+		D_seqruns = 0;
+	      }
+	    ibuf = s;
+	    slen = ilen;
+	    ch = -1;
+	    if (*++D_seqp == 0)
+	      { 
+		i = (struct kmap *)(D_seqp - D_seql - KMAP_SEQ) - D_kmaps;
+		debug1("Mapping #%d", i);
+		i = D_kmaps[i].nr & ~KMAP_NOTIMEOUT;
+#ifdef DEBUG
+		if (i < KMAP_KEYS)
+		  debug1(" - %s", term[i + T_CAPS].tcname);
+#endif
+		if (i >= T_CURSOR - T_CAPS && i < T_KEYPAD - T_CAPS && D_cursorkeys)
+		  i += T_OCAPS - T_CURSOR;
+		else if (i >= T_KEYPAD - T_CAPS && i < T_OCAPS - T_CAPS && D_keypad)
+		  i += T_OCAPS - T_CURSOR;
+		debug1(" - action %d\n", i);
+		fore = D_fore;
+		act = 0;
+#ifdef COPY_PASTE
+		if (InMark())
+		  act = &mmtab[i];
+#endif
+		if ((!act || act->nr == RC_ILLEGAL) && !D_mapdefault)
+		  act = &umtab[i];
+		D_mapdefault = 0;
+		if (!act || act->nr == RC_ILLEGAL)
+		  act = &dmtab[i];
+		if (act && act->nr != RC_ILLEGAL)
+		  DoAction(act, 0);
+		else
+		  {
+		    D_seqp -= D_seql;
+		    while (D_seql)
+		      Process(&D_seqp, &D_seql);
+		  }
+		if (display == 0)
+		  return;
+		D_seql = 0;
+		D_seqp = D_kmaps[0].seq;
+		if (D_ESCseen)
+		  {
+		    slen++;
+		    ch = D_user->u_Esc;
+		  }
+	      }
+	    break;
+	  }
+#endif
+      if (ch == D_user->u_Esc)
+	{
+	  slen -= ilen + 1;
+	  while (slen)
+	    Process(&ibuf, &slen);
+	  do
+	    {
+	      if (ilen-- == 0)
+		{
+		  D_ESCseen = 1;
+		  return;
+		}
+	      D_ESCseen = 0;
+	      fore = D_fore;
+	      ch  = (int)(unsigned char)*s++;
+	      DoAction(&ktab[ch], ch);
+	      if (display == 0 || ilen == 0)
+		return;
+	    }
+	  while (D_ESCseen);
+	  ibuf = s;
+	  slen = ilen;
+	}
+    }
+  while (slen)
+    Process(&ibuf, &slen);
+}
+
+	
 int
 FindCommnr(str)
 char *str;
@@ -391,7 +612,7 @@ int key;
 #ifdef MULTIUSER
   if (multi && display)
     {
-      if (AclCheckPermCmd(d_user, ACL_EXEC, &comms[nr]))
+      if (AclCheckPermCmd(D_user, ACL_EXEC, &comms[nr]))
 	return;
     }
 #endif /* MULTIUSER */
@@ -409,62 +630,24 @@ int key;
       if (ParseOnOff(act, &defautonuke) == 0 && msgok)
 	Msg(0, "Default autonuke turned %s", defautonuke ? "on" : "off");
       if (display && *rc_name)
-	d_auto_nuke = defautonuke;
+	D_auto_nuke = defautonuke;
       break;
     case RC_AUTONUKE:
-      if (ParseOnOff(act, &d_auto_nuke) == 0 && msgok)
-	Msg(0, "Autonuke turned %s", d_auto_nuke ? "on" : "off");
+      if (ParseOnOff(act, &D_auto_nuke) == 0 && msgok)
+	Msg(0, "Autonuke turned %s", D_auto_nuke ? "on" : "off");
       break;
 #endif
-    case RC_DUPLICATE:
-      if (!*args)
-	{
-	  if (fore->w_dupto >= 0)
-	    Msg(0, "Duplicating output to window %d", fore->w_dupto);
-	  else
-	    Msg(0, "No duplicate from here\n");
-	  break;
-	}
-      if (!strcmp(*args, "off"))
-        {
-	  fore->w_dupto = -1;
-	  break;
-	}
-      while (*args)
-        {
-	  n = WindowByNoN(*args++);
-          if (n < 0)
-	    {
-	      Msg(0, "Invalid window description");
-	      continue;
-	    }
-	  if ((p = wtab[n]) == 0)
-	    {
-	      Msg(0, "Window %d does not exist", n);
-	      continue;
-	    }
-	  for (nr = fore->w_number; wtab[nr] && wtab[nr]->w_dupto >= 0;nr = wtab[nr]->w_dupto)
-	    {
-	      if (wtab[nr]->w_dupto == n)
-		{
-		  Msg(0, "Cyclic dup detected\n");
-		  return;
-		}
-	    }
-	  wtab[n]->w_dupto = fore->w_number;
-	}
-      break;
     case RC_DEFOBUFLIMIT:
       if (ParseNum(act, &defobuflimit) == 0 && msgok)
 	Msg(0, "Default limit set to %d", defobuflimit);
       if (display && *rc_name)
-	d_obufmax = defobuflimit;
+	D_obufmax = defobuflimit;
       break;
     case RC_OBUFLIMIT:
       if (*args == 0)
-	Msg(0, "Limit is %d, current buffer size is %d", d_obufmax, d_obuflen);
-      else if (ParseNum(act, &d_obufmax) == 0 && msgok)
-	Msg(0, "Limit set to %d", d_obufmax);
+	Msg(0, "Limit is %d, current buffer size is %d", D_obufmax, D_obuflen);
+      else if (ParseNum(act, &D_obufmax) == 0 && msgok)
+	Msg(0, "Limit set to %d", D_obufmax);
       break;
     case RC_DUMPTERMCAP:
       WriteFile(DUMP_TERMCAP);
@@ -570,18 +753,26 @@ int key;
 #endif
       break;
     case RC_ZOMBIE:
-      if (!(s = *args))
-        {
-	  ZombieKey = 0;
-	  break;
-	}
-      if (!(s = ParseChar(s, &ch)) || *s)
-        {
-	  Msg(0, "%s:zombie: one character expected.", rc_name);
-	  break;
-	}
-      ZombieKey = ch;
-      break;
+      {
+        char ch2 = 0;
+
+	if (!(s = *args))
+	  {
+	    ZombieKey_destroy = 0;
+	    break;
+	  }
+	if (!(s = ParseChar(s, &ch)) || *s)
+	  {
+	    if (!s || !(s = ParseChar(s, &ch2)) || *s)
+	      {
+		Msg(0, "%s:zombie: one or two characters expected.", rc_name);
+		break;
+	      }
+	  }
+	ZombieKey_destroy = ch;
+	ZombieKey_resurrect = ch2;
+	break;
+      }
     case RC_WALL:
       for (n = 0, s = *args; args[n]; n++)
         {
@@ -592,18 +783,19 @@ int key;
 	    *s++ = ' ';
 	}
 #ifdef MULTIUSER
-      s = d_user->u_name;
+      s = D_user->u_name;
 #else
-      s = d_usertty;
+      s = D_usertty;
 #endif
       display = NULL;	/* a message without display will cause a broadcast */
       Msg(0, "%s: %s", s, *args);
       break;
     case RC_AT:
+      /* where this AT command comes from: */
 #ifdef MULTIUSER
-      s = SaveStr(d_user->u_name);
+      s = SaveStr(D_user->u_name);
 #else
-      s = SaveStr(d_usertty);
+      s = SaveStr(D_usertty);
 #endif
       n = strlen(args[0]);
       if (n) n--;
@@ -619,21 +811,23 @@ int key;
 	    struct display *nd;
 	    struct user *u;
 
-	    args[0][n] = '\0';
-	    if (!*args[0])
-	      u = d_user;
+	    if (!n)
+	      u = D_user;
 	    else
 	      for (u = users; u; u = u->u_next)
-	        if (!strncmp(s, u->u_name, n))
-		  break;
+	        {
+		  debug3("strncmp('%s', '%s', %d)\n", *args, u->u_name, n);
+		  if (!strncmp(*args, u->u_name, n))
+		    break;
+	        }
 	    debug1("at all displays of user %s\n", u->u_name);
 	    for (display = displays; display; display = nd)
 	      {
-		nd = display->_d_next;
-		fore = d_fore;
-	        if (d_user != u)
+		nd = display->d_next;
+		fore = D_fore;
+	        if (D_user != u)
 		  continue;
-		debug1("AT display %s\n", d_usertty);
+		debug1("AT display %s\n", D_usertty);
 		DoCommand(args + 1);
 		if (display)
 		  Msg(0, "command from %s: %s %s", 
@@ -648,19 +842,18 @@ int key;
 	  {
 	    struct display *nd;
 
-	    args[0][n] = '\0';
 	    debug1("at display matching '%s'\n", args[0]);
 	    for (display = displays; display; display = nd)
 	      {
-	        nd = display->_d_next;
-		fore = d_fore;
-	        if (strncmp(args[0], d_usertty, n) && 
-		    (strncmp("/dev/", d_usertty, 5) || 
-		     strncmp(args[0], d_usertty + 5, n)) &&
-		    (strncmp("/dev/tty", d_usertty, 8) ||
-		     strncmp(args[0], d_usertty + 8, n)))
+	        nd = display->d_next;
+		fore = D_fore;
+	        if (strncmp(args[0], D_usertty, n) && 
+		    (strncmp("/dev/", D_usertty, 5) || 
+		     strncmp(args[0], D_usertty + 5, n)) &&
+		    (strncmp("/dev/tty", D_usertty, 8) ||
+		     strncmp(args[0], D_usertty + 8, n)))
 		  continue;
-		debug1("AT display %s\n", d_usertty);
+		debug1("AT display %s\n", D_usertty);
 		DoCommand(args + 1);
 		if (display)
 		  Msg(0, "command from %s: %s %s", 
@@ -672,15 +865,19 @@ int key;
 	    return;
 	  }
 	case '#':
-	  args[0][n--] = '\0';
+	  n--;
 	  /* FALLTHROUGH */
 	default:
 	  {
 	    struct win *nw;
+	    int ch;
 
 	    n++; 
+	    ch = args[0][n];
+	    args[0][n] = '\0';
 	    if (!*args[0] || (i = WindowByNumber(args[0])) < 0)
 	      {
+	        args[0][n] = ch;      /* must restore string in case of bind */
 	        /* try looping over titles */
 		for (fore = windows; fore; fore = nw)
 		  {
@@ -688,8 +885,17 @@ int key;
 		    if (strncmp(args[0], fore->w_title, n))
 		      continue;
 		    debug2("AT window %d(%s)\n", fore->w_number, fore->w_title);
+		    /*
+		     * consider this a bug or a feature: 
+		     * while looping through windows, we have fore AND
+		     * display context. This will confuse users who try to 
+		     * set up loops inside of loops, but often allows to do 
+		     * what you mean, even when you adress your context wrong.
+		     */
 		    i++;
-		    DoCommand(args + 1);
+		    if (fore->w_display)
+		      display = fore->w_display;
+		    DoCommand(args + 1);	/* may destroy our display */
 		    if ((display = fore->w_display))
 		      Msg(0, "command from %s: %s %s", 
 			  s, args[1], args[2] ? args[2] : "");
@@ -703,7 +909,10 @@ int key;
 	      }
 	    else if (i < MAXWIN && (fore = wtab[i]))
 	      {
+	        args[0][n] = ch;      /* must restore string in case of bind */
 	        debug2("AT window %d (%s)\n", fore->w_number, fore->w_title);
+		if (fore->w_display)
+		  display = fore->w_display;
 		DoCommand(args + 1);
 		if ((display = fore->w_display))
 		  Msg(0, "command from %s: %s %s", 
@@ -719,33 +928,46 @@ int key;
       free(s);
       break;
 #ifdef COPY_PASTE
-    case RC_COPY_REG:
+    case RC_READREG:
+      /* 
+       * Without arguments we prompt for a destination register.
+       * It will receive the copybuffer contents.
+       * This is not done by RC_PASTE, as we prompt for source (not dest) 
+       * there.
+       */
       if ((s = *args) == NULL)
 	{
 	  Input("Copy to register:", 1, copy_reg_fn, INP_RAW);
 	  break;
 	}
-      if ((s = ParseChar(s, &ch)) == NULL || *s)
+      if (((s = ParseChar(s, &ch)) == NULL) || *s)
 	{
-	  Msg(0, "%s: copy_reg: character, ^x, or (octal) \\032 expected.",
+	  Msg(0, "%s: copyreg: character, ^x, or (octal) \\032 expected.",
 	      rc_name);
 	  break;
 	}
-      copy_reg_fn(&ch, 0);
-      break;
-    case RC_INS_REG:
-      if ((s = *args) == NULL)
-	{
-	  Input("Insert from register:", 1, ins_reg_fn, INP_RAW);
-	  break;
+      /* 
+       * With two arguments we *really* read register contents from file
+       */
+      if (args[1])
+        {
+	  if ((s = ReadFile(args[1], &n)))
+	    {
+	      struct plop *pp = plop_tab + (int)(unsigned char)ch;
+
+	      if (pp->buf)
+		free(pp->buf);
+	      pp->buf = s;
+	      pp->len = n;
+	    }
 	}
-      if ((s = ParseChar(s, &ch)) == NULL || *s)
-	{
-	  Msg(0, "%s: ins_reg: character, ^x, or (octal) \\032 expected.",
-	      rc_name);
-	  break;
-	}
-      ins_reg_fn(&ch, 0);
+      else
+        /*
+	 * with one argument we copy the copybuffer into a specified register
+	 * This could be done with RC_PASTE too, but is here to be consistent
+	 * with the zero argument call.
+	 */
+        copy_reg_fn(&ch, 0);
       break;
 #endif
     case RC_REGISTER:
@@ -776,6 +998,12 @@ int key;
 	}
       process_fn(&ch, 0);
       break;
+    case RC_STUFF:
+      s = *args;
+      n = strlen(s);
+      while(n)
+        Process(&s, &n);
+      break;
     case RC_REDISPLAY:
       Activate(-1);
       break;
@@ -791,12 +1019,19 @@ int key;
     case RC_INFO:
       ShowInfo();
       break;
+    case RC_COMMAND:
+      if (!D_ESCseen)
+	{
+	  D_ESCseen = 1;
+	  break;
+	}
+      /* FALLTHROUGH */
     case RC_OTHER:
       if (MoreWindows())
-	SwitchWindow(d_other ? d_other->w_number : NextWindow());
+	SwitchWindow(D_other ? D_other->w_number : NextWindow());
       break;
     case RC_META:
-      ch = d_user->u_Esc;
+      ch = D_user->u_Esc;
       s = &ch;
       n = 1;
       Process(&s, &n);
@@ -833,11 +1068,11 @@ int key;
 	}
       else
 	{
-	  if (d_width == Z0width)
+	  if (D_width == Z0width)
 	    n = Z1width;
-	  else if (d_width == Z1width)
+	  else if (D_width == Z1width)
 	    n = Z0width;
-	  else if (d_width > (Z0width + Z1width) / 2)
+	  else if (D_width > (Z0width + Z1width) / 2)
 	    n = Z0width;
 	  else
 	    n = Z1width;
@@ -847,12 +1082,12 @@ int key;
 	  Msg(0, "Illegal width");
 	  break;
 	}
-      if (n == d_width)
+      if (n == D_width)
 	break;
-      if (ResizeDisplay(n, d_height) == 0)
+      if (ResizeDisplay(n, D_height) == 0)
 	{
-	  DoResize(d_width, d_height);
-	  Activate(d_fore ? d_fore->w_norefresh : 0);
+	  DoResize(D_width, D_height);
+	  Activate(D_fore ? D_fore->w_norefresh : 0);
 	}
       else
 	Msg(0, "Your termcap does not specify how to change the terminal's width to %d.", n);
@@ -867,11 +1102,11 @@ int key;
 	{
 #define H0height 42
 #define H1height 24
-	  if (d_height == H0height)
+	  if (D_height == H0height)
 	    n = H1height;
-	  else if (d_height == H1height)
+	  else if (D_height == H1height)
 	    n = H0height;
-	  else if (d_height > (H0height + H1height) / 2)
+	  else if (D_height > (H0height + H1height) / 2)
 	    n = H0height;
 	  else
 	    n = H1height;
@@ -881,12 +1116,12 @@ int key;
 	  Msg(0, "Illegal height");
 	  break;
 	}
-      if (n == d_height)
+      if (n == D_height)
 	break;
-      if (ResizeDisplay(d_width, n) == 0)
+      if (ResizeDisplay(D_width, n) == 0)
 	{
-	  DoResize(d_width, d_height);
-	  Activate(d_fore ? d_fore->w_norefresh : 0);
+	  DoResize(D_width, D_height);
+	  Activate(D_fore ? D_fore->w_norefresh : 0);
 	}
       else
 	Msg(0, "Your termcap does not specify how to change the terminal's height to %d.", n);
@@ -902,8 +1137,8 @@ int key;
       InputColon();
       break;
     case RC_LASTMSG:
-      if (d_status_lastmsg)
-	Msg(0, "%s", d_status_lastmsg);
+      if (D_status_lastmsg)
+	Msg(0, "%s", D_status_lastmsg);
       break;
     case RC_SCREEN:
       DoScreen("key", args);
@@ -940,7 +1175,20 @@ int key;
 	Msg(0, "%cflow%s", (fore->w_flow & FLOW_NOW) ? '+' : '-',
 	    (fore->w_flow & FLOW_AUTOFLAG) ? "(auto)" : "");
       break;
+    case RC_DEFWRITELOCK:
+      if (args[0][0] == 'a')
+	{
+	  nwin_default.wlock = WLOCK_AUTO;
+	}
+      else
+	{
+	  if (ParseOnOff(act, &n))
+	    break;
+	  nwin_default.wlock = n ? WLOCK_ON : WLOCK_OFF;
+	}
+      break;
     case RC_WRITELOCK:
+#ifdef MULTIUSER
       if (*args)
 	{
 	  if (args[0][0] == 'a')
@@ -953,8 +1201,14 @@ int key;
 		break;
 	      fore->w_wlock = n ? WLOCK_ON : WLOCK_OFF;
 	    }
+	  /* 
+	   * user may have permission to change the writelock setting, 
+	   * but he may never aquire the lock himself without write permission
+	   */
+	  if (!AclCheckPermWin(D_user, ACL_WRITE, fore))
+	    fore->w_wlockuser = D_user;
 	}
-      fore->w_wlockuser = d_user;
+#endif
       Msg(0, "writelock %s", (fore->w_wlock == WLOCK_AUTO) ? "auto" :
 	  ((fore->w_wlock == WLOCK_OFF) ? "off" : "on"));
       break;
@@ -1004,7 +1258,7 @@ int key;
       break;
 #ifdef COPY_PASTE
     case RC_COPY:
-      if (d_layfn != &WinLf)
+      if (D_layfn != &WinLf)
 	{
 	  Msg(0, "Must be on a window layer");
 	  break;
@@ -1012,27 +1266,53 @@ int key;
       MarkRoutine();
       break;
     case RC_HISTORY:
-      if (d_layfn != &WinLf)
-	{
-	  Msg(0, "Must be on a window layer");
+      {
+        static char *pasteargs[] = {".", 0};
+	if (D_layfn != &WinLf)
+	  {
+	    Msg(0, "Must be on a window layer");
+	    break;
+	  }
+	if (GetHistory() == 0)
 	  break;
-	}
-      if (GetHistory() == 0)
-        break;
-      if (d_user->u_copybuffer == NULL)
-        break;
+	if (D_user->u_copybuffer == NULL)
+	  break;
+	args = pasteargs;
+      }
       /*FALLTHROUGH*/
     case RC_PASTE:
       {
-        char *ss;
+        char *ss, *dbuf, dch;
         int l = 0;
 
-        if ((s = *args) == 0)
-          s = ".";
-        for (ss = s; (ch = *ss); ss++)
+	/*
+	 * without args we prompt for one(!) register to be pasted in the window
+	 */
+	if ((s = *args) == NULL)
+	  {
+	    Input("Paste from register:", 1, ins_reg_fn, INP_RAW);
+	    break;
+	  }
+	/*	
+	 * with two arguments we paste into a destination register
+	 * (no window needed here).
+	 */
+	if (args[1] && ((s = ParseChar(args[1], &dch)) == NULL || *s))
+	  {
+	    Msg(0, "%s: paste destination: character, ^x, or (octal) \\032 expected.",
+		rc_name);
+	    break;
+	  }
+	/*
+	 * measure length of needed buffer 
+	 */
+        for (ss = s = *args; (ch = *ss); ss++)
           {
 	    if (ch == '.')
-              l += d_user->u_copylen;
+	      {
+	      	if (display)
+		  l += D_user->u_copylen;
+	      }
 	    else
               l += plop_tab[(int)(unsigned char)ch].len;
           }
@@ -1046,45 +1326,103 @@ int key;
 	    Msg(0, "empty buffer");
 	    break;
 	  }
-        fore->w_pasteptr = 0;
-        fore->w_pastelen = 0;
-        if (fore->w_pastebuf)
-          free(fore->w_pastebuf);
-        fore->w_pastebuf = 0;
-        if (s[1] == 0)
+	/*
+	 * shortcut: 
+	 * if there is only one source and the destination is a window, then
+	 * pass a pointer rather than duplicating the buffer.
+	 */
+        if (s[1] == 0 && args[1] == 0)
           {
+	    if (fore == 0)
+	      break;
+	    fore->w_pasteptr = 0;
+	    fore->w_pastelen = 0;
+	    if (fore->w_pastebuf)
+	      free(fore->w_pastebuf);
+	    fore->w_pastebuf = 0;	/* this flags we only have a pointer */
             if (*s == '.')
-	      fore->w_pasteptr = d_user->u_copybuffer;
+	      fore->w_pasteptr = D_user->u_copybuffer;
             else
 	      fore->w_pasteptr = plop_tab[(int)(unsigned char)*s].buf;
 	    fore->w_pastelen = l;
 	    break;
           }
-        if ((fore->w_pastebuf = (char *)malloc(l)) == 0)
+	/*
+	 * if no shortcut, we construct a buffer
+	 */
+        if ((dbuf = (char *)malloc(l)) == 0)
           {
 	    Msg(0, strnomem);
 	    break;
           }
         l = 0;
+	/*
+	 * concatenate all sources into our own buffer, copy buffer is
+	 * special and is skipped if no display exists.
+	 */
         for (ss = s; (ch = *ss); ss++)
           {
 	    if (ch == '.')
 	      {
-		bcopy(d_user->u_copybuffer, fore->w_pastebuf + l, d_user->u_copylen);
-                l += d_user->u_copylen;
+	        if (display == 0)
+		  continue;
+		bcopy(D_user->u_copybuffer, dbuf + l, D_user->u_copylen);
+                l += D_user->u_copylen;
               }
 	    else
 	      {
-		bcopy(plop_tab[(int)(unsigned char)ch].buf, fore->w_pastebuf + l, plop_tab[(int)(unsigned char)ch].len);
+		bcopy(plop_tab[(int)(unsigned char)ch].buf, dbuf + l, plop_tab[(int)(unsigned char)ch].len);
                 l += plop_tab[(int)(unsigned char)ch].len;
               }
           }
-        fore->w_pasteptr = fore->w_pastebuf;
-        fore->w_pastelen = l;
+	/*
+	 * when called with one argument we paste our buffer into the window 
+	 */
+	if (args[1] == 0)
+	  {
+	    if (fore == 0)
+	      {
+		free(dbuf); /* no window? zap our buffer */
+		break;
+	      }
+	    if (fore->w_pastebuf)
+	      free(fore->w_pastebuf);
+	    fore->w_pastebuf = dbuf;
+	    fore->w_pasteptr = fore->w_pastebuf;
+	    fore->w_pastelen = l;
+	  }
+	else
+	  {
+	    /*
+	     * we have two arguments, the second is already in dch.
+	     * use this as destination rather than the window.
+	     */
+	    if (dch == '.')
+	      {
+		if (display == 0)
+		  {
+		    free(dbuf);
+		    break;
+		  }
+	        if (D_user->u_copybuffer != NULL)
+	          UserFreeCopyBuffer(D_user);
+		D_user->u_copybuffer = dbuf;
+		D_user->u_copylen = l;
+	      }
+	    else
+	      {
+		struct plop *pp = plop_tab + (int)(unsigned char)dch;
+
+		if (pp->buf)
+		  free(pp->buf);
+		pp->buf = dbuf;
+		pp->len = l;
+	      }
+	  }
         break;
       }
     case RC_WRITEBUF:
-      if (d_user->u_copybuffer == NULL)
+      if (D_user->u_copybuffer == NULL)
 	{
 #ifdef NETHACK
 	  if (nethackflag)
@@ -1097,24 +1435,34 @@ int key;
       WriteFile(DUMP_EXCHANGE);
       break;
     case RC_READBUF:
-      ReadFile();
+      if ((s = ReadFile(BufferFile, &n)))
+	{
+	  if (D_user->u_copybuffer)
+	    UserFreeCopyBuffer(D_user);
+	  D_user->u_copylen = n;
+	  D_user->u_copybuffer = s;
+	}
       break;
     case RC_REMOVEBUF:
       KillBuffers();
       break;
 #endif				/* COPY_PASTE */
+    case RC_DEFESCAPE:
+      if (ParseEscape(NULL, *args))
+	Msg(0, "%s: two characters required after defescape.", rc_name);
+      break;
     case RC_ESCAPE:
-      FreeKey((int)(unsigned char)d_user->u_Esc);
-      FreeKey((int)(unsigned char)d_user->u_MetaEsc);
-      if (ParseEscape(d_user, *args))
+      ClearAction(&ktab[(int)(unsigned char)D_user->u_Esc]);
+      ClearAction(&ktab[(int)(unsigned char)D_user->u_MetaEsc]);
+      if (ParseEscape(D_user, *args))
 	{
 	  Msg(0, "%s: two characters required after escape.", rc_name);
 	  break;
 	}
-      FreeKey((int)(unsigned char)d_user->u_Esc);
-      FreeKey((int)(unsigned char)d_user->u_MetaEsc);
-      ktab[(int)(unsigned char)d_user->u_Esc].nr = RC_OTHER;
-      ktab[(int)(unsigned char)d_user->u_MetaEsc].nr = RC_META;
+      ClearAction(&ktab[(int)(unsigned char)D_user->u_Esc]);
+      ClearAction(&ktab[(int)(unsigned char)D_user->u_MetaEsc]);
+      ktab[(int)(unsigned char)D_user->u_Esc].nr = RC_OTHER;
+      ktab[(int)(unsigned char)D_user->u_MetaEsc].nr = RC_META;
       break;
     case RC_CHDIR:
       s = *args ? *args : home;
@@ -1159,7 +1507,7 @@ int key;
       if (msgok)
 	{
 	  /*
-	   * d_user typed ^A:echo... well, echo isn't FinishRc's job,
+	   * D_user typed ^A:echo... well, echo isn't FinishRc's job,
 	   * but as he wanted to test us, we show good will
 	   */
 	  if (*args && (args[1] == 0 || (strcmp(args[1], "-n") == 0 && args[2] == 0)))
@@ -1169,6 +1517,14 @@ int key;
 	}
       break;
     case RC_BELL:
+    case RC_BELL_MSG:
+      if (*args == 0)
+        {
+	  char buf[256];
+          AddXChars(buf, sizeof(buf), BellString);
+	  Msg(0, "bell_msg is '%s'", buf);
+	  break;
+        }
       (void)ParseSaveStr(act, &BellString);
       break;
 #ifdef COPY_PASTE
@@ -1186,17 +1542,24 @@ int key;
       break;
 #ifdef POW_DETACH
     case RC_POW_DETACH_MSG:
+      if (*args == 0)
+        {
+	  char buf[256];
+          AddXChars(buf, sizeof(buf), PowDetachString);
+	  Msg(0, "pow_detach_msg is '%s'", buf);
+	  break;
+        }
       (void)ParseSaveStr(act, &PowDetachString);
       break;
 #endif
 #if defined(UTMPOK) && defined(LOGOUTOK)
-    case RC_DEFLOGIN:
-      (void)ParseOnOff(act, &nwin_default.lflag);
-      break;
     case RC_LOGIN:
       n = fore->w_slot != (slot_t)-1;
       if (ParseSwitch(act, &n) == 0)
         SlotToggle(n);
+      break;
+    case RC_DEFLOGIN:
+      (void)ParseOnOff(act, &nwin_default.lflag);
       break;
 #endif
     case RC_DEFFLOW:
@@ -1206,14 +1569,14 @@ int key;
 	  if ((intrc == VDISABLE) && (origintrc != VDISABLE))
 	    {
 #if defined(TERMIO) || defined(POSIX)
-	      intrc = d_NewMode.tio.c_cc[VINTR] = origintrc;
-	      d_NewMode.tio.c_lflag |= ISIG;
+	      intrc = D_NewMode.tio.c_cc[VINTR] = origintrc;
+	      D_NewMode.tio.c_lflag |= ISIG;
 #else /* TERMIO || POSIX */
-	      intrc = d_NewMode.m_tchars.t_intrc = origintrc;
+	      intrc = D_NewMode.m_tchars.t_intrc = origintrc;
 #endif /* TERMIO || POSIX */
 
 	      if (display)
-		SetTTY(d_userfd, &d_NewMode);
+		SetTTY(D_userfd, &D_NewMode);
 	    }
 	}
       if (args[0] && args[0][0] == 'a')
@@ -1222,15 +1585,21 @@ int key;
 	(void)ParseOnOff(act, &nwin_default.flowflag);
       break;
     case RC_DEFWRAP:
-      (void)ParseOnOff(act, &default_wrap);
+      (void)ParseOnOff(act, &nwin_default.wrap);
+      break;
+    case RC_DEFC1:
+      (void)ParseOnOff(act, &nwin_default.c1);
+      break;
+    case RC_DEFGR:
+      (void)ParseOnOff(act, &nwin_default.gr);
+      break;
+    case RC_DEFMONITOR:
+      if (ParseOnOff(act, &n) == 0)
+        nwin_default.monitor = (n == 0) ? MON_OFF : MON_ON;
       break;
     case RC_HARDSTATUS:
       RemoveStatus();
       (void)ParseSwitch(act, &use_hardstatus);
-      break;
-    case RC_DEFMONITOR:
-      if (ParseOnOff(act, &n) == 0)
-        default_monitor = (n == 0) ? MON_OFF : MON_ON;
       break;
     case RC_CONSOLE:
       n = (console_window != 0);
@@ -1373,14 +1742,14 @@ int key;
       break;
     case RC_SCROLLBACK:
       (void)ParseNum(act, &n);
-      ChangeScrollback(fore, n, d_width);
+      ChangeScrollback(fore, n, D_width);
       if (msgok)
 	Msg(0, "scrollback set to %d", fore->w_histheight);
       break;
 #endif
     case RC_SESSIONNAME:
       if (*args == 0)
-	Msg(0, "This session is named '%s'\n", SockNamePtr);
+	Msg(0, "This session is named '%s'\n", SockName);
       else
 	{
 	  char buf[MAXPATHLEN];
@@ -1395,7 +1764,7 @@ int key;
 	      break;
 	    }
 	  sprintf(buf, "%s", SockPath);
-	  sprintf(buf + (SockNamePtr - SockPath), "%d.%s", getpid(), s); 
+	  sprintf(buf + (SockName - SockPath), "%d.%s", (int)getpid(), s); 
 	  free(s);
 	  if ((access(buf, F_OK) == 0) || (errno != ENOENT))
 	    {
@@ -1451,11 +1820,11 @@ int key;
 # endif /* NEEDSETENV */
 	}
 #else /* USESETENV */
-# if defined(linux) || defined(__386BSD__) || defined(BSDI)
+# if defined(linux) || defined(__convex__) || (BSD >= 199103)
       setenv(args[0], args[1], 0);
 # else
       setenv(args[0], args[1]);
-# endif /* linux || __386BSD__ || BSDI */
+# endif /* linux || convex || BSD >= 199103 */
 #endif /* USESETENV */
       MakeNewEnv();
       break;
@@ -1481,6 +1850,13 @@ int key;
       debug1("markkeys %s\n", *args);
       free(s);
       break;
+    case RC_PASTEFONT:
+      if (ParseSwitch(act, &pastefont) == 0 && msgok)
+        Msg(0, "Will %spaste font settings", pastefont ? "" : "not ");
+      break;
+    case RC_CRLF:
+      (void)ParseOnOff(act, &join_with_cr);
+      break;
 #endif
 #ifdef NETHACK
     case RC_NETHACK:
@@ -1491,6 +1867,13 @@ int key;
       (void)ParseOnOff(act, &hardcopy_append);
       break;
     case RC_VBELL_MSG:
+      if (*args == 0)
+        {
+	  char buf[256];
+          AddXChars(buf, sizeof(buf), VisualBellString);
+	  Msg(0, "vbell_msg is '%s'", buf);
+	  break;
+        }
       (void)ParseSaveStr(act, &VisualBellString);
       debug1(" new vbellstr '%s'\n", VisualBellString);
       break;
@@ -1506,11 +1889,6 @@ int key;
       if (msgok)
 	Msg(0, "Ttymode set to %03o", TtyMode);
       break;
-#ifdef COPY_PASTE
-    case RC_CRLF:
-      (void)ParseOnOff(act, &join_with_cr);
-      break;
-#endif
     case RC_AUTODETACH:
       (void)ParseOnOff(act, &auto_detach);
       break;
@@ -1546,7 +1924,7 @@ int key;
 	  break;
 	}
       n = (unsigned char)ch;
-      FreeKey(n);
+      ClearAction(&ktab[n]);
       if (args[1])
 	{
 	  if ((i = FindCommnr(args[1])) == RC_ILLEGAL)
@@ -1561,18 +1939,179 @@ int key;
 	    ktab[n].args = SaveArgs(args + 2);
 	}
       break;
+#ifdef MAPKEYS
+    case RC_BINDKEY:
+	{
+	  struct action *newact;
+          int newnr, fl = 0, kf = 0, af = 0, df = 0, mf = 0;
+	  struct display *odisp = display;
+	  int used = 0;
+
+	  for (; *args && **args == '-'; args++)
+	    {
+	      if (strcmp(*args, "-t") == 0)
+		fl = KMAP_NOTIMEOUT;
+	      else if (strcmp(*args, "-k") == 0)
+		kf = 1;
+	      else if (strcmp(*args, "-a") == 0)
+		af = 1;
+	      else if (strcmp(*args, "-d") == 0)
+		df = 1;
+	      else if (strcmp(*args, "-m") == 0)
+		mf = 1;
+	      else if (strcmp(*args, "--") == 0)
+		{
+		  args++;
+		  break;
+		}
+	      else
+		{
+	          Msg(0, "%s: bindkey: invalid option %s", rc_name, *args);
+		  return;
+		}
+	    }
+	  if (df && mf)
+	    {
+	      Msg(0, "%s: bindkey: -d does not work with -m", rc_name);
+	      break;
+	    }
+	  if (*args == 0)
+	    {
+	      if (mf)
+		display_bindkey("Copy mode", mmtab);
+	      else if (df)
+		display_bindkey("Default", dmtab);
+	      else
+		display_bindkey("User", umtab);
+	      break;
+	    }
+	  if (kf == 0)
+	    {
+	      if (af)
+		{
+		  Msg(0, "%s: bindkey: -a only works with -k", rc_name);
+		  break;
+		}
+	      for (i = 0; i < KMAP_EXT; i++)
+		if (kmap_extras[i] == 0)
+		  {
+		    if (args[1])
+		      break;
+		  }
+		else
+		  if (strcmp(kmap_extras[i], *args) == 0)
+		      break;
+	      if (i == KMAP_EXT)
+		{
+		  Msg(0, args[1] ? "%s: bindkey: no more room for keybinding" : "%s: bindkey: keybinding not found", rc_name);
+		  break;
+		}
+	      if (df == 0 && dmtab[i + KMAP_KEYS + KMAP_AKEYS].nr != RC_ILLEGAL)
+		used = 1;
+	      if (mf == 0 && mmtab[i + KMAP_KEYS + KMAP_AKEYS].nr != RC_ILLEGAL)
+		used = 1;
+	      if ((df || mf) && umtab[i + KMAP_KEYS + KMAP_AKEYS].nr != RC_ILLEGAL)
+		used = 1;
+	      i += KMAP_KEYS + KMAP_AKEYS;
+	    }
+	  else
+	    {
+	      for (i = T_CAPS; i < T_OCAPS; i++)
+		if (strcmp(term[i].tcname, *args) == 0)
+		  break;
+	      if (i == T_OCAPS)
+		{
+		  Msg(0, "%s: bindkey: unknown key '%s'", rc_name, *args);
+		  break;
+		}
+	      if (af && i >= T_CURSOR && i < T_OCAPS)
+	        i -=  T_CURSOR - KMAP_KEYS;
+	      else
+	        i -=  T_CAPS;
+	    }
+	  newact = df ? &dmtab[i] : mf ? &mmtab[i] : &umtab[i];
+	  ClearAction(newact);
+	  if (args[1])
+	    {
+	      if ((newnr = FindCommnr(args[1])) == RC_ILLEGAL)
+		{
+		  Msg(0, "%s: bindkey: unknown command '%s'", rc_name, args[1]);
+		  break;
+		}
+	      if (CheckArgNum(newnr, args + 2))
+		break;
+	      newact->nr = newnr;
+	      if (args[2])
+		newact->args = SaveArgs(args + 2);
+	      if (kf == 0 && args[1])
+		{
+		  if (kmap_extras[i - (KMAP_KEYS+KMAP_AKEYS)])
+		    free(kmap_extras[i - (KMAP_KEYS+KMAP_AKEYS)]);
+	          kmap_extras[i - (KMAP_KEYS+KMAP_AKEYS)] = SaveStr(*args);
+		  kmap_extras_fl[i - (KMAP_KEYS+KMAP_AKEYS)] = fl;
+		}
+	    }
+	  for (display = displays; display; display = display->d_next)
+	    remap(i, args[1] ? 1 : 0);
+	  if (kf == 0 && !args[1])
+	    {
+	      i -= KMAP_KEYS + KMAP_AKEYS;
+	      if (!used && kmap_extras[i])
+		{
+		  free(kmap_extras[i]);
+		  kmap_extras[i] = 0;
+		  kmap_extras_fl[i] = 0;
+		}
+	    }
+	  display = odisp;
+	}
+      break;
+    case RC_MAPTIMEOUT:
+      if (*args)
+	{
+          if (ParseNum(act, &n))
+	    break;
+	  if (n < 0 || n >= 1000)
+	    {
+	      Msg(0, "%s: maptimeout: illegal time %d", rc_name, n);
+	      break;
+	    }
+	  maptimeout = n * 1000;
+	}
+      if (*args == 0 || msgok)
+        Msg(0, "maptimeout is %dms", maptimeout/1000);
+      break;
+    case RC_MAPNOTNEXT:
+      D_dontmap = 1;
+      break;
+    case RC_MAPDEFAULT:
+      D_mapdefault = 1;
+      break;
+#endif
 #ifdef MULTIUSER
     case RC_ACLCHG:
     case RC_ACLADD:
 	{
 	  struct user **u;
 	  
-	  u = FindUserPtr(args[0]);
-	  UserAdd(args[0], NULL, u);
-	  if (args[1] && args[2])
-	    AclSetPerm(*u, args[1], args[2]);
-	  else
-	    AclSetPerm(*u, "+rwx", "#?"); 
+	  if (args[0][0] == '*' && args[0][1] == '\0' && args[1] && args[2])
+	    {
+	      for (u = &users; *u; u = &(*u)->u_next)
+	        AclSetPerm(*u, args[1], args[2]);
+	      break;
+	    } 
+	  do
+	    {
+	      for (s = args[0]; *s && *s != ' ' && *s != '\t' && *s != ','; s++)
+	        ;
+	      *s ? (*s++ = '\0') : (*s = '\0');
+	      u = FindUserPtr(args[0]);
+	      UserAdd(args[0], NULL, u);
+	      if (args[1] && args[2])
+		AclSetPerm(*u, args[1], args[2]);
+	      else
+		AclSetPerm(*u, "+rwx", "#?"); 
+	    } while (*(args[0] = s));
 	  break;
 	}
     case RC_ACLDEL:
@@ -1606,6 +2145,69 @@ int key;
       execclone(args);
       break;
 #endif
+    case RC_GR:
+      if (ParseSwitch(act, &fore->w_gr) == 0 && msgok)
+        Msg(0, "Will %suse GR", fore->w_gr ? "" : "not ");
+      break;
+    case RC_C1:
+      if (ParseSwitch(act, &fore->w_c1) == 0 && msgok)
+        Msg(0, "Will %suse C1", fore->w_c1 ? "" : "not ");
+      break;
+#ifdef KANJI
+    case RC_KANJI:
+      for (i = 0; i < 2; i++)
+	{
+	  if (args[i] == 0)
+	    break;
+	  if (strcmp(args[i], "jis") == 0 || strcmp(args[i], "off") == 0)
+	    n = 0;
+	  else if (strcmp(args[i], "euc") == 0)
+	    n = EUC;
+	  else if (strcmp(args[i], "sjis") == 0)
+	    n = SJIS;
+	  else
+	    {
+	      Msg(0, "kanji: illegal argument (%s)", args[i]);
+	      break;
+	    }
+	  if (i == 0)
+	    fore->w_kanji = n;
+	  else
+	    D_kanji = n;
+	}
+      if (fore)
+        ResetCharsets(fore);
+      break;
+    case RC_DEFKANJI:
+      if (strcmp(*args, "jis") == 0 || strcmp(*args, "off") == 0)
+	n = 0;
+      else if (strcmp(*args, "euc") == 0)
+	n = EUC;
+      else if (strcmp(*args, "sjis") == 0)
+	n = SJIS;
+      else
+	{
+	  Msg(0, "defkanji: illegal argument (%s)", *args);
+	  break;
+	}
+      nwin_default.kanji = n;
+      break;
+#endif
+    case RC_PRINTCMD:
+      if (*args)
+	{
+	  if (printcmd)
+	    free(printcmd);
+	  printcmd = 0;
+	  if (**args)
+	    printcmd = SaveStr(*args);
+	}
+      if (*args == 0 || msgok)
+	if (printcmd)
+	  Msg(0, "using '%s' as print command", printcmd);
+	else
+	  Msg(0, "using termcap entries for printing");
+      break;
     default:
       break;
     }
@@ -1671,6 +2273,12 @@ char *buf, **args;
 	    {
 	    case '@':
 	      *ap++ = "at";
+	      /*
+	       * If comments were removed before this shortcut expanded,
+	       * we wouldn't need this hack.
+	       */
+	      if (p[1] == '#')
+	        *p = '\\';
 	      while (*(++p) == ' ' || *p == '\t')
 	        ;
 	      argc++;
@@ -1694,6 +2302,8 @@ char *buf, **args;
 	  args[argc] = 0;
 	  return argc;
 	}
+      if (*p == '\\' && p[1] == '#')
+        p++;
       if (++argc >= MAXARGS)
 	{
 	  Msg(0, "%s: too many tokens.", rc_name);
@@ -1952,8 +2562,8 @@ char *p, *cp;
 }
 
 
-static
-int IsNum(s, base)
+static int
+IsNum(s, base)
 register char *s;
 register int base;
 {
@@ -1963,7 +2573,7 @@ register int base;
   return 1;
 }
 
-static int
+int
 IsNumColon(s, base, p, psize)
 int base, psize;
 char *s, *p;
@@ -1994,7 +2604,7 @@ int n;
       ShowWindows();
       return;
     }
-  if (p == d_fore)
+  if (p == D_fore)
     {
       Msg(0, "This IS window %d (%s).", n, p->w_title);
       return;
@@ -2002,7 +2612,7 @@ int n;
   if (p->w_display)
     {
       Msg(0, "Window %d (%s) is on another display (%s@%s).", n, p->w_title,
-          p->w_display->_d_user->u_name, p->w_display->_d_usertty);
+          p->w_display->d_user->u_name, p->w_display->d_usertty);
       return;
     }
   SetForeWindow(p);
@@ -2018,15 +2628,15 @@ struct display *dis;
 struct win *w;
 {
   /* release auto writelock when user has no other display here */
-  if (w->w_wlock == WLOCK_AUTO && w->w_wlockuser == d_user)
+  if (w->w_wlock == WLOCK_AUTO && w->w_wlockuser == D_user)
     {
       struct display *d;
 
-      for (d = displays; d; d = d->_d_next)
-	if (( d != display) && (d->_d_fore == w))
+      for (d = displays; d; d = d->d_next)
+	if ((d != display) && (d->d_fore == w))
 	  break;
       debug3("%s %s autolock on win %d\n", 
-	     d_user->u_name, d?"keeps":"releases", w->w_number);
+	     D_user->u_name, d?"keeps":"releases", w->w_number);
       if (!d)
         {
 	  w->w_wlockuser = NULL;
@@ -2047,40 +2657,44 @@ struct win *wi;
    */
   if (display)
     {
-      fore = d_fore;
+      fore = D_fore;
       if (fore)
 	{
 	  ReleaseAutoWritelock(display, fore);
 	  /* deactivate old window. */
 	  if (fore->w_tstamp.seconds)
 	    fore->w_tstamp.lastio = Now;
-	  d_other = fore;
+	  D_other = fore;
 	  fore->w_active = 0;
 	  fore->w_display = 0;
 	}
       else
 	{
 	  /* put all the display layers on the window. */
-	  for (l = d_lay; l; l = l->l_next)
+	  for (l = D_lay; l; l = l->l_next)
 	    if (l->l_next == &BlankLayer)
 	      {
 		l->l_next = wi->w_lay;
-		wi->w_lay = d_lay;
-		for (l = d_lay; l != wi->w_lay; l = l->l_next)
+		wi->w_lay = D_lay;
+		for (l = D_lay; l != wi->w_lay; l = l->l_next)
 		  l->l_block |= wi->w_lay->l_block;
 		break;
 	      }
 	}
-      d_fore = wi;
-      if (d_other == wi)
-	d_other = 0;
-      d_lay = wi->w_lay;
-      d_layfn = d_lay->l_layfn;
-      if ((wi->w_wlock == WLOCK_AUTO) && !wi->w_wlockuser)
+      D_fore = wi;
+      if (D_other == wi)
+	D_other = 0;
+      D_lay = wi->w_lay;
+      D_layfn = D_lay->l_layfn;
+      if ((wi->w_wlock == WLOCK_AUTO) && 
+#ifdef MULTIUSER
+          !AclCheckPermWin(D_user, ACL_WRITE, wi) &&
+#endif
+          !wi->w_wlockuser)
         {
 	  debug2("%s obtained auto writelock for window %d\n",
-	  	 d_user->u_name, wi->w_number);
-          wi->w_wlockuser = d_user;
+	  	 D_user->u_name, wi->w_number);
+          wi->w_wlockuser = D_user;
         }
     }
   fore = wi;
@@ -2159,14 +2773,14 @@ struct win *wi;
   display = wi->w_display;
   if (display)
     {
-      if (wi == d_fore)
+      if (wi == D_fore)
 	{
 	  RemoveStatus();
-	  if (d_lay != &wi->w_winlay)
+	  if (D_lay != &wi->w_winlay)
 	    ExitOverlayPage();
-	  d_fore = 0;
-	  d_lay = &BlankLayer;
-	  d_layfn = BlankLayer.l_layfn;
+	  D_fore = 0;
+	  D_lay = &BlankLayer;
+	  D_layfn = BlankLayer.l_layfn;
 	}
     }
 
@@ -2186,7 +2800,7 @@ struct win *wi;
    * of windows for the most recently used window. If no window is alive at
    * all, exit.
    */
-  if (display && d_fore)
+  if (display && D_fore)
     return;
   if (windows == 0)
     Finit(0);
@@ -2270,7 +2884,7 @@ ShowWindows()
 	  ss = s;
 	  *s++ = '*';
 	}
-      else if (p == d_other)
+      else if (p == D_other)
 	*s++ = '-';
       if (p->w_display && p->w_display != display)
 	*s++ = '&';
@@ -2307,12 +2921,12 @@ ShowWindows()
     }
   *s++ = ' ';
   *s = '\0';
-  if (ss - buf > d_width / 2)
+  if (ss - buf > D_width / 2)
     {
-      ss -= d_width / 2;
-      if (s - ss < d_width)
+      ss -= D_width / 2;
+      if (s - ss < D_width)
 	{
-	  ss = s - d_width;
+	  ss = s - D_width;
 	  if (ss < buf)
 	    ss = buf;
 	}
@@ -2349,7 +2963,7 @@ ShowInfo()
 
   if (wp == 0)
     {
-      Msg(0, "(%d,%d)/(%d,%d) no window", d_x + 1, d_y + 1, d_width, d_height);
+      Msg(0, "(%d,%d)/(%d,%d) no window", D_x + 1, D_y + 1, D_width, D_height);
       return;
     }
 #ifdef COPY_PASTE
@@ -2368,14 +2982,32 @@ ShowInfo()
 	  (wp->w_logfp != NULL) ? '+' : '-',
 	  (wp->w_monitor != MON_OFF) ? '+' : '-',
 	  wp->w_norefresh ? '-' : '+');
-  if (CG0)
+  if (D_CG0)
     {
       p = buf + strlen(buf);
-      sprintf(p, " G%1d [", wp->w_Charset);
+      if (wp->w_gr)
+        sprintf(p++, " G%c%c [", wp->w_Charset + '0', wp->w_CharsetR + '0');
+      else
+        sprintf(p, " G%c [", wp->w_Charset + '0');
+      p += 5;
       for (i = 0; i < 4; i++)
-	p[i + 5] = wp->w_charsets[i] ? wp->w_charsets[i] : 'B';
-      p[9] = ']';
-      p[10] = '\0';
+	{
+	  if (wp->w_charsets[i] == ASCII)
+	    *p++ = 'B';
+	  else if (wp->w_charsets[i] >= ' ')
+	    *p++ = wp->w_charsets[i];
+	  else
+	    {
+	      *p++ = '^';
+	      *p++ = wp->w_charsets[i] ^ 0x40;
+	    }
+	}
+      *p++ = ']';
+#ifdef KANJI
+      strcpy(p, wp->w_kanji == EUC ? " euc" : wp->w_kanji == SJIS ? " sjis" : "");
+      p += strlen(p);
+#endif
+      *p = 0;
     }
   Msg(0, "%s", buf);
 }
@@ -2567,7 +3199,6 @@ char *fn, **av;
 	  break;
 	case 'M':
 	  nwin.monitor = MON_ON;
-debug("nwin.monitor = MON_ON;\n");
 	  break;
 	default:
 	  Msg(0, "%s: screen: invalid option -%c.", fn, av[0][1]);
@@ -2625,11 +3256,13 @@ char *s, *array;
   while (*s)
     {
       s = ParseChar(s, (char *) &key);
-      if (*s != '=')
+      if (!s || *s != '=')
 	return -1;
       do 
 	{
           s = ParseChar(++s, (char *) &value);
+	  if (!s)
+	    return -1;
 	  array[value] = key;
 	}
       while (*s == '=');
@@ -2660,7 +3293,7 @@ int len;
   if (ktab[(int)(unsigned char)*buf].nr != RC_POW_DETACH)
     {
       if (display)
-        write(d_userfd, "\007", 1);
+        write(D_userfd, "\007", 1);
 #ifdef NETHACK
       if (nethackflag)
 	 Msg(0, "The blast of disintegration whizzes by you!");
@@ -2686,14 +3319,14 @@ int len;
     }
   if (pp->buf)
     free(pp->buf);
-  if ((pp->buf = (char *)malloc(d_user->u_copylen)) == NULL)
+  if ((pp->buf = (char *)malloc(D_user->u_copylen)) == NULL)
     {
       Msg(0, strnomem);
       return;
     }
-  bcopy(d_user->u_copybuffer, pp->buf, d_user->u_copylen);
-  pp->len = d_user->u_copylen;
-  Msg(0, "Copied %d characters into register %c", d_user->u_copylen, *buf);
+  bcopy(D_user->u_copybuffer, pp->buf, D_user->u_copylen);
+  pp->len = D_user->u_copylen;
+  Msg(0, "Copied %d characters into register %c", D_user->u_copylen, *buf);
 }
 
 static void
@@ -2703,6 +3336,13 @@ int len;
 {
   struct plop *pp = plop_tab + (int)(unsigned char)*buf;
 
+
+  if (!fore)
+    return;	/* Input() should not call us w/o fore, but you never know... */
+  if (*buf == '.')
+    {
+      Msg(0, "ins_reg_fn: Warning: pasting real register '.'!");
+    }
   if (len)
     {
       *buf = 0;
@@ -2794,17 +3434,17 @@ int len;
   if (CheckPassword)
     {
 #ifdef COPY_PASTE
-      if (d_user->u_copybuffer)
-	UserFreeCopyBuffer(d_user);
-      d_user->u_copylen = strlen(Password);
-      if ((d_user->u_copybuffer = (char *) malloc(d_user->u_copylen + 1)) == NULL)
+      if (D_user->u_copybuffer)
+	UserFreeCopyBuffer(D_user);
+      D_user->u_copylen = strlen(Password);
+      if ((D_user->u_copybuffer = (char *) malloc(D_user->u_copylen + 1)) == NULL)
 	{
 	  Msg(0, strnomem);
-          d_user->u_copylen = 0;
+          D_user->u_copylen = 0;
 	}
       else
 	{
-	  strcpy(d_user->u_copybuffer, Password);
+	  strcpy(D_user->u_copybuffer, Password);
 	  Msg(0, "[ Password moved into copybuffer ]");
 	}
 #else				/* COPY_PASTE */

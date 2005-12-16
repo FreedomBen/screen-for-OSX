@@ -66,11 +66,11 @@ GetLoadav()
 
   if ((fp = secfopen("/proc/loadavg", "r")) == NULL)
     return 0;
-  fscanf(fp, "%lf %lf %lf\n", d, d+1, d+2);
+  fscanf(fp, "%lf %lf %lf\n", d, d + 1, d + 2);
   fclose(fp);
-  for (i = 0; i < LOADAV_NUM; i++)
+  for (i = 0; i < (LOADAV_NUM > 3 ? 3 : LOADAV_NUM); i++)
     loadav[i] = d[i];
-  return LOADAV_NUM;
+  return i;
 }
 #endif /* linux */
 
@@ -114,7 +114,7 @@ GetLoadav()
 #if defined(NeXT) && !defined(LOADAV_DONE)
 #define LOADAV_DONE
 
-#include <mach.h>
+#include <mach/mach.h>
 
 static processor_set_t default_set;
 
@@ -163,6 +163,12 @@ GetLoadav()
 extern int nlist __P((char *, struct nlist *));
 # endif
 
+#ifdef __sgi
+# if _MIPS_SZLONG == 64
+#  define nlist nlist64
+# endif
+#endif
+
 static struct nlist nl[2];
 static int kmemf;
 
@@ -170,24 +176,30 @@ void
 InitLoadav()
 {
   debug("Init Kmem...\n");
-  kmemf = open("/dev/kmem", O_RDONLY);
-  if (kmemf == -1)
+  if ((kmemf = open("/dev/kmem", O_RDONLY)) == -1)
     return;
-  debug("Kmem opened\n");
-# ifdef NLIST_NAME_UNION
+# if !defined(_AUX_SOURCE) && !defined(AUX)
+#  ifdef NLIST_NAME_UNION
   nl[0].n_un.n_name = LOADAV_AVENRUN;
-# else
+#  else
   nl[0].n_name = LOADAV_AVENRUN;
+#  endif
+# else
+  strncpy(nl[0].n_name, LOADAV_AVENRUN, sizeof(nl[0].n_name));
 # endif
   debug2("Searching in %s for %s\n", LOADAV_UNIX, nl[0].n_name);
   nlist(LOADAV_UNIX, nl);
+# ifndef _IBMR2
   if (nl[0].n_value == 0)
+# else
+  if (nl[0].n_value == 0 || lseek(kmemf, (off_t) nl[0].n_value, 0) == (off_t)-1 || read(kmemf, (char *)&nl[0].n_value, sizeof(nl[0].n_value)) != sizeof(nl[0].n_value))
+# endif
     {
       close(kmemf);
       return;
     }
 # ifdef sgi
-  nl[0].n_value &= ~(1 << 31);	/* clear upper bit */
+  nl[0].n_value &= (unsigned long)-1 >> 1;	/* clear upper bit */
 # endif /* sgi */
   debug1("AvenrunSym found (0x%lx)!!\n", nl[0].n_value);
   loadok = 1;
@@ -196,7 +208,7 @@ InitLoadav()
 static int
 GetLoadav()
 {
-  if (lseek(kmemf, (off_t) nl[0].n_value, 0) == (off_t) - 1)
+  if (lseek(kmemf, (off_t) nl[0].n_value, 0) == (off_t)-1)
     return 0;
   if (read(kmemf, (char *) loadav, sizeof(loadav)) != sizeof(loadav))
     return 0;

@@ -76,9 +76,46 @@ static char TtyProto[] = "/dev/ttyXY";
 # endif /* hpux */
 #endif
 
+static void initpty __P((int));
 
-#if defined(sequent) || defined(_SEQUENT_)
+/***************************************************************/
 
+static void
+initpty(f)
+int f;
+{
+#ifdef POSIX
+  tcflush(f, TCIOFLUSH);
+#else
+# ifdef TIOCFLUSH
+  (void) ioctl(f, TIOCFLUSH, (char *) 0);
+# endif
+#endif
+#ifdef LOCKPTY
+  (void) ioctl(f, TIOCEXCL, (char *) 0);
+#endif
+}
+
+/***************************************************************/
+
+#if defined(OSX) && !defined(PTY_DONE)
+#define PTY_DONE
+int
+OpenPTY(ttyn)
+char **ttyn;
+{
+  register int f;
+  if ((f = open_controlling_pty(TtyName)) < 0)
+    return -1;
+  initpty(f);
+  *ttyn = TtyName;
+  return f;
+#endif
+
+/***************************************************************/
+
+#if (defined(sequent) || defined(_SEQUENT_)) && !defined(PTY_DONE)
+#define PTY_DONE
 int
 OpenPTY(ttyn)
 char **ttyn;
@@ -93,90 +130,78 @@ char **ttyn;
 #endif
   strncpy(PtyName, m, sizeof(PtyName));
   strncpy(TtyName, s, sizeof(TtyName));
-#ifdef POSIX
-  tcflush(f, TCIOFLUSH);
-#else
-# ifdef TIOCFLUSH
-  (void) ioctl(f, TIOCFLUSH, (char *) 0);
-# endif
-#endif
-#ifdef LOCKPTY
-  (void) ioctl(f, TIOCEXCL, (char *) 0);
-#endif
+  initpty(f);
   *ttyn = TtyName;
   return f;
 }
+#endif
 
-#else
-# if defined(MIPS) && defined(HAVE_DEV_PTC)
-#  ifdef __sgi /* __sgi -> IRIX 4.0 */
+/***************************************************************/
 
+#if defined(__sgi) && !defined(PTY_DONE)
+#define PTY_DONE
 int
 OpenPTY(ttyn)
 char **ttyn;
 {
   int f;
   char *name; 
-  sig_t (*sigcld)__P(SIGPROTOARG);
+  sigret_t (*sigcld)__P(SIGPROTOARG);
 
   /*
    * SIGCHLD set to SIG_DFL for _getpty() because it may fork() and
    * exec() /usr/adm/mkpts
    */
   sigcld = signal(SIGCHLD, SIG_DFL);
-  name = _getpty(&f, O_RDWR | O_NDELAY, 0600, 0);
+  name = _getpty(&f, O_RDWR | O_NONBLOCK, 0600, 0);
   signal(SIGCHLD, sigcld);
 
-  if (name == NULL)
+  if (name == 0)
     return -1;
-#ifdef LOCKPTY
-  (void) ioctl(f, TIOCEXCL, (char *) 0);
-#endif
+  initpty(f);
   *ttyn = name;
   return f;
 }
+#endif
 
-#  else /* __sgi */
+/***************************************************************/
 
+#if defined(MIPS) && defined(HAVE_DEV_PTC) && !defined(PTY_DONE)
+#define PTY_DONE
 int
 OpenPTY(ttyn)
 char **ttyn;
 {
   register int f;
-  register int my_minor;
   struct stat buf;
    
   strcpy(PtyName, "/dev/ptc");
-  f = open(PtyName, O_RDWR | O_NDELAY);
-  if (f < 0)
+  if ((f = open(PtyName, O_RDWR | O_NONBLOCK)) < 0)
     return -1;
   if (fstat(f, &buf) < 0)
     {
       close(f);
       return -1;
     }
-  my_minor = minor(buf.st_rdev);
-  sprintf(TtyName, "/dev/ttyq%d", my_minor);
-#ifdef LOCKPTY
-  (void) ioctl(f, TIOCEXCL, (char *) 0);
-#endif
+  sprintf(TtyName, "/dev/ttyq%d", minor(buf.st_rdev));
+  initpty(f);
   *ttyn = TtyName;
   return f;
 }
+#endif
 
-#  endif /* __sgi */
-# else /* MIPS */
-#  ifdef SVR4
+/***************************************************************/
 
+#if defined(SVR4) && !defined(PTY_DONE)
+#define PTY_DONE
 int
 OpenPTY(ttyn)
 char **ttyn;
 {
-  char *m;
   register int f;
-  char *ptsname();
+  char *m, *ptsname();
   int unlockpt __P((int)), grantpt __P((int));
-  sig_t (*sigcld)__P(SIGPROTOARG);
+  sigret_t (*sigcld)__P(SIGPROTOARG);
 
   if ((f = open("/dev/ptmx", O_RDWR)) == -1)
     return -1;
@@ -186,8 +211,7 @@ char **ttyn;
    * exec()s pt_chmod
    */
   sigcld = signal(SIGCHLD, SIG_DFL);
-       
-  if ((m = ptsname(f)) == NULL || unlockpt(f) || grantpt(f))
+  if ((m = ptsname(f)) == NULL || grantpt(f) || unlockpt(f))
     {
       signal(SIGCHLD, sigcld);
       close(f);
@@ -195,22 +219,20 @@ char **ttyn;
     } 
   signal(SIGCHLD, sigcld);
   strncpy(TtyName, m, sizeof(TtyName));
-#ifdef POSIX
-  tcflush(f, TCIOFLUSH);
-#else
-# ifdef TIOCFLUSH
-  (void) ioctl(f, TIOCFLUSH, (char *) 0);
-# endif
-#endif
-#ifdef LOCKPTY
-  (void) ioctl(f, TIOCEXCL, (char *) 0);
-#endif
+  initpty(f);
   *ttyn = TtyName;
   return f;
 }
+#endif
 
-#  else /* not SVR4 */
-#   if defined(_AIX) && defined(HAVE_DEV_PTC) /* RS6000 */
+/***************************************************************/
+
+#if defined(_AIX) && defined(HAVE_DEV_PTC) && !defined(PTY_DONE)
+#define PTY_DONE
+
+#ifdef _IBMR2
+int aixhack = -1;
+#endif
 
 int
 OpenPTY(ttyn)
@@ -222,24 +244,30 @@ char **ttyn;
   strcpy (PtyName, "/dev/ptc");
   if ((f = open (PtyName, O_RDWR)) < 0)
     return -1;
-  strcpy (TtyName, ttyname(f));
-  strcpy (PtyName, TtyName);
-  PtyName [7] = 'c'; 
+  strncpy(TtyName, ttyname(f), sizeof(TtyName));
   if (eff_uid && access(TtyName, R_OK | W_OK))
     {
       close(f);
       return -1;
     }
-#ifdef LOCKPTY
-  if (ioctl (f, TIOCEXCL, (char *) 0) == -1)
-    return -1;
-#endif /* LOCKPTY */
+  initpty(f);
+# ifdef _IBMR2
+  if (aixhack >= 0)
+    close(aixhack);
+  if ((aixhack = open(TtyName, O_RDWR | O_NOCTTY)) < 0)
+    {
+      close(f);
+      return -1;
+    }
+# endif
   *ttyn = TtyName;
   return f;
 }
+#endif
 
-#   else /* _AIX, RS6000 */
+/***************************************************************/
 
+#ifndef PTY_DONE
 int
 OpenPTY(ttyn)
 char **ttyn;
@@ -250,13 +278,13 @@ char **ttyn;
   debug("OpenPTY: Using BSD style ptys.\n");
   strcpy(PtyName, PtyProto);
   strcpy(TtyName, TtyProto);
-  for (p = PtyName; *p != 'X'; ++p)
+  for (p = PtyName; *p != 'X'; p++)
     ;
-  for (q = TtyName; *q != 'X'; ++q)
+  for (q = TtyName; *q != 'X'; q++)
     ;
-  for (l = PTYRANGE0; (*p = *l) != '\0'; ++l)
+  for (l = PTYRANGE0; (*p = *l) != '\0'; l++)
     {
-      for (d = PTYRANGE1; (p[1] = *d) != '\0'; ++d)
+      for (d = PTYRANGE1; (p[1] = *d) != '\0'; d++)
 	{
 	  debug1("OpenPTY tries '%s'\n", PtyName);
 	  if ((f = open(PtyName, O_RDWR)) == -1)
@@ -283,17 +311,11 @@ char **ttyn;
 		}
 	    }
 #endif
-#ifdef LOCKPTY
-	  (void) ioctl(f, TIOCEXCL, (char *) 0);
-#endif
+	  initpty(f);
 	  *ttyn = TtyName;
 	  return f;
 	}
     }
   return -1;
 }
-
-#   endif /* _AIX, RS6000 */
-#  endif /* SVR4 */
-# endif /* MIPS */
-#endif /* sequent || SEQUENT */
+#endif

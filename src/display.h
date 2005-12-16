@@ -21,66 +21,106 @@
  * $Id$ FAU
  */
 
+
+#ifdef MAPKEYS
+struct kmap
+{
+  char seq[8];
+  char off[8];
+  int  nr;
+};
+
+#define KMAP_SEQ ((int)((struct kmap *)0)->seq)
+#define KMAP_OFF ((int)((struct kmap *)0)->off)
+
+#define KMAP_KEYS (T_OCAPS-T_CAPS)
+#define KMAP_AKEYS (T_OCAPS-T_CURSOR)
+#define KMAP_EXT 10
+
+#define KMAP_NOTIMEOUT 0x4000
+
+#endif
+
 struct win;			/* forward declaration */
 
 struct display
 {
-  struct display *_d_next;	/* linked list */
-  struct user *_d_user;		/* user who owns that display */
-  struct LayFuncs *_d_layfn;	/* current layer functions */
-  struct layer *_d_lay;		/* layers on the display */
-  struct win *_d_fore;		/* pointer to fore window */
-  struct win *_d_other;		/* pointer to other window */
-  char  _d_termname[20 + 1];	/* $TERM */
-  char	_d_tentry[TERMCAP_BUFSIZE];	/* buffer for tgetstr */
-  int	_d_tcinited;		/* termcap inited flag */
-  int	_d_width, _d_height;	/* width/height of the screen */
-  int	_d_defwidth, _d_defheight;	/* default width/height of windows */
-  int	_d_top, _d_bot;		/* scrollregion start/end */
-  int	_d_x, _d_y;		/* cursor position */
-  char	_d_attr;		/* current attributes */
-  char	_d_font;		/* current font */
-  int	_d_insert;		/* insert mode flag */
-  int	_d_keypad;		/* application keypad flag */
-  int	_d_cursorkeys;		/* application cursorkeys flag */
-  int	_d_flow;		/* flow control on/off flag*/
-  int	_d_lp_missing;		/* last character on bot line missing */
-  int	_d_lp_image;		/* missing image */
-  int	_d_lp_attr;		/* missing attr */
-  int	_d_lp_font;		/* missing font */
-  int	_d_status;		/* is status displayed? */
-  time_t _d_status_time;	/* time of status display */
-  int	_d_status_bell;		/* is it only a vbell? */
-  int	_d_status_len;		/* length of status line */
-  char *_d_status_lastmsg;	/* last displayed message */
-  int   _d_status_buflen;	/* last message buffer len */
-  int	_d_status_lastx;	/* position of the cursor */
-  int	_d_status_lasty;	/*   before status was displayed */
-  int	_d_ESCseen;		/* Was the last char an ESC (^a) */
-  int	_d_userpid;		/* pid of attacher */
-  char	_d_usertty[MAXPATHLEN];	/* tty we are attached to */
-  int	_d_userfd;		/* fd of the tty */
-  struct mode _d_OldMode;	/* tty mode when screen was started */
-  struct mode _d_NewMode;	/* New tty mode */
-  char  *_d_obuf;		/* output buffer */
-  int   _d_obuflen;		/* len of buffer */
-  int	_d_obufmax;		/* len where we are blocking the pty */
-  char  *_d_obufp;		/* pointer in buffer */
-  int   _d_obuffree;		/* free bytes in buffer */
-#ifdef AUTO_NUKE
-  int	_d_auto_nuke;		/* autonuke flag */
+  struct display *d_next;	/* linked list */
+  struct user *d_user;		/* user who owns that display */
+  struct LayFuncs *d_layfn;	/* current layer functions */
+  struct layer *d_lay;		/* layers on the display */
+  struct win *d_fore;		/* pointer to fore window */
+  struct win *d_other;		/* pointer to other window */
+  char  d_nonblock;		/* don't block when d_obufmax reached */
+  char  d_termname[20 + 1];	/* $TERM */
+  char	d_tentry[TERMCAP_BUFSIZE];	/* buffer for tgetstr */
+  char	d_tcinited;		/* termcap inited flag */
+  int	d_width, d_height;	/* width/height of the screen */
+  int	d_defwidth, d_defheight;	/* default width/height of windows */
+  int	d_top, d_bot;		/* scrollregion start/end */
+  int	d_x, d_y;		/* cursor position */
+  char	d_attr;			/* current attributes */
+  char	d_atyp;			/* current attribute types */
+  char	d_font;			/* current font */
+#ifdef KANJI
+  int   d_mbcs;			/* saved char for multibytes charset */
+  int   d_kanji;		/* what kanji type the display is */
 #endif
-  union	tcu _d_tcs[T_N];	/* terminal capabilities */
-  char	*_d_attrtab[NATTR];
-  short	_d_dospeed;		/* baudrate of tty */
-  char _d_c0_tab[256];		/* conversion for C0 */
-  int _d_UPcost, _d_DOcost, _d_LEcost, _d_NDcost;
-  int _d_CRcost, _d_IMcost, _d_EIcost, _d_NLcost;
+  int	d_insert;		/* insert mode flag */
+  int	d_keypad;		/* application keypad flag */
+  int	d_cursorkeys;		/* application cursorkeys flag */
+  int	d_revvid;		/* reverse video */
+  int	d_curinv;		/* cursor invisible */
+  int	d_hstatus;		/* hardstatus used */
+  int	d_lp_missing;		/* last character on bot line missing */
+  int	d_lp_image;		/* missing image */
+  int	d_lp_attr;		/* missing attr */
+  int	d_lp_font;		/* missing font */
+  time_t d_status_time;		/* time of status display */
+  char	d_status;		/* is status displayed? */
+  char	d_status_bell;		/* is it only a vbell? */
+  int	d_status_len;		/* length of status line */
+  char *d_status_lastmsg;	/* last displayed message */
+  int   d_status_buflen;	/* last message buffer len */
+  int	d_status_lastx;		/* position of the cursor */
+  int	d_status_lasty;		/*   before status was displayed */
+  int	d_ESCseen;		/* Was the last char an ESC (^a) */
+  int	d_userpid;		/* pid of attacher */
+  char	d_usertty[MAXPATHLEN];	/* tty we are attached to */
+  int	d_userfd;		/* fd of the tty */
+  struct mode d_OldMode;	/* tty mode when screen was started */
+  struct mode d_NewMode;	/* New tty mode */
+  int	d_flow;			/* tty's flow control on/off flag*/
+  char *d_obuf;			/* output buffer */
+  int   d_obuflen;		/* len of buffer */
+  int	d_obufmax;		/* len where we are blocking the pty */
+  char *d_obufp;		/* pointer in buffer */
+  int   d_obuffree;		/* free bytes in buffer */
+#ifdef AUTO_NUKE
+  int	d_auto_nuke;		/* autonuke flag */
+#endif
+#ifdef MAPKEYS
+  int	d_nseqs;		/* number of valid mappings */
+  char *d_seqp;			/* pointer into keymap array */
+  int	d_seql;			/* number of parsed chars */
+  int	d_seqruns;		/* number of select calls */
+  int	d_dontmap;		/* do not map next */
+  int	d_mapdefault;		/* do map next to default */
+  struct kmap d_kmaps[KMAP_KEYS+KMAP_EXT];	/* keymaps */
+#endif
+  union	tcu d_tcs[T_N];		/* terminal capabilities */
+  char *d_attrtab[NATTR];	/* attrib emulation table */
+  char  d_attrtyp[NATTR];	/* attrib group table */
+  short	d_dospeed;		/* baudrate of tty */
+  char	d_c0_tab[256];		/* conversion for C0 */
+  int	d_UPcost, d_DOcost, d_LEcost, d_NDcost;
+  int	d_CRcost, d_IMcost, d_EIcost, d_NLcost;
+  int   d_printfd;		/* fd for vt100 print sequence */
 #ifdef UTMPOK
-  slot_t _d_loginslot;		/* offset, where utmp_logintty belongs */
-  struct utmp _d_utmp_logintty;	/* here the original utmp structure is stored */
+  slot_t d_loginslot;		/* offset, where utmp_logintty belongs */
+  struct utmp d_utmp_logintty;	/* here the original utmp structure is stored */
 # ifdef _SEQUENT_
-  char _d_loginhost[100+1];
+  char	d_loginhost[100+1];
 # endif /* _SEQUENT_ */
 #endif
 };
@@ -92,80 +132,95 @@ extern struct display TheDisplay;
 # define DISPLAY(x) TheDisplay.x
 #endif
 
-#define d_user		DISPLAY(_d_user)
-#define d_username	(DISPLAY(_d_user) ? DISPLAY(_d_user)->u_name : 0)
-#define d_layfn		DISPLAY(_d_layfn)
-#define d_lay		DISPLAY(_d_lay)
-#define d_fore		DISPLAY(_d_fore)
-#define d_other		DISPLAY(_d_other)
-#define d_termname	DISPLAY(_d_termname)
-#define d_tentry	DISPLAY(_d_tentry)
-#define d_tcinited	DISPLAY(_d_tcinited)
-#define d_width		DISPLAY(_d_width)
-#define d_height	DISPLAY(_d_height)
-#define d_defwidth	DISPLAY(_d_defwidth)
-#define d_defheight	DISPLAY(_d_defheight)
-#define d_top		DISPLAY(_d_top)
-#define d_bot		DISPLAY(_d_bot)
-#define d_x		DISPLAY(_d_x)
-#define d_y		DISPLAY(_d_y)
-#define d_attr		DISPLAY(_d_attr)
-#define d_font		DISPLAY(_d_font)
-#define d_insert	DISPLAY(_d_insert)
-#define d_keypad	DISPLAY(_d_keypad)
-#define d_cursorkeys	DISPLAY(_d_cursorkeys)
-#define d_flow		DISPLAY(_d_flow)
-#define d_lp_missing	DISPLAY(_d_lp_missing)
-#define d_lp_image	DISPLAY(_d_lp_image)
-#define d_lp_attr	DISPLAY(_d_lp_attr)
-#define d_lp_font	DISPLAY(_d_lp_font)
-#define d_status	DISPLAY(_d_status)
-#define d_status_time	DISPLAY(_d_status_time)
-#define d_status_bell	DISPLAY(_d_status_bell)
-#define d_status_len	DISPLAY(_d_status_len)
-#define d_status_lastmsg	DISPLAY(_d_status_lastmsg)
-#define d_status_buflen	DISPLAY(_d_status_buflen)
-#define d_status_lastx	DISPLAY(_d_status_lastx)
-#define d_status_lasty	DISPLAY(_d_status_lasty)
-#define d_ESCseen	DISPLAY(_d_ESCseen)
-#define d_userpid	DISPLAY(_d_userpid)
-#define d_usertty	DISPLAY(_d_usertty)
-#define d_userfd	DISPLAY(_d_userfd)
-#define d_OldMode	DISPLAY(_d_OldMode)
-#define d_NewMode	DISPLAY(_d_NewMode)
-#define d_obuf		DISPLAY(_d_obuf)
-#define d_obuflen	DISPLAY(_d_obuflen)
-#define d_obufmax	DISPLAY(_d_obufmax)
-#define d_obufp		DISPLAY(_d_obufp)
-#define d_obuffree	DISPLAY(_d_obuffree)
-#define d_auto_nuke	DISPLAY(_d_auto_nuke)
-#define d_tcs		DISPLAY(_d_tcs)
-#define d_attrtab	DISPLAY(_d_attrtab)
-#define d_dospeed	DISPLAY(_d_dospeed)
-#define d_c0_tab	DISPLAY(_d_c0_tab)
-#define d_UPcost	DISPLAY(_d_UPcost)
-#define d_DOcost	DISPLAY(_d_DOcost)
-#define d_LEcost	DISPLAY(_d_LEcost)
-#define d_NDcost	DISPLAY(_d_NDcost)
-#define d_CRcost	DISPLAY(_d_CRcost)
-#define d_IMcost	DISPLAY(_d_IMcost)
-#define d_EIcost	DISPLAY(_d_EIcost)
-#define d_NLcost	DISPLAY(_d_NLcost)
-#define d_loginslot	DISPLAY(_d_loginslot)
-#define d_utmp_logintty	DISPLAY(_d_utmp_logintty)
-#define d_loginhost	DISPLAY(_d_loginhost)
+#define D_user		DISPLAY(d_user)
+#define D_username	(DISPLAY(d_user) ? DISPLAY(d_user)->u_name : 0)
+#define D_layfn		DISPLAY(d_layfn)
+#define D_lay		DISPLAY(d_lay)
+#define D_fore		DISPLAY(d_fore)
+#define D_other		DISPLAY(d_other)
+#define D_nonblock      DISPLAY(d_nonblock)
+#define D_termname	DISPLAY(d_termname)
+#define D_tentry	DISPLAY(d_tentry)
+#define D_tcinited	DISPLAY(d_tcinited)
+#define D_width		DISPLAY(d_width)
+#define D_height	DISPLAY(d_height)
+#define D_defwidth	DISPLAY(d_defwidth)
+#define D_defheight	DISPLAY(d_defheight)
+#define D_top		DISPLAY(d_top)
+#define D_bot		DISPLAY(d_bot)
+#define D_x		DISPLAY(d_x)
+#define D_y		DISPLAY(d_y)
+#define D_attr		DISPLAY(d_attr)
+#define D_atyp		DISPLAY(d_atyp)
+#define D_font		DISPLAY(d_font)
+#define D_mbcs		DISPLAY(d_mbcs)
+#define D_kanji		DISPLAY(d_kanji)
+#define D_insert	DISPLAY(d_insert)
+#define D_keypad	DISPLAY(d_keypad)
+#define D_cursorkeys	DISPLAY(d_cursorkeys)
+#define D_revvid	DISPLAY(d_revvid)
+#define D_curinv	DISPLAY(d_curinv)
+#define D_hstatus	DISPLAY(d_hstatus)
+#define D_lp_missing	DISPLAY(d_lp_missing)
+#define D_lp_image	DISPLAY(d_lp_image)
+#define D_lp_attr	DISPLAY(d_lp_attr)
+#define D_lp_font	DISPLAY(d_lp_font)
+#define D_status	DISPLAY(d_status)
+#define D_status_time	DISPLAY(d_status_time)
+#define D_status_bell	DISPLAY(d_status_bell)
+#define D_status_len	DISPLAY(d_status_len)
+#define D_status_lastmsg	DISPLAY(d_status_lastmsg)
+#define D_status_buflen	DISPLAY(d_status_buflen)
+#define D_status_lastx	DISPLAY(d_status_lastx)
+#define D_status_lasty	DISPLAY(d_status_lasty)
+#define D_ESCseen	DISPLAY(d_ESCseen)
+#define D_userpid	DISPLAY(d_userpid)
+#define D_usertty	DISPLAY(d_usertty)
+#define D_userfd	DISPLAY(d_userfd)
+#define D_OldMode	DISPLAY(d_OldMode)
+#define D_NewMode	DISPLAY(d_NewMode)
+#define D_flow		DISPLAY(d_flow)
+#define D_obuf		DISPLAY(d_obuf)
+#define D_obuflen	DISPLAY(d_obuflen)
+#define D_obufmax	DISPLAY(d_obufmax)
+#define D_obufp		DISPLAY(d_obufp)
+#define D_obuffree	DISPLAY(d_obuffree)
+#define D_auto_nuke	DISPLAY(d_auto_nuke)
+#define D_nseqs		DISPLAY(d_nseqs)
+#define D_seqp		DISPLAY(d_seqp)
+#define D_seql		DISPLAY(d_seql)
+#define D_seqruns	DISPLAY(d_seqruns)
+#define D_dontmap	DISPLAY(d_dontmap)
+#define D_mapdefault	DISPLAY(d_mapdefault)
+#define D_kmaps		DISPLAY(d_kmaps)
+#define D_tcs		DISPLAY(d_tcs)
+#define D_attrtab	DISPLAY(d_attrtab)
+#define D_attrtyp	DISPLAY(d_attrtyp)
+#define D_dospeed	DISPLAY(d_dospeed)
+#define D_c0_tab	DISPLAY(d_c0_tab)
+#define D_UPcost	DISPLAY(d_UPcost)
+#define D_DOcost	DISPLAY(d_DOcost)
+#define D_LEcost	DISPLAY(d_LEcost)
+#define D_NDcost	DISPLAY(d_NDcost)
+#define D_CRcost	DISPLAY(d_CRcost)
+#define D_IMcost	DISPLAY(d_IMcost)
+#define D_EIcost	DISPLAY(d_EIcost)
+#define D_NLcost	DISPLAY(d_NLcost)
+#define D_printfd	DISPLAY(d_printfd)
+#define D_loginslot	DISPLAY(d_loginslot)
+#define D_utmp_logintty	DISPLAY(d_utmp_logintty)
+#define D_loginhost	DISPLAY(d_loginhost)
 
 
 #define GRAIN 4096  /* Allocation grain size for output buffer */
-#define OBUF_MAX 256
-   /* Maximum amount of buffered output before input is blocked */
+#define OBUF_MAX 256 /* default for obuflimit */
 
 #define OUTPUT_BLOCK_SIZE 256  /* Block size of output to tty */
 
 #define AddChar(c) \
   { \
-    if (--d_obuffree == 0) \
+    if (--D_obuffree == 0) \
       Resize_obuf(); \
-    *d_obufp++ = (c); \
+    *D_obufp++ = (c); \
   }
 

@@ -64,7 +64,7 @@ extern int nethackflag;
 
 /*
  * ChangeFlag:   0: try to modify no window
- *               1: modify fore (and try to modify no d_other) + redisplay
+ *               1: modify fore (and try to modify no D_other) + redisplay
  *               2: modify all windows
  *
  * Note: Activate() is only called if change_flag == 1
@@ -84,26 +84,26 @@ int change_flag;
       debug("CheckScreenSize: No display -> no check.\n");
       return;
     }
-  oldlay = d_lay;
+  oldlay = D_lay;
 #ifdef TIOCGWINSZ
-  if (ioctl(d_userfd, TIOCGWINSZ, (char *)&glwz) != 0)
+  if (ioctl(D_userfd, TIOCGWINSZ, (char *)&glwz) != 0)
     {
-      debug2("CheckScreenSize: ioctl(%d, TIOCGWINSZ) errno %d\n", d_userfd, errno);
-      wi = CO;
-      he = LI;
+      debug2("CheckScreenSize: ioctl(%d, TIOCGWINSZ) errno %d\n", D_userfd, errno);
+      wi = D_CO;
+      he = D_LI;
     }
   else
     {
       wi = glwz.ws_col;
       he = glwz.ws_row;
       if (wi == 0)
-        wi = CO;
+        wi = D_CO;
       if (he == 0)
-        he = LI;
+        he = D_LI;
     }
 #else
-  wi = CO;
-  he = LI;
+  wi = D_CO;
+  he = D_LI;
 #endif
   
   debug2("CheckScreenSize: screen is (%d,%d)\n", wi, he);
@@ -115,15 +115,15 @@ int change_flag;
 	if (p->w_display == 0 || p->w_display == display)
           ChangeWindowSize(p, wi, he);
     }
-  if (d_width == wi && d_height == he)
+  if (D_width == wi && D_height == he)
     {
       debug("CheckScreenSize: No change -> return.\n");
       return;
     }
   ChangeScreenSize(wi, he, change_flag);
   if (change_flag == 1)
-    Activate(d_fore ? d_fore->w_norefresh : 0);
-  if (d_lay != oldlay)
+    Activate(D_fore ? D_fore->w_norefresh : 0);
+  if (D_lay != oldlay)
     {
 #ifdef NETHACK
       if (nethackflag)
@@ -142,42 +142,42 @@ int change_fore;
   struct win *p;
   int wwi;
 
-  if (d_width == wi && d_height == he)
+  if (D_width == wi && D_height == he)
     {
       debug("ChangeScreenSize: no change\n");
       return;
     }
-  debug2("ChangeScreenSize from (%d,%d) ", d_width, d_height);
+  debug2("ChangeScreenSize from (%d,%d) ", D_width, D_height);
   debug3("to (%d,%d) (change_fore: %d)\n",wi, he, change_fore);
-  d_width = wi;
-  d_height = he;
+  D_width = wi;
+  D_height = he;
 
   CheckMaxSize(wi);
-  if (CWS)
+  if (D_CWS)
     {
-      d_defwidth = CO;
-      d_defheight = LI;
+      D_defwidth = D_CO;
+      D_defheight = D_LI;
     }
   else
     {
-      if (CZ0 && (wi == Z0width || wi == Z1width) &&
-          (CO == Z0width || CO == Z1width))
-        d_defwidth = CO;
+      if (D_CZ0 && (wi == Z0width || wi == Z1width) &&
+          (D_CO == Z0width || D_CO == Z1width))
+        D_defwidth = D_CO;
       else
-        d_defwidth = wi;
-      d_defheight = he;
+        D_defwidth = wi;
+      D_defheight = he;
     }
-  debug2("Default size: (%d,%d)\n", d_defwidth, d_defheight);
+  debug2("Default size: (%d,%d)\n", D_defwidth, D_defheight);
   if (change_fore)
     DoResize(wi, he);
-  if (CWS == NULL && displays->_d_next == 0)
+  if (D_CWS == NULL && displays->d_next == 0)
     {
       /* adapt all windows  -  to be removed ? */
       for (p = windows; p; p = p->w_next)
         {
           debug1("Trying to change window %d.\n", p->w_number);
           wwi = wi;
-          if (CZ0 && (wi == Z0width || wi == Z1width))
+          if (D_CZ0 && (wi == Z0width || wi == Z1width))
 	    {
 	      if (p->w_width > (Z0width + Z1width) / 2)
 		wwi = Z0width;
@@ -198,15 +198,15 @@ int wi, he;
 
   for(;;)
     {
-      oldlay = d_lay;
-      for (; d_lay; d_lay = d_lay->l_next)
+      oldlay = D_lay;
+      for (; D_lay; D_lay = D_lay->l_next)
 	{
-	  d_layfn = d_lay->l_layfn;
+	  D_layfn = D_lay->l_layfn;
 	  if ((q = Resize(wi, he)))
 	    break;
 	}
-      d_lay = oldlay;
-      d_layfn = d_lay->l_layfn;
+      D_lay = oldlay;
+      D_layfn = D_lay->l_layfn;
       if (q == 0)
 	break;
       ExitOverlayPage();
@@ -292,7 +292,7 @@ int wi, hi, fillblank;
 	    onp = *arr;
 	}
       if (*arr)
-	free(*arr);
+	free((char *)*arr);
     }
   else
     narr = *arr;
@@ -393,7 +393,7 @@ int wi, hi, fillblank;
 	{
 	  while (--cp >= *arr)
 	    free(*cp);
-	  free(*arr);
+	  free((char *)*arr);
 	  *arr = NULL;
           return -1;
 	}
@@ -415,7 +415,7 @@ int hi;
   for (t = hi, p = *arr; t--; p++)
     if (*p && *p != null)
       free(*p);
-  free(*arr);
+  free((char *)*arr);
   *arr = 0;
 }
 
@@ -540,8 +540,8 @@ nomem:	  KillWindow(p);
       Msg(0, "Out of memory -> Window destroyed !!");
       return -1;
     }
-  /* this won't change the d_height of the scrollback history buffer, but
-   * it will check the d_width of the lines.
+  /* this won't change the D_height of the scrollback history buffer, but
+   * it will check the D_width of the lines.
    */
 #ifdef COPY_PASTE
   ChangeScrollback(p, p->w_histheight, wi);
@@ -549,7 +549,7 @@ nomem:	  KillWindow(p);
 
   if (p->w_tabs == 0)
     {
-      /* tabs get d_width+1 because 0 <= x <= wi */
+      /* tabs get D_width+1 because 0 <= x <= wi */
       if ((p->w_tabs = malloc((unsigned) wi + 1)) == 0)
         goto nomem;
       t = 8;

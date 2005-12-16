@@ -58,11 +58,20 @@ RCS_ID("$Id$ FAU")
 
 #include "config.h"
 
-#if defined(NEEDPUTENV)
+#ifdef NEEDPUTENV
+
+#if defined(__STDC__)
+# define __P(a) a
+#else
+# define __P(a) ()
+#endif
+
+char  *malloc __P((int));
+char  *realloc __P((char *, int));
+void   free __P((char *));
+int    sprintf __P((char *, char *, ...));
 
 #define EXTRASIZE 5        /* increment to add to env. size */
-
-char *malloc(), *realloc();
 
 static int  envsize = -1;    /* current size of environment */
 extern char **environ;        /* the global which is your env. */
@@ -191,7 +200,7 @@ moreenv()
   register char **env;
   
   esize = envsize + EXTRASIZE;
-  env = (char **)realloc(environ, esize * sizeof (*env));
+  env = (char **)realloc((char *)environ, esize * sizeof (*env));
   if (env == 0)
     return -1;
   environ = env;
@@ -200,5 +209,4 @@ moreenv()
 }
 
 #endif /* NEEDPUTENV */
-
 

@@ -25,13 +25,12 @@ RCS_ID("$Id$ FAU")
 
 
 #include <sys/types.h>
-#ifndef sgi
-# include <sys/file.h>
-#endif /* sgi */
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
-#include <signal.h>
+#ifndef SIGINT
+# include <signal.h>
+#endif
 
 #include "config.h" 
 #include "screen.h"
@@ -47,7 +46,7 @@ extern int real_uid, eff_uid;
 extern int real_gid, eff_gid;
 extern char *extra_incap, *extra_outcap;
 extern char *home, *RcFileName;
-extern char SockPath[], *SockNamePtr;
+extern char SockPath[], *SockName;
 #ifdef COPY_PASTE
 extern char *BufferFile;
 #endif
@@ -146,6 +145,12 @@ char *rcfilename;
   char buf[256];
   char *args[MAXARGS];
 
+
+  /* Special settings for vt100 and others */
+
+  if (display && (!strncmp(D_termname, "vt", 2) || !strncmp(D_termname, "xterm", 5)))
+    extra_incap = CatExtra("xn:f0=\033Op:f1=\033Oq:f2=\033Or:f3=\033Os:f4=\033Ot:f5=\033Ou:f6=\033Ov:f7=\033Ow:f8=\033Ox:f9=\033Oy:f.=\033On:f,=\033Ol:fe=\033OM:f+=\033Ok:f-=\033Om:f*=\033Oj:f/=\033Oo:fq=\033OX", extra_incap);
+
   rc_name = findrcfile(rcfilename);
 
   if ((fp = secfopen(rc_name, "r")) == NULL)
@@ -170,7 +175,7 @@ char *rcfilename;
     {
       if ((p = rindex(buf, '\n')) != NULL)
 	*p = '\0';
-      if ((argc = Parse(buf, args)) == 0)
+      if ((argc = Parse(expand_vars(buf), args)) == 0)
 	continue;
       if (strcmp(args[0], "echo") == 0)
 	{
@@ -220,10 +225,10 @@ char *rcfilename;
 	      len = strlen(p);
 	      if (p[len - 1] == '*')
 		{
-		  if (!(len - 1) || !strncmp(p, d_termname, len - 1))
+		  if (!(len - 1) || !strncmp(p, D_termname, len - 1))
 		    break;
 		}
-	      else if (!strcmp(p, d_termname))
+	      else if (!strcmp(p, D_termname))
 		break;
 	    }
 	  if (!(p && *p))
@@ -337,11 +342,11 @@ char *ss;
 	    {
 	      v = xbuf;
 	      if (strcmp(s, "TERM") == 0)
-		v = display ? d_termname : "unknown";
+		v = display ? D_termname : "unknown";
 	      else if (strcmp(s, "COLUMNS") == 0)
-		sprintf(xbuf, "%d", display ? d_width : -1);
+		sprintf(xbuf, "%d", display ? D_width : -1);
 	      else if (strcmp(s, "LINES") == 0)
-		sprintf(xbuf, "%d", display ? d_height : -1);
+		sprintf(xbuf, "%d", display ? D_height : -1);
 	      else
 		v = getenv(s);
 	    }
@@ -363,7 +368,7 @@ char *ss;
 	{
 	  /*
 	   * \$, \\$, \\, \\\, \012 are reduced here, 
-	   * d_other sequences starting whith \ are passed through.
+	   * other sequences starting whith \ are passed through.
 	   */
 	  if (s[0] == '\\' && !quofl)
 	    {
@@ -386,6 +391,8 @@ char *ss;
 		    }
 		  debug2("expandvars: octal coded character %o (%d)\n", i, i);
 		  *e++ = i;
+		  esize--;
+		  continue;
 		}
 	      else
 		{
@@ -438,7 +445,7 @@ int dump;
   switch (dump)
     {
     case DUMP_TERMCAP:
-      i = SockNamePtr - SockPath;
+      i = SockName - SockPath;
       strncpy(fn, SockPath, i);
       strcpy(fn + i, ".termcap");
       break;
@@ -475,14 +482,14 @@ int dump;
 	      if (*mode == 'a')
 		{
 		  putc('>', f);
-		  for (j = d_width - 2; j > 0; j--)
+		  for (j = D_width - 2; j > 0; j--)
 		    putc('=', f);
 		  fputs("<\n", f);
 		}
-	      for (i = 0; i < d_height; i++)
+	      for (i = 0; i < D_height; i++)
 		{
 		  p = fore->w_image[i];
-		  for (k = d_width - 1; k >= 0 && p[k] == ' '; k--)
+		  for (k = D_width - 1; k >= 0 && p[k] == ' '; k--)
 		    ;
 		  for (j = 0; j <= k; j++)
 		    putc(p[j], f);
@@ -498,9 +505,12 @@ int dump;
 	      break;
 #ifdef COPY_PASTE
 	    case DUMP_EXCHANGE:
-	      p = d_user->u_copybuffer;
-	      for (i = 0; i < d_user->u_copylen; i++)
-		putc(*p++, f);
+	      p = D_user->u_copybuffer;
+	      for (i = D_user->u_copylen; i-- > 0; p++)
+		if (*p == '\r' && (i == 0 || p[1] != '\n'))
+		  putc('\n', f);
+		else
+		  putc(*p, f);
 	      break;
 #endif
 	    }
@@ -531,57 +541,67 @@ int dump;
 
 #ifdef COPY_PASTE
 
-void
-ReadFile()
+/*
+ * returns an allocated buffer which holds a copy of the file named fn.
+ * lenp (if nonzero) points to a location, where the buffer size should be 
+ * stored.
+ */
+char *
+ReadFile(fn, lenp)
+char *fn;
+int *lenp;
 {
   int i, l, size;
-  char fn[1024], c;
+  char c, *bp, *buf;
   struct stat stb;
 
-  sprintf(fn, "%s", BufferFile);
+  ASSERT(lenp);
   debug1("ReadFile(%s)\n", fn);
   if ((i = secopen(fn, O_RDONLY, 0)) < 0)
     {
       Msg(errno, "no %s -- no slurp", fn);
-      return;
+      return NULL;
     }
   if (fstat(i, &stb))
     {
       Msg(errno, "no good %s -- no slurp", fn);
       close(i);
-      return;
+      return NULL;
     }
   size = stb.st_size;
-  if (d_user->u_copybuffer)
-    UserFreeCopyBuffer(d_user);
-  d_user->u_copylen = 0;
-  if ((d_user->u_copybuffer = malloc(size)) == NULL)
+  if ((buf = malloc(size)) == NULL)
     {
       close(i);
       Msg(0, strnomem);
-      return;
+      return NULL;
     }
   errno = 0;
-  if ((l = read(i, d_user->u_copybuffer, size)) != size)
+  if ((l = read(i, buf, size)) != size)
     {
-      d_user->u_copylen = (l > 0) ? l : 0;
+      if (l < 0) 
+        l = 0;
 #ifdef NETHACK
       if (nethackflag)
-        Msg(errno, "You choke on your food: %d bytes from %s", 
-	    d_user->u_copylen, fn);
+        Msg(errno, "You choke on your food: %d bytes from %s", l, fn);
       else
 #endif
-      Msg(errno, "Got only %d bytes from %s", d_user->u_copylen, fn);
+      Msg(errno, "Got only %d bytes from %s", l, fn);
       close(i);
-      return;
     }
-  d_user->u_copylen = l;
-  if (read(i, &c, 1) > 0)
-    Msg(0, "Slurped only %d characters into buffer - try again", d_user->u_copylen);
   else
-    Msg(0, "Slurped %d characters into buffer", d_user->u_copylen);
+    {
+      if (read(i, &c, 1) > 0)
+	Msg(0, "Slurped only %d characters (of %d) into buffer - try again", 
+	    l, size);
+      else
+	Msg(0, "Slurped %d characters into buffer", l);
+    }
   close(i);
-  return;
+  *lenp = l;
+  for (bp = buf; l-- > 0; bp++)
+    if (*bp == '\n' && (bp == buf || bp[-1] != '\r'))
+      *bp = '\r';
+  return buf;
 }
 
 void
@@ -589,23 +609,11 @@ KillBuffers()
 {
   char fn[1024];
   sprintf(fn, "%s", BufferFile);
-  errno = 0;
-#ifndef NOREUID
-  setreuid(eff_uid, real_uid);
-  setregid(eff_gid, real_gid);
-#else
-  if (access(fn, W_OK) == -1)
-    {
-      Msg(errno, "%s not removed", fn);
-      return;
-    }
-#endif
-  unlink(fn);
-  Msg(errno, "%s removed", fn);
-#ifndef NOREUID
-  setreuid(real_uid, eff_uid);
-  setregid(real_gid, eff_gid);
-#endif
+
+  if (UserContext() > 0)
+    UserReturn(unlink(SockPath) ? errno : 0);
+  errno = UserStatus();
+  Msg(errno, "%s %sremoved", fn, errno ? "not " : "");
 }
 #endif	/* COPY_PASTE */
 
@@ -620,17 +628,17 @@ char *name;
 char *mode;
 {
   FILE *fi;
-#ifdef NOREUID
+#ifndef USE_SETEUID
   int flags, fd;
 #endif
 
   debug2("secfopen(%s, %s)\n", name, mode);
-#ifndef NOREUID
-  setreuid(eff_uid, real_uid);
-  setregid(eff_gid, real_gid);
+#ifdef USE_SETEUID
+  xseteuid(real_uid);
+  xsetegid(real_gid);
   fi = fopen(name, mode);
-  setreuid(real_uid, eff_uid);
-  setregid(real_gid, eff_gid);
+  xseteuid(eff_uid);
+  xsetegid(eff_gid);
   return fi;
 #else
   if (eff_uid == real_uid)
@@ -667,18 +675,18 @@ int flags;
 int mode;
 {
   int fd;
-#ifdef NOREUID
+#ifndef USE_SETEUID
   int q;
   struct stat stb;
 #endif
 
   debug3("secopen(%s, 0x%x, 0%03o)\n", name, flags, mode);
-#ifndef NOREUID
-  setreuid(eff_uid, real_uid);
-  setregid(eff_gid, real_gid);
+#ifdef USE_SETEUID
+  xseteuid(real_uid);
+  xsetegid(real_gid);
   fd = open(name, flags, mode);
-  setreuid(real_uid, eff_uid);
-  setregid(real_gid, eff_gid);
+  xseteuid(eff_uid);
+  xsetegid(eff_gid);
   return fd;
 #else
   if (eff_uid == real_uid)
@@ -697,7 +705,7 @@ int mode;
 	    errno = EACCES;
 	  UserReturn(errno);
 	}
-      if (q = UserStatus())
+      if ((q = UserStatus()))
 	{
 	  if (q > 0)
 	    errno = q;
@@ -731,7 +739,7 @@ int mode;
         }
       if ((stb.st_mode & q) != q)
 	{
-          debug("secopen: permission denied\n");
+          debug1("secopen: permission denied (%03o)\n", stb.st_mode & 07777);
 	  close(fd);
 	  errno = EACCES;
 	  return(-1);

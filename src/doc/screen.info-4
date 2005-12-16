@@ -1,0 +1,237 @@
+This is Info file screen.info, produced by Makeinfo-1.55 from the input
+file ./screen.texinfo.
+
+   This file documents the the `Screen' virtual terminal manager.
+
+   Copyright (c) 1993 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of this
+manual provided the copyright notice and this permission notice are
+preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+File: screen.info,  Node: Command Index,  Next: Keystroke Index,  Prev: Concept Index,  Up: Top
+
+Command Index
+*************
+
+   This is a list of all the commands supported by `screen'.
+
+* Menu:
+
+* acladd:                               Acladd.
+* aclchg:                               Aclchg.
+* acldel:                               Acldel.
+* activity:                             Monitor.
+* allpartial:                           Redisplay.
+* at:                                   At.
+* autodetach:                           Detach.
+* autonuke:                             Autonuke.
+* bell_msg:                             Bell.
+* bind:                                 Bind.
+* bindkey:                              Bindkey.
+* break:                                Break.
+* bufferfile:                           Screen-Exchange.
+* c1:                                   Character Processing.
+* chdir:                                Chdir.
+* clear:                                Clear.
+* colon:                                Colon.
+* command:                              Command Character.
+* console:                              Console.
+* copy:                                 Copy.
+* copy_reg:                             Registers.
+* crlf:                                 Line Termination.
+* debug:                                Debug.
+* defautonuke:                          Autonuke.
+* defc1:                                Character Processing.
+* defescape:                            Command Character.
+* defflow:                              Flow.
+* defgr:                                Character Processing.
+* defkanji:                             Character Processing.
+* deflogin:                             Login.
+* defmode:                              Mode.
+* defmonitor:                           Monitor.
+* defobuflimit:                         Obuflimit.
+* defscrollback:                        Scrollback.
+* defwrap:                              Wrap.
+* defwritelock:                         Writelock.
+* defzombie:                            Zombie.
+* detach:                               Detach.
+* dumptermcap:                          Dump Termcap.
+* echo:                                 echo.
+* escape:                               Command Character.
+* exec:                                 Exec.
+* flow:                                 Flow.
+* gr:                                   Character Processing.
+* hardcopy:                             Hardcopy.
+* hardcopydir:                          Hardcopy.
+* hardcopy_append:                      Hardcopy.
+* hardstatus:                           Hardware Status Line.
+* height:                               Height.
+* help:                                 Help.
+* history:                              History.
+* info:                                 Info.
+* ins_reg:                              Registers.
+* kanji:                                Character Processing.
+* kill:                                 Kill.
+* lastmsg:                              Last Message.
+* license:                              License.
+* lockscreen:                           Lock.
+* log:                                  Log.
+* logdir:                               Log.
+* login:                                Login.
+* mapdefault:                           Bindkey Control.
+* mapnotnext:                           Bindkey Control.
+* maptimeout:                           Bindkey Control.
+* markkeys:                             Copy Mode Keys.
+* meta:                                 Command Character.
+* monitor:                              Monitor.
+* msgminwait:                           Message Wait.
+* msgwait:                              Message Wait.
+* multiuser:                            Multiuser.
+* nethack:                              Nethack.
+* next:                                 Next and Previous.
+* number:                               Number.
+* obuflimit:                            Obuflimit.
+* other:                                Other Window.
+* partial:                              Redisplay.
+* password:                             Detach.
+* paste:                                Paste.
+* pastefont:                            Paste.
+* pow_break:                            Break.
+* pow_detach:                           Power Detach.
+* pow_detach_msg:                       Power Detach.
+* prev:                                 Next and Previous.
+* printcmd:                             Printcmd.
+* process:                              Registers.
+* quit:                                 Quit.
+* readbuf:                              Screen-Exchange.
+* readreg:                              Paste.
+* redisplay:                            Redisplay.
+* register:                             Registers.
+* removebuf:                            Screen-Exchange.
+* reset:                                Reset.
+* screen:                               Screen Command.
+* scrollback:                           Scrollback.
+* select:                               Select.
+* sessionname:                          Session Name.
+* setenv:                               Setenv.
+* shell:                                Shell.
+* shelltitle:                           Shell.
+* silence:                              Silence.
+* silencewait:                          Silence.
+* sleep:                                sleep.
+* slowpaste:                            Paste.
+* startup_message:                      Startup Message.
+* stuff:                                Registers.
+* suspend:                              Suspend.
+* term:                                 Term.
+* termcap:                              Termcap Syntax.
+* terminfo:                             Termcap Syntax.
+* time:                                 Time.
+* title:                                Title Command.
+* unsetenv:                             Setenv.
+* vbell:                                Bell.
+* vbellwait:                            Bell.
+* vbell_msg:                            Bell.
+* version:                              Version.
+* wall:                                 Wall.
+* width:                                Width.
+* windows:                              Windows.
+* wrap:                                 Wrap.
+* writebuf:                             Screen-Exchange.
+* writelock:                            Writelock.
+* xoff:                                 XON/XOFF.
+* xon:                                  XON/XOFF.
+* zombie:                               Zombie.
+
+
+File: screen.info,  Node: Keystroke Index,  Prev: Command Index,  Up: Top
+
+Keystroke Index
+***************
+
+   This is a list of the default key bindings.
+
+   The leading escape character (*note Command Character::.) has been
+omitted from the key sequences, since it is the same for all bindings.
+
+* Menu:
+
+* ":                                    Select.
+* ':                                    Select.
+* .:                                    Dump Termcap.
+* 0...9:                                Select.
+* ::                                    Colon.
+* <:                                    Screen-Exchange.
+* =:                                    Screen-Exchange.
+* >:                                    Screen-Exchange.
+* ?:                                    Help.
+* {:                                    History.
+* a:                                    Command Character.
+* A:                                    Title Command.
+* C:                                    Clear.
+* c:                                    Screen Command.
+* C-a:                                  Other Window.
+* C-c:                                  Screen Command.
+* C-d:                                  Detach.
+* C-f:                                  Flow.
+* C-g:                                  Bell.
+* C-h:                                  Hardcopy.
+* C-i:                                  Info.
+* C-k:                                  Kill.
+* C-l:                                  Redisplay.
+* C-m:                                  Last Message.
+* C-n:                                  Next and Previous.
+* C-p:                                  Next and Previous.
+* C-q:                                  XON/XOFF.
+* C-r:                                  Wrap.
+* C-s:                                  XON/XOFF.
+* C-t:                                  Time.
+* C-v:                                  Version.
+* C-w:                                  Windows.
+* C-x:                                  Lock.
+* C-z:                                  Suspend.
+* C-[:                                  Copy.
+* C-\:                                  Quit.
+* C-]:                                  Paste.
+* D:                                    Power Detach.
+* d:                                    Detach.
+* ESC:                                  Copy.
+* f:                                    Flow.
+* h:                                    Hardcopy.
+* H:                                    Log.
+* i:                                    Info.
+* k:                                    Kill.
+* l:                                    Redisplay.
+* L:                                    Login.
+* M:                                    Monitor.
+* m:                                    Last Message.
+* N:                                    Number.
+* n:                                    Next and Previous.
+* p:                                    Next and Previous.
+* q:                                    XON/XOFF.
+* r:                                    Wrap.
+* s:                                    XON/XOFF.
+* SPC:                                  Next and Previous.
+* t:                                    Time.
+* v:                                    Version.
+* w:                                    Windows.
+* W:                                    Width.
+* x:                                    Lock.
+* Z:                                    Reset.
+* z:                                    Suspend.
+* [:                                    Copy.
+* ]:                                    Paste.
+
+

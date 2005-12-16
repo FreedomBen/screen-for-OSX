@@ -24,18 +24,18 @@
 
 /* screen.c */
 extern void  main __P((int, char **));
-extern sig_t SigHup __P(SIGPROTOARG);
+extern sigret_t SigHup __P(SIGPROTOARG);
 extern void  eexit __P((int));
 extern void  Detach __P((int));
 extern void  Kill __P((int, int));
 #ifdef USEVARARGS
 extern void  Msg __P((int, char *, ...))
-# ifdef __GNUC__
+# if __GNUC__ > 1
 __attribute__ ((format (printf, 2, 3)))
 # endif
 ;
 extern void  Panic __P((int, char *, ...))
-# ifdef __GNUC__
+# if __GNUC__ > 1
 __attribute__ ((format (printf, 2, 3)))
 # endif
 ;
@@ -44,12 +44,13 @@ extern void  Msg __P(());
 extern void  Panic __P(());
 #endif
 extern void  DisplaySleep __P((int));
-extern sig_t Finit __P((int));
+extern void  Finit __P((int));
 extern void  MakeNewEnv __P((void));
 
 /* ansi.c */
 extern void  Activate __P((int));
 extern void  ResetWindow __P((struct win *));
+extern void  ResetCharsets __P((struct win *));
 extern void  WriteString __P((struct win *, char *, int));
 extern void  NewAutoFlow __P((struct win *, int));
 extern void  Redisplay __P((int));
@@ -66,7 +67,7 @@ extern void  RcLine __P((char *));
 extern FILE *secfopen __P((char *, char *));
 extern int   secopen __P((char *, int, int));
 extern void  WriteFile __P((int));
-extern void  ReadFile __P((void));
+extern char *ReadFile __P((char *, int *));
 extern void  KillBuffers __P((void));
 extern char *expand_vars __P((char *));
 
@@ -90,6 +91,7 @@ extern int   GetHistory __P((void));
 extern void  MarkRoutine __P((void));
 extern void  revto_line __P((int, int, int));
 extern void  revto __P((int, int));
+extern int   InMark __P((void));
 
 /* search.c */
 extern void  Search __P((int));
@@ -104,9 +106,11 @@ extern void  exit_with_usage __P((char *));
 extern void  display_help __P((void));
 extern void  display_copyright __P((void));
 extern void  display_displays __P((void));
+extern void  display_bindkey __P((char *, struct action *));
 
 /* window.c */
 extern int   MakeWindow __P((struct NewWindow *));
+extern int   RemakeWindow __P((struct win *));
 extern void  FreeWindow __P((struct win *));
 #ifdef PSEUDOS
 extern int   winexec __P((char **));
@@ -150,6 +154,7 @@ extern void  SetForeWindow __P((struct win *));
 extern int   Parse __P((char *, char **));
 extern int   ParseEscape __P((struct user *, char *));
 extern void  DoScreen __P((char *, char **));
+extern int   IsNumColon __P((char *, int, char *, int));
 extern void  ShowWindows __P((void));
 extern int   WindowByNoN __P((char *));
 #ifdef COPY_PASTE
@@ -160,11 +165,14 @@ extern int   CompileKeys __P((char *, char *));
 extern int   InitTermcap __P((int, int));
 extern char *MakeTermcap __P((int));
 extern char *gettermcapstring __P((char *));
+#ifdef MAPKEYS
+extern int   remap __P((int, int));
+#endif
 
 /* attacher.c */
 extern int   Attach __P((int));
 extern void  Attacher __P((void));
-extern sig_t AttacherFinit __P(SIGPROTOARG);
+extern sigret_t AttacherFinit __P(SIGPROTOARG);
 
 /* display.c */
 extern struct display *MakeDisplay __P((char *, char *, char *, int, int, struct mode *));
@@ -185,17 +193,21 @@ extern void  PUTCHAR __P((int));
 extern void  PUTCHARLP __P((int));
 extern void  RAW_PUTCHAR __P((int));
 extern void  ClearDisplay __P((void));
-extern void  Clear __P((int, int, int, int));
+extern void  Clear __P((int, int, int, int, int, int, int));
 extern void  RefreshLine __P((int, int, int, int));
+extern void  RefreshStatus __P((void));
 extern void  DisplayLine __P((char *, char *, char *, char *, char *, char *, int, int, int));
 extern void  FixLP __P((int, int));
 extern void  GotoPos __P((int, int));
 extern int   CalcCost __P((char *));
-extern void  ScrollRegion __P((int, int, int));
+extern void  ScrollH __P((int, int, int, int, char *, char *, char *));
+extern void  ScrollV __P((int, int, int, int, int));
 extern void  ChangeScrollRegion __P((int, int));
 extern void  InsertMode __P((int));
 extern void  KeypadMode __P((int));
 extern void  CursorkeysMode __P((int));
+extern void  ReverseVideo __P((int));
+extern void  CursorInvisible __P((int));
 extern void  SetFont __P((int));
 extern void  SetAttr __P((int));
 extern void  SetAttrFont __P((int, int));
@@ -213,6 +225,9 @@ extern void  Resize_obuf __P((void));
 #ifdef AUTO_NUKE
 extern void  NukePending __P((void));
 #endif
+#ifdef KANJI
+extern int   badkanji __P((char *, int));
+#endif
 
 /* resize.c */
 extern int   ChangeScrollback __P((struct win *, int, int));
@@ -223,16 +238,16 @@ extern void  DoResize __P((int, int));
 extern char *xrealloc __P((char *, int));
 
 /* socket.c */
-extern int   FindSocket __P((int, int *));
-extern int   MakeClientSocket __P((int, char *));
+extern int   FindSocket __P((int *, int *, char *));
+extern int   MakeClientSocket __P((int));
 extern int   MakeServerSocket __P((void));
 extern int   RecoverSocket __P((void));
 extern int   chsock __P((void));
 extern void  ReceiveMsg __P(());
-extern void  SendCreateMsg __P((int, struct NewWindow *));
+extern void  SendCreateMsg __P((char *, struct NewWindow *));
 #ifdef USEVARARGS
 extern void  SendErrorMsg __P((char *, ...))
-# ifdef __GNUC__
+# if __GNUC__ > 1
 __attribute__ ((format (printf, 1, 2)))
 # endif
 ;
@@ -242,17 +257,32 @@ extern void  SendErrorMsg __P(());
 
 /* misc.c */
 extern char *SaveStr __P((const char *));
+#ifndef HAVE_STRERROR
+extern char *strerror __P((int));
+#endif
 extern void  centerline __P((char *));
 extern char *Filename __P((char *));
 extern char *stripdev __P((char *));
-#if defined(NEED_OWN_BCOPY) && !defined(linux)
-extern void  bcopy __P((char *, char *, int));
+#ifdef NEED_OWN_BCOPY
+extern void  xbcopy __P((char *, char *, int));
 #endif
 extern void  bclear __P((char *, int));
 extern void  closeallfiles __P((int));
 extern int   UserContext __P((void));
 extern void  UserReturn __P((int));
 extern int   UserStatus __P((void));
+#if defined(POSIX) || defined(hpux)
+extern void (*xsignal __P((int, void (*)SIGPROTOARG))) __P(SIGPROTOARG);
+#endif
+#ifdef NEED_RENAME
+extern int   rename __P((char *, char *));
+#endif
+#if defined(HAVE_SETEUID) || defined(HAVE_SETREUID)
+extern void  xseteuid  __P((int));
+extern void  xsetegid  __P((int));
+#endif
+extern int   AddXChar __P((char *, int));
+extern int   AddXChars __P((char *, int, char *));
 
 /* acl.c */
 #ifdef MULTIUSER

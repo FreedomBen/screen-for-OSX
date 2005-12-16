@@ -52,16 +52,33 @@ register const char *str;
   return cp;
 }
 
+#ifndef HAVE_STRERROR
+char *
+strerror(err)
+int err;
+{
+  extern int sys_nerr;
+  extern char *sys_errlist[];
+
+  static char er[20];
+  if (err > 0 && err < sys_nerr)
+    return(sys_errlist[err]);
+  sprintf(er, "Error %d", err);
+  return er;
+}
+#endif
+
 void
 centerline(str)
 char *str;
 {
   int l, n;
 
+  ASSERT(display);
   n = strlen(str);
-  if (n > d_width - 1)
-    n = d_width - 1;
-  l = (d_width - 1 - n) / 2;
+  if (n > D_width - 1)
+    n = D_width - 1;
+  l = (D_width - 1 - n) / 2;
   if (l > 0)
     AddStrn("", l);
   AddStrn(str, n);
@@ -101,15 +118,34 @@ char *nam;
   return nam;
 }
 
-#ifdef hpux
+
+/*
+ *    Signal handling
+ */
+
+#ifdef POSIX
+sigret_t (*xsignal(sig, func)) __P(SIGPROTOARG)
+int sig;
+sigret_t (*func) __P(SIGPROTOARG);
+{
+  struct sigaction osa, sa;
+  sa.sa_handler = func;
+  (void)sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+  if (sigaction(sig, &sa, &osa))
+    return (sigret_t (*)__P(SIGPROTOARG))-1;
+  return osa.sa_handler;
+}
+
+#else
+# ifdef hpux
 /*
  * hpux has berkeley signal semantics if we use sigvector,
  * but not, if we use signal, so we define our own signal() routine.
- * (jw)
  */
-void (*signal(sig, func)) ()
+void (*xsignal(sig, func)) __P(SIGPROTOARG)
 int sig;
-void (*func) ();
+void (*func) __P(SIGPROTOARG);
 {
   struct sigvec osv, sv;
 
@@ -117,28 +153,82 @@ void (*func) ();
   sv.sv_mask = sigmask(sig);
   sv.sv_flags = SV_BSDSIG;
   if (sigvector(sig, &sv, &osv) < 0)
-    return (BADSIG);
+    return (void (*)__P(SIGPROTOARG))(BADSIG);
   return (osv.sv_handler);
 }
-#endif	/* hpux */
+# endif	/* hpux */
+#endif	/* POSIX */
+
+
+/*
+ *    uid/gid handling
+ */
+
+#ifdef HAVE_SETEUID
+
+void
+xseteuid(euid)
+int euid;
+{
+  if (seteuid(euid) == 0)
+    return;
+  seteuid(0);
+  if (seteuid(euid))
+    Panic(errno, "seteuid");
+}
+
+void
+xsetegid(egid)
+int egid;
+{
+  if (setegid(egid))
+    Panic(errno, "setegid");
+}
+
+#else
+# ifdef HAVE_SETREUID
+
+void
+xseteuid(euid)
+int euid;
+{
+  int oeuid;
+
+  oeuid = geteuid();
+  if (oeuid == euid)
+    return;
+  if (getuid() != euid)
+    oeuid = getuid();
+  if (setreuid(oeuid, euid))
+    Panic(errno, "setreuid");
+}
+
+void
+xsetegid(egid)
+int egid;
+{
+  int oegid;
+
+  oegid = getegid();
+  if (oegid == egid)
+    return;
+  if (getgid() != egid)
+    oegid = getgid();
+  if (setregid(oegid, egid))
+    Panic(errno, "setregid");
+}
+
+# endif
+#endif
+
+
 
 #ifdef NEED_OWN_BCOPY
 void
-#ifdef linux
-bcopy(ss1, ss2, len)
-register const void *ss1;
-register void *ss2;
-#else
-bcopy(s1, s2, len)
+xbcopy(s1, s2, len)
 register char *s1, *s2;
-#endif
-
 register int len;
 {
-#ifdef linux
-  register char *s1 = (char *)ss1;
-  register char *s2 = (char *)ss2;
-#endif
   if (s1 < s2 && s2 < s1 + len)
     {
       s1 += len;
@@ -159,6 +249,7 @@ int n;
 {
   bcopy(blank, p, n);
 }
+
 
 void
 Kill(pid, sig)
@@ -193,18 +284,23 @@ int except;
 }
 
 
-#ifdef NOREUID
+
+/*
+ *  Security - switch to real uid
+ */
+
+#ifndef USE_SETEUID
 static int UserPID;
-static sig_t (*Usersigcld)__P(SIGPROTOARG);
+static sigret_t (*Usersigcld)__P(SIGPROTOARG);
 #endif
 static int UserSTAT;
 
 int
 UserContext()
 {
-#ifdef NOREUID
-  if (eff_uid == real_uid)
-    return(1);
+#ifndef USE_SETEUID
+  if (eff_uid == real_uid && eff_gid == real_gid)
+    return 1;
   Usersigcld = signal(SIGCHLD, SIG_DFL);
   debug("UserContext: forking.\n");
   switch (UserPID = fork())
@@ -228,8 +324,8 @@ UserContext()
       return 0;
     }
 #else
-  setreuid(eff_uid, real_uid);
-  setregid(eff_gid, real_gid);
+  xseteuid(real_uid);
+  xsetegid(real_gid);
   return 1;
 #endif
 }
@@ -238,14 +334,14 @@ void
 UserReturn(val)
 int val;
 {
-#if defined(NOREUID)
-  if (eff_uid == real_uid)
+#ifndef USE_SETEUID
+  if (eff_uid == real_uid && eff_gid == real_gid)
     UserSTAT = val;
   else
-    exit(val);
+    _exit(val);
 #else
-  setreuid(real_uid, eff_uid);
-  setregid(real_gid, eff_gid);
+  xseteuid(eff_uid);
+  xsetegid(eff_gid);
   UserSTAT = val;
 #endif
 }
@@ -253,7 +349,7 @@ int val;
 int
 UserStatus()
 {
-#ifdef NOREUID
+#ifndef USE_SETEUID
   int i;
 # ifdef BSDWAIT
   union wait wstat;
@@ -261,7 +357,7 @@ UserStatus()
   int wstat;
 # endif
 
-  if (eff_uid == real_uid)
+  if (eff_uid == real_uid && eff_gid == real_gid)
     return UserSTAT;
   if (UserPID < 0)
     return -1;
@@ -275,4 +371,60 @@ UserStatus()
 #else
   return UserSTAT;
 #endif
+}
+
+#ifdef NEED_RENAME
+int
+rename (old, new)
+char *old;
+char *new;
+{
+  if (link(old, new) < 0)
+    return -1;
+  return unlink(old);
+}
+#endif
+
+
+int
+AddXChar(buf, ch)
+char *buf;
+int ch;
+{
+  char *p = buf;
+
+  if (ch < ' ' || ch == 0x7f)
+    {
+      *p++ = '^';
+      *p++ = ch ^ 0x40;
+    }
+  else if (ch >= 0x80)
+    {
+      *p++ = '\\';
+      *p++ = (ch >> 6 & 7) + '0';
+      *p++ = (ch >> 3 & 7) + '0';
+      *p++ = (ch >> 0 & 7) + '0';
+    }
+  else
+    *p++ = ch;
+  return p - buf;
+}
+
+int
+AddXChars(buf, len, str)
+char *buf, *str;
+int len;
+{
+  char *p;
+
+  len -= 4;     /* longest sequence produced by AddXChar() */
+  for (p = buf; p < buf + len && *str; str++)
+    {
+      if (*str == ' ')
+        *p++ = *str;
+      else
+        p += AddXChar(p, *str);
+    }
+  *p = 0;
+  return p - buf;
 }

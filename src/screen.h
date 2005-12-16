@@ -107,6 +107,11 @@ struct mode
 #else /* POSIX */
 # ifdef TERMIO
   struct termio tio;
+#  ifdef CYTERMIO
+  int m_mapkey;
+  int m_mapscreen;
+  int m_backspace;
+#  endif
 # else /* TERMIO */
   struct sgttyb m_ttyb;
   struct tchars m_tchars;
@@ -114,6 +119,10 @@ struct mode
   int m_ldisc;
   int m_lmode;
 # endif /* TERMIO */
+#if defined(KANJI) && defined(TIOCKSET)
+  struct jtchars m_jtchars;
+  int m_knjmode;
+# endif
 #endif /* POSIX */
 };
 
@@ -212,21 +221,6 @@ struct msg
 #define DUMP_EXCHANGE	2
 
 extern char strnomem[];
-
-
-struct NewWindow
-{
-  int	StartAt;	/* where to start the search for the slot */
-  char	*aka;		/* aka string */
-  char	**args;		/* argv vector */
-  char	*dir;		/* directory for chdir */
-  char	*term;		/* TERM to be set instead of "screen" */
-  int	aflag;
-  int	flowflag;
-  int	lflag;
-  int	histheight;
-  int	monitor;
-};
 
 /*
  * line modes used by Input()

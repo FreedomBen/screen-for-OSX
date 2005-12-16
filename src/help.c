@@ -53,7 +53,7 @@ char *myname;
   printf("-f           Flow control on, -fn = off, -fa = auto.\n");
   printf("-h lines     Set the size of the scrollback history buffer.\n");
   printf("-i           Interrupt output sooner when flow control is on.\n");
-#ifdef LOGOUTOK
+#if defined(LOGOUTOK) && defined(UTMPOK)
   printf("-l           Login mode on (update %s), -ln = off.\n", UTMPFILE);
 #endif
   printf("-list        or -ls. Do nothing, just list our SockDir.\n");
@@ -88,6 +88,7 @@ static void HelpAbort __P((void));
 static void HelpRedisplayLine __P((int, int, int, int));
 static void HelpSetCursor __P((void));
 static void add_key_to_buf __P((char *, int));
+static int  AddAction __P((struct action *, int));
 static int  helppage __P((void));
 
 struct helpdata
@@ -122,7 +123,7 @@ display_help()
   struct helpdata *helpdata;
   int used[RC_LAST + 1];
 
-  if (d_height < 6)
+  if (D_height < 6)
     {
       Msg(0, "Window height too small for help page");
       return;
@@ -130,7 +131,7 @@ display_help()
   if (InitOverlayPage(sizeof(*helpdata), &HelpLf, 0))
     return;
 
-  helpdata = (struct helpdata *)d_lay->l_data;
+  helpdata = (struct helpdata *)D_lay->l_data;
   helpdata->num_names = helpdata->command_bindings = 0;
   helpdata->command_search = 0;
   for (n = 0; n <= RC_LAST; n++)
@@ -166,14 +167,14 @@ display_help()
 
   if (mkey > MAXKLEN)
     mkey = MAXKLEN;
-  helpdata->numcols = (d_width - !CLP)/(mcom + mkey + 1);
+  helpdata->numcols = (D_width - !D_CLP)/(mcom + mkey + 1);
   if (helpdata->numcols == 0)
     {
       HelpAbort();
       Msg(0, "Width too small");
       return;
     }
-  helpdata->inter = (d_width - !CLP - (mcom + mkey) * helpdata->numcols) / (helpdata->numcols + 1);
+  helpdata->inter = (D_width - !D_CLP - (mcom + mkey) * helpdata->numcols) / (helpdata->numcols + 1);
   if (helpdata->inter <= 0)
     helpdata->inter = 1;
   debug1("inter: %d\n", helpdata->inter);
@@ -181,24 +182,24 @@ display_help()
   helpdata->mkey = mkey;
   helpdata->numrows = (helpdata->num_names + helpdata->numcols - 1) / helpdata->numcols;
   debug1("Numrows: %d\n", helpdata->numrows);
-  helpdata->numskip = d_height-5 - (2 + helpdata->numrows);
+  helpdata->numskip = D_height-5 - (2 + helpdata->numrows);
   while (helpdata->numskip < 0)
-    helpdata->numskip += d_height-5;
-  helpdata->numskip %= d_height-5;
+    helpdata->numskip += D_height-5;
+  helpdata->numskip %= D_height-5;
   debug1("Numskip: %d\n", helpdata->numskip);
-  if (helpdata->numskip > d_height/3 || helpdata->numskip > helpdata->command_bindings)
+  if (helpdata->numskip > D_height/3 || helpdata->numskip > helpdata->command_bindings)
     helpdata->numskip = 1;
   helpdata->maxrow = 2 + helpdata->numrows + helpdata->numskip + helpdata->command_bindings;
   helpdata->grow = 0;
 
-  helpdata->numpages = (helpdata->maxrow + d_height-6) / (d_height-5);
+  helpdata->numpages = (helpdata->maxrow + D_height-6) / (D_height-5);
   helppage();
 }
 
 static void
 HelpSetCursor()
 {
-  GotoPos(0, d_height - 1);
+  GotoPos(0, D_height - 1);
 }
 
 static void
@@ -208,7 +209,7 @@ int *plen;
 {
   int done = 0;
 
-  GotoPos(0, d_height-1);
+  GotoPos(0, D_height-1);
   while (!done && *plen > 0)
     {
       switch (**ppbuf)
@@ -246,7 +247,7 @@ helppage()
   int col, crow, n, key;
   char buf[MAXKLEN], Esc_buf[5], cbuf[256];
 
-  helpdata = (struct helpdata *)d_lay->l_data;
+  helpdata = (struct helpdata *)D_lay->l_data;
 
   if (helpdata->grow >= helpdata->maxrow)
     { 
@@ -259,20 +260,20 @@ helppage()
   SetAttrFont(0, ASCII);
   ClearDisplay();
   
-  sprintf(cbuf,"Screen key bindings, page %d of %d.", helpdata->grow / (d_height-5) + 1, helpdata->numpages);
+  sprintf(cbuf,"Screen key bindings, page %d of %d.", helpdata->grow / (D_height-5) + 1, helpdata->numpages);
   centerline(cbuf);
   AddChar('\n');
   crow = 2;
 
   *Esc_buf = '\0';
-  add_key_to_buf(Esc_buf, d_user->u_Esc);
+  add_key_to_buf(Esc_buf, D_user->u_Esc);
 
-  for (; crow < d_height - 3; crow++)
+  for (; crow < D_height - 3; crow++)
     {
       if (helpdata->grow < 1)
         {
    	  *buf = '\0';
-          add_key_to_buf(buf, d_user->u_MetaEsc);
+          add_key_to_buf(buf, D_user->u_MetaEsc);
           sprintf(cbuf,"Command key:  %s   Literal %s:  %s", Esc_buf, Esc_buf, buf);
           centerline(cbuf);
 	  helpdata->grow++;
@@ -300,8 +301,6 @@ helppage()
       else if (helpdata->grow-2-helpdata->numrows >= helpdata->numskip 
                && helpdata->grow-2-helpdata->numrows-helpdata->numskip < helpdata->command_bindings)
         {
-          char **pp, *cp;
-
 	  while ((n = ktab[helpdata->command_search].nr) == RC_ILLEGAL
 		 || ktab[helpdata->command_search].args == noargs)
 	    {
@@ -311,39 +310,7 @@ helppage()
 	  buf[0] = '\0';
 	  add_key_to_buf(buf, helpdata->command_search);
 	  AddStrn(buf, 4);
-	  col = 4;
-	  AddStr(comms[n].name);
-	  AddChar(' ');
-	  col += strlen(comms[n].name) + 1;
-	  pp = ktab[helpdata->command_search++].args;
-	  while (pp && (cp = *pp) != NULL)
-	    {
-	      if (!*cp || (index(cp, ' ') != NULL))
-		{
-		  if (index(cp, '\'') != NULL)
-		    *buf = '"';
-		  else
-		    *buf = '\'';
-		  sprintf(buf + 1, "%s%c", cp, *buf);
-		  cp = buf;
-		}
-	      if ((col += strlen(cp) + 1) >= d_width)
-		{
-		  col = d_width - (col - (strlen(cp) + 1)) - 2;
-		  if (col >= 0)
-		    {
-		      n = cp[col];
-		      cp[col] = '\0';
-		      AddStr(*pp);
-		      AddChar('$');
-		      cp[col] = (char) n;
-	  	    }
-	          break;
-	        }
-	      AddStr(cp);
-	      AddChar((d_width - col != 1 || !pp[1]) ? ' ' : '$');
-	      pp++;
-	    }
+	  AddAction(&ktab[helpdata->command_search++], D_width - 5);
 	  AddStr("\r\n");
 	  helpdata->grow++;
 	}
@@ -357,8 +324,61 @@ helppage()
   sprintf(cbuf,"[Press Space %s Return to end.]",
 	 helpdata->grow < helpdata->maxrow ? "for next page;" : "or");
   centerline(cbuf);
-  SetLastPos(0, d_height-1);
+  SetLastPos(0, D_height-1);
   return(0);
+}
+
+static int
+AddAction(act, fr)
+struct action *act;
+int fr;
+{
+  char buf[256];
+  int del, l;
+  char *bp, *cp, **pp;
+
+  if (fr <= 0)
+    return 0;
+  l = strlen(comms[act->nr].name);
+  
+  if (l + 1 > fr)
+    l = fr - 1;
+  AddStrn(comms[act->nr].name, l);
+  fr -= l + 1;
+  AddChar(fr ? ' ' : '$');
+
+  pp = act->args;
+  while (pp && (cp = *pp) != NULL)
+    {
+      del = 0;
+      bp = buf;
+      if (!*cp || (index(cp, ' ') != NULL))
+	{
+	  if (index(cp, '\'') != NULL)
+	    *bp++ = del = '"';
+	  else
+	    *bp++ = del = '\'';
+	}
+      while (*cp && bp < buf + 250)
+        bp += AddXChar(bp, *cp++);
+      if (del)
+	*bp++ = del;
+      *bp = 0;
+      if ((fr -= (bp - buf) + 1) < 0)
+	{
+	  fr += bp - buf;
+	  if (fr > 0)
+	    AddStrn(buf, fr);
+	  if (fr == 0)
+	    AddChar('$');
+	  return 0;
+	}
+      AddStr(buf);
+      pp++;
+      if (*pp)
+        AddChar(fr ? ' ' : '$');
+    }
+  return fr;
 }
 
 static void
@@ -370,12 +390,7 @@ int key;
   buf += strlen(buf);
   if (key == ' ')
     sprintf(buf, "sp");
-  else if (key < ' ' || key == 0x7f)
-    sprintf(buf, "^%c", (key ^ 0x40));
-  else if (key >= 0x80)
-    sprintf(buf, "\\%03o", key);
-  else
-    sprintf(buf, "%c", key);
+  else buf[AddXChar(buf, key)] = 0;
 }
 
 
@@ -387,17 +402,17 @@ int y, xs, xe, isblank;
     {
       struct helpdata *helpdata;
 
-      helpdata = (struct helpdata *)d_lay->l_data;
+      helpdata = (struct helpdata *)D_lay->l_data;
       helpdata->grow = helpdata->refgrow;
       helpdata->command_search = helpdata->refcommand_search;
       helppage();
       return;
     }
-  if (y != 0 && y != d_height - 1)
+  if (y != 0 && y != D_height - 1)
     return;
   if (isblank)
     return;
-  Clear(xs, y, xe, y);
+  Clear(xs, y, xs, xe, xe, y, 0);
 }
 
 
@@ -459,7 +474,7 @@ screen@uni-erlangen.de\n";
 static void
 CopyrightSetCursor()
 {
-  GotoPos(0, d_height - 1);
+  GotoPos(0, D_height - 1);
 }
 
 static void
@@ -470,8 +485,8 @@ int *plen;
   int done = 0;
   struct copydata *copydata;
 
-  copydata = (struct copydata *)d_lay->l_data;
-  GotoPos(0, d_height - 1);
+  copydata = (struct copydata *)D_lay->l_data;
+  GotoPos(0, D_height - 1);
   while (!done && *plen > 0)
     {
       switch (**ppbuf)
@@ -508,14 +523,14 @@ display_copyright()
 {
   struct copydata *copydata;
 
-  if (d_width < 10 || d_height < 5)
+  if (D_width < 10 || D_height < 5)
     {
       Msg(0, "Window size too small for copyright page");
       return;
     }
   if (InitOverlayPage(sizeof(*copydata), &CopyrightLf, 0))
     return;
-  copydata = (struct copydata *)d_lay->l_data;
+  copydata = (struct copydata *)D_lay->l_data;
   copydata->cps = (char *)cpmsg;
   copydata->savedcps = 0;
   copypage();
@@ -530,14 +545,14 @@ copypage()
   char cbuf[80];
   struct copydata *copydata;
 
-  copydata = (struct copydata *)d_lay->l_data;
+  copydata = (struct copydata *)D_lay->l_data;
   SetAttrFont(0, ASCII);
   ClearDisplay();
   x = y = 0;
   cps = copydata->cps;
   copydata->refcps = cps;
   copydata->refsavedcps = copydata->savedcps;
-  while (*cps && y < d_height - 3)
+  while (*cps && y < D_height - 3)
     {
       ws = cps;
       while (*cps == ' ')
@@ -552,9 +567,9 @@ copypage()
 	cps++;
       l = cps - ws;
       cps = ws;
-      if (l > d_width - 1)
-	l = d_width - 1;
-      if (x && x + l >= d_width - 2)
+      if (l > D_width - 1)
+	l = D_width - 1;
+      if (x && x + l >= D_width - 2)
 	{
 	  AddStr("\r\n");
 	  x = 0;
@@ -586,12 +601,12 @@ copypage()
     }
   while (*cps == '\n')
     cps++;
-  while (y++ < d_height - 2)
+  while (y++ < D_height - 2)
     AddStr("\r\n");
   sprintf(cbuf,"[Press Space %s Return to end.]",
 	 *cps ? "for next page;" : "or");
   centerline(cbuf);
-  SetLastPos(0, d_height-1);
+  SetLastPos(0, D_height-1);
   copydata->cps = cps;
 }
 
@@ -603,17 +618,17 @@ int y, xs, xe, isblank;
     {
       struct copydata *copydata;
 
-      copydata = (struct copydata *)d_lay->l_data;
+      copydata = (struct copydata *)D_lay->l_data;
       copydata->cps = copydata->refcps;
       copydata->savedcps = copydata->refsavedcps;
       copypage();
       return;
     }
-  if (y != 0 && y != d_height - 1)
+  if (y != 0 && y != D_height - 1)
     return;
   if (isblank)
     return;
-  Clear(xs, y, xe, y);
+  Clear(xs, y, xs, xe, xe, y, 0);
 }
 
 void 
@@ -622,3 +637,218 @@ display_displays()
   /* To be filled in... */
 }
 
+/*
+**
+**    The bindkey help page
+**
+*/
+
+#ifdef MAPKEYS
+
+extern char *kmap_extras[];
+extern int kmap_extras_fl[];
+extern struct term term[];
+
+static void BindkeyProcess __P((char **, int *));
+static void BindkeyAbort __P((void));
+static void BindkeyRedisplayLine __P((int, int, int, int));
+static void BindkeySetCursor __P((void));
+static void bindkeypage __P((void));
+
+struct bindkeydata
+{
+  char *title;
+  struct action *tab;
+  int pos;
+  int last;
+  int page;
+  int pages;
+};
+
+static struct LayFuncs BindkeyLf =
+{
+  BindkeyProcess,
+  BindkeyAbort,
+  BindkeyRedisplayLine,
+  DefClearLine,
+  DefRewrite,
+  BindkeySetCursor,
+  DefResize,
+  DefRestore
+};
+
+
+void
+display_bindkey(title, tab)
+char *title;
+struct action *tab;
+{
+  struct bindkeydata *bindkeydata;
+  int i, n;
+
+  if (display == 0)
+    return;
+  if (D_height < 6)
+    {
+      Msg(0, "Window height too small for bindkey page");
+      return;
+    }
+  if (InitOverlayPage(sizeof(*bindkeydata), &BindkeyLf, 0))
+    return;
+
+  bindkeydata = (struct bindkeydata *)D_lay->l_data;
+  bindkeydata->title = title;
+  bindkeydata->tab = tab;
+  
+  n = 0;
+  for (i = 0; i < KMAP_KEYS+KMAP_AKEYS+KMAP_EXT; i++)
+    {
+      if (tab[i].nr != RC_ILLEGAL)
+	n++;
+    }
+  bindkeydata->pos = 0;
+  bindkeydata->page = 1;
+  bindkeydata->pages = (n + D_height - 6) / (D_height - 5);
+  if (bindkeydata->pages == 0)
+    bindkeydata->pages = 1;
+  bindkeypage();
+}
+
+static void
+BindkeySetCursor()
+{
+  GotoPos(0, D_height - 1);
+}
+
+static void
+BindkeyAbort()
+{
+  LAY_CALL_UP(Activate(0));
+  ExitOverlayPage();
+}
+
+static void
+bindkeypage()
+{
+  struct bindkeydata *bindkeydata;
+  char tbuf[256];
+  int del, i, ch, y;
+  struct action *act;
+  char *xch, *s, *p;
+
+  bindkeydata = (struct bindkeydata *)D_lay->l_data;
+
+  SetAttrFont(0, ASCII);
+  ClearDisplay();
+
+  sprintf(tbuf, "%s key bindings, page %d of %d.", bindkeydata->title, bindkeydata->page, bindkeydata->pages);
+  centerline(tbuf);
+  AddChar('\n');
+  y = D_height - 5;
+  for (i = bindkeydata->pos; i < KMAP_KEYS+KMAP_AKEYS+KMAP_EXT && y; i++)
+    {
+      p = tbuf;
+      act = &bindkeydata->tab[i];
+      if (act->nr == RC_ILLEGAL)
+	continue;
+      xch = "   ";
+      if (i < KMAP_KEYS)
+	{
+	  del = *p++ = ':';
+	  s = term[i + T_CAPS].tcname;
+	}
+      else if (i < KMAP_KEYS+KMAP_AKEYS)
+	{
+	  del = *p++ = ':';
+	  s = term[i + (T_CAPS - T_OCAPS + T_CURSOR)].tcname;
+	  xch = "[A]";
+	}
+      else
+	{
+	  del = 0;
+	  s = kmap_extras[i - (KMAP_KEYS+KMAP_AKEYS)];
+	  if (kmap_extras_fl[i - (KMAP_KEYS+KMAP_AKEYS)])
+	    xch = "[T]";
+	}
+      while ((ch = *(unsigned char *)s++))
+	p += AddXChar(p, ch);
+      if (del)
+	*p++ = del;
+      *p++ = ' ';
+      while (p < tbuf + 15)
+        *p++ = ' ';
+      sprintf(p, "%s -> ", xch);
+      p += 7;
+      if (p - tbuf > D_width - 1)
+	{
+	  tbuf[D_width - 2] = '$';
+	  tbuf[D_width - 1] = 0;
+	}
+      AddStr(tbuf);
+      AddAction(act, D_width - 1 - strlen(tbuf));
+      AddStr("\r\n");
+      y--;
+    }
+  y++;
+  while(y--)
+    AddChar('\n');
+  bindkeydata->last = i;
+  sprintf(tbuf,"[Press Space %s Return to end.]", bindkeydata->page < bindkeydata->pages ? "for next page;" : "or");
+  centerline(tbuf);
+  SetLastPos(0, D_height-1);
+}
+ 
+static void
+BindkeyProcess(ppbuf, plen)
+char **ppbuf;
+int *plen;
+{
+  int done = 0;
+  struct bindkeydata *bindkeydata;
+
+  bindkeydata = (struct bindkeydata *)D_lay->l_data;
+  GotoPos(0, D_height-1);
+  while (!done && *plen > 0)
+    {
+      switch (**ppbuf)
+	{
+	case ' ':
+	  if (bindkeydata->page < bindkeydata->pages)
+	    {
+	      bindkeydata->pos = bindkeydata->last;
+	      bindkeydata->page++;
+	      bindkeypage();
+	      break;
+	    }
+	  /* FALLTHROUGH */
+	case '\r':
+	case '\n':
+	  done = 1;
+	  break;
+	default:
+	  break;
+	}
+      ++*ppbuf;
+      --*plen;
+    }
+  if (done)
+    BindkeyAbort();
+}
+
+static void
+BindkeyRedisplayLine(y, xs, xe, isblank)
+int y, xs, xe, isblank;
+{
+  if (y < 0)
+    {
+      bindkeypage();
+      return;
+    }
+  if (y != 0 && y != D_height - 1)
+    return;
+  if (isblank)
+    return;
+  Clear(xs, y, xs, xe, xe, y, 0);
+}
+
+#endif

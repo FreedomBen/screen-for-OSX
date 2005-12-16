@@ -85,7 +85,7 @@ int len, delta, defaultbit;
 	ACLBYTE(n, i) |= ACLBIT(i);
     }
   if (len)
-    free(o);
+    free((char *)o);
   *bfp = n;
   return 0;
 }
@@ -119,7 +119,7 @@ char DefaultMetaEsc = 'a';
 
 /*
  * Add a new user. His password may be NULL or "" if none. 
- * He is in no groups and thus has no rights.
+ * He has no rights.
  */
 int
 UserAdd(name, pass, up)
@@ -133,8 +133,10 @@ struct user **up;
   *up = (struct user *)calloc(1, sizeof(struct user));
   if (!*up)
     return -1;		/* he still does not exist */
+#ifdef COPY_PASTE
   (*up)->u_copybuffer = NULL;
   (*up)->u_copylen = 0;
+#endif
   (*up)->u_Esc = DefaultEsc;
   (*up)->u_MetaEsc = DefaultMetaEsc;
   strncpy((*up)->u_name, name, 20);
@@ -157,7 +159,7 @@ struct user **up;
       /* first, the used_uid_indicator: */
       if (GrowBitfield(&userbits, maxusercount, USER_CHUNK, 0))
         {
-	  free(*up); *up = NULL; return -1;
+	  free((char *)*up); *up = NULL; return -1;
 	}
       /* second, default command bits  */
       /* (only if we generate commands dynamically) */
@@ -166,7 +168,7 @@ struct user **up;
 	if (GrowBitfield(&default_c_userbits[j], maxusercount, USER_CHUNK, 
 	    default_c_bit[j]))
 	  {
-	    free(*up); *up = NULL; return -1;
+	    free((char *)*up); *up = NULL; return -1;
 	  }
 */
       /* third, the bits for each commands */
@@ -175,14 +177,14 @@ struct user **up;
 	  if (GrowBitfield(&comms[i].userbits[j], maxusercount, USER_CHUNK,
 	      default_c_bit[j]))
 	    {
-	      free(*up); *up = NULL; return -1;
+	      free((char *)*up); *up = NULL; return -1;
 	    }
       /* fourth, default window and bits */
       for (j = 0; j < ACL_BITS_PER_WIN; j++)
 	if (GrowBitfield(&default_w_userbits[j], maxusercount, USER_CHUNK,
 	    default_w_bit[j]))
 	  {
-	    free(*up); *up = NULL; return -1;
+	    free((char *)*up); *up = NULL; return -1;
 	  }
       /* fifth, the bits for each window */
       for (w = windows; w; w = w->w_next)
@@ -190,11 +192,14 @@ struct user **up;
 	  if (GrowBitfield(&w->w_userbits[j], maxusercount, USER_CHUNK,
 	      default_w_bit[j]))
 	    {
-	      free(*up); *up = NULL; return -1;
+	      free((char *)*up); *up = NULL; return -1;
 	    }
       maxusercount += USER_CHUNK;
     }
   ACLBYTE(userbits, (*up)->id) |= ACLBIT((*up)->id);    
+  /* user id 0 is the session creator, he has all rights */
+  if ((*up)->id == 0)
+    AclSetPerm(*up, "+rwx", "#?");
 #else /* MULTIUSER */
   debug1("UserAdd %s\n", name);
 #endif /* MULTIUSER */
@@ -218,8 +223,7 @@ struct user **up;
 
 /* 
  * Remove a user from the list. 
- * Decrease reference count of all his groups
- * Free his grouplist.
+ * Destroy all his permissions and completely detach him from the session.
  */
 int 
 UserDel(name, up)
@@ -236,8 +240,8 @@ struct user **up;
   old = display;
   for (display = displays; display; display = next)
     {
-      next = display->_d_next;
-      if (d_user != u)
+      next = display->d_next;
+      if (D_user != u)
 	continue;
       if (display == old)
 	old = 0;
@@ -247,13 +251,22 @@ struct user **up;
   *up = u->u_next;
 #ifdef MULTIUSER
   ACLBYTE(userbits, u->id) &= ~ACLBIT(u->id);
-  AclSetPerm(u, "-rwx", "#?");
+  /* restore the bits in his slot to default: */
+  AclSetPerm(u, default_w_bit[ACL_READ] ? "+r" : "-r", "#");
+  AclSetPerm(u, default_w_bit[ACL_WRITE]? "+w" : "-w", "#");
+  AclSetPerm(u, default_w_bit[ACL_EXEC] ? "+x" : "-x", "#");
+  AclSetPerm(u, default_c_bit[ACL_EXEC] ? "+x" : "-x", "?");
 #endif
   debug1("FREEING user structure for %s\n", u->u_name);
+#ifdef COPY_PASTE
   UserFreeCopyBuffer(u);
-  free(u);
+#endif
+  free((char *)u);
   return 0;
 }
+
+
+#ifdef COPY_PASTE
 
 /*
  * returns 0 if the copy buffer was really deleted.
@@ -280,10 +293,12 @@ struct user *u;
 	}
     }
   free(u->u_copybuffer);
-  d_user->u_copylen = 0;
+  D_user->u_copylen = 0;
   u->u_copybuffer = NULL;
   return 0;
 }
+
+#endif	/* COPY_PASTE */
 
 /************************************************************************
  *                     end of user managing code                        *
@@ -308,7 +323,7 @@ struct win *w;
       if (GrowBitfield(&w->w_userbits[j], 0, maxusercount, 0))
 	{
 	  while (--j >= 0)
-	    free(w->w_userbits[j]);
+	    free((char *)w->w_userbits[j]);
 	  return -1;
 	}
       for (i = 0; i < maxusercount; i++)
@@ -358,6 +373,10 @@ struct comm *cmd;
 }
 
 /* mode strings of the form +rwx -w+rx r -wx are parsed and evaluated */
+/*
+ * aclchg nerd -w+w 2
+ * releases a writelock on window 2 held by user nerd.
+ */
 int
 AclSetPermWin(u, mode, win)
 struct user *u;
@@ -396,6 +415,13 @@ struct win *win;
 	ACLBYTE(win->w_userbits[bit], u->id) &= ~ACLBIT(u->id);
       else
 	ACLBYTE(win->w_userbits[bit], u->id) |= ACLBIT(u->id);
+      if ((win->w_wlockuser == u) && neg && (bit == ACL_WRITE))
+        {
+	  debug2("%s lost writelock on win %d\n", u->u_name, win->w_number);
+          win->w_wlockuser = NULL;
+	  if (win->w_wlock == WLOCK_ON)
+	    win->w_wlock = WLOCK_AUTO;
+        }
     }
   return 0;
 }
@@ -408,7 +434,7 @@ char *mode, *s;
 {
   struct win *w;
   int i;
-  char *p;
+  char *p, ch;
 
   while (*s)
     {
@@ -429,10 +455,8 @@ char *mode, *s;
 	default:
 	  for (p = s; *p && *p != ' ' && *p != '\t' && *p != ','; p++)
 	    ;
-	  if (*p)
+	  if ((ch = *p))
 	    *p++ = '\0';
-	  else
-	    *p = '\0';
 	  if ((i = FindCommnr(s)) != RC_ILLEGAL)
 	    AclSetPermCmd(u, mode, &comms[i]);
 	  else if (((i = WindowByNoN(s)) >= 0) && wtab[i])
@@ -440,6 +464,8 @@ char *mode, *s;
 	  else
 	    /* checking group name */
 	    return -1;
+	  if (ch)
+	    p[-1] = ch;
 	  s = p; 
 	}    
     }

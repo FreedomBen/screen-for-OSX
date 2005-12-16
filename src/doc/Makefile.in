@@ -4,6 +4,7 @@ srcdir = @srcdir@
 VPATH = @srcdir@
 
 prefix = /usr/local
+mandir = $(prefix)/man
 infodir = $(prefix)/info
 
 INSTALL = @INSTALL@
@@ -13,7 +14,7 @@ TEXI2DVI = texi2dvi
 
 SHELL = /bin/sh
 
-all: 
+all: screen.info
 
 dvi screen.dvi: screen.texinfo mostlyclean
 	$(TEXI2DVI) $(srcdir)/screen.texinfo
@@ -21,22 +22,32 @@ dvi screen.dvi: screen.texinfo mostlyclean
 info screen.info: screen.texinfo
 	$(MAKEINFO) $(srcdir)/screen.texinfo -o screen.info
 
-install: screen.info
-	-if test -f foo.info; then d=.; else d=$(srcdir); fi; \
-	-for f in $$d/screen.info*; do $(INSTALL_DATA) $$f $(infodir)/$$f;done \
-	if install-info --version >/dev/null 2>&1; then \
-	  install-info --infodir=$(infodir) $$d/foo.info; \
-	else true; fi
+install:
+	$(INSTALL_DATA) -c $(srcdir)/screen.1 $(mandir)/man1/screen.1
+	-$(MAKE) screen.info
+	-if test -f screen.info; then d=.; else d=$(srcdir); fi; \
+	if test -f $$d/screen.info; then \
+	for f in $$d/screen.info*; do $(INSTALL_DATA) -c $$f $(infodir)/$$f;done; \
+	if $(SHELL) -c 'install-info --version' >/dev/null 2>&1; then \
+	  install-info --infodir=$(infodir) $$d/screen.info; \
+	else true; fi; \
+	fi
 	
 uninstall:
+	rm -f $(mandir)/man1/screen.1
 	rm -f $(infodir)/screen.info*
+
+installdirs:
+	$(srcdir)/../etc/mkinstalldirs $(mandir)/man1 $(infodir)
 
 mostlyclean:
 	-rm -f *.cp *.cps *.fn *.fns *.ky *.kys *.pg *.tp *.vr
 	-rm -f *.log *.aux *.toc *~
 
-clean distclean realclean clobber: mostlyclean
+clean distclean clobber: mostlyclean
 	-rm -f *.dvi
+
+realclean: clean
 	-rm -f *.info*
 
 check installcheck:

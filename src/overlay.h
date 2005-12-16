@@ -46,22 +46,22 @@ struct layer
   char	*l_data;		/* should be void * */
 };
 
-#define Process		(*d_layfn->LayProcess)
-#define Abort		(*d_layfn->LayAbort)
-#define RedisplayLine	(*d_layfn->LayRedisplayLine)
-#define ClearLine	(*d_layfn->LayClearLine)
-#define Rewrite		(*d_layfn->LayRewrite)
-#define SetCursor	(*d_layfn->LaySetCursor)
-#define Resize		(*d_layfn->LayResize)
-#define Restore		(*d_layfn->LayRestore)
+#define Process		(*D_layfn->LayProcess)
+#define Abort		(*D_layfn->LayAbort)
+#define RedisplayLine	(*D_layfn->LayRedisplayLine)
+#define ClearLine	(*D_layfn->LayClearLine)
+#define Rewrite		(*D_layfn->LayRewrite)
+#define SetCursor	(*D_layfn->LaySetCursor)
+#define Resize		(*D_layfn->LayResize)
+#define Restore		(*D_layfn->LayRestore)
 
 #define LAY_CALL_UP(fn) \
 	{ \
-	  struct layer *oldlay = d_lay; \
-	  d_lay = d_lay->l_next; \
-	  d_layfn = d_lay->l_layfn; \
+	  struct layer *oldlay = D_lay; \
+	  D_lay = D_lay->l_next; \
+	  D_layfn = D_lay->l_layfn; \
 	  fn; \
-	  d_lay = oldlay; \
-	  d_layfn = d_lay->l_layfn; \
+	  D_lay = oldlay; \
+	  D_layfn = D_lay->l_layfn; \
 	}
 

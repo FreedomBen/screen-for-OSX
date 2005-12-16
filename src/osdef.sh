@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /bin/sh
 
 if test -z "$CC"; then
   CC=cc
@@ -7,7 +7,8 @@ if test -z "$srcdir"; then
   srcdir=.
 fi
 
-sed < $srcdir/osdef.h.in -n -e '/^extern/s@.*[)* 	][)* 	]*\([^ ]*\) __P.*@/[)*, 	]\1[ 	(]/s/.*/\\/\1 __P\\/d/p@p' > osdef1.sed
+sed < $srcdir/osdef.h.in -n -e '/^extern/s@.*[)* 	][)* 	]*\([^ *]*\) __P.*@/[)*, 	]\1[ 	(]/i\\\
+\\/\\[^a-zA-Z_\\]\1 __P\\/d@p' > osdef1.sed
 cat << EOF > osdef0.c
 #include "config.h"
 #include <sys/types.h>

@@ -27,6 +27,12 @@
  ****************************************************************
  */
 
+extern int   printf __P((char *, ...));
+extern int   fprintf __P((FILE *, char *, ...));
+extern int   sprintf __P((char *, char *, ...));
+#if defined(sun) || defined(_SEQUENT_)
+extern int   _flsbuf __P((int, FILE *));
+#endif
 #ifdef SYSV
 extern char *strchr __P((char *, int));
 extern char *strrchr __P((char *, int));
@@ -64,7 +70,7 @@ extern int   waitpid __P((int, int *, int));
 
 extern int   getdtablesize __P((void));
 
-#ifndef NOREUID
+#ifdef HAVE_SETREUID
 # ifdef hpux
 extern int   setresuid __P((int, int, int));
 extern int   setresgid __P((int, int, int));
@@ -72,6 +78,10 @@ extern int   setresgid __P((int, int, int));
 extern int   setreuid __P((int, int));
 extern int   setregid __P((int, int));
 # endif
+#endif
+#ifdef HAVE_SETEUID
+extern int   seteuid __P((int));
+extern int   setegid __P((int));
 #endif
 
 extern char *crypt __P((char *, char *));
@@ -98,6 +108,7 @@ extern int   getuid __P((void));
 extern int   geteuid __P((void));
 extern int   getgid __P((void)); 
 extern int   getegid __P((void));
+struct passwd;
 extern struct passwd *getpwuid __P((int));
 extern struct passwd *getpwnam __P((char *));
 extern int   isatty __P((int)); 

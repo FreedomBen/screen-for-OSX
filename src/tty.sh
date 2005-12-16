@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /bin/sh
 # sh tty.sh tty.c
 # This inserts all the needed #ifdefs for IF{} statements
 # and generates tty.c
@@ -48,6 +48,9 @@ RCS_ID("$Id$ FAU")
 #include <sys/types.h>
 #include <signal.h>
 #include <fcntl.h>
+#ifndef sgi
+# include <sys/file.h>
+#endif
 #if !defined(sun) || defined(SUNOS3)
 # include <sys/ioctl.h> /* collosions with termios.h */
 #else
@@ -69,14 +72,22 @@ RCS_ID("$Id$ FAU")
 extern struct display *display, *displays;
 extern int iflag;
 
+/* Frank Schulz (fschulz@pyramid.com):
+ * I have no idea why VSTART is not defined and my fix is probably not
+ * the cleanest, but it works.
+ */
+#if !defined(VSTART) && defined(_VSTART)
+#define VSTART _VSTART
+#endif
+#if !defined(VSTOP) && defined(_VSTOP)
+#define VSTOP _VSTOP
+#endif
 
-static sig_t
-SigAlrmDummy(SIGDEFARG)
+static sigret_t
+SigAlrmDummy SIGDEFARG
 {
   debug("SigAlrmDummy()\n");
-#ifndef SIGVOID
-  return (sig_t)0;
-#endif
+  SIGRETURN;
 }
 
 /*
@@ -88,12 +99,12 @@ OpenTTY(line)
 char *line;
 {
   int f;
-  sig_t (*sigalrm)__P(SIGPROTOARG);
+  sigret_t (*sigalrm)__P(SIGPROTOARG);
 
   sigalrm = signal(SIGALRM, SigAlrmDummy);
   alarm(2);
   /* this open only succeeds, if real uid is allowed */
-  if ((f = secopen(line, O_RDWR | O_NDELAY, 0)) == -1)
+  if ((f = secopen(line, O_RDWR | O_NONBLOCK, 0)) == -1)
     {
       Msg(errno, "Cannot open line '%s' for R/W", line);
       alarm(0);
@@ -123,9 +134,9 @@ char *line;
   if (display)
     {
       debug1("OpenTTY: using mode of display for %s\n", line);
-      SetTTY(f, &d_NewMode);
+      SetTTY(f, &D_NewMode);
 #ifdef DEBUG
-      DebugTTY(&d_NewMode);
+      DebugTTY(&D_NewMode);
 #endif
     }
   else
@@ -223,6 +234,11 @@ XIF{VWERASE}	m->tio.c_cc[VWERASE]  = Ctrl('W');
 XIF{VLNEXT}	m->tio.c_cc[VLNEXT]   = Ctrl('V');
 XIF{VSTATUS}	m->tio.c_cc[VSTATUS]  = Ctrl('T');
 
+  if (ttyflag)
+    {
+      m->tio.c_cc[VMIN] = 1;
+      m->tio.c_cc[VTIME] = 0;
+    }
 # ifdef hpux
   m->m_ltchars.t_suspc =  Ctrl('Z');
   m->m_ltchars.t_dsuspc = Ctrl('Y');
@@ -276,6 +292,11 @@ XIF{VEOF}	m->tio.c_cc[VEOF]   = Ctrl('D');
 XIF{VEOL}	m->tio.c_cc[VEOL]   = 0377;
 XIF{VEOL2}	m->tio.c_cc[VEOL2]  = 0377;
 XIF{VSWTCH}	m->tio.c_cc[VSWTCH] = 0000;
+  if (ttyflag)
+    {
+      m->tio.c_cc[VMIN] = 1;
+      m->tio.c_cc[VTIME] = 0;
+    }
 # else /* TERMIO */
   debug1("InitTTY: BSD: defaults a la SunOS 4.1.3 (%d)\n", ttyflag);
   m->m_ttyb.sg_ispeed = B9600;
@@ -317,6 +338,12 @@ IF{LCRTBS}	| LCRTBS
 ;
 # endif /* TERMIO */
 #endif /* POSIX */
+
+#if defined(KANJI) && defined(TIOCKSET)
+  m->m_jtchars.t_ascii = 'J';
+  m->m_jtchars.t_kanji = 'B';
+  m->m_knjmode = KM_ASCII | KM_SYSSJIS;
+#endif
 }
 
 void 
@@ -333,6 +360,14 @@ struct mode *mp;
 #else
 # ifdef TERMIO
   ioctl(fd, TCSETAW, (char *)&mp->tio);
+#  ifdef CYTERMIO
+  if (mp->tio.c_line == 3)
+    {
+      ioctl(fd, LDSETMAPKEY, (char *)&mp->m_mapkey);
+      ioctl(fd, LDSETMAPSCREEN, (char *)&mp->m_mapscreen);
+      ioctl(fd, LDSETBACKSPACE, (char *)&mp->m_backspace);
+    }
+#  endif
 # else
   /* ioctl(fd, TIOCSETP, (char *)&mp->m_ttyb); */
   ioctl(fd, TIOCSETC, (char *)&mp->m_tchars);
@@ -341,6 +376,10 @@ struct mode *mp;
   ioctl(fd, TIOCSETP, (char *)&mp->m_ttyb);
   ioctl(fd, TIOCSLTC, (char *)&mp->m_ltchars); /* moved here for apollo. jw */
 # endif
+#endif
+#if defined(KANJI) && defined(TIOCKSET)
+  ioctl(fd, TIOCKSETC, &mp->m_jtchars);
+  ioctl(fd, TIOCKSET, &mp->m_knjmode);
 #endif
   if (errno)
     Msg(errno, "SetTTY (fd %d): ioctl failed", fd);
@@ -360,6 +399,20 @@ struct mode *mp;
 #else
 # ifdef TERMIO
   ioctl(fd, TCGETA, (char *)&mp->tio);
+#  ifdef CYTERMIO
+  if (mp->tio.c_line == 3)
+    {
+      ioctl(fd, LDGETMAPKEY, (char *)&mp->m_mapkey);
+      ioctl(fd, LDGETMAPSCREEN, (char *)&mp->m_mapscreen);
+      ioctl(fd, LDGETBACKSPACE, (char *)&mp->m_backspace);
+    }
+  else
+    {
+      mp->m_mapkey = NOMAPKEY;
+      mp->m_mapscreen = NOMAPSCREEN;
+      mp->m_backspace = '\b';
+    }
+#  endif
 # else
   ioctl(fd, TIOCGETP, (char *)&mp->m_ttyb);
   ioctl(fd, TIOCGETC, (char *)&mp->m_tchars);
@@ -367,6 +420,10 @@ struct mode *mp;
   ioctl(fd, TIOCLGET, (char *)&mp->m_lmode);
   ioctl(fd, TIOCGETD, (char *)&mp->m_ldisc);
 # endif
+#endif
+#if defined(KANJI) && defined(TIOCKSET)
+  ioctl(fd, TIOCKGETC, &mp->m_jtchars);
+  ioctl(fd, TIOCKGET, &mp->m_knjmode);
 #endif
   if (errno)
     Msg(errno, "GetTTY (fd %d): ioctl failed", fd);
@@ -379,17 +436,18 @@ struct mode *op, *np;
   *np = *op;
 
 #if defined(TERMIO) || defined(POSIX)
-  np->tio.c_iflag &= ~ICRNL;
-# ifdef ONLCR
-  np->tio.c_oflag &= ~ONLCR;
+# ifdef CYTERMIO
+  np->m_mapkey = NOMAPKEY;
+  np->m_mapscreen = NOMAPSCREEN;
+  np->tio.c_line = 0;
 # endif
+IF{ICRNL}  np->tio.c_iflag &= ~ICRNL;
+IF{ONLCR}  np->tio.c_oflag &= ~ONLCR;
   np->tio.c_lflag &= ~(ICANON | ECHO);
-#ifdef OSF1
   /*
    * From Andrew Myers (andru@tonic.lcs.mit.edu)
    */
-  np->tio.c_lflag &= ~IEXTEN;
-#endif
+IF{IEXTEN}  np->tio.c_lflag &= ~IEXTEN;
 
   /*
    * Unfortunately, the master process never will get SIGINT if the real
@@ -410,8 +468,8 @@ struct mode *op, *np;
    */
   np->tio.c_cc[VMIN] = 1;
   np->tio.c_cc[VTIME] = 0;
-  startc = op->tio.c_cc[VSTART];
-  stopc = op->tio.c_cc[VSTOP];
+XIF{VSTART}	startc = op->tio.c_cc[VSTART];
+XIF{VSTOP}	stopc = op->tio.c_cc[VSTOP];
   if (iflag)
     origintrc = intrc = op->tio.c_cc[VINTR];
   else
@@ -420,15 +478,19 @@ struct mode *op, *np;
       intrc = np->tio.c_cc[VINTR] = VDISABLE;
     }
   np->tio.c_cc[VQUIT] = VDISABLE;
-  if (d_flow == 0)
+  if (D_flow == 0)
     {
       np->tio.c_cc[VINTR] = VDISABLE;
-      np->tio.c_cc[VSTART] = VDISABLE;
-      np->tio.c_cc[VSTOP] = VDISABLE;
+XIF{VSTART}	np->tio.c_cc[VSTART] = VDISABLE;
+XIF{VSTOP}	np->tio.c_cc[VSTOP] = VDISABLE;
       np->tio.c_iflag &= ~IXON;
     }
 XIF{VDISCARD}	np->tio.c_cc[VDISCARD] = VDISABLE;
+XIF{VLNEXT}	np->tio.c_cc[VLNEXT] = VDISABLE;
+XIF{VSTATUS}	np->tio.c_cc[VSTATUS] = VDISABLE;
 XIF{VSUSP}	np->tio.c_cc[VSUSP] = VDISABLE;
+XIF{VERASE}	np->tio.c_cc[VERASE] = VDISABLE;
+XIF{VKILL}	np->tio.c_cc[VKILL] = VDISABLE;
 # ifdef hpux
   np->m_ltchars.t_suspc  = VDISABLE;
   np->m_ltchars.t_dsuspc = VDISABLE;
@@ -438,6 +500,8 @@ XIF{VSUSP}	np->tio.c_cc[VSUSP] = VDISABLE;
   np->m_ltchars.t_lnextc = VDISABLE;
 # else /* hpux */
 XIF{VDSUSP}	np->tio.c_cc[VDSUSP] = VDISABLE;
+XIF{VREPRINT}	np->tio.c_cc[VREPRINT] = VDISABLE;
+XIF{VWERASE}	np->tio.c_cc[VWERASE] = VDISABLE;
 # endif /* hpux */
 #else /* TERMIO || POSIX */
   startc = op->m_tchars.t_startc;
@@ -451,8 +515,12 @@ XIF{VDSUSP}	np->tio.c_cc[VDSUSP] = VDISABLE;
     }
   np->m_ttyb.sg_flags &= ~(CRMOD | ECHO);
   np->m_ttyb.sg_flags |= CBREAK;
+# if defined(CYRILL) && defined(CSTYLE) && defined(CS_8BITS)
+  np->m_ttyb.sg_flags &= ~CSTYLE;
+  np->m_ttyb.sg_flags |= CS_8BITS;
+# endif
   np->m_tchars.t_quitc = -1;
-  if (d_flow == 0)
+  if (D_flow == 0)
     {
       np->m_tchars.t_intrc = -1;
       np->m_tchars.t_startc = -1;
@@ -470,46 +538,46 @@ SetFlow(on)
 int on;
 {
   ASSERT(display);
-  if (d_flow == on)
+  if (D_flow == on)
     return;
 #if defined(TERMIO) || defined(POSIX)
   if (on)
     {
-      d_NewMode.tio.c_cc[VINTR] = intrc;
-      d_NewMode.tio.c_cc[VSTART] = startc;
-      d_NewMode.tio.c_cc[VSTOP] = stopc;
-      d_NewMode.tio.c_iflag |= IXON;
+      D_NewMode.tio.c_cc[VINTR] = intrc;
+XIF{VSTART}	D_NewMode.tio.c_cc[VSTART] = startc;
+XIF{VSTOP}	D_NewMode.tio.c_cc[VSTOP] = stopc;
+      D_NewMode.tio.c_iflag |= IXON;
     }
   else
     {
-      d_NewMode.tio.c_cc[VINTR] = VDISABLE;
-      d_NewMode.tio.c_cc[VSTART] = VDISABLE;
-      d_NewMode.tio.c_cc[VSTOP] = VDISABLE;
-      d_NewMode.tio.c_iflag &= ~IXON;
+      D_NewMode.tio.c_cc[VINTR] = VDISABLE;
+XIF{VSTART}	D_NewMode.tio.c_cc[VSTART] = VDISABLE;
+XIF{VSTOP}	D_NewMode.tio.c_cc[VSTOP] = VDISABLE;
+      D_NewMode.tio.c_iflag &= ~IXON;
     }
 # ifdef POSIX
-  if (tcsetattr(d_userfd, TCSANOW, &d_NewMode.tio))
+  if (tcsetattr(D_userfd, TCSANOW, &D_NewMode.tio))
 # else
-  if (ioctl(d_userfd, TCSETAW, (char *)&d_NewMode.tio) != 0)
+  if (ioctl(D_userfd, TCSETAW, (char *)&D_NewMode.tio) != 0)
 # endif
     debug1("SetFlow: ioctl errno %d\n", errno);
 #else /* POSIX || TERMIO */
   if (on)
     {
-      d_NewMode.m_tchars.t_intrc = intrc;
-      d_NewMode.m_tchars.t_startc = startc;
-      d_NewMode.m_tchars.t_stopc = stopc;
+      D_NewMode.m_tchars.t_intrc = intrc;
+      D_NewMode.m_tchars.t_startc = startc;
+      D_NewMode.m_tchars.t_stopc = stopc;
     }
   else
     {
-      d_NewMode.m_tchars.t_intrc = -1;
-      d_NewMode.m_tchars.t_startc = -1;
-      d_NewMode.m_tchars.t_stopc = -1;
+      D_NewMode.m_tchars.t_intrc = -1;
+      D_NewMode.m_tchars.t_startc = -1;
+      D_NewMode.m_tchars.t_stopc = -1;
     }
-  if (ioctl(d_userfd, TIOCSETC, (char *)&d_NewMode.m_tchars) != 0)
+  if (ioctl(D_userfd, TIOCSETC, (char *)&D_NewMode.m_tchars) != 0)
     debug1("SetFlow: ioctl errno %d\n", errno);
 #endif /* POSIX || TERMIO */
-  d_flow = on;
+  D_flow = on;
 }
 
 
@@ -527,9 +595,9 @@ int fd;
 {
 #if defined(POSIX) && !defined(ultrix)
   setsid();		/* will break terminal affiliation */
-# ifdef BSD
+# if defined(BSD) && defined(TIOCSCTTY)
   ioctl(fd, TIOCSCTTY, (char *)0);
-# endif /* BSD */
+# endif /* BSD && TIOCSCTTY */
 #else /* POSIX */
 # ifdef SYSV
   setpgrp();		/* will break terminal affiliation */
@@ -537,7 +605,7 @@ int fd;
 #  ifdef BSDJOBS
   int devtty;
 
-  if ((devtty = open("/dev/tty", O_RDWR | O_NDELAY)) >= 0)
+  if ((devtty = open("/dev/tty", O_RDWR | O_NONBLOCK)) >= 0)
     {
       if (ioctl(devtty, TIOCNOTTY, (char *)0))
         debug2("brktty: ioctl(devtty=%d, TIOCNOTTY, 0) = %d\n", devtty, errno);
@@ -557,10 +625,15 @@ int fd;
 
   mypid = getpid();
 
-# if defined(BSDI) || defined(__386BSD__) || defined(__osf__)
+  /* The next lines should be obsolete. Can anybody check if they
+   * are really needed on the BSD platforms?
+   */
+# if defined(__osf__) || (BSD >= 199103)
   setsid();	/* should be already done */
+#  ifdef TIOCSCTTY
   ioctl(fd, TIOCSCTTY, (char *)0);
-# endif /* BSDI || __386BSD__ */
+#  endif
+# endif
 
 # ifdef POSIX
   if (tcsetpgrp(fd, mypid))
@@ -609,7 +682,7 @@ int n, closeopen;
 	  Msg(0, "Ouch, cannot reopen line %s, please try harder", wp->w_tty);
 	  return;
 	}
-      (void) fcntl(wp->w_ptyfd, F_SETFL, FNDELAY);
+      (void) fcntl(wp->w_ptyfd, F_SETFL, FNBLOCK);
     }
   else
     {
@@ -695,8 +768,8 @@ char *rc_name;
 	  Msg(0, "I need a display");
 	  return -1;
 	}
-      for (d = displays; d; d = d->_d_next)
-	if (strcmp(d->_d_usertty, "/dev/console") == 0)
+      for (d = displays; d; d = d->d_next)
+	if (strcmp(d->d_usertty, "/dev/console") == 0)
 	  break;
       if (d)
 	{

@@ -50,7 +50,7 @@ int dir;
   struct markdata *markdata;
   if (dir == 0)
     {
-      markdata = (struct markdata *)d_lay->l_data;
+      markdata = (struct markdata *)D_lay->l_data;
       if (markdata->isdir > 0)
 	searchend(0, 0);
       else if (markdata->isdir < 0)
@@ -70,18 +70,18 @@ int len;
   int x = 0, sx, ex, y;
   struct markdata *markdata;
 
-  markdata = (struct markdata *)d_lay->l_data;
+  markdata = (struct markdata *)D_lay->l_data;
   markdata->isdir = 1;
   if (len)
     strcpy(markdata->isstr, buf);
   sx = markdata->cx + 1;
-  ex = d_width - 1;
-  for (y = markdata->cy; y < fore->w_histheight + d_height; y++, sx = 0)
+  ex = D_width - 1;
+  for (y = markdata->cy; y < fore->w_histheight + D_height; y++, sx = 0)
     {
       if ((x = matchword(markdata->isstr, y, sx, ex)) >= 0)
         break;
     }
-  if (y >= fore->w_histheight + d_height)
+  if (y >= fore->w_histheight + D_height)
     {
       GotoPos(markdata->cx, W2D(markdata->cy));
       Msg(0, "Pattern not found");
@@ -98,12 +98,12 @@ int len;
   int sx, ex, x = -1, y;
   struct markdata *markdata;
 
-  markdata = (struct markdata *)d_lay->l_data;
+  markdata = (struct markdata *)D_lay->l_data;
   markdata->isdir = -1;
   if (len)
     strcpy(markdata->isstr, buf);
   ex = markdata->cx - 1;
-  for (y = markdata->cy; y >= 0; y--, ex = d_width - 1)
+  for (y = markdata->cy; y >= 0; y--, ex = D_width - 1)
     {
       sx = 0;
       while ((sx = matchword(markdata->isstr, y, sx, ex)) >= 0)
@@ -128,7 +128,7 @@ int y, sx, ex;
   char *ip, *ipe, *cp, *pp;
 
   ip = iWIN(y) + sx;
-  ipe = iWIN(y) + d_width;
+  ipe = iWIN(y) + D_width;
   for (;sx <= ex; sx++)
     {
       cp = ip++;
@@ -166,7 +166,7 @@ int l, p, end, dir;
   int tab[256];
   int i, q;
   char *s, c;
-  int w = d_width;
+  int w = D_width;
 
   debug2("is_bm: searching for %s len %d\n", str, l);
   debug3("start at %d end %d dir %d\n", p, end, dir);
@@ -215,10 +215,10 @@ int n;
 
   if (n == 0)
     return;
-  markdata = (struct markdata *)d_lay->l_next->l_data;
+  markdata = (struct markdata *)D_lay->l_next->l_data;
   ASSERT(p);
 
-  pos = markdata->cx + markdata->cy * d_width;
+  pos = markdata->cx + markdata->cy * D_width;
   GotoPos(markdata->cx, W2D(markdata->cy));
 
   switch (*p)
@@ -266,14 +266,14 @@ int n;
       debug2("New char: %c - left %d\n", *p, sizeof(markdata->isistr) - markdata->isistrl);
     }
   if (*p && *p != '\b')
-    pos = is_bm(markdata->isstr, markdata->isstrl, pos, d_width * (fore->w_histheight + d_height), markdata->isdir);
+    pos = is_bm(markdata->isstr, markdata->isstrl, pos, D_width * (fore->w_histheight + D_height), markdata->isdir);
   if (pos >= 0)
     {
-      x = pos % d_width;
-      y = pos / d_width;
+      x = pos % D_width;
+      y = pos / D_width;
       LAY_CALL_UP
 	(
-          RefreshLine(STATLINE, 0, d_width - 1, 0);
+          RefreshLine(STATLINE, 0, D_width - 1, 0);
           revto(x, y);
           if (W2D(markdata->cy) == STATLINE)
 	    {
@@ -290,27 +290,31 @@ static int
 is_redo(markdata)
 struct markdata *markdata;
 {
-  int i, pos, dir;
+  int i, pos, npos, dir;
   char c;
 
-  pos = markdata->isstartpos;
+  npos = pos = markdata->isstartpos;
   dir = markdata->isstartdir;
   markdata->isstrl = 0;
   for (i = 0; i < markdata->isistrl; i++)
     {
       c = markdata->isistr[i];
-      if (c == '\022')
+      if (c == '\022')		/* ^R */
 	pos += (dir = -1);
-      else if (c == '\023')
+      else if (c == '\023')	/* ^S */
 	pos += (dir = 1);
       else
 	markdata->isstr[markdata->isstrl++] = c;
       if (pos >= 0)
-        pos = is_bm(markdata->isstr, markdata->isstrl, pos, d_width * (fore->w_histheight + d_height), dir);
+	{
+          npos = is_bm(markdata->isstr, markdata->isstrl, pos, D_width * (fore->w_histheight + D_height), dir);
+	  if (npos >= 0)
+	    pos = npos;
+	}
     }
   markdata->isstr[markdata->isstrl] = 0;
   markdata->isdir = dir;
-  return pos;
+  return npos;
 }
 
 void
@@ -318,9 +322,9 @@ ISearch(dir)
 int dir;
 {
   struct markdata *markdata;
-  markdata = (struct markdata *)d_lay->l_data;
+  markdata = (struct markdata *)D_lay->l_data;
   markdata->isdir = markdata->isstartdir = dir;
-  markdata->isstartpos = markdata->cx + markdata->cy * d_width;
+  markdata->isstartpos = markdata->cx + markdata->cy * D_width;
   markdata->isistrl = markdata->isstrl = 0;
   if (W2D(markdata->cy) == STATLINE)
     {

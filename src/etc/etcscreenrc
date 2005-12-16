@@ -7,19 +7,7 @@
 #       The 'termcap' lines are written in termcap syntax.
 #       The syntax for a terminfo based host is slightly different.
 #
-#echo "-----------------------------------------------------------------------"
-#echo ""
-#echo "     This is iScreen version 3.2.13  -- Enjoy :-)"
-#echo ""
-#echo "     Coredumps zu mir, Beschwerden nach /dev/null! "
-#echo "     Vorbeugend bitte schon mal alle screenrc files"
-#echo "     genau einmal mit ~jnweiger/trojan_horse/newsyntax bearbeiten!"
-#echo "     -- und in hartnaeckigen Faellen screen.old verwenden"
-#echo ""
-#echo "            Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)"
-#echo "-----------------------------------------------------------------------"
-#echo "       >>>>>>>>>>>> Press RETURN to continue <<<<<<<<<<<<"
-#sleep 5
+
 #startup_message off
 
 #defflow on # will force iScreen to process ^S/^Q
@@ -71,9 +59,22 @@ terminfo sun 'up=^K:AL=\E[%p1%dL:DL=\E[%p1%dM:UP=\E[%p1%dA:DO=\E[%p1%dB:LE=\E[%p
 
 #xterm understands both im/ic and doesn't have a status line.
 #Note: Do not specify im and ic in the real termcap/info file as
-#some programs (e.g. vi) will not work anymore.
+#some programs (e.g. vi) will (no,no, may (jw)) not work anymore.
 termcap  xterm|fptwist hs@:cs=\E[%i%d;%dr:im=\E[4h:ei=\E[4l
 terminfo xterm|fptwist hs@:cs=\E[%i%p1%d;%p2%dr:im=\E[4h:ei=\E[4l
+
+# Long time I had this in my private screenrc file. But many people
+# seem to want it (jw):
+# we do not want the width to change to 80 characters on startup:
+# on suns, /etc/termcap has :is=\E[r\E[m\E[2J\E[H\E[?7h\E[?1;3;4;6l:
+termcap xterm 'is=\E[r\E[m\E[2J\E[H\E[?7h\E[?1;4;6l'
+terminfo xterm 'is=\E[r\E[m\E[2J\E[H\E[?7h\E[?1;4;6l'
+
+#
+# Do not use xterms alternate window buffer. 
+# This one would not add lines to the scrollback buffer.
+termcap xterm|xterms|xs ti=\E7\E[?47l
+terminfo xterm|xterms|xs ti=\E7\E[?47l
 
 # xs is xterm's two letter name.
 # story ... in earlier versions I used xterms here ... buggy sequent termcap
@@ -83,13 +84,8 @@ terminfo xterm|fptwist hs@:cs=\E[%i%p1%d;%p2%dr:im=\E[4h:ei=\E[4l
 # why I don't take the entry called xterm? well, I own a verion of xterm that
 # allows window resizing. My private .iscreenrc adds WS to this entry.
 
-# Anyway, here are all the definitions needed to access a hardstatus line
 termcap  xs 'hs:ts=\E]0;:fs=\007:ds=\E]0;Screen\007:cs=\E[%i%d;%dr:LP:G0:im=\E[4h:ei=\E[4l'
 terminfo xs 'hs:ts=\E]0;:fs=\007:ds=\E]0;Screen\007:cs=\E[%i%p1%d;%p2%dr:LP:G0:im=\E[4h:ei=\E[4l'
-termcap  sun 'hs:ts=\E]l:fs=\E\\:ds=\E]lScreen\E\\'
-terminfo  sun 'hs:ts=\E]l:fs=\E\\:ds=\E]lScreen\E\\'
-termcap  sun-cmd 'hs:ts=\E]l:fs=\E\\:ds=\E]lScreen\E\\'
-terminfo  sun-cmd 'hs:ts=\E]l:fs=\E\\:ds=\E]lScreen\E\\'
 
 #make hp700 termcap/info better
 termcap  hp700 'Z0=\E[?3h:Z1=\E[?3l:hs:ts=\E[62"p\E[0$~\E[2$~\E[1$}:fs=\E[0}\E[61"p:ds=\E[62"p\E[1$~\E[61"p:ic@'
@@ -101,7 +97,6 @@ termcap wy75-42 xo:Z0=\E[?3h\E[31h:Z1=\E[?3l\E[31h
 terminfo wy75-42 xo:Z0=\E[?3h\E[31h:Z1=\E[?3l\E[31h
 
 #remove some stupid / dangerous key bindings
-bind '-' prev
 bind '^k'
 #bind 'L'
 bind '^\'

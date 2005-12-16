@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /bin/sh
 
 if test -z "$AWK"; then
   AWK=awk
@@ -43,7 +43,7 @@ struct comm
 #define ARGS_ONETWO	(ARGS_ONE |ARGS_PLUSONE)
 #define ARGS_TWOTHREE	(ARGS_TWO |ARGS_PLUSONE)
 #define ARGS_ZEROTWO	(ARGS_ZERO|ARGS_PLUSTWO)
-#define ARGS_ZEROONETWO	(ARGS_ONE |ARGS_PLUSONE|ARGS_PLUSTWO)
+#define ARGS_ZEROONETWO	(ARGS_ZERO|ARGS_PLUSONE|ARGS_PLUSTWO)
 
 struct action
 {
@@ -65,8 +65,8 @@ $AWK < ${srcdir}/comm.c >> comm.h '
 $CC -E -I. -I${srcdir} ${srcdir}/comm.c > comm.cpp
 sed < comm.cpp \
   -n \
-  -e '/^  { "/y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/' \
-  -e '/^  { "/s/^  { "\([^"]*\)".*/\1/p' \
+  -e '/^ *{ "/y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/' \
+  -e '/^ *{ "/s/^ *{ "\([^"]*\)".*/\1/p' \
 | $AWK '
 /.*/ {	printf "#define RC_%s %d\n",$0,i++;
      }

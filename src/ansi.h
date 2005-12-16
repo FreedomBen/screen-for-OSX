@@ -38,6 +38,10 @@
 #define A_BL	(1<<ATTR_BL)
 #define A_MAX	(1<<(NATTR-1))
 
+#define ATYP_M		(1<<0)
+#define ATYP_S		(1<<1)
+#define ATYP_U		(1<<2)
+
 /*
  *  Parser state
  */
@@ -60,9 +64,11 @@ enum string_t
   DCS,				/* Device control string */
   OSC,				/* Operating system command */
   APC,				/* Application program command */
+				/*  - used for status change */
   PM,				/* Privacy message */
   AKA,				/* title for current screen */
-  GM				/* Global message to every display */
+  GM,				/* Global message to every display */
+  STATUS			/* User hardstatus line */
 };
 
 /*
@@ -94,6 +100,16 @@ enum move_t {
 #ifdef TOPSTAT
 #define STATLINE	 (0)
 #else
-#define STATLINE	 (d_height-1)
+#define STATLINE	 (D_height-1)
 #endif
 
+#ifdef KANJI
+
+#undef KANJI
+#define KANJI	('B' & 037)
+#define KANA    'I'
+
+#define EUC	1
+#define SJIS	2
+
+#endif

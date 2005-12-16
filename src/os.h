@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <sys/param.h>
 
+
 #if defined(BSDI) || defined(__386BSD__) || defined(_CX_UX)
 # include <signal.h>
 #endif /* BSDI || __386BSD__ || _CX_UX */
@@ -36,60 +37,32 @@
 # ifdef ENOTEMPTY
 #  undef ENOTEMPTY
 # endif
+# include <sys/bsdtypes.h>
 # include <net/errno.h>
 #endif
-
-#ifdef hpux
-# ifndef GETUTENT
-#  define GETUTENT 1
-# endif 
-#endif
-
-#ifndef linux /* all done in <errno.h> */
-extern int errno;
-extern int sys_nerr;
-extern char *sys_errlist[];
-#endif /* linux */
 
 #ifdef sun
 # define getpgrp __getpgrp
 # define exit __exit
 #endif
-
 #ifdef POSIX
 # include <unistd.h>
 # if defined(__STDC__)
 #  include <stdlib.h>
 # endif /* __STDC__ */
 #endif /* POSIX */
-
 #ifdef sun
 # undef getpgrp
 # undef exit
 #endif /* sun */
 
-#ifdef POSIX
-# include <termios.h>
-# ifdef hpux
-#  include <bsdtty.h>
-# endif /* hpux */
-# ifdef NCCS
-#  define MAXCC NCCS
-# else
-#  define MAXCC 256
-# endif
-#else /* POSIX */
-# ifdef TERMIO
-#  include <termio.h>
-#  ifdef NCC
-#   define MAXCC NCC
-#  else
-#   define MAXCC 256
-#  endif
-# else /* TERMIO */
-#  include <sgtty.h>
-# endif /* TERMIO */
-#endif /* POSIX */
+#ifndef linux /* all done in <errno.h> */
+extern int errno;
+#endif /* linux */
+#ifndef HAVE_STRERROR
+/* No macros, please */
+#undef strerror
+#endif
 
 #ifndef SYSV
 # ifdef NEWSOS
@@ -99,7 +72,7 @@ extern char *sys_errlist[];
 # else /* NEWSOS */
 #  include <strings.h>
 # endif /* NEWSOS */
-#else /* BSD */
+#else /* SYSV */
 # if defined(SVR4) || defined(NEWSOS)
 #  define strlen ___strlen___
 #  include <string.h>
@@ -110,7 +83,7 @@ extern char *sys_errlist[];
 # else /* SVR4 */
 #  include <string.h>
 # endif /* SVR4 */
-#endif /* BSD */
+#endif /* SYSV */
 
 #ifdef USEVARARGS
 # if defined(__STDC__)
@@ -130,8 +103,110 @@ extern char *sys_errlist[];
 # include <sys/ptem.h>
 #endif
 
-#ifdef UTMPOK
-# ifdef SVR4
+#ifdef SYSV
+# define index strchr
+# define rindex strrchr
+# define bzero(poi,len) memset(poi,0,len)
+# define bcmp memcmp
+# define killpg(pgrp,sig) kill( -(pgrp), sig)
+#else
+# define getcwd(b,l) getwd(b)
+#endif
+
+#ifndef USEBCOPY
+# ifdef USEMEMMOVE
+#  define bcopy(s,d,len) memmove(d,s,len)
+# else
+#  ifdef USEMEMCPY
+#   define bcopy(s,d,len) memcpy(d,s,len)
+#  else
+#   define NEED_OWN_BCOPY
+#   define bcopy xbcopy
+#  endif
+# endif
+#endif
+
+#ifdef hpux
+# define setreuid(ruid, euid) setresuid(ruid, euid, -1)
+# define setregid(rgid, egid) setresgid(rgid, egid, -1)
+#endif
+
+#if defined(HAVE_SETEUID) || defined(HAVE_SETREUID)
+# define USE_SETEUID
+#endif
+
+#if !defined(HAVE__EXIT) && !defined(_exit)
+#define _exit(x) exit(x)
+#endif
+
+/*****************************************************************
+ *    terminal handling
+ */
+
+#ifdef POSIX
+# include <termios.h>
+# ifdef hpux
+#  include <bsdtty.h>
+# endif /* hpux */
+# ifdef NCCS
+#  define MAXCC NCCS
+# else
+#  define MAXCC 256
+# endif
+#else /* POSIX */
+# ifdef TERMIO
+#  include <termio.h>
+#  ifdef NCC
+#   define MAXCC NCC
+#  else
+#   define MAXCC 256
+#  endif
+#  ifdef CYTERMIO
+#   include <cytermio.h>
+#  endif
+# else /* TERMIO */
+#  include <sgtty.h>
+# endif /* TERMIO */
+#endif /* POSIX */
+
+#ifndef VDISABLE
+# ifdef _POSIX_VDISABLE
+#  define VDISABLE _POSIX_VDISABLE
+# else
+#  define VDISABLE 0377
+# endif /* _POSIX_VDISABLE */
+#endif /* !VDISABLE */
+
+
+/* on sgi, regardless of the stream head's read mode (RNORM/RMSGN/RMSGD)
+ * TIOCPKT mode causes data loss if our buffer is too small (IOSIZE)
+ * to hold the whole packet at first read().
+ * (Marc Boucher)
+ */
+#ifdef sgi 
+# undef TIOCPKT
+#endif
+
+/* matthew green:
+ * TIOCPKT is broken on dgux 5.4.1 generic AViiON mc88100
+ */
+#ifdef DGUX
+# undef TIOCPKT
+#endif
+
+
+/*****************************************************************
+ *   utmp handling
+ */
+
+#ifdef GETUTENT
+  typedef char *slot_t;
+#else
+  typedef int slot_t;
+#endif
+
+#if defined(UTMPOK) || defined(BUGGYGETLOGIN)
+# if defined(SVR4) && !defined(DGUX)
 #  include <utmpx.h>
 #  define UTMPFILE	UTMPX_FILE
 #  define utmp		utmpx
@@ -145,7 +220,7 @@ extern char *sys_errlist[];
 # else /* SVR4 */
 #  include <utmp.h>
 # endif /* SVR4 */
-# if defined(apollo) || defined(linux)
+# ifdef apollo
    /* 
     * We don't have GETUTENT, so we dig into utmp ourselves.
     * But we save the permanent filedescriptor and
@@ -153,25 +228,28 @@ extern char *sys_errlist[];
     * This code supports an unsorted utmp. jw.
     */
 #  define UTNOKEEP
-# endif /* apollo || linux */
-#endif
-
-#ifndef UTMPFILE
-# ifdef UTMP_FILE
-#  define UTMPFILE	UTMP_FILE
-# else
-#  ifdef _PATH_UTMP
-#   define UTMPFILE	_PATH_UTMP
-#  else
-#   define UTMPFILE	"/etc/utmp"
-#  endif /* _PATH_UTMP */
+# endif /* apollo */
+# ifdef linux
+   /* pututline is useless so we do it ourself...  */
+#  define UT_UNSORTED
 # endif
-#endif
 
-#ifndef UTMPOK
-#  ifdef USRLIMIT
-#	 undef USRLIMIT
+# ifndef UTMPFILE
+#  ifdef UTMP_FILE
+#   define UTMPFILE	UTMP_FILE
+#  else
+#   ifdef _PATH_UTMP
+#    define UTMPFILE	_PATH_UTMP
+#   else
+#    define UTMPFILE	"/etc/utmp"
+#   endif /* _PATH_UTMP */
 #  endif
+# endif
+
+#endif /* UTMPOK || BUGGYGETLOGIN */
+
+#if !defined(UTMPOK) && defined(USRLIMIT)
+# undef USRLIMIT
 #endif
 
 #ifdef LOGOUTOK
@@ -179,9 +257,16 @@ extern char *sys_errlist[];
 #  define LOGINDEFAULT 0
 # endif
 #else
-# undef LOGINDEFAULT
+# ifdef LOGINDEFAULT
+#  undef LOGINDEFAULT
+# endif
 # define LOGINDEFAULT 1
 #endif
+
+
+/*****************************************************************
+ *    file stuff
+ */
 
 #ifndef F_OK
 #define F_OK 0
@@ -210,43 +295,65 @@ extern char *sys_errlist[];
 #endif
 
 #if defined(S_IFIFO) && defined(S_IFMT) && !defined(S_ISFIFO)
-#define S_ISFIFO(mode) ((mode & S_IFMT) == S_IFIFO)
+#define S_ISFIFO(mode) (((mode) & S_IFMT) == S_IFIFO)
 #endif
 #if defined(S_IFSOCK) && defined(S_IFMT) && !defined(S_ISSOCK)
-#define S_ISSOCK(mode) ((mode & S_IFMT) == S_IFSOCK)
+#define S_ISSOCK(mode) (((mode) & S_IFMT) == S_IFSOCK)
+#endif
+#if defined(S_IFCHR) && defined(S_IFMT) && !defined(S_ISCHR)
+#define S_ISCHR(mode) (((mode) & S_IFMT) == S_IFCHR)
+#endif
+#if defined(S_IFDIR) && defined(S_IFMT) && !defined(S_ISDIR)
+#define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
 #endif
 
-#ifndef TERMCAP_BUFSIZE
-# define TERMCAP_BUFSIZE 1024
+#if !defined(O_NONBLOCK) && defined(O_NDELAY)
+# define O_NONBLOCK O_NDELAY
 #endif
 
-#ifndef MAXPATHLEN
-# define MAXPATHLEN 1024
+#if !defined(FNBLOCK) && defined(FNONBLOCK)
+# define FNBLOCK FNONBLOCK
+#endif
+#if !defined(FNBLOCK) && defined(FNDELAY)
+# define FNBLOCK FNDELAY
+#endif
+#if !defined(FNBLOCK) && defined(O_NONBLOCK)
+# define FNBLOCK O_NONBLOCK
 #endif
 
-#ifndef SIG_T_DEFINED
-# ifdef SIGVOID
-#  if defined(ultrix)
-#   define sig_t void
-#  else /* nice compilers: */
-    typedef void sig_t;
-#  endif
-# else
-   typedef int sig_t; /* (* sig_t) */
-# endif
+#ifndef POSIX
+#undef mkfifo
+#define mkfifo(n,m) mknod(n,S_IFIFO|(m),0)
+#endif
+
+#if !defined(HAVE_LSTAT) && !defined(lstat)
+# define lstat stat
+#endif
+
+/*****************************************************************
+ *    signal handling
+ */
+
+#ifdef SIGVOID
+# define SIGRETURN
+# define sigret_t void
 #else
-# if defined (__alpha)
-#   define sig_t void	/* From: Dietrich Wiegandt <dietrich@afsw01.cern.ch> */
-#  endif
-#endif /* SIG_T_DEFINED */
+# define SIGRETURN return 0;
+# define sigret_t int
+#endif
 
-#if defined(SVR4) || (defined(SYSV) && defined(ISC)) || defined(_AIX) || defined(linux) || defined(ultrix) || defined(__386BSD__) || defined(BSDI)
+/* Geeeee, reverse it? */
+#if defined(SVR4) || (defined(SYSV) && defined(ISC)) || defined(_AIX) || defined(linux) || defined(ultrix) || defined(__386BSD__) || defined(BSDI) || defined(POSIX) || defined(NeXT)
+# define SIGHASARG
+#endif
+
+#ifdef SIGHASARG
 # define SIGPROTOARG   (int)
-# define SIGDEFARG     int sigsig
+# define SIGDEFARG     (sigsig) int sigsig;
 # define SIGARG        0
 #else
 # define SIGPROTOARG   (void)
-# define SIGDEFARG
+# define SIGDEFARG     ()
 # define SIGARG
 #endif
 
@@ -254,55 +361,23 @@ extern char *sys_errlist[];
 #define SIGCHLD SIGCLD
 #endif
 
-#ifdef USESIGSET
-# define signal sigset
-#endif /* USESIGSET */
-
-#ifndef PID_T_DEFINED
-typedef int pid_t;
-#endif
-
-#ifndef UID_T_DEFINED
-typedef int gid_t;
-typedef int uid_t;
-#endif
-
-#ifdef GETUTENT
-  typedef char *slot_t;
+#if defined(POSIX) || defined(hpux)
+# define signal xsignal
 #else
-  typedef int slot_t;
+# ifdef USESIGSET
+#  define signal sigset
+# endif /* USESIGSET */
 #endif
 
-#ifdef SYSV
-# define index strchr
-# define rindex strrchr
-# define bzero(poi,len) memset(poi,0,len)
-# define bcmp memcmp
-# define killpg(pgrp,sig) kill( -(pgrp), sig)
-#endif /* SYSV */
+/* used in screen.c and attacher.c */
+#ifndef NSIG		/* kbeal needs these w/o SYSV */
+# define NSIG 32
+#endif /* !NSIG */
 
-#ifndef USEBCOPY
-# ifdef USEMEMCPY
-#  define bcopy(s,d,len) memcpy(d,s,len)
-# else
-#  ifdef USEMEMMOVE
-#   define bcopy(s,d,len) memmove(d,s,len)
-#  else
-#   define NEED_OWN_BCOPY
-#  endif
-# endif
-#endif
 
-#if defined(_POSIX_SOURCE) && defined(ISC)
-# ifndef O_NDELAY
-#  define O_NDELAY O_NONBLOCK
-# endif
-#endif
-
-#ifdef hpux
-# define setreuid(ruid, euid) setresuid(ruid, euid, -1)
-# define setregid(rgid, egid) setresgid(rgid, egid, -1)
-#endif
+/*****************************************************************
+ *    Wait stuff
+ */
 
 #if (!defined(sysV68) && !defined(M_XENIX)) || defined(NeXT)
 # include <sys/wait.h>
@@ -345,10 +420,14 @@ typedef int uid_t;
 # endif
 #endif
 
-#if defined(M_XENIX) || defined(M_UNIX) || defined(_SEQUENT_)
-#include <sys/select.h> /* for timeval + FD... */
-#endif
 
+/*****************************************************************
+ *    select stuff
+ */
+
+#if defined(M_XENIX) || defined(M_UNIX) || defined(_SEQUENT_)
+#include <sys/select.h>		/* for timeval + FD... */
+#endif
 
 /*
  * SunOS 3.5 - Tom Schmidt - Micron Semiconductor, Inc - 27-Jul-93
@@ -356,10 +435,7 @@ typedef int uid_t;
  */
 #ifndef FD_SET
 # ifndef SUNOS3
-typedef struct fd_set
-{
-  int fds_bits[1];
-}      fd_set;
+typedef struct fd_set { int fds_bits[1]; } fd_set;
 # endif
 # define FD_ZERO(fd) ((fd)->fds_bits[0] = 0)
 # define FD_SET(b, fd) ((fd)->fds_bits[0] |= 1 << (b))
@@ -368,40 +444,22 @@ typedef struct fd_set
 #endif
 
 
-#if defined(sgi) 
-/* on IRIX, regardless of the stream head's read mode (RNORM/RMSGN/RMSGD)
- * TIOCPKT mode causes data loss if our buffer is too small (IOSIZE)
- * to hold the whole packet at first read().
- * (Marc Boucher)
+/*****************************************************************
+ *    user defineable stuff
  */
-# undef TIOCPKT
+
+#ifndef TERMCAP_BUFSIZE
+# define TERMCAP_BUFSIZE 2048
 #endif
 
-#if !defined(VDISABLE)
-# ifdef _POSIX_VDISABLE
-#  define VDISABLE _POSIX_VDISABLE
-# else
-#  define VDISABLE 0377
-# endif /* _POSIX_VDISABLE */
-#endif /* !VDISABLE */
-
-#if !defined(FNDELAY) && defined(O_NDELAY)
-# define FNDELAY O_NDELAY
+#ifndef MAXPATHLEN
+# define MAXPATHLEN 1024
 #endif
-
-/*typedef long off_t; */	/* Someone might need this */
-
 
 /* 
- * 4 <= IOSIZE <=1000
  * you may try to vary this value. Use low values if your (VMS) system
  * tends to choke when pasting. Use high values if you want to test
  * how many characters your pty's can buffer.
  */
 #define IOSIZE		4096
-
-/* used in screen.c and attacher.c */
-#if !defined(NSIG)	/* kbeal needs these w/o SYSV */
-# define NSIG 32
-#endif /* !NSIG */
 

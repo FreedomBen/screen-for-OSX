@@ -39,35 +39,46 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "activity",		ARGS_ONE },
   { "aka",		NEED_FORE|ARGS_ZEROONE },	/* TO BE REMOVED */
-  { "allpartial",	ARGS_ONE },
-  { "at",		ARGS_TWO|ARGS_ORMORE },
+  { "allpartial",	NEED_DISPLAY|ARGS_ONE },
+  { "at",		NEED_DISPLAY|ARGS_TWO|ARGS_ORMORE },
   { "autodetach",	ARGS_ONE },
 #ifdef AUTO_NUKE
   { "autonuke",		NEED_DISPLAY|ARGS_ONE },
 #endif
-  { "bell",		ARGS_ONE },
+  { "bell",		ARGS_ZEROONE },
+  { "bell_msg",		ARGS_ZEROONE },
   { "bind",		ARGS_ONE|ARGS_ORMORE },
+#ifdef MAPKEYS
+  { "bindkey",		ARGS_ZERO|ARGS_ORMORE },
+#endif
   { "break",		NEED_FORE|ARGS_ZEROONE },
 #ifdef COPY_PASTE
   { "bufferfile",	ARGS_ZEROONE },
 #endif
+  { "c1",		NEED_FORE|ARGS_ZEROONE },
   { "chdir",		ARGS_ZEROONE },
   { "clear",		NEED_FORE|ARGS_ZERO },
 #ifdef MULTI
   { "clone",		NEED_DISPLAY|ARGS_ONE|ARGS_ORMORE },
 #endif
   { "colon",		NEED_DISPLAY|ARGS_ZERO },
+  { "command",		NEED_DISPLAY|ARGS_ZERO },
   { "console",		NEED_FORE|ARGS_ZEROONE },
 #ifdef COPY_PASTE
   { "copy",		NEED_FORE|ARGS_ZERO },
-  { "copy_reg",		ARGS_ZEROONE },
   { "crlf",		ARGS_ONE },
 #endif
   { "debug",		ARGS_ZEROONE },
 #ifdef AUTO_NUKE
   { "defautonuke",	ARGS_ONE },
 #endif
+  { "defc1",		ARGS_ONE },
+  { "defescape",	ARGS_ONE },
   { "defflow",		ARGS_ONETWO },
+  { "defgr",		ARGS_ONE },
+#ifdef KANJI
+  { "defkanji",		ARGS_ONE },
+#endif
 #if defined(UTMPOK) && defined(LOGOUTOK)
   { "deflogin",		ARGS_ONE },
 #endif
@@ -78,28 +89,29 @@ struct comm comms[RC_LAST + 1] =
   { "defscrollback",	ARGS_ONE },
 #endif
   { "defwrap",		ARGS_ONE },
+  { "defwritelock",	ARGS_ONE },
   { "detach",		NEED_DISPLAY|ARGS_ZERO },
   { "displays",		NEED_DISPLAY|ARGS_ZERO },
-  { "dumptermcap",	ARGS_ZERO },
-  { "duplicate",	ARGS_ZERO|ARGS_ORMORE },
+  { "dumptermcap",	NEED_FORE|ARGS_ZERO },
   { "echo",		ARGS_ONETWO },
-  { "escape",		ARGS_ONE },
+  { "escape",		NEED_DISPLAY|ARGS_ONE },
 #ifdef PSEUDOS
   { "exec", 		NEED_FORE|ARGS_ZERO|ARGS_ORMORE },
 #endif
   { "flow",		NEED_FORE|ARGS_ZEROONE },
+  { "gr",		NEED_FORE|ARGS_ZEROONE },
   { "hardcopy",		NEED_FORE|ARGS_ZERO },
   { "hardcopy_append",	ARGS_ONE },
   { "hardcopydir",	ARGS_ONE },
-  { "hardstatus",	ARGS_ZEROONE },
+  { "hardstatus",	NEED_DISPLAY|ARGS_ZEROONE },
   { "height",		NEED_DISPLAY|ARGS_ZEROONE },
   { "help",		NEED_DISPLAY|ARGS_ZERO },
 #ifdef COPY_PASTE
   { "history",		NEED_FORE|ARGS_ZERO },
 #endif
   { "info",		NEED_DISPLAY|ARGS_ZERO },
-#ifdef COPY_PASTE
-  { "ins_reg",		NEED_DISPLAY|ARGS_ZEROONE },
+#ifdef KANJI
+  { "kanji",		NEED_FORE|ARGS_ONETWO },
 #endif
   { "kill",		NEED_FORE|ARGS_ZERO },
   { "lastmsg",		NEED_DISPLAY|ARGS_ZERO },
@@ -107,10 +119,15 @@ struct comm comms[RC_LAST + 1] =
 #ifdef LOCK
   { "lockscreen",	NEED_DISPLAY|ARGS_ZERO },
 #endif
-  { "log",		ARGS_ZEROONE },
+  { "log",		NEED_FORE|ARGS_ZEROONE },
   { "logdir",		ARGS_ONE },
 #if defined(UTMPOK) && defined(LOGOUTOK)
   { "login",		NEED_FORE|ARGS_ZEROONE },
+#endif
+#ifdef MAPKEYS
+  { "mapdefault",	NEED_DISPLAY|ARGS_ZERO },
+  { "mapnotnext",	NEED_DISPLAY|ARGS_ZERO },
+  { "maptimeout",	ARGS_ZEROONE },
 #endif
 #ifdef COPY_PASTE
   { "markkeys",		ARGS_ONE },
@@ -125,29 +142,32 @@ struct comm comms[RC_LAST + 1] =
 #ifdef NETHACK
   { "nethack",		ARGS_ONE },
 #endif
-  { "next",		ARGS_ZERO },
+  { "next",		NEED_DISPLAY|NEED_FORE|ARGS_ZERO },
   { "number",		NEED_FORE|ARGS_ZEROONE },
   { "obuflimit",	NEED_DISPLAY|ARGS_ZEROONE },
-  { "other",		NEED_DISPLAY|ARGS_ZERO },
+  { "other",		NEED_DISPLAY|NEED_FORE|ARGS_ZERO },
   { "partial",		NEED_FORE|ARGS_ZEROONE },
 #ifdef PASSWORD
   { "password",		ARGS_ZEROONE },
 #endif
 #ifdef COPY_PASTE
-  { "paste",		NEED_DISPLAY|ARGS_ZEROONE },
+  { "paste",		NEED_DISPLAY|ARGS_ZEROONETWO },
+  { "pastefont",	ARGS_ZEROONE },
 #endif
   { "pow_break",	NEED_FORE|ARGS_ZEROONE },
 #ifdef POW_DETACH
   { "pow_detach",	NEED_DISPLAY|ARGS_ZERO },
-  { "pow_detach_msg",	ARGS_ONE },
+  { "pow_detach_msg",	ARGS_ZEROONE },
 #endif
-  { "prev",		ARGS_ZERO },
+  { "prev",		NEED_DISPLAY|NEED_FORE|ARGS_ZERO },
+  { "printcmd",		ARGS_ZEROONE },
   { "process",		NEED_DISPLAY|ARGS_ZEROONE },
   { "quit",		ARGS_ZERO },
 #ifdef COPY_PASTE
   { "readbuf",		NEED_DISPLAY|ARGS_ZERO },
 #endif
-  { "redisplay",	ARGS_ZERO },
+  { "readreg",          ARGS_ZEROONETWO },
+  { "redisplay",	NEED_DISPLAY|ARGS_ZERO },
   { "register",		ARGS_TWO },
 #ifdef COPY_PASTE
   { "removebuf",	ARGS_ZERO },
@@ -168,6 +188,7 @@ struct comm comms[RC_LAST + 1] =
   { "sleep",		ARGS_ONE },
   { "slowpaste",	ARGS_ONE },
   { "startup_message",	ARGS_ONE },
+  { "stuff",		NEED_DISPLAY|ARGS_ONE },
 #ifdef BSDJOBS
   { "suspend",		NEED_DISPLAY|ARGS_ZERO },
 #endif
@@ -178,12 +199,12 @@ struct comm comms[RC_LAST + 1] =
   { "title",		NEED_FORE|ARGS_ZEROONE },
   { "unsetenv",		ARGS_ONE },
   { "vbell",		ARGS_ZEROONE },
-  { "vbell_msg",	ARGS_ONE },
+  { "vbell_msg",	ARGS_ZEROONE },
   { "vbellwait",	ARGS_ONE },
   { "version",		ARGS_ZERO },
   { "wall",		NEED_DISPLAY|ARGS_ONE|ARGS_ORMORE },
   { "width",		NEED_DISPLAY|ARGS_ZEROONE },
-  { "windows",		ARGS_ZERO },
+  { "windows",		NEED_DISPLAY|ARGS_ZERO },
   { "wrap",		NEED_FORE|ARGS_ZEROONE },
 #ifdef COPY_PASTE
   { "writebuf",		NEED_DISPLAY|ARGS_ZERO },

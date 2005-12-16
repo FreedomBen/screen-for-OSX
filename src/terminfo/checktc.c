@@ -38,9 +38,9 @@ main()
       exit(1);
     }
   
-  if (s = getenv("COLUMNS"))
+  if ((s = getenv("COLUMNS")))
       CO = atoi(s);
-  if (s = getenv("LINES"))
+  if ((s = getenv("LINES")))
       LI = atoi(s);
   if (CO == 0)
       CO = tgetnum("co");
@@ -101,7 +101,7 @@ main()
       XN = tgetflag("xn");
       printf("Termcap: terminal has %smagic margins", XN ? "" : "no ");
       GotoPos(0, 5);
-      if (XN = tgetflag("xn"))
+      if ((XN = tgetflag("xn")))
 	{
 	  printf(" xn capability set, but terminal has no magic-margins");
 	  GotoPos(CO-1, 4);
@@ -129,7 +129,7 @@ main()
 	  RETURN();
         }
     }
-  if (CS = tgetstr("cs", &tp))
+  if ((CS = tgetstr("cs", &tp)))
     {
       printf("Termcap: terminal has scrollregions");
       GotoPos(0, 5);
@@ -141,7 +141,7 @@ main()
       GotoPos(0, 10);
       RETURN();
     }
-  if (SR = tgetstr("sr", &tp))
+  if ((SR = tgetstr("sr", &tp)))
     {
       GotoPos(0, 5);
       printf(" sr capability set, but doesn't work");

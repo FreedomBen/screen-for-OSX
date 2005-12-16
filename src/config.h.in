@@ -120,7 +120,9 @@
 # define PSEUDOS
 # define MULTI
 # define MULTIUSER
+# define MAPKEYS
 #endif /* SIMPLESCREEN */
+#define KANJI
 
 /*
  * As error messages are mostly meaningless to the user, we
@@ -150,7 +152,9 @@
  * Disabling this feature only makes sense if you have a secure /etc/utmp
  * database. 
  * Negative examples: suns usually have a world writable utmp file, 
- * xterm will run perfectly without s-bit.
+ * xterm and script will run perfectly without s-bit.
+ * If LOGOUTOK is undefined and UTMPOK is defined, all windows are initially
+ * and permanently logged in.
  */
 #define LOGOUTOK 1
 
@@ -183,12 +187,22 @@
 #undef SVR4
 #endif
 
-#ifndef OSF1
-#undef OSF1
-#endif
-
+/* #ifndef __osf__ */
 #ifndef MIPS
 #undef MIPS
+#endif
+/* #endif */
+
+#ifndef OSX
+#undef OSX
+#endif
+
+#ifndef ISC
+#undef ISC
+#endif
+
+#ifndef _POSIX_SOURCE
+#undef _POSIX_SOURCE
 #endif
 
 /*
@@ -209,6 +223,11 @@
  * struct termios.
  */
 #undef TERMIO
+
+/*
+ * Define CYTERMIO if you have cyrillic termio modes.
+ */
+#undef CYTERMIO
 
 /*
  * Define TERMINFO if your machine emulates the termcap routines
@@ -289,12 +308,18 @@
 #undef BUGGYGETLOGIN
 
 /*
- * If your system does not have the calls setreuid() and setregid(),
- * define NOREUID to force screen to use a forked process to safely
- * create output files without retaining any special privileges.
+ * If your system has the calls setreuid() and setregid(),
+ * define HAVE_SETREUID. Otherwise screen will use a forked process to
+ * safely create output files without retaining any special privileges.
  * (Output logging will be disabled, however.)
  */
-#undef NOREUID
+#undef HAVE_SETREUID
+
+/*
+ * If your system supports BSD4.4's seteuid() and setegid(), define
+ * HAVE_SETEUID.
+ */
+#undef HAVE_SETEUID
 
 /*
  * If you want the "time" command to display the current load average
@@ -340,6 +365,11 @@
  * define USEVARARGS.
  */
 #undef USEVARARGS
+
+/*
+ * If your system has strerror() define this.
+ */
+#undef HAVE_STRERROR
 
 /*
  * If the select return value doesn't treat a descriptor that is
@@ -389,6 +419,21 @@
 #undef NAME_MAX
 
 /*
+ * define NEED_RENAME if your system doesn't have a rename() function
+ */
+#undef NEED_RENAME
+
+/*
+ * define HAVE__EXIT if your system has the _exit() call.
+ */
+#undef HAVE__EXIT
+
+/*
+ * define HAVE_LSTAT if your system has symlinks and the lstat() call.
+ */
+#undef HAVE_LSTAT
+
+/*
  * define HAVE_DEV_PTC if you have a /dev/ptc character special
  * device.
  */
@@ -403,11 +448,4 @@
  */
 #undef PTYRANGE0
 #undef PTYRANGE1
-
-/*
- * some defines to prevent retypedefs
- */
-#undef SIG_T_DEFINED
-#undef PID_T_DEFINED
-#undef UID_T_DEFINED
 

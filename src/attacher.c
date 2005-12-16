@@ -36,25 +36,25 @@ RCS_ID("$Id$ FAU")
 # include <shadow.h>
 #endif /* SHADOWPW */
 
-static sig_t AttacherSigInt __P(SIGPROTOARG);
+static sigret_t AttacherSigInt __P(SIGPROTOARG);
 #ifdef PASSWORD
 static void  trysend __P((int, struct msg *, char *));
 #endif
 #if defined(SIGWINCH) && defined(TIOCGWINSZ)
-static sig_t AttacherWinch __P(SIGPROTOARG);
+static sigret_t AttacherWinch __P(SIGPROTOARG);
 #endif
 #ifdef LOCK
-static sig_t DoLock __P(SIGPROTOARG);
+static sigret_t DoLock __P(SIGPROTOARG);
 static void  LockTerminal __P((void));
-static sig_t LockHup __P(SIGPROTOARG);
+static sigret_t LockHup __P(SIGPROTOARG);
 static void  screen_builtin_lck __P((void));
 #endif
 #ifdef DEBUG
-static sig_t AttacherChld __P(SIGPROTOARG);
+static sigret_t AttacherChld __P(SIGPROTOARG);
 #endif
 
 extern int real_uid, real_gid, eff_uid, eff_gid;
-extern char *SockName, *SockNamePtr, SockPath[];
+extern char *SockName, *SockMatch, SockPath[];
 extern struct passwd *ppp;
 extern char *attach_tty, *attach_term, *LoginName;
 extern int xflag, dflag, rflag, quietflag, adaptflag;
@@ -66,7 +66,7 @@ extern int nethackflag;
 extern char *multi;
 extern int multiattach, multi_uid, own_uid;
 extern int tty_mode, tty_oldmode;
-# ifdef NOREUID
+# ifndef USE_SETEUID
 static int multipipe[2];
 # endif
 #endif
@@ -76,26 +76,31 @@ static int multipipe[2];
 /*
  *  Send message to a screen backend.
  *  returns 1 if we could attach one, or 0 if none.
+ *  Understands  MSG_ATTACH, MSG_DETACH, MSG_POW_DETACH
+ *               MSG_CONT, MSG_WINCH and nothing else!
  */
 
 int
 Attach(how)
 int how;
 {
-  int lasts;
+  int n, lasts;
   struct msg m;
   struct stat st;
   char *s;
 
   debug2("Attach: how=%d, tty=%s\n", how, attach_tty);
 #ifdef MULTIUSER
-# ifdef NOREUID
+# ifndef USE_SETEUID
   while ((how == MSG_ATTACH || how == MSG_CONT) && multiattach)
     {
       int ret;
 
       if (pipe(multipipe))
 	Panic(errno, "pipe");
+      if (chmod(attach_tty, 0666))
+	Panic(errno, "chmod %s", attach_tty);
+      tty_oldmode = tty_mode;
       eff_uid = -1;	/* make UserContext fork */
       real_uid = multi_uid;
       if ((ret = UserContext()) <= 0)
@@ -145,17 +150,18 @@ int how;
       eff_uid  = real_uid;
       break;
     }
-# else /* NOREUID */
+# else /* USE_SETEUID */
   if ((how == MSG_ATTACH || how == MSG_CONT) && multiattach)
     {
       real_uid = multi_uid;
       eff_uid  = own_uid;
-      setreuid(real_uid, eff_uid);
+      xseteuid(multi_uid);
+      xseteuid(own_uid);
       if (chmod(attach_tty, 0666))
 	Panic(errno, "chmod %s", attach_tty);
       tty_oldmode = tty_mode;
     }
-# endif /* NOREUID */
+# endif /* USE_SETEUID */
 #endif /* MULTIUSER */
 
   bzero((char *) &m, sizeof(m));
@@ -164,7 +170,7 @@ int how;
 
   if (how == MSG_WINCH)
     {
-      if ((lasts = MakeClientSocket(0, SockName)) >= 0)
+      if ((lasts = MakeClientSocket(0)) >= 0)
 	{
           write(lasts, (char *)&m, sizeof(m));
           close(lasts);
@@ -174,29 +180,32 @@ int how;
 
   if (how == MSG_CONT)
     {
-      if ((lasts = MakeClientSocket(0, SockName)) < 0)
+      if ((lasts = MakeClientSocket(0)) < 0)
         {
-          Panic(0, "Sorry, cannot contact session \"%s\" again\r\n",
-                 SockName ? SockName : "<NULL>");
+          Panic(0, "Sorry, cannot contact session \"%s\" again.\r\n",
+                 SockName);
         }
     }
   else
     {
-      switch (FindSocket(how, &lasts))
+      n = FindSocket(&lasts, (int *)0, SockMatch);
+      switch (n)
 	{
 	case 0:
 	  if (rflag == 2)
 	    return 0;
 	  if (quietflag)
 	    eexit(10);
-	  Panic(0, SockName && *SockName ? "There is no screen to be %sed matching %s." : "There is no screen to be %sed.",
+	  Panic(0, SockMatch && *SockMatch ? "There is no screen to be %sed matching %s." : "There is no screen to be %sed.",
 		xflag ? "attach" :
 		dflag ? "detach" :
-                        "resum", SockName);
+                        "resum", SockMatch);
 	  /* NOTREACHED */
 	case 1:
 	  break;
 	default:
+	  if (quietflag)
+	    eexit(10 + n);
 	  Panic(0, "Type \"screen [-d] -r [pid.]tty.host\" to resume one of them.");
 	  /* NOTREACHED */
 	}
@@ -210,23 +219,22 @@ int how;
   if (!multiattach)
 #endif
     setuid(real_uid);
-#if defined(MULTIUSER) && !defined(NOREUID)
+#if defined(MULTIUSER) && defined(USE_SETEUID)
   else
-    setreuid(eff_uid, real_uid);
+    xseteuid(real_uid);	/* multi_uid, allow backend to send signals */
 #endif
   setgid(real_gid);
+  eff_uid = real_uid;
+  eff_gid = real_gid;
 
   debug2("Attach: uid %d euid %d\n", getuid(), geteuid());
-  SockName = SockNamePtr;
   MasterPid = 0;
-  while (*SockName)
+  for (s = SockName; *s; s++)
     {
-      if (*SockName > '9' || *SockName < '0')
+      if (*s > '9' || *s < '0')
 	break;
-      MasterPid = 10 * MasterPid + *SockName - '0';
-      SockName++;
+      MasterPid = 10 * MasterPid + (*s - '0');
     }
-  SockName = SockNamePtr;
   debug1("Attach decided, it is '%s'\n", SockPath);
   debug1("Attach found MasterPid == %d\n", MasterPid);
   if (stat(SockPath, &st) == -1)
@@ -254,11 +262,12 @@ int how;
       if (how != MSG_ATTACH)
 	return 0;	/* we detached it. jw. */
       sleep(1);	/* we dont want to overrun our poor backend. jw. */
-      if ((lasts = MakeClientSocket(0, SockName)) == -1)
-	Panic(0, "Cannot contact screen again. Shit.");
+      if ((lasts = MakeClientSocket(0)) == -1)
+	Panic(0, "Cannot contact screen again. Sigh.");
       m.type = how;
     }
 #endif
+  ASSERT(how == MSG_ATTACH || how == MSG_CONT);
   strcpy(m.m.attach.envterm, attach_term);
   debug1("attach: sending %d bytes... ", sizeof m);
 
@@ -289,15 +298,15 @@ int how;
 # ifndef PASSWORD
       pause();
 # endif
-# ifdef NOREUID
+# ifndef USE_SETEUID
       close(multipipe[1]);
 # else
-      setreuid(real_uid, eff_uid);
+      xseteuid(own_uid);
       if (tty_oldmode >= 0)
         if (chmod(attach_tty, tty_oldmode))
           Panic(errno, "chmod %s", attach_tty);
       tty_oldmode = -1;
-      setreuid(eff_uid, real_uid);
+      xseteuid(real_uid);
 # endif
     }
 #endif
@@ -310,14 +319,14 @@ int how;
 
 static trysendstatok, trysendstatfail;
 
-static sig_t
-trysendok(SIGDEFARG)
+static sigret_t
+trysendok SIGDEFARG
 {
   trysendstatok = 1;
 }
 
-static sig_t
-trysendfail(SIGDEFARG)
+static sigret_t
+trysendfail SIGDEFARG
 {
 # ifdef SYSVSIGS
   signal(SIG_PW_FAIL, trysendfail);
@@ -334,8 +343,8 @@ struct msg *m;
 char *pwto;
 {
   char *npw = NULL;
-  sig_t (*sighup)__P(SIGPROTOARG);
-  sig_t (*sigusr1)__P(SIGPROTOARG);
+  sigret_t (*sighup)__P(SIGPROTOARG);
+  sigret_t (*sigusr1)__P(SIGPROTOARG);
   int tries;
 
   sigusr1 = signal(SIG_PW_OK, trysendok);
@@ -367,8 +376,8 @@ char *pwto;
 	  Panic(0, "Password incorrect.");
 	}
       strncpy(screenpw, npw, 8);
-      if ((fd = MakeClientSocket(0, SockName)) == -1)
-	Panic(0, "Cannot contact screen again. Shit.");
+      if ((fd = MakeClientSocket(0)) == -1)
+	Panic(0, "Cannot contact screen again. Sigh.");
     }
 }
 #endif /* PASSWORD */
@@ -377,13 +386,11 @@ char *pwto;
 #ifdef DEBUG
 static int AttacherPanic;
 
-static sig_t
-AttacherChld(SIGDEFARG)
+static sigret_t
+AttacherChld SIGDEFARG
 {
   AttacherPanic=1;
-#ifndef SIGVOID
-  return((sig_t) 0);
-#endif
+  SIGRETURN;
 }
 #endif
 
@@ -391,14 +398,12 @@ AttacherChld(SIGDEFARG)
  * the frontend's Interrupt handler
  * we forward SIGINT to the poor backend
  */
-static sig_t 
-AttacherSigInt(SIGDEFARG)
+static sigret_t 
+AttacherSigInt SIGDEFARG
 {
   signal(SIGINT, AttacherSigInt);
   Kill(MasterPid, SIGINT);
-# ifndef SIGVOID
-  return (sig_t) 0;
-# endif
+  SIGRETURN;
 }
 
 /*
@@ -406,8 +411,8 @@ AttacherSigInt(SIGDEFARG)
  * check, if the backend is already detached.
  */
 
-sig_t
-AttacherFinit(SIGDEFARG)
+sigret_t
+AttacherFinit SIGDEFARG
 {
   struct stat statb;
   struct msg m;
@@ -416,22 +421,18 @@ AttacherFinit(SIGDEFARG)
   debug("AttacherFinit();\n");
   signal(SIGHUP, SIG_IGN);
   /* Check if signal comes from backend */
-  if (SockName)
+  if (stat(SockPath, &statb) == 0 && (statb.st_mode & 0777) != 0600)
     {
-      strcpy(SockNamePtr, SockName);
-      if (stat(SockPath, &statb) == 0 && (statb.st_mode & 0777) != 0600)
+      debug("Detaching backend!\n");
+      bzero((char *) &m, sizeof(m));
+      strcpy(m.m_tty, attach_tty);
+      debug1("attach_tty is %s\n", attach_tty);
+      m.m.detach.dpid = getpid();
+      m.type = MSG_HANGUP;
+      if ((s = MakeClientSocket(0)) >= 0)
 	{
-	  debug("Detaching backend!\n");
-	  bzero((char *) &m, sizeof(m));
-	  strcpy(m.m_tty, attach_tty);
-          debug1("attach_tty is %s\n", attach_tty);
-	  m.m.detach.dpid = getpid();
-	  m.type = MSG_HANGUP;
-	  if ((s = MakeClientSocket(0, SockName)) >= 0)
-	    {
-	      write(s, (char *)&m, sizeof(m));
-	      close(s);
-	    }
+	  write(s, (char *)&m, sizeof(m));
+	  close(s);
 	}
     }
 #ifdef MULTIUSER
@@ -442,18 +443,16 @@ AttacherFinit(SIGDEFARG)
     }
 #endif
   exit(0);
-#ifndef SIGVOID
-  return((sig_t) 0);
-#endif
+  SIGRETURN;
 }
 
 #ifdef POW_DETACH
-static sig_t
-AttacherFinitBye(SIGDEFARG)
+static sigret_t
+AttacherFinitBye SIGDEFARG
 {
   int ppid;
   debug("AttacherFintBye()\n");
-#if defined(MULTIUSER) && defined(NOREUID)
+#if defined(MULTIUSER) && !defined(USE_SETEUID)
   if (multiattach)
     exit(SIG_POWER_BYE);
 #endif
@@ -467,52 +466,44 @@ AttacherFinitBye(SIGDEFARG)
   if ((ppid = getppid()) > 1)
     Kill(ppid, SIGHUP);		/* carefully say good bye. jw. */
   exit(0);
-#ifndef SIGVOID
-  return((sig_t) 0);
-#endif
+  SIGRETURN;
 }
 #endif
 
 static int SuspendPlease;
 
-static sig_t
-SigStop(SIGDEFARG)
+static sigret_t
+SigStop SIGDEFARG
 {
   debug("SigStop()\n");
   SuspendPlease = 1;
-#ifndef SIGVOID
-  return((sig_t) 0);
-#endif
+  SIGRETURN;
 }
 
 #ifdef LOCK
 static int LockPlease;
 
-static sig_t
-DoLock(SIGDEFARG)
+static sigret_t
+DoLock SIGDEFARG
 {
 # ifdef SYSVSIGS
   signal(SIG_LOCK, DoLock);
 # endif
   debug("DoLock()\n");
   LockPlease = 1;
-# ifndef SIGVOID
-  return((sig_t) 0);
-# endif
+  SIGRETURN;
 }
 #endif
 
 #if defined(SIGWINCH) && defined(TIOCGWINSZ)
 static int SigWinchPlease;
 
-static sig_t
-AttacherWinch(SIGDEFARG)
+static sigret_t
+AttacherWinch SIGDEFARG
 {
   debug("AttacherWinch()\n");
   SigWinchPlease = 1;
-# ifndef SIGVOID
-  return((sig_t) 0);
-# endif
+  SIGRETURN;
 }
 #endif
 
@@ -550,7 +541,7 @@ Attacher()
   for (;;)
     {
 #ifdef DEBUG
-      sleep(30);
+      sleep(1);
       if (kill(MasterPid, 0) < 0 && errno != EPERM)
         {
 	  debug1("attacher: Panic! MasterPid %d does not exist.\n", MasterPid);
@@ -575,7 +566,7 @@ Attacher()
       if (SuspendPlease)
 	{
 	  SuspendPlease = 0;
-#if defined(MULTIUSER) && defined(NOREUID)
+#if defined(MULTIUSER) && !defined(USE_SETEUID)
 	  if (multiattach)
 	    exit(SIG_STOP);
 #endif
@@ -591,7 +582,7 @@ Attacher()
       if (LockPlease)
 	{
 	  LockPlease = 0;
-#if defined(MULTIUSER) && defined(NOREUID)
+#if defined(MULTIUSER) && !defined(USE_SETEUID)
 	  if (multiattach)
 	    exit(SIG_LOCK);
 #endif
@@ -622,11 +613,15 @@ Attacher()
 
 static char LockEnd[] = "Welcome back to screen !!\n";
 
-static sig_t
-LockHup(SIGDEFARG)
+static sigret_t
+LockHup SIGDEFARG
 {
   int ppid = getppid();
+#ifdef MULTIUSER
+  setuid(own_uid);
+#else
   setuid(real_uid);
+#endif
   setgid(real_gid);
   if (ppid > 1)
     Kill(ppid, SIGHUP);
@@ -638,7 +633,7 @@ LockTerminal()
 {
   char *prg;
   int sig, pid;
-  sig_t (*sigs[NSIG])__P(SIGPROTOARG);
+  sigret_t (*sigs[NSIG])__P(SIGPROTOARG);
 
   for (sig = 1; sig < NSIG; sig++)
     {
@@ -655,7 +650,11 @@ LockTerminal()
       if ((pid = fork()) == 0)
         {
           /* Child */
+#ifdef MULTIUSER
+          setuid(own_uid);
+#else
           setuid(real_uid);	/* this should be done already */
+#endif
           setgid(real_gid);
           closeallfiles(0);	/* important: /etc/shadow may be open */
           execl(prg, "SCREEN-LOCK", NULL);
@@ -722,7 +721,7 @@ LockTerminal()
   /* reset signals */
   for (sig = 1; sig < NSIG; sig++)
     {
-      if (sigs[sig] != (sig_t(*)__P(SIGPROTOARG)) -1)
+      if (sigs[sig] != (sigret_t(*)__P(SIGPROTOARG)) -1)
 	signal(sig, sigs[sig]);
     }
 }				/* LockTerminal */
@@ -802,6 +801,8 @@ realpw:
         }
       pass = 0;
     }
+  else
+    pass[13] = 0;		/* beware of linux's long passwords */
 
   debug("screen_builtin_lck looking in gcos field\n");
   strcpy(fullname, ppp->pw_gecos);

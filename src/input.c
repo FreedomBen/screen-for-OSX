@@ -68,7 +68,7 @@ char *p, *s;
 {
   struct inpdata *inpdata;
   
-  inpdata = (struct inpdata *)d_lay->l_data;
+  inpdata = (struct inpdata *)D_lay->l_data;
   if (p)
     {
       inpdata->inpstringlen = strlen(p);
@@ -80,7 +80,7 @@ char *p, *s;
       inpdata->inpbuf[sizeof(inpdata->inpbuf) - 1] = 0;
       inpdata->inplen = strlen(inpdata->inpbuf);
     }
-  RefreshLine(STATLINE, 0, d_width - 1, 0);
+  RefreshLine(STATLINE, 0, D_width - 1, 0);
 }
 
 /*
@@ -102,12 +102,17 @@ int mode;
   int maxlen;
   struct inpdata *inpdata;
   
+  if (!display)
+    {
+      Msg(0, "Input: cannot interact with user w/o display. Try other form of command\n");
+      return;
+    }
   if (len > 100)
     len = 100;
   if (!(mode & INP_NOECHO))
     {
-      maxlen = d_width - strlen(istr);
-      if (!CLP && STATLINE == d_bot)
+      maxlen = D_width - strlen(istr);
+      if (!D_CLP && STATLINE == D_bot)
 	maxlen--;
       if (len > maxlen)
 	len = maxlen;
@@ -119,7 +124,7 @@ int mode;
     }
   if (InitOverlayPage(sizeof(*inpdata), &InpLf, 1))
     return;
-  inpdata = (struct inpdata *)d_lay->l_data;
+  inpdata = (struct inpdata *)D_lay->l_data;
   inpdata->inpmaxlen = len;
   inpdata->inpfinfunc = finfunc;
   inpdata->inplen = 0;
@@ -132,7 +137,7 @@ InpSetCursor()
 {
   struct inpdata *inpdata;
   
-  inpdata = (struct inpdata *)d_lay->l_data;
+  inpdata = (struct inpdata *)D_lay->l_data;
   GotoPos(inpdata->inpstringlen + (inpdata->inpmode & INP_NOECHO ? 0 : inpdata->inplen), STATLINE);
 }
 
@@ -146,7 +151,7 @@ int *plen;
   char ch;
   struct inpdata *inpdata;
   
-  inpdata = (struct inpdata *)d_lay->l_data;
+  inpdata = (struct inpdata *)D_lay->l_data;
 
   GotoPos(inpdata->inpstringlen + (inpdata->inpmode & INP_NOECHO ? 0 : inpdata->inplen), STATLINE);
   if (ppbuf == 0)
@@ -197,7 +202,7 @@ int *plen;
 	    inpdata->inplen = 0;
 	  inpdata->inpbuf[inpdata->inplen] = 0;
 	  
-  	  d_lay->l_data = 0;
+  	  D_lay->l_data = 0;
           InpAbort(); /* redisplays... */
 	  *ppbuf = pbuf;
 	  *plen = len;
@@ -205,7 +210,7 @@ int *plen;
             (*inpdata->inpfinfunc)(inpdata->inpbuf, inpdata->inplen);
 	  else
             (*inpdata->inpfinfunc)(pbuf - 1, 0);
-	  free(inpdata);
+	  free((char *)inpdata);
 	  return;
 	}
     }
@@ -216,7 +221,7 @@ int *plen;
 static void
 InpAbort()
 {
-  LAY_CALL_UP(RefreshLine(STATLINE, 0, d_width - 1, 0));
+  LAY_CALL_UP(RefreshLine(STATLINE, 0, D_width - 1, 0));
   ExitOverlayPage();
 }
 
@@ -227,7 +232,7 @@ int y, xs, xe, isblank;
   int q, r, s, l, v;
   struct inpdata *inpdata;
   
-  inpdata = (struct inpdata *)d_lay->l_data;
+  inpdata = (struct inpdata *)D_lay->l_data;
 
   if (y != STATLINE)
     {
@@ -263,7 +268,7 @@ int y, xs, xe, isblank;
       v -= l;
     }
   s = r;
-  r = d_width;
+  r = D_width;
   if (!isblank && v > 0 && q < r)
     {
       SetAttrFont(0, ASCII);

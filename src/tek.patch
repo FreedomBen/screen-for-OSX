@@ -1,0 +1,79 @@
+Zhang has developed a patch to the "screen" VT100 terminal emulation program
+that allows one to perform tektronics "tek40xx" style graphics in a 
+screen window.  I've tested it with gnuplot and it works quite well.  
+
+Send flames or technical inquries to the patch author Xiaoguang
+Zhang (zhang@gmsds.ms.ornl.gov) and to screen@uni-erlangen.de
+
+=====================================================================
+
+*** ansi.h.orig	Sun Nov  6 23:55:35 1994
+--- ansi.h	Mon Dec 19 22:14:04 1994
+***************
+*** 55,61 ****
+    PRIN,				/* Printer mode */
+    PRINESC,			/* ESC seen in printer mode */
+    PRINCSI,			/* CSI seen in printer mode */
+!   PRIN4				/* CSI 4 seen in printer mode */
+  };
+  
+  enum string_t 
+--- 55,64 ----
+    PRIN,				/* Printer mode */
+    PRINESC,			/* ESC seen in printer mode */
+    PRINCSI,			/* CSI seen in printer mode */
+!   PRIN4,			/* CSI 4 seen in printer mode */
+!   TEK,				/* Tektronics mode */
+!   TEKESC,			/* Tektronics escape */
+!   TEKEND			/* Tektronics ending sequence */
+  };
+  
+  enum string_t 
+*** ansi.c.orig	Wed Dec 14 00:52:26 1994
+--- ansi.c	Mon Dec 19 22:39:16 1994
+***************
+*** 698,703 ****
+--- 698,708 ----
+  	    case 'k':
+  	      StartString(AKA);
+  	      break;
++ 	    case '\014':
++ 	      curr->w_state = TEK;
++ 	      RAW_PUTCHAR('\033');
++ 	      RAW_PUTCHAR(c);
++ 	      break;
+  	    default:
+  	      if (Special(c))
+  		break;
+***************
+*** 758,763 ****
+--- 763,789 ----
+  		  goto tryagain;
+  		}
+  	    }
++ 	  break;
++ 	case TEK:
++ 	  switch (c)
++ 	    {
++ 	    case '@':
++ 	      if ((unsigned char)*(buf - 2) == ' ') /* XXX: Yucc! */
++ 		curr->w_state = TEKESC;
++ 	      /* FALLTHROUGH */
++ 	    default:
++ 	      RAW_PUTCHAR(c);
++ 	      break;
++ 	    }
++ 	  break;
++ 	case TEKESC:
++ 	  curr->w_state = (c == '\037') ? TEKEND : TEK;
++ 	  RAW_PUTCHAR(c);
++ 	  break;
++ 	case TEKEND:
++ 	  if (c == '\030')
++ 	    curr->w_state = LIT;
++ 	  RAW_PUTCHAR(c);
+  	  break;
+  	case LIT:
+  	default:
+
+=====================================================================

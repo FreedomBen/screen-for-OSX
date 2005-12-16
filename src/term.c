@@ -25,6 +25,10 @@ RCS_ID("$Id$ FAU")
 
 #include "term.h"
 
+#define KMAPDEF(s)
+#define KMAPADEF(s)
+#define KMAPMDEF(s)
+
 struct term term[T_N] =
 {
 /* display size */
@@ -70,8 +74,10 @@ struct term term[T_N] =
   { "DC", T_STR  },
 
 /* erase */
+  { "ut", T_FLG  },
   { "cl", T_STR  },
   { "cd", T_STR  },
+  { "CD", T_STR  },
   { "ce", T_STR  },
   { "cb", T_STR  },
 
@@ -101,8 +107,8 @@ struct term term[T_N] =
   { "se", T_STR  },
   { "me", T_STR  },
   { "ms", T_FLG  },
-  { "sg", T_FLG  },
-  { "ug", T_FLG  },
+  { "sg", T_NUM  },
+  { "ug", T_NUM  },
 
 /* keypad/cursorkeys */
   { "ks", T_STR  },
@@ -124,7 +130,6 @@ struct term term[T_N] =
 /* cursor visibility */
   { "vi", T_STR  },
   { "ve", T_STR  },
-  { "vs", T_STR  },
 
 /* margin handling */
   { "am", T_FLG  },
@@ -135,9 +140,12 @@ struct term term[T_N] =
 
 /* special settings */
   { "NF", T_FLG  },
-  { "xo", T_FLG  },
+  { "nx", T_FLG  },
   { "AN", T_FLG  },
   { "OL", T_NUM  },
+  { "KJ", T_STR  },
+  { "VR", T_STR  },
+  { "VN", T_STR  },
 
 /* d_font setting */
   { "G0", T_FLG  },
@@ -152,30 +160,75 @@ struct term term[T_N] =
 /* keycaps */
 /* define T_CAPS */
 /* nolist */
-  { "km", T_FLG  },
-  { "k0", T_STR  },
-  { "k1", T_STR  },
-  { "k2", T_STR  },
-  { "k3", T_STR  },
-  { "k4", T_STR  },
-  { "k5", T_STR  },
-  { "k6", T_STR  },
-  { "k7", T_STR  },
-  { "k8", T_STR  },
-  { "k9", T_STR  },
-  { "k;", T_STR  },
-  { "kb", T_STR  },
-  { "kd", T_STR  },
-  { "kh", T_STR  },
-  { "kl", T_STR  },
-  { "ko", T_STR  },
-  { "kr", T_STR  },
-  { "ku", T_STR  },
+  { "k0", T_STR  }, KMAPDEF("\033[10~")
+  { "k1", T_STR  }, KMAPDEF("\033OP")
+  { "k2", T_STR  }, KMAPDEF("\033OQ")
+  { "k3", T_STR  }, KMAPDEF("\033OR")
+  { "k4", T_STR  }, KMAPDEF("\033OS")
+  { "k5", T_STR  }, KMAPDEF("\033[15~")
+  { "k6", T_STR  }, KMAPDEF("\033[17~")
+  { "k7", T_STR  }, KMAPDEF("\033[18~")
+  { "k8", T_STR  }, KMAPDEF("\033[19~")
+  { "k9", T_STR  }, KMAPDEF("\033[20~")
+  { "k;", T_STR  }, KMAPDEF("\033[21~")
+  { "F1", T_STR  }, KMAPDEF("\033[23~")
+  { "F2", T_STR  }, KMAPDEF("\033[24~")
+  { "kb", T_STR  }, KMAPDEF("\010")
+  { "kh", T_STR  }, KMAPDEF("\033[1~") KMAPMDEF("g")
   { "K1", T_STR  },
   { "K2", T_STR  },
   { "K3", T_STR  },
   { "K4", T_STR  },
   { "K5", T_STR  },
+/* more keys for Andrew A. Chernov (ache@astral.msk.su) */
+  { "kA", T_STR  },
+  { "ka", T_STR  },
+  { "kB", T_STR  },
+  { "kC", T_STR  },
+  { "kD", T_STR  }, KMAPDEF("\033[3~")
+  { "kE", T_STR  },
+  { "kF", T_STR  },                    KMAPMDEF("\004")
+  { "kH", T_STR  }, KMAPDEF("\033[4~") KMAPMDEF("G")
+  { "kI", T_STR  }, KMAPDEF("\033[2~")
+  { "kL", T_STR  },
+  { "kM", T_STR  },
+  { "kN", T_STR  }, KMAPDEF("\033[6~") KMAPMDEF("\006")
+  { "kP", T_STR  }, KMAPDEF("\033[5~") KMAPMDEF("\002")
+  { "kR", T_STR  },                    KMAPMDEF("\025")
+  { "kS", T_STR  },
+  { "kT", T_STR  },
+  { "kt", T_STR  },
+  { "@1", T_STR  },
+  { "@7", T_STR  },
+/* keys that can have two bindings */
+/* define T_CURSOR */
+  { "ku", T_STR  }, KMAPDEF("\033[A") KMAPADEF("\033OA") KMAPMDEF("k")
+  { "kd", T_STR  }, KMAPDEF("\033[B") KMAPADEF("\033OB") KMAPMDEF("j")
+  { "kr", T_STR  }, KMAPDEF("\033[C") KMAPADEF("\033OC") KMAPMDEF("l")
+  { "kl", T_STR  }, KMAPDEF("\033[D") KMAPADEF("\033OD") KMAPMDEF("h")
+/* define T_KEYPAD */
+  { "f0", T_STR  }, KMAPDEF("0") KMAPADEF("\033Op")
+  { "f1", T_STR  }, KMAPDEF("1") KMAPADEF("\033Oq")
+  { "f2", T_STR  }, KMAPDEF("2") KMAPADEF("\033Or")
+  { "f3", T_STR  }, KMAPDEF("3") KMAPADEF("\033Os")
+  { "f4", T_STR  }, KMAPDEF("4") KMAPADEF("\033Ot")
+  { "f5", T_STR  }, KMAPDEF("5") KMAPADEF("\033Ou")
+  { "f6", T_STR  }, KMAPDEF("6") KMAPADEF("\033Ov")
+  { "f7", T_STR  }, KMAPDEF("7") KMAPADEF("\033Ow")
+  { "f8", T_STR  }, KMAPDEF("8") KMAPADEF("\033Ox")
+  { "f9", T_STR  }, KMAPDEF("9") KMAPADEF("\033Oy")
+  { "f+", T_STR  }, KMAPDEF("+") KMAPADEF("\033Ok")
+  { "f-", T_STR  }, KMAPDEF("-") KMAPADEF("\033Om")
+  { "f*", T_STR  }, KMAPDEF("*") KMAPADEF("\033Oj")
+  { "f/", T_STR  }, KMAPDEF("/") KMAPADEF("\033Oo")
+  { "fq", T_STR  }, KMAPDEF("=") KMAPADEF("\033OX")
+  { "f.", T_STR  }, KMAPDEF(".") KMAPADEF("\033On")
+  { "f,", T_STR  }, KMAPDEF(",") KMAPADEF("\033Ol")
+  { "fe", T_STR  }, KMAPDEF("\015") KMAPADEF("\033OM")
+/* other things related to keycaps */
+/* define T_OCAPS */
+  { "km", T_FLG  },
+  { "ko", T_STR  },
   { "l0", T_STR  },
   { "l1", T_STR  },
   { "l2", T_STR  },
@@ -187,23 +240,6 @@ struct term term[T_N] =
   { "l8", T_STR  },
   { "l9", T_STR  },
   { "la", T_STR  },
-/* more keys for Andrew A. Chernov (ache@astral.msk.su) */
-  { "kA", T_STR  },
-  { "ka", T_STR  },
-  { "kC", T_STR  },
-  { "kD", T_STR  },
-  { "kE", T_STR  },
-  { "kF", T_STR  },
-  { "kH", T_STR  },
-  { "kI", T_STR  },
-  { "kL", T_STR  },
-  { "kM", T_STR  },
-  { "kN", T_STR  },
-  { "kP", T_STR  },
-  { "kR", T_STR  },
-  { "kS", T_STR  },
-  { "kT", T_STR  },
-  { "kt", T_STR  },
 /* list */
 /* define T_ECAPS */
 /* define T_N */

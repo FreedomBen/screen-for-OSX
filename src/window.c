@@ -32,12 +32,13 @@ RCS_ID("$Id$ FAU")
 #endif
 
 #include "config.h"
-#include "screen.h"
-#include "extern.h"
 
-#ifdef SVR4	/* for solaris 2.1 */
+#ifdef SVR4
 # include <sys/stropts.h>
 #endif
+
+#include "screen.h"
+#include "extern.h"
 
 extern struct display *displays, *display;
 extern struct win *windows, *fore, *wtab[], *console_window;
@@ -45,14 +46,18 @@ extern char *ShellArgs[];
 extern char *ShellProg;
 extern char screenterm[];
 extern char HostName[];
-extern int default_monitor, TtyMode;
+extern int TtyMode;
 extern struct LayFuncs WinLf;
-extern int real_uid, real_gid;
+extern int real_uid, real_gid, eff_uid, eff_gid;
 extern char Termcap[];
 extern char **NewEnv;
 
 #if defined(TIOCSWINSZ) || defined(TIOCGWINSZ)
 extern struct winsize glwz;
+#endif
+
+#ifdef _IBMR2
+extern int aixhack;
 #endif
 
 
@@ -68,13 +73,13 @@ static char DefaultPath[] = ":/usr/ucb:/bin:/usr/bin";
 struct NewWindow nwin_undef   = 
 {
   -1, (char *)0, (char **)0, (char *)0, (char *)0, -1, -1, 
-  -1, -1, -1
+  -1, -1, -1, -1, -1, -1, -1, -1
 };
 
 struct NewWindow nwin_default = 
 { 
   0, 0, ShellArgs, 0, screenterm, 0, 1*FLOW_NOW, 
-  LOGINDEFAULT, DEFAULTHISTHEIGHT, -1
+  LOGINDEFAULT, DEFAULTHISTHEIGHT, MON_OFF, WLOCK_AUTO, 1, 1, 0, 0
 };
 
 struct NewWindow nwin_options;
@@ -93,6 +98,13 @@ struct NewWindow *def, *new, *res;
   res->lflag = new->lflag != nwin_undef.lflag ? new->lflag : def->lflag;
   res->histheight = new->histheight != nwin_undef.histheight ? new->histheight : def->histheight;
   res->monitor = new->monitor != nwin_undef.monitor ? new->monitor : def->monitor;
+  res->wlock = new->wlock != nwin_undef.wlock ? new->wlock : def->wlock;
+  res->wrap = new->wrap != nwin_undef.wrap ? new->wrap : def->wrap;
+  res->c1 = new->c1 != nwin_undef.c1 ? new->c1 : def->c1;
+  res->gr = new->gr != nwin_undef.gr ? new->gr : def->gr;
+#ifdef KANJI
+  res->kanji = new->kanji != nwin_undef.kanji ? new->kanji : def->kanji;
+#endif
 }
 
 int
@@ -100,7 +112,7 @@ MakeWindow(newwin)
 struct NewWindow *newwin;
 {
   register struct win **pp, *p;
-  register int n;
+  register int n, i;
   int f = -1;
   struct NewWindow nwin;
   int ttyflag;
@@ -112,6 +124,7 @@ struct NewWindow *newwin;
   debug1("NewWindow: term    %s\n", newwin->term?newwin->term:"NULL");
   nwin_compose(&nwin_default, newwin, &nwin);
   debug1("NWin: aka     %s\n", nwin.aka ? nwin.aka : "NULL");
+  debug1("NWin: wlock   %d\n", nwin.wlock);
   pp = wtab + nwin.StartAt;
 
   do
@@ -151,24 +164,42 @@ struct NewWindow *newwin;
       return -1;
     }
   bzero((char *) p, (int) sizeof(struct win)); /* looks like a calloc above */
+
+  /* save the command line so that zombies can be resurrected */
+  for (i = 0; nwin.args[i] && i < MAXARGS - 1; i++)
+    p->w_cmdargs[i] = SaveStr(nwin.args[i]);
+  p->w_cmdargs[i] = 0;
+
+  if (!(p->w_dlist = (struct displaylist *)malloc(sizeof(struct displaylist))))
+    {
+      free((char *)p);
+      close(f);
+      Msg(0, strnomem);
+      return -1;
+    }
+  p->w_dlist->next = NULL;
 #ifdef MULTIUSER
   if (NewWindowAcl(p))
     {
-      free(p);
+      free((char *)p->w_dlist);
+      free((char *)p);
       close(f);
       Msg(0, strnomem);
       return -1;
     }
 #endif
-  p->w_wlock = WLOCK_AUTO;
-  p->w_dupto = -1;
   p->w_winlay.l_next = 0;
   p->w_winlay.l_layfn = &WinLf;
   p->w_winlay.l_data = (char *)p;
   p->w_lay = &p->w_winlay;
   p->w_display = display;
+  p->w_pdisplay = 0;
+#ifdef MULTIUSER
+  if (display && !AclCheckPermWin(D_user, ACL_WRITE, p))
+#else
   if (display)
-    p->w_wlockuser = d_user;
+#endif
+    p->w_wlockuser = D_user;
   p->w_number = n;
   p->w_ptyfd = f;
   p->w_aflag = nwin.aflag;
@@ -185,12 +216,11 @@ struct NewWindow *newwin;
     }
   else
     p->w_title = p->w_akachange = p->w_akabuf;
-  if ((p->w_monitor = nwin.monitor) == -1)
-    p->w_monitor = default_monitor;
+  p->w_monitor = nwin.monitor;
   p->w_norefresh = 0;
   strncpy(p->w_tty, TtyName, MAXSTR - 1);
 
-  if (ChangeWindowSize(p, display ? d_defwidth : 80, display ? d_defheight : 24))
+  if (ChangeWindowSize(p, display ? D_defwidth : 80, display ? D_defheight : 24))
     {
       FreeWindow(p);
       return -1;
@@ -198,7 +228,10 @@ struct NewWindow *newwin;
 #ifdef COPY_PASTE
   ChangeScrollback(p, nwin.histheight, p->w_width);
 #endif
-  ResetWindow(p);	/* sets p->w_wrap */
+#ifdef KANJI
+  p->w_kanji = nwin.kanji;
+#endif
+  ResetWindow(p);	/* sets w_wrap, w_c1, w_gr */
 
   if (ttyflag == TTY_FLAG_PLAIN)
     {
@@ -221,26 +254,89 @@ struct NewWindow *newwin;
   /*
    * Place the newly created window at the head of the most-recently-used list.
    */
-  if (display && d_fore)
-    d_other = d_fore;
+  if (display && D_fore)
+    D_other = D_fore;
   *pp = p;
   p->w_next = windows;
   windows = p;
 #ifdef UTMPOK
+  p->w_slot = (slot_t) -1;
+# ifdef LOGOUTOK
   debug1("MakeWindow will %slog in.\n", nwin.lflag?"":"not ");
-  if (nwin.lflag == 1)
+  if (nwin.lflag)
+# else /* LOGOUTOK */
+  debug1("MakeWindow will log in, LOGOUTOK undefined in config.h%s.\n", 
+         nwin.lflag?"":" (although lflag=0)");
+# endif /* LOGOUTOK */
     {
+      p->w_slot = (slot_t) 0;
       if (display)
         SetUtmp(p);
-      else
-	p->w_slot = (slot_t) 0;
     }
-  else
-    p->w_slot = (slot_t) -1;
 #endif
   SetForeWindow(p);
   Activate(p->w_norefresh);
   return n;
+}
+
+/*
+ * Resurrect a window from Zombie state. 
+ * The command vector is therefore stored in the window structure.
+ * Note: The terminaltype defaults to screenterm again, the current 
+ * working directory is lost.
+ */
+int
+RemakeWindow(p)
+struct win *p;
+{
+  int ttyflag;
+  char *TtyName;
+  int lflag, f;
+
+  lflag = nwin_default.lflag;
+  if ((f = OpenDevice(p->w_cmdargs[0], lflag, &ttyflag, &TtyName)) < 0)
+    return -1;
+
+  strncpy(p->w_tty, *TtyName ? TtyName : p->w_title, MAXSTR - 1);
+  p->w_ptyfd = f;
+
+  p->w_t.flags &= ~TTY_FLAG_PLAIN;
+  if (ttyflag == TTY_FLAG_PLAIN)
+    {
+      p->w_t.flags |= TTY_FLAG_PLAIN;	/* Just in case... */
+      WriteString(p, p->w_cmdargs[0], strlen(p->w_cmdargs[0]));
+      WriteString(p, ": ", 2);
+      WriteString(p, p->w_title, strlen(p->w_title));
+      WriteString(p, "\r\n", 2);
+      p->w_pid = 0;
+    }
+  else 
+    {
+      for (f = 0; p->w_cmdargs[f]; f++)
+	{
+	  if (f)
+	    WriteString(p, " ", 1);
+	  WriteString(p, p->w_cmdargs[f], strlen(p->w_cmdargs[f]));
+	}
+      WriteString(p, "\r\n", 2);
+      p->w_pid = ForkWindow(p->w_cmdargs, (char *)0, nwin_default.term, TtyName, p);
+      if (p->w_pid < 0)
+        return -1;
+    }
+
+#ifdef UTMPOK
+  p->w_slot = (slot_t) -1;
+  debug1("RemakeWindow will %slog in.\n", lflag ? "" : "not ");
+# ifdef LOGOUTOK
+  if (lflag)
+# endif
+    {
+      p->w_slot = (slot_t) 0;
+      if (display)
+	SetUtmp(p);
+    }
+#endif
+  return p->w_number;
 }
 
 void
@@ -268,10 +364,18 @@ struct win *wp;
   if (wp->w_logfp != NULL)
     fclose(wp->w_logfp);
   ChangeWindowSize(wp, 0, 0);
-  for (d = displays; d; d = d->_d_next)
-    if (d->_d_other == wp)
-      d->_d_other = 0;
-  free(wp);
+  for (d = displays; d; d = d->d_next)
+    if (d->d_other == wp)
+      d->d_other = 0;
+  while (wp->w_dlist)
+    {
+      struct displaylist* l;
+
+      l = wp->w_dlist->next;
+      free((char *)wp->w_dlist);
+      wp->w_dlist = l;
+    }
+  free((char *)wp);
 }
 
 static int
@@ -284,7 +388,7 @@ char **namep;
   struct stat st;
   int f;
 
-  if ((stat(arg, &st)) == 0 && (st.st_mode & S_IFCHR))
+  if ((stat(arg, &st)) == 0 && S_ISCHR(st.st_mode))
     {
       if (access(arg, R_OK | W_OK) == -1)
 	{
@@ -319,7 +423,7 @@ char **namep;
       }
 #endif /* TIOCPKT */
     }
-  (void) fcntl(f, F_SETFL, FNDELAY);
+  (void) fcntl(f, F_SETFL, FNBLOCK);
 #ifdef PTYGROUP
   (void) chown(*namep, real_uid, PTYGROUP);
 #else
@@ -371,7 +475,7 @@ struct win *win;
     {
     case -1:
       Msg(errno, "fork");
-      return -1;
+      break;
     case 0:
       signal(SIGHUP, SIG_DFL);
       signal(SIGINT, SIG_DFL);
@@ -381,20 +485,30 @@ struct win *win;
       signal(SIGTTIN, SIG_DFL);
       signal(SIGTTOU, SIG_DFL);
 #endif
+#ifdef SIGPIPE
+      signal(SIGPIPE, SIG_DFL);
+#endif
+#ifdef SIGXFSZ
+      signal(SIGXFSZ, SIG_DFL);
+#endif
+
+      displays = 0;	/* beware of Panic() */
       if (setuid(real_uid) || setgid(real_gid))
 	{
-	  SendErrorMsg("Setuid/gid: %s", sys_errlist[errno]);
-	  eexit(1);
+	  SendErrorMsg("Setuid/gid: %s", strerror(errno));
+	  exit(1);
 	}
+      eff_uid = real_uid;
+      eff_gid = real_gid;
       if (dir && *dir && chdir(dir) == -1)
 	{
-	  SendErrorMsg("Cannot chdir to %s: %s", dir, sys_errlist[errno]);
-	  eexit(1);
+	  SendErrorMsg("Cannot chdir to %s: %s", dir, strerror(errno));
+	  exit(1);
 	}
 
       if (display)
 	{
-	  brktty(d_userfd);
+	  brktty(D_userfd);
 	  freetty();
 	}
       else
@@ -403,7 +517,15 @@ struct win *win;
       if (dfp && dfp != stderr)
 	fclose(dfp);
 #endif
+#ifdef _IBMR2
+      close(0);
+      dup(aixhack);
+      close(aixhack);
+#endif
       closeallfiles(win->w_ptyfd);
+#ifdef _IBMR2
+      aixhack = dup(0);
+#endif
 #ifdef DEBUG
 	{
 	  char buf[256];
@@ -436,9 +558,8 @@ struct win *win;
 		{
 		  if ((newfd = open(ttyn, O_RDWR)) < 0)
 		    {
-		      SendErrorMsg("Cannot open %s: %s",
-				   ttyn, sys_errlist[errno]);
-		      eexit(1);
+		      SendErrorMsg("Cannot open %s: %s", ttyn, strerror(errno));
+		      exit(1);
 		    }
 		}
 	      else
@@ -456,20 +577,23 @@ struct win *win;
 	     * the pseudo window process should not be surprised with a 
 	     * nonblocking filedescriptor. Poor Backend!
 	     */
-	    debug1("Clearing NDELAY on window-fd(%d)\n", win->w_ptyfd);
+	    debug1("Clearing NBLOCK on window-fd(%d)\n", win->w_ptyfd);
 	    if (fcntl(win->w_ptyfd, F_SETFL, 0))
-	      SendErrorMsg("Warning: ForkWindow clear NDELAY fcntl failed, %d", errno);
+	      SendErrorMsg("Warning: ForkWindow clear NBLOCK fcntl failed, %d", errno);
 	}
 #else /* PSEUDOS */
       if ((newfd = open(ttyn, O_RDWR)) != 0)
 	{
-	  SendErrorMsg("Cannot open %s: %s", ttyn, sys_errlist[errno]);
-	  eexit(1);
+	  SendErrorMsg("Cannot open %s: %s", ttyn, strerror(errno));
+	  exit(1);
 	}
       dup(0);
       dup(0);
 #endif /* PSEUDOS */
       close(win->w_ptyfd);
+#ifdef _IBMR2
+      close(aixhack);
+#endif
 
       if (newfd >= 0)
 	{
@@ -477,26 +601,26 @@ struct win *win;
 #if defined(SVR4) && !defined(sgi)
 	  if (ioctl(newfd, I_PUSH, "ptem"))
 	    {
-	      SendErrorMsg("Cannot I_PUSH ptem %s %s", ttyn, sys_errlist[errno]);
-	      eexit(1);
+	      SendErrorMsg("Cannot I_PUSH ptem %s %s", ttyn, strerror(errno));
+	      exit(1);
 	    }
 	  if (ioctl(newfd, I_PUSH, "ldterm"))
 	    {
-	      SendErrorMsg("Cannot I_PUSH ldterm %s %s", ttyn, sys_errlist[errno]);
-	      eexit(1);
+	      SendErrorMsg("Cannot I_PUSH ldterm %s %s", ttyn, strerror(errno));
+	      exit(1);
 	    }
 	  if (ioctl(newfd, I_PUSH, "ttcompat"))
 	    {
-	      SendErrorMsg("Cannot I_PUSH ttcompat %s %s", ttyn, sys_errlist[errno]);
-	      eexit(1);
+	      SendErrorMsg("Cannot I_PUSH ttcompat %s %s", ttyn, strerror(errno));
+	      exit(1);
 	    }
 #endif
 	  if (fgtty(newfd))
-	    SendErrorMsg("fgtty: %s (%d)", sys_errlist[errno], errno);
+	    SendErrorMsg("fgtty: %s (%d)", strerror(errno), errno);
 	  if (display)
 	    {
 	      debug("ForkWindow: using display tty mode for new child.\n");
-	      modep = &d_OldMode;
+	      modep = &D_OldMode;
 	    }
 	  else
 	    {
@@ -522,26 +646,36 @@ struct win *win;
 # endif
 	    }
 #endif
+	  debug("haha\n");
 	  SetTTY(newfd, modep);
 #ifdef TIOCSWINSZ
 	  glwz.ws_col = w;
 	  glwz.ws_row = h;
+	  debug("hoho\n");
 	  (void) ioctl(newfd, TIOCSWINSZ, (char *)&glwz);
 #endif
 	}
+      debug("huhu\n");
 #ifndef TIOCSWINSZ
       sprintf(libuf, "LINES=%d", h);
       sprintf(cobuf, "COLUMNS=%d", w);
       NewEnv[5] = libuf;
       NewEnv[6] = cobuf;
 #endif
+      debug("hihi\n");
+#ifdef MAPKEYS
+      NewEnv[2] = MakeTermcap(display == 0 || win->w_aflag);
+#else
       if (win->w_aflag)
 	NewEnv[2] = MakeTermcap(1);
       else
 	NewEnv[2] = Termcap;
+#endif
+      debug("hyhy\n");
       strcpy(shellbuf, "SHELL=");
       strncpy(shellbuf + 6, ShellProg, MAXPATHLEN);
       shellbuf[MAXPATHLEN + 6] = 0;
+      debug("hzhz\n");
       NewEnv[4] = shellbuf;
       debug1("ForkWindow: NewEnv[4] = '%s'\n", shellbuf);
       if (term && *term && strcmp(screenterm, term) &&
@@ -553,11 +687,11 @@ struct win *win;
 	  debug2("Makewindow %d with %s\n", win->w_number, tebuf);
 	  tl = strlen(term);
 	  NewEnv[1] = tebuf;
-	  if ((s1 = index(Termcap, '|')))
+	  if ((s1 = index(NewEnv[2], '|')))
 	    {
 	      if ((s2 = index(++s1, '|')))
 		{
-		  if (strlen(Termcap) - (s2 - s1) + tl < 1024)
+		  if (strlen(NewEnv[2]) - (s2 - s1) + tl < 1024)
 		    {
 		      bcopy(s2, s1 + tl, strlen(s2) + 1);
 		      bcopy(term, s1, tl);
@@ -573,12 +707,16 @@ struct win *win;
       debug1("calling execvpe %s\n", proc);
       execvpe(proc, args, NewEnv);
       debug1("exec error: %d\n", errno);
-      SendErrorMsg("Cannot exec %s: %s", proc, sys_errlist[errno]);
+      SendErrorMsg("Cannot exec %s: %s", proc, strerror(errno));
       exit(1);
     default:
-      return pid;
-    } /* end fork switch */
-  /* NOTREACHED */
+      break;
+    }
+#ifdef _IBMR2
+  close(aixhack);
+  aixhack = -1;
+#endif
+  return pid;
 }
 
 static void
@@ -590,9 +728,8 @@ char *prog, **args, **env;
   char *shargs[MAXARGS + 1];
   register int i, eaccess = 0;
 
-  for (i = 0; i < 3; i++)
-    if (!strncmp("../" + i, prog, 3 - i))
-      path = "";
+  if (rindex(prog, '/'))
+    path = "";
   if (!path && !(path = getenv("PATH")))
     path = DefaultPath;
   do
@@ -726,7 +863,7 @@ char **av;
   
   if ((pwin->p_ptyfd = OpenDevice(av[0], 0, &l, &t)) < 0)
     {
-      free(pwin);
+      free((char *)pwin);
       return -1;
     }
   strncpy(pwin->p_tty, t, MAXSTR - 1);
@@ -762,13 +899,13 @@ struct win *w;
   struct pseudowin *pwin = w->w_pwin;
 
   ASSERT(pwin);
-  if (fcntl(w->w_ptyfd, F_SETFL, FNDELAY))
-    Msg(errno, "Warning: FreePseudowin: NDELAY fcntl failed");
+  if (fcntl(w->w_ptyfd, F_SETFL, FNBLOCK))
+    Msg(errno, "Warning: FreePseudowin: NBLOCK fcntl failed");
   (void) chmod(pwin->p_tty, 0666);
   (void) chown(pwin->p_tty, 0, 0);
   if (pwin->p_ptyfd >= 0)
     close(pwin->p_ptyfd);
-  free(pwin);
+  free((char *)pwin);
   w->w_pwin = NULL;
 }
 
@@ -777,8 +914,13 @@ struct win *w;
 
 #ifdef MULTI
 
+/*
+ *  Clone routines. To be removed...
+ */
+
 static void CloneTermcap __P((struct display *));
 extern char **environ;
+
 
 int
 execclone(av)
@@ -795,6 +937,10 @@ char **av;
       Msg(0, "No more PTYs.");
       return -1;
     }
+#ifdef _IBMR2
+  close(aixhack);
+  aixhack = -1;
+#endif
   f = open(namep, O_RDWR);
   if (f == -1)
     {
@@ -804,15 +950,15 @@ char **av;
     }
   brktty(f);
   signal(SIGHUP, SIG_IGN);	/* No hangups, please */
-  if (MakeDisplay(d_username, namep, d_termname, f, -1, &d_OldMode) == 0)
+  if (MakeDisplay(D_username, namep, D_termname, f, -1, &D_OldMode) == 0)
     {
       display = old;
       Msg(0, "Could not make display.");
       close(f);
       return -1;
     }
-  SetMode(&d_OldMode, &d_NewMode);
-  SetTTY(f, &d_NewMode);
+  SetMode(&D_OldMode, &D_NewMode);
+  SetTTY(f, &D_NewMode);
   switch (fork())
     {
     case -1:
@@ -821,12 +967,15 @@ char **av;
       Msg(errno, "fork");
       return -1;
     case 0:
-      d_usertty[0] = 0;		/* for SendErrorMsg */
+      D_usertty[0] = 0;		/* for SendErrorMsg */
+      displays = 0;		/* beware of Panic() */
       if (setuid(real_uid) || setgid(real_gid))
 	{
-	  SendErrorMsg("Setuid/gid: %s", sys_errlist[errno]);
-	  eexit(1);
+	  SendErrorMsg("Setuid/gid: %s", strerror(errno));
+	  exit(1);
 	}
+      eff_uid = real_uid;
+      eff_gid = real_gid;
       closeallfiles(sf);
       close(1);
       dup(sf);
@@ -861,7 +1010,7 @@ char **av;
       debug("\n");
 #endif
       execvpe(*av, av, environ);
-      SendErrorMsg("Cannot exec %s: %s", *av, sys_errlist[errno]);
+      SendErrorMsg("Cannot exec %s: %s", *av, strerror(errno));
       exit(1);
     default:
       break;
@@ -870,7 +1019,7 @@ char **av;
   CloneTermcap(old);
   InitTerm(0);
   Activate(0);
-  if (d_fore == 0)
+  if (D_fore == 0)
     ShowWindows();
   return 0;
 }
@@ -884,23 +1033,23 @@ struct display *old;
   char *tp;
   int i;
 
-  tp = d_tentry;
+  tp = D_tentry;
   for (i = 0; i < T_N; i++)
     {
       switch(term[i].type)
         {
         case T_FLG:
-          d_tcs[i].flg = old->_d_tcs[i].flg;
+          D_tcs[i].flg = old->d_tcs[i].flg;
           break;
         case T_NUM:
-          d_tcs[i].num = old->_d_tcs[i].num;
+          D_tcs[i].num = old->d_tcs[i].num;
           break;
         case T_STR:
-          d_tcs[i].str = old->_d_tcs[i].str;
-          if (d_tcs[i].str)
+          D_tcs[i].str = old->d_tcs[i].str;
+          if (D_tcs[i].str)
             {
-              strcpy(tp, d_tcs[i].str);
-              d_tcs[i].str = tp;
+              strcpy(tp, D_tcs[i].str);
+              D_tcs[i].str = tp;
               tp += strlen(tp) + 1;
             }
 	  break;
@@ -910,21 +1059,21 @@ struct display *old;
     }
   CheckScreenSize(0);
   for (i = 0; i < NATTR; i++)
-    d_attrtab[i] = old->_d_attrtab[i];
+    D_attrtab[i] = old->d_attrtab[i];
   for (i = 0; i < 256; i++)
-    d_c0_tab[i] = old->_d_c0_tab[i];
-  d_UPcost = old->_d_UPcost;
-  d_DOcost = old->_d_DOcost;
-  d_NLcost = old->_d_NLcost;
-  d_LEcost = old->_d_LEcost;
-  d_NDcost = old->_d_NDcost;
-  d_CRcost = old->_d_CRcost;
-  d_IMcost = old->_d_IMcost;
-  d_EIcost = old->_d_EIcost;
+    D_c0_tab[i] = old->d_c0_tab[i];
+  D_UPcost = old->d_UPcost;
+  D_DOcost = old->d_DOcost;
+  D_NLcost = old->d_NLcost;
+  D_LEcost = old->d_LEcost;
+  D_NDcost = old->d_NDcost;
+  D_CRcost = old->d_CRcost;
+  D_IMcost = old->d_IMcost;
+  D_EIcost = old->d_EIcost;
 #ifdef AUTO_NUKE
-  d_auto_nuke = old->_d_auto_nuke;
+  D_auto_nuke = old->d_auto_nuke;
 #endif
-  d_tcinited = 1;
+  D_tcinited = 1;
 }
 
 #endif

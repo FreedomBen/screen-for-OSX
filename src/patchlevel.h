@@ -132,11 +132,67 @@
  *                     sysmacros.h now included in pty.c on sgis
  *                     Strange hpux hack added for TTYCMP. 
  *                     Zombie feature improved.
+ * 08.09.93 -- 3.05.03 Makefile and OSF1 fine tuning. Eased attach to
+ *                     multi sessions. Writelock now obeys acl write
+ *                     permissions. UserDel() now preserves defaults.
+ *                     acladd/aclchg syntax improved. Updated
+ *                     documentation. Bug in at command fixed.
+ *                     MakeWindow() now obeys perm defaults.
+ * 30.11.93 -- 3.05.04 Kanji support added. New keymap feature:
+ *                     bindkey and various map commands. GR and C1
+ *                     flags now define the character processing.
+ * 14.01.94 -- 3.05.05 New FindSocket() code. Nicer socket handling.
+ * 20.01.94 -- 3.05.06 New attribute handling code. NeXT fixes.
+ * 04.02.94 -- 3.05.07 Ugly bug in ScrollH fixed. Keymap defaults.
+ * 13.04.94 -- 3.05.08 Kanji bug fixed. POSIX sigaction support.
+ *                     os.h cleanup. UTNOKEEP splitted into
+ *                     UT_CLOSE and UT_UNSORTED. linux no longer
+ *                     implies UT_CLOSE. "struct display" name
+ *                     convention change: _d_ to d_ and d_ to D_.
+ * 20.04.94 -- 3.05.09 configure.in ptyrange bug fixed. Upgraded
+ *                     to autoconf-1.8
+ * 27.04.94 -- 3.05.10 97801 obscure code support. Linux long
+ *                     password workaround.
+ * 09.05.94 -- 3.05.11 seteuid() support added. Security fixes.
+ *                     _IBMR2 kludge makes call to sleep obsolete.
+ *                     Small fixes in uname() code.
+ * 27.07.94 -- 3.05.12 seteuid attacher bug fixed. ks/ke changed
+ *                     in termcap/info and termcap.c
+ * 27.09.94 -- 3.05.13 defwlock stupidity fixed. MakeTermcap ks/ke
+ *                     ':' removed. Termcap entry improved.
+ * 05.12.94 -- 3.05.17 SVR4 pty bug fixed, don't update window status
+ *                     line if not changed, onyx support. Manual
+ *                     pages updated.
+ * 14.12.94 -- 3.05.18 w_status changed to w_hstatus, it's a #define in 
+ *                     Domain/OS reported by ejackson@iastate.edu.
+ *                     Screen manpage patches by larry.
+ *                     Ugly seteuid bug in ForkWindow() fixed.
+ * 20.12.94 -- 3.06.00 Solaris has broken seteuid().
+ *                     osf loadav patches.  -- DISTRIBUTED
+ * 16.01.95 -- 3.06.01 KANJI patch. doc/Makefile.in fixed.
+ *                     Install now calls doc/Makefile install.
+ *                     Don't use 'ds' too often, breaks MSkermit.
+ *                     undef'd LOGOUTOK logs in now.
+ *                     Ultrix is broken, too (seteuid).
+ *                     Use \r (not \n) to join lines in pastebuf.
+ *                     bindkey can now remove sequences.
+ *                     InitTTY fixed for PLAIN. -- DISTRIBUTED
+ * 04.04.95 -- 3.06.02 Simple ESC-CR fix in the vt100 state machine.
+ *                     Now compiles again with all extras disabled.
+ *                     Zombie resurrect added. defc1, defgr, defkanji
+ *                     added. Screen now replies to a secondary DA
+ *                     query. Some missing NEED_XXX added in comm.c.
+ *                     Better default tty permissions/group test.
+ *                     More AUX support, now compiles with POSIX.
+ *                     Function keycodes xtermified (F11, F12).
+ *                     Paste bug fixed (only worked with KANJI).
+ *                     Check bcopy before memcpy/memmove.
+ *                     FindSocket code much fixed & improved.
  */
 
 #define ORIGIN "FAU"
 #define REV 3
-#define VERS 5
+#define VERS 6
 #define PATCHLEVEL 2
-#define DATE "19-Aug-93"
+#define DATE "4-Apr-95"
 #define STATE "" 

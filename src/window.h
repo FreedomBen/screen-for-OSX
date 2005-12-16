@@ -25,7 +25,26 @@
 # define MAXWIN	10
 #endif
 
-struct win;
+
+struct NewWindow
+{
+  int	StartAt;	/* where to start the search for the slot */
+  char	*aka;		/* aka string */
+  char	**args;		/* argv vector */
+  char	*dir;		/* directory for chdir */
+  char	*term;		/* TERM to be set instead of "screen" */
+  int	aflag;
+  int	flowflag;
+  int	lflag;
+  int	histheight;
+  int	monitor;
+  int   wlock;		/* default writelock setting */
+  int   wrap;
+  int   c1;
+  int   gr;
+  int   kanji;
+};
+
 
 #ifdef PSEUDOS
 
@@ -81,18 +100,29 @@ struct pseudowin
 #endif /* PSEUDOS */
 
 
+struct displaylist
+{
+  struct displaylist *next;
+  struct display *d;
+};
+
+#define w_display w_dlist->d
+
+
 struct win 
 {
   struct win *w_next;		/* next window */
 #ifdef PSEUDOS
   struct pseudowin *w_pwin;	/* ptr to pseudo */
 #endif
-  struct display *w_display;	/* pointer to our display */
+  struct displaylist *w_dlist;	/* pointer to our display */
+  struct display *w_pdisplay;	/* display for printer relay */
   int	 w_number;		/* window number */
-  int	 w_active;		/* is window fore ? */
+  int	 w_active;		/* is window fore and has no layer? */
   struct layer *w_lay;		/* the layer of the window */
   struct layer w_winlay;	/* the layer of the window */
   int	 w_pid;			/* process at the other end of ptyfd */	
+  char  *w_cmdargs[MAXARGS];	/* command line argument vector */
   int	 w_ptyfd;		/* fd of the master pty */
   int	 w_aflag;		/* (used for DUMP_TERMCAP) */
   char	 w_inbuf[IOSIZE];
@@ -118,14 +148,17 @@ struct win
   int	 w_x, w_y;		/* Cursor position */
   int	 w_width, w_height;	/* window size */
   char	 w_Attr;		/* character attributes */
-  char	 w_Font;		/* character font */
-  int	 w_Charset;		/* charset number */
+  char	 w_Font;		/* character font GL */
+  char	 w_FontR;		/* character font GR */
+  int	 w_Charset;		/* charset number GL */
+  int	 w_CharsetR;		/* charset number GR */
   int	 w_charsets[4];		/* Font = charsets[Charset] */
   int	 w_ss;		
   int	 w_saved;
   int	 w_Saved_x, w_Saved_y;
   char	 w_SavedAttr;
   int	 w_SavedCharset;
+  int	 w_SavedCharsetR;
   int	 w_SavedCharsets[4];
   int	 w_top, w_bot;		/* scrollregion */
   int	 w_wrap;		/* autowrap */
@@ -133,6 +166,10 @@ struct win
   int	 w_insert;		/* window is in insert mode */
   int	 w_keypad;		/* keypad mode */
   int	 w_cursorkeys;		/* appl. cursorkeys mode */
+  int	 w_revvid;		/* reverse video */
+  int	 w_curinv;		/* cursor invisible */
+  int	 w_autolf;		/* automatic linefeed */
+  char  *w_hstatus;		/* hardstatus line */
 #ifdef COPY_PASTE
   char	*w_pastebuf;		/* this gets pasted in the window */
   char	*w_pasteptr;		/* pointer in pastebuf */
@@ -145,6 +182,12 @@ struct win
 #endif
   enum state_t w_state;		/* parser state */
   enum string_t w_StringType;
+  int	 w_gr;			/* enable GR flag */
+  int	 w_c1;			/* enable C1 flag */
+#ifdef KANJI
+  int    w_kanji;		/* for input and paste */
+  int    w_mbcs;		/* saved char for multibytes charset */
+#endif
   char	 w_string[MAXSTR];
   char	*w_stringp;
   char	*w_tabs;		/* line with tabs */
@@ -157,9 +200,6 @@ struct win
       time_t lastio;		/* timestamp of last filedescriptor activity */
       int seconds;		/* tell us when lastio + seconds < time() */
     } w_tstamp;
-  int    w_dupto;		/* duplicate the output to this window */
-  char	 w_vbwait;            
-  char	 w_cursor_invisible;
   char	 w_norefresh;		/* dont redisplay when switching to that win */
   char   w_wlock;		/* WLOCK_AUTO, WLOCK_OFF, WLOCK_ON */
   struct user *w_wlockuser;	/* NULL when unlocked or user who writes */

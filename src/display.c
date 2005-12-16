@@ -58,7 +58,6 @@ struct display *display, *displays;
 struct display TheDisplay;
 #endif
 
-
 /*
  *  The default values
  */
@@ -121,9 +120,10 @@ void
 DefRestore()
 {
   InsertMode(0);
-  ChangeScrollRegion(0, d_height - 1);
+  ChangeScrollRegion(0, D_height - 1);
   KeypadMode(0);
   CursorkeysMode(0);
+  CursorInvisible(0);
   SetAttrFont(0, ASCII);
   SetFlow(FLOW_NOW);
 }
@@ -182,61 +182,128 @@ struct mode *Mode;
     return 0;
   display = &TheDisplay;
 #endif
-  display->_d_next = displays;
+  display->d_next = displays;
   displays = display;
-  d_flow = 1;
-  d_userfd = fd;
-  d_OldMode = *Mode;
+  D_flow = 1;
+  D_nonblock = 0;
+  D_userfd = fd;
+  D_OldMode = *Mode;
   Resize_obuf();  /* Allocate memory for buffer */
-  d_obufmax = defobuflimit;
+  D_obufmax = defobuflimit;
 #ifdef AUTO_NUKE
-  d_auto_nuke = defautonuke;
+  D_auto_nuke = defautonuke;
 #endif
-  d_obufp = d_obuf;
-  d_userpid = pid;
+  D_obufp = D_obuf;
+  D_printfd = -1;
+  D_userpid = pid;
 #ifdef POSIX
-  d_dospeed = (short) cfgetospeed(&d_OldMode.tio);
+  switch (cfgetospeed(&D_OldMode.tio))
+    {
+#ifdef B0
+    case B0: D_dospeed = 0; break;
+#endif
+#ifdef B50
+    case B50: D_dospeed = 1; break;
+#endif
+#ifdef B75
+    case B75: D_dospeed = 2; break;
+#endif
+#ifdef B110
+    case B110: D_dospeed = 3; break;
+#endif
+#ifdef B134
+    case B134: D_dospeed = 4; break;
+#endif
+#ifdef B150
+    case B150: D_dospeed = 5; break;
+#endif
+#ifdef B200
+    case B200: D_dospeed = 6; break;
+#endif
+#ifdef B300
+    case B300: D_dospeed = 7; break;
+#endif
+#ifdef B600
+    case B600: D_dospeed = 8; break;
+#endif
+#ifdef B1200
+    case B1200: D_dospeed = 9; break;
+#endif
+#ifdef B1800
+    case B1800: D_dospeed = 10; break;
+#endif
+#ifdef B2400
+    case B2400: D_dospeed = 11; break;
+#endif
+#ifdef B4800
+    case B4800: D_dospeed = 12; break;
+#endif
+#ifdef B9600
+    case B9600: D_dospeed = 13; break;
+#endif
+#ifdef EXTA
+    case EXTA: D_dospeed = 14; break;
+#endif
+#ifdef EXTB
+    case EXTB: D_dospeed = 15; break;
+#endif
+#ifdef B57600
+    case B57600: D_dospeed = 16; break;
+#endif
+#ifdef B115200
+    case B115200: D_dospeed = 17; break;
+#endif
+    default: ;
+    }
 #else
 # ifndef TERMIO
-  d_dospeed = (short) d_OldMode.m_ttyb.sg_ospeed;
+  D_dospeed = (short) D_OldMode.m_ttyb.sg_ospeed;
 # endif
 #endif
-  debug1("New displays ospeed = %d\n", d_dospeed);
-  strcpy(d_usertty, utty);
-  strcpy(d_termname, term);
+  debug1("New displays ospeed = %d\n", D_dospeed);
+  strcpy(D_usertty, utty);
+  strcpy(D_termname, term);
 
   if (!*(u = FindUserPtr(uname)) && UserAdd(uname, NULL, u))
     {
       FreeDisplay();
       return NULL;	/* could not find or add user */
     }
-  d_user = *u;
-  d_lay = &BlankLayer;
-  d_layfn = BlankLayer.l_layfn;
+  D_user = *u;
+  D_lay = &BlankLayer;
+  D_layfn = BlankLayer.l_layfn;
   return display;
 }
 
 void
 FreeDisplay()
 {
+  struct win *p;
 #ifdef MULTI
   struct display *d, **dp;
 
-  for (dp = &displays; (d = *dp) ; dp = &d->_d_next)
+  for (dp = &displays; (d = *dp) ; dp = &d->d_next)
     if (d == display)
       break;
   ASSERT(d);
-  if (d_status_lastmsg)
-    free(d_status_lastmsg);
-  if (d_obuf)
-    free(d_obuf);
-  *dp = display->_d_next;
-  free(display);
+  if (D_status_lastmsg)
+    free(D_status_lastmsg);
+  if (D_obuf)
+    free(D_obuf);
+  *dp = display->d_next;
+  free((char *)display);
 #else /* MULTI */
   ASSERT(display == displays);
   ASSERT(display == &TheDisplay);
   displays = 0;
 #endif /* MULTI */
+  for (p = windows; p; p = p->w_next)
+    {
+      if (p->w_display == display)
+	p->w_display = 0;
+      if (p->w_pdisplay == display)
+	p->w_pdisplay = 0;
+    }
   display = 0;
 }
 
@@ -249,26 +316,32 @@ InitTerm(adapt)
 int adapt;
 {
   ASSERT(display);
-  d_top = d_bot = -1;
-  PutStr(TI);
-  PutStr(IS);
+  ASSERT(D_tcinited);
+  D_top = D_bot = -1;
+  PutStr(D_TI);
+  PutStr(D_IS);
   /* Check for toggle */
-  if (IM && strcmp(IM, EI))
-    PutStr(EI);
-  d_insert = 0;
+  if (D_IM && strcmp(D_IM, D_EI))
+    PutStr(D_EI);
+  D_insert = 0;
   /* Check for toggle */
-  if (KS && strcmp(KS, KE))
-    PutStr(KE);
-  d_keypad = 0;
-  if (CCS && strcmp(CCS, CCE))
-    PutStr(CCE);
-  d_cursorkeys = 0;
-  PutStr(CE0);
-  d_font = ASCII;
+#ifdef MAPKEYS
+  PutStr(D_KS);
+  PutStr(D_CCS);
+#else
+  if (D_KS && strcmp(D_KS, D_KE))
+    PutStr(D_KE);
+  if (D_CCS && strcmp(D_CCS, D_CCE))
+    PutStr(D_CCE);
+#endif
+  D_keypad = 0;
+  D_cursorkeys = 0;
+  PutStr(D_CE0);
+  D_font = ASCII;
   if (adapt == 0)
-    ResizeDisplay(d_defwidth, d_defheight);
-  ChangeScrollRegion(0, d_height - 1);
-  d_x = d_y = 0;
+    ResizeDisplay(D_defwidth, D_defheight);
+  ChangeScrollRegion(0, D_height - 1);
+  D_x = D_y = 0;
   Flush();
   ClearDisplay();
   debug1("we %swant to adapt all our windows to the display\n", 
@@ -281,13 +354,22 @@ void
 FinitTerm()
 {
   ASSERT(display);
-  ResizeDisplay(d_defwidth, d_defheight);
-  DefRestore();
-  SetAttrFont(0, ASCII);
-  d_x = d_y = -1;
-  GotoPos(0, d_height - 1);
-  AddChar('\n');
-  PutStr(TE);
+  if (D_tcinited)
+    {
+      ResizeDisplay(D_defwidth, D_defheight);
+      DefRestore();
+      SetAttrFont(0, ASCII);
+#ifdef MAPKEYS
+      PutStr(D_KE);
+      PutStr(D_CCE);
+#endif
+      if (D_hstatus)
+	PutStr(D_DS);
+      D_x = D_y = -1;
+      GotoPos(0, D_height - 1);
+      AddChar('\n');
+      PutStr(D_TE);
+    }
   Flush();
 }
 
@@ -297,21 +379,21 @@ INSERTCHAR(c)
 int c;
 {
   ASSERT(display);
-  if (!d_insert && d_x < d_width - 1)
+  if (!D_insert && D_x < D_width - 1)
     {
-      if (IC || CIC)
+      if (D_IC || D_CIC)
 	{
-	  if (IC)
-	    PutStr(IC);
+	  if (D_IC)
+	    PutStr(D_IC);
 	  else
-	    CPutStr(CIC, 1);
+	    CPutStr(D_CIC, 1);
 	  RAW_PUTCHAR(c);
 	  return;
 	}
       InsertMode(1);
-      if (!d_insert)
+      if (!D_insert)
 	{
-          RefreshLine(d_y, d_x, d_width-1, 0);
+          RefreshLine(D_y, D_x, D_width-1, 0);
 	  return;
 	}
     }
@@ -323,7 +405,7 @@ PUTCHAR(c)
 int c;
 {
   ASSERT(display);
-  if (d_insert && d_x < d_width - 1)
+  if (D_insert && D_x < D_width - 1)
     InsertMode(0);
   RAW_PUTCHAR(c);
 }
@@ -332,22 +414,22 @@ void
 PUTCHARLP(c)
 int c;
 {
-  if (d_x < d_width - 1)
+  if (D_x < D_width - 1)
     {
-      if (d_insert)
+      if (D_insert)
 	InsertMode(0);
       RAW_PUTCHAR(c);
       return;
     }
-  if (CLP || d_y != d_bot)
+  if (D_CLP || D_y != D_bot)
     {
       RAW_PUTCHAR(c);
       return;
     }
-  d_lp_missing = 1;
-  d_lp_image = c;
-  d_lp_attr = d_attr;
-  d_lp_font = d_font;
+  D_lp_missing = 1;
+  D_lp_image = c;
+  D_lp_attr = D_attr;
+  D_lp_font = D_font;
 }
 
 /*
@@ -360,21 +442,71 @@ RAW_PUTCHAR(c)
 int c;
 {
   ASSERT(display);
-  if (d_font == '0')
+#ifdef KANJI
+  if (D_font == KANJI)
     {
-      AddChar(d_c0_tab[c]);
+      int t = c;
+      if (D_mbcs == 0)
+	{
+	  D_mbcs = c;
+	  return;
+	}
+      if (D_x == D_width - 1)
+	D_x += D_AM ? 1 : -1;
+      c = D_mbcs;
+      c &= 0x7f;
+      t &= 0x7f;
+      if (D_kanji == EUC)
+	{
+	  c |= 0x80;
+	  t |= 0x80;
+	}
+      else if (D_kanji == SJIS)
+	{
+	  t += (c & 1) ? ((t <= 0x5f) ? 0x1f : 0x20) : 0x7e;
+	  c = (c - 0x21) / 2 + ((c < 0x5e) ? 0x81 : 0xc1);
+	}
+      D_mbcs = t;
+    }
+  else if (D_font == KANA)
+    {
+      if (D_kanji == EUC)
+	{
+	  AddChar(0x8e);	/* SS2 */
+	  c |= 0x80;
+	}
+      else if (D_kanji == SJIS)
+	{
+	  c |= 0x80;
+	}
+    }
+  kanjiloop:
+#endif
+  if (D_font == '0')
+    {
+      AddChar(D_c0_tab[c]);
     }
   else
     AddChar(c);
-  if (++d_x >= d_width)
+  if (++D_x >= D_width)
     {
-      if ((AM && !CLP) || d_x > d_width)
+      if (D_AM == 0)
+        D_x = D_width - 1;
+      else if (!D_CLP || D_x > D_width)
 	{
-	  d_x -= d_width;
-	  if (d_y < d_height-1 && d_y != d_bot)
-	    d_y++;
+	  D_x -= D_width;
+	  if (D_y < D_height-1 && D_y != D_bot)
+	    D_y++;
 	}
     }
+#ifdef KANJI
+  if (D_mbcs)
+    {
+      c = D_mbcs;
+      D_mbcs = 0;
+      goto kanjiloop;
+    }
+#endif
 }
 
 static void
@@ -391,7 +523,7 @@ char *s;
 {
   if (display && s)
     {
-      ospeed = d_dospeed;
+      ospeed = D_dospeed;
       tputs(s, 1, PutChar);
     }
 }
@@ -403,7 +535,7 @@ int c;
 {
   if (display && s)
     {
-      ospeed = d_dospeed;
+      ospeed = D_dospeed;
       tputs(tgoto(s, 0, c), 1, PutChar);
     }
 }
@@ -415,43 +547,81 @@ void
 InsertMode(on)
 int on;
 {
-  if (display && on != d_insert && IM)
+  if (display && on != D_insert && D_IM)
     {
-      d_insert = on;
-      if (d_insert)
-	PutStr(IM);
+      D_insert = on;
+      if (D_insert)
+	PutStr(D_IM);
       else
-	PutStr(EI);
+	PutStr(D_EI);
     }
 }
 
-/* ...and maybe d_keypad application mode is a toggle, too:
+/* ...and maybe keypad application mode is a toggle, too:
  */
 void
 KeypadMode(on)
 int on;
 {
-  if (display && d_keypad != on && KS)
+#ifdef MAPKEYS
+  if (display)
+    D_keypad = on;
+#else
+  if (display && D_keypad != on && D_KS)
     {
-      d_keypad = on;
-      if (d_keypad)
-	PutStr(KS);
+      D_keypad = on;
+      if (D_keypad)
+	PutStr(D_KS);
       else
-	PutStr(KE);
+	PutStr(D_KE);
     }
+#endif
 }
 
 void
 CursorkeysMode(on)
 int on;
 {
-  if (display && d_cursorkeys != on && CCS)
+#ifdef MAPKEYS
+  if (display)
+    D_cursorkeys = on;
+#else
+  if (display && D_cursorkeys != on && D_CCS)
     {
-      d_cursorkeys = on;
-      if (d_cursorkeys)
-	PutStr(CCS);
+      D_cursorkeys = on;
+      if (D_cursorkeys)
+	PutStr(D_CCS);
       else
-	PutStr(CCE);
+	PutStr(D_CCE);
+    }
+#endif
+}
+
+void
+ReverseVideo(on)
+int on;
+{
+  if (display && D_revvid != on && D_CVR)
+    {
+      D_revvid = on;
+      if (D_revvid)
+	PutStr(D_CVR);
+      else
+	PutStr(D_CVN);
+    }
+}
+
+void
+CursorInvisible(on)
+int on;
+{
+  if (display && D_curinv != on && D_VI)
+    {
+      D_curinv = on;
+      if (D_curinv)
+	PutStr(D_VI);
+      else
+	PutStr(D_VE);
     }
 }
 
@@ -473,7 +643,7 @@ register char *s;
   if (s)
     {
       StrCost = 0;
-      ospeed = d_dospeed;
+      ospeed = D_dospeed;
       tputs(s, 1, CountChars);
       return StrCost;
     }
@@ -495,15 +665,15 @@ int x2, y2;
   if (!display)
     return;
 
-  x1 = d_x;
-  y1 = d_y;
+  x1 = D_x;
+  y1 = D_y;
 
-  if (x1 == d_width)
-    if (CLP && AM)
+  if (x1 == D_width)
+    if (D_CLP && D_AM)
       x1 = -1;		/* don't know how the terminal treats this */
     else
       x1--;
-  if (x2 == d_width)
+  if (x2 == D_width)
     x2--;
   dx = x2 - x1;
   dy = y2 - y1;
@@ -511,26 +681,26 @@ int x2, y2;
     {
       return;
     }
-  if (!MS && (d_attr || d_font != ASCII))	/* Safe to move ? */
+  if (!D_MS && (D_attr || D_font != ASCII))	/* Safe to move ? */
     SetAttrFont(0, ASCII);
   if (y1 < 0			/* don't know the y position */
-      || (y2 > d_bot && y1 <= d_bot)	/* have to cross border */
-      || (y2 < d_top && y1 >= d_top))	/* of scrollregion ?    */
+      || (y2 > D_bot && y1 <= D_bot)	/* have to cross border */
+      || (y2 < D_top && y1 >= D_top))	/* of scrollregion ?    */
     {
     DoCM:
-      if (HO && !x2 && !y2)
-        PutStr(HO);
+      if (D_HO && !x2 && !y2)
+        PutStr(D_HO);
       else
-        PutStr(tgoto(CM, x2, y2));
-      d_x = x2;
-      d_y = y2;
+        PutStr(tgoto(D_CM, x2, y2));
+      D_x = x2;
+      D_y = y2;
       return;
     }
   /* Calculate CMcost */
-  if (HO && !x2 && !y2)
-    s = HO;
+  if (D_HO && !x2 && !y2)
+    s = D_HO;
   else
-    s = tgoto(CM, x2, y2);
+    s = tgoto(D_CM, x2, y2);
   CMcost = CalcCost(s);
 
   /* Calculate the cost to move the cursor to the right x position */
@@ -539,12 +709,12 @@ int x2, y2;
     {
       if (dx > 0)
 	{
-	  if (CRI && (dx > 1 || !ND))
+	  if (D_CRI && (dx > 1 || !D_ND))
 	    {
-	      costx = CalcCost(tgoto(CRI, 0, dx));
+	      costx = CalcCost(tgoto(D_CRI, 0, dx));
 	      xm = M_CRI;
 	    }
-	  if ((m = d_NDcost * dx) < costx)
+	  if ((m = D_NDcost * dx) < costx)
 	    {
 	      costx = m;
 	      xm = M_RI;
@@ -558,12 +728,12 @@ int x2, y2;
 	}
       else if (dx < 0)
 	{
-	  if (CLE && (dx < -1 || !BC))
+	  if (D_CLE && (dx < -1 || !D_BC))
 	    {
-	      costx = CalcCost(tgoto(CLE, 0, -dx));
+	      costx = CalcCost(tgoto(D_CLE, 0, -dx));
 	      xm = M_CLE;
 	    }
-	  if ((m = -dx * d_LEcost) < costx)
+	  if ((m = -dx * D_LEcost) < costx)
 	    {
 	      costx = m;
 	      xm = M_LE;
@@ -573,7 +743,7 @@ int x2, y2;
 	costx = 0;
     }
   /* Speedup: Rewrite() >= x2 */
-  if (x2 + d_CRcost < costx && (m = (x2 ? Rewrite(y1, 0, x2, 0) : 0) + d_CRcost) < costx)
+  if (x2 + D_CRcost < costx && (m = (x2 ? Rewrite(y1, 0, x2, 0) : 0) + D_CRcost) < costx)
     {
       costx = m;
       xm = M_CR;
@@ -587,12 +757,12 @@ int x2, y2;
   costy = EXPENSIVE;
   if (dy > 0)
     {
-      if (CDO && dy > 1)	/* DO & NL are always != 0 */
+      if (D_CDO && dy > 1)	/* DO & NL are always != 0 */
 	{
-	  costy = CalcCost(tgoto(CDO, 0, dy));
+	  costy = CalcCost(tgoto(D_CDO, 0, dy));
 	  ym = M_CDO;
 	}
-      if ((m = dy * ((x2 == 0) ? d_NLcost : d_DOcost)) < costy)
+      if ((m = dy * ((x2 == 0) ? D_NLcost : D_DOcost)) < costy)
 	{
 	  costy = m;
 	  ym = M_DO;
@@ -600,12 +770,12 @@ int x2, y2;
     }
   else if (dy < 0)
     {
-      if (CUP && (dy < -1 || !UP))
+      if (D_CUP && (dy < -1 || !D_UP))
 	{
-	  costy = CalcCost(tgoto(CUP, 0, -dy));
+	  costy = CalcCost(tgoto(D_CUP, 0, -dy));
 	  ym = M_CUP;
 	}
-      if ((m = -dy * d_UPcost) < costy)
+      if ((m = -dy * D_UPcost) < costy)
 	{
 	  costy = m;
 	  ym = M_UP;
@@ -622,21 +792,21 @@ int x2, y2;
     {
     case M_LE:
       while (dx++ < 0)
-	PutStr(BC);
+	PutStr(D_BC);
       break;
     case M_CLE:
-      CPutStr(CLE, -dx);
+      CPutStr(D_CLE, -dx);
       break;
     case M_RI:
       while (dx-- > 0)
-	PutStr(ND);
+	PutStr(D_ND);
       break;
     case M_CRI:
-      CPutStr(CRI, dx);
+      CPutStr(D_CRI, dx);
       break;
     case M_CR:
-      PutStr(CR);
-      d_x = 0;
+      PutStr(D_CR);
+      D_x = 0;
       x1 = 0;
       /* FALLTHROUGH */
     case M_RW:
@@ -651,90 +821,101 @@ int x2, y2;
     {
     case M_UP:
       while (dy++ < 0)
-	PutStr(UP);
+	PutStr(D_UP);
       break;
     case M_CUP:
-      CPutStr(CUP, -dy);
+      CPutStr(D_CUP, -dy);
       break;
     case M_DO:
-      s =  (x2 == 0) ? NL : DO;
+      s =  (x2 == 0) ? D_NL : D_DO;
       while (dy-- > 0)
 	PutStr(s);
       break;
     case M_CDO:
-      CPutStr(CDO, dy);
+      CPutStr(D_CDO, dy);
       break;
     default:
       break;
     }
-  d_x = x2;
-  d_y = y2;
+  D_x = x2;
+  D_y = y2;
 }
 
 void
 ClearDisplay()
 {
   ASSERT(display);
-  Clear(0, 0, d_width - 1, d_height - 1);
+  Clear(0, 0, 0, D_width - 1, D_width - 1, D_height - 1, 0);
 }
 
 void
-Clear(xs, ys, xe, ye)
-int xs, ys, xe, ye;
+Clear(x1, y1, xs, xe, x2, y2, uselayfn)
+int x1, y1, xs, xe, x2, y2, uselayfn;
 {
   int y, xxe;
 
   ASSERT(display);
-  if (xs == d_width)
-    xs--;
-  if (xe == d_width)
-    xe--;
-  if (d_lp_missing && ys <= d_bot)
+  if (x1 == D_width)
+    x1--;
+  if (x2 == D_width)
+    x2--;
+  if (D_attr && D_UT)	/* Safe to erase ? */
+    SetAttr(0);
+  if (D_lp_missing && y1 <= D_bot && xe >= D_width - 1)
     {
-      if (ye > d_bot || (ye == d_bot && xe == d_width - 1))
-	d_lp_missing = 0;
+      if (y2 > D_bot || (y2 == D_bot && x2 >= D_width - 1))
+	D_lp_missing = 0;
     }
-  if (xe == d_width - 1 && ye == d_height - 1)
+  if (x2 == D_width - 1 && (xs == 0 || y1 == y2) && xe == D_width - 1 && y2 == D_height - 1)
     {
 #ifdef AUTO_NUKE
-      if (xs == 0 && ys == 0 && d_auto_nuke)
+      if (x1 == 0 && y1 == 0 && D_auto_nuke)
 	NukePending();
 #endif
-      if (xs == 0 && ys == 0 && CL)
+      if (x1 == 0 && y1 == 0 && D_CL)
 	{
-	  PutStr(CL);
-	  d_y = d_x = 0;
+	  PutStr(D_CL);
+	  D_y = D_x = 0;
 	  return;
 	}
       /* 
        * Workaround a hp700/22 terminal bug. Do not use CD where CE
        * is also appropriate.
        */
-      if (CD && (ys < ye || !CE))
+      if (D_CD && (y1 < y2 || !D_CE))
 	{
-	  GotoPos(xs, ys);
-	  PutStr(CD);
+	  GotoPos(x1, y1);
+	  PutStr(D_CD);
 	  return;
 	}
     }
-  xxe = d_width - 1;
-  for (y = ys; y <= ye; y++, xs = 0)
+  if (x1 == 0 && xs == 0 && (xe == D_width - 1 || y1 == y2) && y1 == 0 && D_CCD)
     {
-      if (y == ye)
-	xxe = xe;
-      if (xs == 0 && CB && (xxe != d_width - 1 || (d_x == xxe && d_y == y)))
+      GotoPos(x1, y1);
+      PutStr(D_CCD);
+      return;
+    }
+  xxe = xe;
+  for (y = y1; y <= y2; y++, x1 = xs)
+    {
+      if (y == y2)
+	xxe = x2;
+      if (x1 == 0 && D_CB && (xxe != D_width - 1 || (D_x == xxe && D_y == y)))
 	{
 	  GotoPos(xxe, y);
-	  PutStr(CB);
+	  PutStr(D_CB);
 	  continue;
 	}
-      if (xxe == d_width - 1 && CE)
+      if (xxe == D_width - 1 && D_CE)
 	{
-	  GotoPos(xs, y);
-	  PutStr(CE);
+	  GotoPos(x1, y);
+	  PutStr(D_CE);
 	  continue;
 	}
-      ClearLine(y, xs, xxe);
+      if (uselayfn)
+        ClearLine(y, x1, xxe);
+      else
+	DisplayLine(null, null, null, blank, null, null, y, x1, xxe);
     }
 }
 
@@ -752,24 +933,98 @@ int cur_only;
   ASSERT(display);
   DefRestore();
   ClearDisplay();
-  stop = d_height;
+  stop = D_height;
   i = 0;
-  if (cur_only > 0 && d_fore)
+  if (cur_only > 0 && D_fore)
     {
-      i = stop = d_fore->w_y;
+      i = stop = D_fore->w_y;
       stop++;
     }
-  else RedisplayLine(-1, 0, d_width - 1, 1);
+  else
+    RedisplayLine(-1, 0, D_width - 1, 1);
   for (; i < stop; i++)
-    RedisplayLine(i, 0, d_width - 1, 1);
+    RedisplayLine(i, 0, D_width - 1, 1);
+  RefreshStatus();
   Restore();
   SetCursor();
 }
 
 
 void
-ScrollRegion(ys, ye, n)
-int ys, ye, n;
+ScrollH(y, xs, xe, n, oi, oa, of)
+int y, xs, xe, n;
+char *oi, *oa, *of;
+{
+  int i;
+
+  if (n == 0)
+    return;
+  if (xe != D_width - 1)
+    {
+      RefreshLine(y, xs, xe, 0);
+      /* UpdateLine(oi, oa, of, y, xs, xe); */
+      return;
+    }
+  GotoPos(xs, y);
+  if (D_attr && D_UT)
+    SetAttr(0);
+  if (n > 0)
+    {
+      if (D_CDC && !(n == 1 && D_DC))
+	CPutStr(D_CDC, n);
+      else if (D_DC)
+	{
+	  for (i = n; i--; )
+	    PutStr(D_DC);
+	}
+      else
+	{
+	  RefreshLine(y, xs, xe, 0);
+	  /* UpdateLine(oi, oa, of, y, xs, xe); */
+	  return;
+	}
+    }
+  else
+    {
+      if (!D_insert)
+	{
+	  if (D_CIC && !(n == -1 && D_IC))
+	    CPutStr(D_CIC, -n);
+	  else if (D_IC)
+	    {
+	      for (i = -n; i--; )
+		PutStr(D_IC);
+	    }
+	  else if (D_IM)
+	    {
+	      InsertMode(1);
+	      for (i = -n; i--; )
+		INSERTCHAR(' ');
+	    }
+	  else
+	    {
+	      /* UpdateLine(oi, oa, of, y, xs, xe); */
+	      RefreshLine(y, xs, xe, 0);
+	      return;
+	    }
+	}
+      else
+	{
+	  for (i = -n; i--; )
+	    INSERTCHAR(' ');
+	}
+    }
+  if (D_lp_missing && y == D_bot)
+    {
+      if (n > 0)
+        FixLP(D_width - 1 - n, y);
+      D_lp_missing = 0;
+    }
+}
+
+void
+ScrollV(xs, ys, xe, ye, n)
+int xs, ys, xe, ye, n;
 {
   int i;
   int up;
@@ -780,22 +1035,26 @@ int ys, ye, n;
   ASSERT(display);
   if (n == 0)
     return;
-  if (ys == 0 && ye == d_height - 1 && 
-      (n >= d_height || -n >= d_height))
+  if (n >= ye - ys + 1 || -n >= ye - ys + 1)
     {
-      ClearDisplay();
+      Clear(xs, ys, xs, xe, xe, ye, 0);
+      return;
+    }
+  if (xs != 0 || xe != D_width - 1)
+    {
+      Redisplay(0);
       return;
     }
 
-  if (d_lp_missing)
+  if (D_lp_missing)
     {
-      if (d_bot > ye || d_bot < ys)
-	missy = d_bot;
+      if (D_bot > ye || D_bot < ys)
+	missy = D_bot;
       else
 	{
-	  missy = d_bot - n;
-          if (missy>ye || missy<ys)
-	    d_lp_missing = 0;
+	  missy = D_bot - n;
+          if (missy > ye || missy < ys)
+	    D_lp_missing = 0;
 	}
     }
 
@@ -805,24 +1064,24 @@ int ys, ye, n;
       up = 0;
       n = -n;
     }
-  if (n >= ye-ys+1)
-    n = ye-ys+1;
+  if (n >= ye - ys + 1)
+    n = ye - ys + 1;
 
-  oldtop = d_top;
-  oldbot = d_bot;
-  if (d_bot != ye)
+  oldtop = D_top;
+  oldbot = D_bot;
+  if (D_bot != ye)
     ChangeScrollRegion(ys, ye);
-  alok = (AL || CAL || (ye == d_bot &&  up));
-  dlok = (DL || CDL || (ye == d_bot && !up));
-  if (d_top != ys && !(alok && dlok))
+  alok = (D_AL || D_CAL || (ye == D_bot &&  up));
+  dlok = (D_DL || D_CDL || (ye == D_bot && !up));
+  if (D_top != ys && !(alok && dlok))
     ChangeScrollRegion(ys, ye);
 
-  if (d_lp_missing && 
-      (oldbot != d_bot ||
-       (oldbot == d_bot && up && d_top == ys && d_bot == ye)))
+  if (D_lp_missing && 
+      (oldbot != D_bot ||
+       (oldbot == D_bot && up && D_top == ys && D_bot == ye)))
     {
-      FixLP(d_width - 1, oldbot);
-      if (oldbot == d_bot)		/* have scrolled */
+      FixLP(D_width - 1, oldbot);
+      if (oldbot == D_bot)		/* have scrolled */
 	{
 	  if (--n == 0)
 	    {
@@ -832,42 +1091,44 @@ int ys, ye, n;
 	}
     }
 
-  aldlfaster = (n > 1 && ye == d_bot && ((up && CDL) || (!up && CAL)));
+  aldlfaster = (n > 1 && ye == D_bot && ((up && D_CDL) || (!up && D_CAL)));
 
-  if ((up || SR) && d_top == ys && d_bot == ye && !aldlfaster)
+  if (D_attr && D_UT)
+    SetAttr(0);
+  if ((up || D_SR) && D_top == ys && D_bot == ye && !aldlfaster)
     {
       if (up)
 	{
 	  GotoPos(0, ye);
 	  while (n-- > 0)
-	    PutStr(NL);		/* was SF, I think NL is faster */
+	    PutStr(D_NL);		/* was SF, I think NL is faster */
 	}
       else
 	{
 	  GotoPos(0, ys);
 	  while (n-- > 0)
-	    PutStr(SR);
+	    PutStr(D_SR);
 	}
     }
   else if (alok && dlok)
     {
-      if (up || ye != d_bot)
+      if (up || ye != D_bot)
 	{
           GotoPos(0, up ? ys : ye+1-n);
-          if (CDL && !(n == 1 && DL))
-	    CPutStr(CDL, n);
+          if (D_CDL && !(n == 1 && D_DL))
+	    CPutStr(D_CDL, n);
 	  else
 	    for(i = n; i--; )
-	      PutStr(DL);
+	      PutStr(D_DL);
 	}
-      if (!up || ye != d_bot)
+      if (!up || ye != D_bot)
 	{
           GotoPos(0, up ? ye+1-n : ys);
-          if (CAL && !(n == 1 && AL))
-	    CPutStr(CAL, n);
+          if (D_CAL && !(n == 1 && D_AL))
+	    CPutStr(D_CAL, n);
 	  else
 	    for(i = n; i--; )
-	      PutStr(AL);
+	      PutStr(D_AL);
 	}
     }
   else
@@ -875,69 +1136,71 @@ int ys, ye, n;
       Redisplay(0);
       return;
     }
-  if (d_lp_missing && missy != d_bot)
-    FixLP(d_width - 1, missy);
+  if (D_lp_missing && missy != D_bot)
+    FixLP(D_width - 1, missy);
   ChangeScrollRegion(oldtop, oldbot);
-  if (d_lp_missing && missy != d_bot)
-    FixLP(d_width - 1, missy);
+  if (D_lp_missing && missy != D_bot)
+    FixLP(D_width - 1, missy);
 }
 
 void
 SetAttr(new)
 register int new;
 {
-  register int i, old;
+  register int i, j, old, typ;
 
-  if (!display || (old = d_attr) == new)
+  if (!display || (old = D_attr) == new)
     return;
-  d_attr = new;
-  for (i = 1; i <= A_MAX; i <<= 1)
+  typ = D_atyp;
+  if ((new & old) != old)
     {
-      if ((old & i) && !(new & i))
+      if ((typ & ATYP_U))
+        PutStr(D_UE);
+      if ((typ & ATYP_S))
+        PutStr(D_SE);
+      if ((typ & ATYP_M))
+        PutStr(D_ME);
+      old = 0;
+      typ = 0;
+    }
+  old ^= new;
+  for (i = 0, j = 1; old && i < NATTR; i++, j <<= 1)
+    {
+      if ((old & j) == 0)
+	continue;
+      old ^= j;
+      if (D_attrtab[i])
 	{
-	  PutStr(UE);
-	  PutStr(SE);
-	  PutStr(ME);
-	  if (new & A_DI)
-	    PutStr(d_attrtab[ATTR_DI]);
-	  if (new & A_US)
-	    PutStr(d_attrtab[ATTR_US]);
-	  if (new & A_BD)
-	    PutStr(d_attrtab[ATTR_BD]);
-	  if (new & A_RV)
-	    PutStr(d_attrtab[ATTR_RV]);
-	  if (new & A_SO)
-	    PutStr(d_attrtab[ATTR_SO]);
-	  if (new & A_BL)
-	    PutStr(d_attrtab[ATTR_BL]);
-	  return;
+	  PutStr(D_attrtab[i]);
+	  typ |= D_attrtyp[i];
 	}
     }
-  if ((new & A_DI) && !(old & A_DI))
-    PutStr(d_attrtab[ATTR_DI]);
-  if ((new & A_US) && !(old & A_US))
-    PutStr(d_attrtab[ATTR_US]);
-  if ((new & A_BD) && !(old & A_BD))
-    PutStr(d_attrtab[ATTR_BD]);
-  if ((new & A_RV) && !(old & A_RV))
-    PutStr(d_attrtab[ATTR_RV]);
-  if ((new & A_SO) && !(old & A_SO))
-    PutStr(d_attrtab[ATTR_SO]);
-  if ((new & A_BL) && !(old & A_BL))
-    PutStr(d_attrtab[ATTR_BL]);
+  D_attr = new;
+  D_atyp = typ;
 }
 
 void
 SetFont(new)
 int new;
 {
-  if (!display || d_font == new)
+  if (!display || D_font == new)
     return;
-  d_font = new;
+  D_font = new;
+#ifdef KANJI
+  if ((new == KANJI || new == KANA) && D_kanji)
+    return;	/* all done in RAW_PUTCHAR */
+#endif
   if (new == ASCII)
-    PutStr(CE0);
+    PutStr(D_CE0);
+#ifdef KANJI
+  else if (new < ' ')
+    {
+      AddStr("\033$");
+      AddChar(new + '@');
+    }
+#endif
   else
-    CPutStr(CS0, new);
+    CPutStr(D_CS0, new);
 }
 
 void
@@ -958,7 +1221,7 @@ char *msg;
   if (!display)
     return;
   
-  if (!d_tcinited)
+  if (!D_tcinited)
     {
       debug("tc not inited, just writing msg\n");
       AddStr(msg);
@@ -966,19 +1229,19 @@ char *msg;
       Flush();
       return;
     }
-  if (!use_hardstatus || !HS)
+  if (!use_hardstatus || !D_HS)
     {
-      max = d_width;
-      if (CLP == 0)
+      max = D_width;
+      if (D_CLP == 0)
 	max--;
     }
   else
-    max = WS;
-  if (d_status)
+    max = D_WS;
+  if (D_status)
     {
-      if (!d_status_bell)
+      if (!D_status_bell)
 	{
-	  ti = time((time_t *) 0) - d_status_time;
+	  ti = time((time_t *) 0) - D_status_time;
 	  if (ti < MsgMinWait)
 	    sleep(MsgMinWait - ti);
 	}
@@ -986,51 +1249,54 @@ char *msg;
     }
   for (s = t = msg; *s && t - msg < max; ++s)
     if (*s == BELL)
-      PutStr(BL);
+      PutStr(D_BL);
     else if ((unsigned char)*s >= ' ' && *s != 0177)
       *t++ = *s;
   *t = '\0';
   if (t > msg)
     {
-      if (t - msg >= d_status_buflen)
+      if (t - msg >= D_status_buflen)
         {
           char *buf;
-          if (d_status_lastmsg)
-	    buf = realloc(d_status_lastmsg, t - msg + 1);
+          if (D_status_lastmsg)
+	    buf = realloc(D_status_lastmsg, t - msg + 1);
 	  else
 	    buf = malloc(t - msg + 1);
 	  if (buf)
 	    {
-              d_status_lastmsg = buf;
-              d_status_buflen = t - msg + 1;
+              D_status_lastmsg = buf;
+              D_status_buflen = t - msg + 1;
             }
         }
-      if (t - msg < d_status_buflen)
-        strcpy(d_status_lastmsg, msg);
-      d_status = 1;
-      d_status_len = t - msg;
-      d_status_lastx = d_x;
-      d_status_lasty = d_y;
-      if (!use_hardstatus || !HS)
+      if (t - msg < D_status_buflen)
+        strcpy(D_status_lastmsg, msg);
+      D_status = 1;
+      D_status_len = t - msg;
+      D_status_lastx = D_x;
+      D_status_lasty = D_y;
+      if (!use_hardstatus || !D_HS)
 	{
 	  debug1("using STATLINE %d\n", STATLINE);
 	  GotoPos(0, STATLINE);
           SetAttrFont(A_SO, ASCII);
 	  InsertMode(0);
 	  AddStr(msg);
-          d_x = -1;
+          D_x = -1;
 	}
       else
 	{
 	  debug("using HS\n");
           SetAttrFont(0, ASCII);
 	  InsertMode(0);
-	  CPutStr(TS, 0);
+	  if (D_hstatus)
+	    PutStr(D_DS);
+	  CPutStr(D_TS, 0);
 	  AddStr(msg);
-	  PutStr(FS);
+	  PutStr(D_FS);
+	  D_hstatus = 1;
 	}
       Flush();
-      (void) time(&d_status_time);
+      (void) time(&D_status_time);
     }
 }
 
@@ -1041,7 +1307,7 @@ RemoveStatus()
 
   if (!display)
     return;
-  if (!d_status)
+  if (!D_status)
     return;
   
   /*
@@ -1064,20 +1330,51 @@ RemoveStatus()
 	  p->w_bell = BELL_DONE;
 	}
     }
-  d_status = 0;
-  d_status_bell = 0;
-  if (!use_hardstatus || !HS)
+  D_status = 0;
+  D_status_bell = 0;
+  if (!use_hardstatus || !D_HS)
     {
       GotoPos(0, STATLINE);
-      RefreshLine(STATLINE, 0, d_status_len - 1, 0);
-      GotoPos(d_status_lastx, d_status_lasty);
+      RefreshLine(STATLINE, 0, D_status_len - 1, 0);
+      GotoPos(D_status_lastx, D_status_lasty);
     }
   else
     {
+      /*
       SetAttrFont(0, ASCII);
-      PutStr(DS);
+      if (D_hstatus)
+        PutStr(D_DS);
+      */
+      RefreshStatus();
     }
   SetCursor();
+}
+
+/*
+ *  Refreshes the harstatus of the _window_. Shouldn't be here...
+ */
+
+void
+RefreshStatus()
+{
+  if (D_HS)
+    {
+      SetAttrFont(0, ASCII);
+      if (D_hstatus)
+        PutStr(D_DS);
+      if (D_fore && D_fore->w_hstatus)
+	{
+	  CPutStr(D_TS, 0);
+	  if (strlen(D_fore->w_hstatus) > D_WS)
+	    AddStrn(D_fore->w_hstatus, D_WS);
+	  else
+	    AddStr(D_fore->w_hstatus);
+	  PutStr(D_FS);
+	  D_hstatus = 1;
+	}
+    }
+  else if (D_fore && D_fore->w_hstatus)
+    Msg(0, D_fore->w_hstatus);
 }
 
 void
@@ -1087,10 +1384,12 @@ int y, from, to, isblank;
   ASSERT(display);
   debug2("RefreshLine %d %d", y, from);
   debug2(" %d %d\n", to, isblank);
-  if (isblank == 0 && CE && to == d_width - 1)
+  if (isblank == 0 && D_CE && to == D_width - 1)
     {
       GotoPos(from, y);
-      PutStr(CE);
+      if (D_attr && D_UT)
+	SetAttr(0);
+      PutStr(D_CE);
       isblank = 1;
     }
   RedisplayLine(y, from, to, isblank);
@@ -1100,13 +1399,13 @@ void
 FixLP(x2, y2)
 register int x2, y2;
 {
-  int oldattr = d_attr, oldfont = d_font;
+  int oldattr = D_attr, oldfont = D_font;
 
   ASSERT(display);
   GotoPos(x2, y2);
-  SetAttrFont(d_lp_attr, d_lp_font);
-  PUTCHAR(d_lp_image);
-  d_lp_missing = 0;
+  SetAttrFont(D_lp_attr, D_lp_font);
+  PUTCHAR(D_lp_image);
+  D_lp_missing = 0;
   SetAttrFont(oldattr, oldfont);
 }
 
@@ -1119,45 +1418,56 @@ register char *os, *oa, *of, *s, *as, *fs;
   int last2flag = 0, delete_lp = 0;
 
   ASSERT(display);
-  ASSERT(y >= 0 && y < d_height);
-  ASSERT(from >= 0 && from < d_width);
-  ASSERT(to >= 0 && to < d_width);
-  if (!CLP && y == d_bot && to == d_width - 1)
-    if (d_lp_missing
+  ASSERT(y >= 0 && y < D_height);
+  ASSERT(from >= 0 && from < D_width);
+  ASSERT(to >= 0 && to < D_width);
+  if (!D_CLP && y == D_bot && to == D_width - 1)
+    if (D_lp_missing
 	|| s[to] != os[to] || as[to] != oa[to] || of[to] != fs[to])
       {
-	if ((IC || IM) && from < to)
+	if ((D_IC || D_IM) && from < to)
 	  {
 	    to -= 2;
 	    last2flag = 1;
-	    d_lp_missing = 0;
+	    D_lp_missing = 0;
 	  }
 	else
 	  {
 	    to--;
-	    delete_lp = (CE || DC || CDC);
-	    d_lp_missing = (s[to] != ' ' || as[to] || fs[to]);
-	    d_lp_image = s[to];
-	    d_lp_attr = as[to];
-	    d_lp_font = fs[to];
+	    delete_lp = (D_CE || D_DC || D_CDC);
+	    D_lp_missing = (s[to] != ' ' || as[to] || fs[to]);
+	    D_lp_image = s[to];
+	    D_lp_attr = as[to];
+	    D_lp_font = fs[to];
 	  }
       }
     else
       to--;
   for (x = from; x <= to; ++x)
     {
-      if (x || d_x != d_width || d_y != y - 1)
+      if (x || D_x != D_width || D_y != y - 1)
         {
-	  if (x < to || x != d_width - 1 || s[x + 1] == ' ')
+	  if (x < to || x != D_width - 1 || s[x + 1] == ' ')
 	    if (s[x] == os[x] && as[x] == oa[x] && of[x] == fs[x])
 	      continue;
 	  GotoPos(x, y);
         }
+#ifdef KANJI
+      if (badkanji(fs, x))
+	{
+	  x--;
+	  GotoPos(x, y);
+	}
+#endif
       SetAttr(as[x]);
       SetFont(fs[x]);
       PUTCHAR(s[x]);
+#ifdef KANJI
+      if (fs[x] == KANJI)
+	PUTCHAR(s[++x]);
+#endif
     }
-  if (to == d_width - 1 && y < d_height - 1 && s[to + 1] == ' ')
+  if (to == D_width - 1 && y < D_height - 1 && s[to + 1] == ' ')
     GotoPos(0, y + 1);
   if (last2flag)
     {
@@ -1172,12 +1482,14 @@ register char *os, *oa, *of, *s, *as, *fs;
     }
   else if (delete_lp)
     {
-      if (DC)
-	PutStr(DC);
-      else if (CDC)
-	CPutStr(CDC, 1);
-      else if (CE)
-	PutStr(CE);
+      if (D_attr && D_UT)
+	SetAttr(0);
+      if (D_DC)
+	PutStr(D_DC);
+      else if (D_CDC)
+	CPutStr(D_CDC, 1);
+      else if (D_CE)
+	PutStr(D_CE);
     }
 }
 
@@ -1186,8 +1498,8 @@ SetLastPos(x,y)
 int x,y;
 {
   ASSERT(display);
-  d_x = x;
-  d_y = y;
+  D_x = x;
+  D_y = y;
 }
 
 int
@@ -1196,24 +1508,24 @@ int wi, he;
 {
   ASSERT(display);
   debug2("ResizeDisplay: to (%d,%d).\n", wi, he);
-  if (d_width == wi && d_height == he)
+  if (D_width == wi && D_height == he)
     {
       debug("ResizeDisplay: No change\n");
       return 0;
     }
-  if (CWS)
+  if (D_CWS)
     {
       debug("ResizeDisplay: using WS\n");
-      PutStr(tgoto(CWS, wi, he));
+      PutStr(tgoto(D_CWS, wi, he));
       ChangeScreenSize(wi, he, 0);
       return 0;
     }
-  else if (CZ0 && (wi == Z0width || wi == Z1width))
+  else if (D_CZ0 && (wi == Z0width || wi == Z1width))
     {
       debug("ResizeDisplay: using Z0/Z1\n");
-      PutStr(wi == Z0width ? CZ0 : CZ1);
-      ChangeScreenSize(wi, d_height, 0);
-      return (he == d_height) ? 0 : -1;
+      PutStr(wi == Z0width ? D_CZ0 : D_CZ1);
+      ChangeScreenSize(wi, D_height, 0);
+      return (he == D_height) ? 0 : -1;
     }
   return -1;
 }
@@ -1224,19 +1536,19 @@ int newtop, newbot;
 {
   if (display == 0)
     return;
-  if (CS == 0)
+  if (D_CS == 0)
     {
-      d_top = 0;
-      d_bot = d_height - 1;
+      D_top = 0;
+      D_bot = D_height - 1;
       return;
     }
-  if (d_top == newtop && d_bot == newbot)
+  if (D_top == newtop && D_bot == newbot)
     return;
   debug2("ChangeScrollRegion: (%d - %d)\n", newtop, newbot);
-  PutStr(tgoto(CS, newbot, newtop));
-  d_top = newtop;
-  d_bot = newbot;
-  d_y = d_x = -1;		/* Just in case... */
+  PutStr(tgoto(D_CS, newbot, newtop));
+  D_top = newtop;
+  D_bot = newbot;
+  D_y = D_x = -1;		/* Just in case... */
 }
 
 
@@ -1254,8 +1566,8 @@ int block;
   struct layer *newlay;
 
   RemoveStatus();
-  debug3("Entering new layer  display %#x  d_fore %#x  oldlay %#x\n", 
-  	 (unsigned int)display, (unsigned int)d_fore, (unsigned int)d_lay);
+  debug3("Entering new layer  display %#x  D_fore %#x  oldlay %#x\n", 
+  	 (unsigned int)display, (unsigned int)D_fore, (unsigned int)D_lay);
   if ((newlay = (struct layer *)malloc(sizeof(struct layer))) == 0)
     {
       Msg(0, "No memory for layer struct");
@@ -1266,23 +1578,23 @@ int block;
     {
       if ((data = malloc(datasize)) == 0)
 	{
-	  free(newlay);
+	  free((char *)newlay);
 	  Msg(0, "No memory for layer data");
 	  return(-1);
 	}
       bzero(data, datasize);
     }
   newlay->l_layfn = lf;
-  newlay->l_block = block | d_lay->l_block;
+  newlay->l_block = block | D_lay->l_block;
   newlay->l_data = data;
-  newlay->l_next = d_lay;
-  if (d_fore)
+  newlay->l_next = D_lay;
+  if (D_fore)
     {
-      d_fore->w_lay = newlay;	/* XXX: CHECK */
-      d_fore->w_active = 0;	/* XXX: CHECK */
+      D_fore->w_lay = newlay;	/* XXX: CHECK */
+      D_fore->w_active = 0;	/* XXX: CHECK */
     }
-  d_lay = newlay;
-  d_layfn = newlay->l_layfn;
+  D_lay = newlay;
+  D_layfn = newlay->l_layfn;
   Restore();
   return(0);
 }
@@ -1292,16 +1604,16 @@ ExitOverlayPage()
 {
   struct layer *oldlay;
 
-  debug3("Exiting layer  display %#x  fore %#x  d_lay %#x\n", 
-         (unsigned int)display, (unsigned int)d_fore, (unsigned int)d_lay);
-  oldlay = d_lay;
+  debug3("Exiting layer  display %#x  fore %#x  D_lay %#x\n", 
+         (unsigned int)display, (unsigned int)D_fore, (unsigned int)D_lay);
+  oldlay = D_lay;
   if (oldlay->l_data)
     free(oldlay->l_data);
-  d_lay = oldlay->l_next;
-  d_layfn = d_lay->l_layfn;
-  free(oldlay);
-  if (d_fore)
-    d_fore->w_lay = d_lay;	/* XXX: Is this necessary ? */
+  D_lay = oldlay->l_next;
+  D_layfn = D_lay->l_layfn;
+  free((char *)oldlay);
+  if (D_fore)
+    D_fore->w_lay = D_lay;	/* XXX: Is this necessary ? */
   Restore();
   SetCursor();
 }
@@ -1343,24 +1655,24 @@ Flush()
   register char *p;
 
   ASSERT(display);
-  l = d_obufp - d_obuf;
+  l = D_obufp - D_obuf;
   debug1("Flush(): %d\n", l);
-  ASSERT(l + d_obuffree == d_obuflen);
+  ASSERT(l + D_obuffree == D_obuflen);
   if (l == 0)
     return;
-  if (d_userfd < 0)
+  if (D_userfd < 0)
     {
-      d_obuffree += l;
-      d_obufp = d_obuf;
+      D_obuffree += l;
+      D_obufp = D_obuf;
       return;
     }
-  p = d_obuf;
-  if (fcntl(d_userfd, F_SETFL, 0))
-    debug1("Warning: DELAY fcntl failed: %d\n", errno);
+  p = D_obuf;
+  if (fcntl(D_userfd, F_SETFL, 0))
+    debug1("Warning: BLOCK fcntl failed: %d\n", errno);
   while (l)
     {
       register int wr;
-      wr = write(d_userfd, p, l);
+      wr = write(D_userfd, p, l);
       if (wr <= 0) 
 	{
 	  if (errno == EINTR) 
@@ -1368,29 +1680,29 @@ Flush()
 	  debug1("Writing to display: %d\n", errno);
 	  wr = l;
 	}
-      d_obuffree += wr;
+      D_obuffree += wr;
       p += wr;
       l -= wr;
     }
-  d_obuffree += l;
-  d_obufp = d_obuf;
-  if (fcntl(d_userfd, F_SETFL, FNDELAY))
-    debug1("Warning: NDELAY fcntl failed: %d\n", errno);
+  D_obuffree += l;
+  D_obufp = D_obuf;
+  if (fcntl(D_userfd, F_SETFL, FNBLOCK))
+    debug1("Warning: NBLOCK fcntl failed: %d\n", errno);
 }
 
 void
 freetty()
 {
-  if (d_userfd >= 0)
-    close(d_userfd);
-  debug1("did freetty %d\n", d_userfd);
-  d_userfd = -1;
-  d_obufp = 0;
-  d_obuffree = 0;
-  if (d_obuf)
-    free(d_obuf);
-  d_obuf = 0;
-  d_obuflen = 0;
+  if (D_userfd >= 0)
+    close(D_userfd);
+  debug1("did freetty %d\n", D_userfd);
+  D_userfd = -1;
+  D_obufp = 0;
+  D_obuffree = 0;
+  if (D_obuf)
+    free(D_obuf);
+  D_obuf = 0;
+  D_obuflen = 0;
 }
 
 /*
@@ -1404,24 +1716,24 @@ Resize_obuf()
   register int ind;
 
   ASSERT(display);
-  if (d_obuflen && d_obuf)
+  if (D_obuflen && D_obuf)
     {
-      ind  = d_obufp - d_obuf;
-      d_obuflen += GRAIN;
-      d_obuffree += GRAIN;
-      d_obuf = realloc(d_obuf, d_obuflen);
+      ind  = D_obufp - D_obuf;
+      D_obuflen += GRAIN;
+      D_obuffree += GRAIN;
+      D_obuf = realloc(D_obuf, D_obuflen);
     }
   else
     {
       ind  = 0;
-      d_obuflen = GRAIN;
-      d_obuffree = GRAIN;
-      d_obuf = malloc(d_obuflen);
+      D_obuflen = GRAIN;
+      D_obuffree = GRAIN;
+      D_obuf = malloc(D_obuflen);
     }
-  if (!d_obuf)
+  if (!D_obuf)
     Panic(0, "Out of memory");
-  d_obufp = d_obuf + ind;
-  debug1("ResizeObuf: resized to %d\n", d_obuflen);
+  D_obufp = D_obuf + ind;
+  debug1("ResizeObuf: resized to %d\n", D_obuflen);
 }
 
 #ifdef AUTO_NUKE
@@ -1429,61 +1741,82 @@ void
 NukePending()
 {/* Nuke pending output in current display, clear screen */
   register int len;
-  int oldfont = d_font, oldattr = d_attr, oldtop = d_top, oldbot = d_bot;
-  int oldkeypad = d_keypad, oldcursorkeys = d_cursorkeys;
+  int oldfont = D_font, oldattr = D_attr, oldtop = D_top, oldbot = D_bot;
+  int oldkeypad = D_keypad, oldcursorkeys = D_cursorkeys;
 
-  len = d_obufp - d_obuf;
+  len = D_obufp - D_obuf;
   debug1("NukePending: nuking %d chars\n", len);
   
   /* Throw away any output that we can... */
 # ifdef POSIX
-  tcflush(d_userfd, TCOFLUSH);
+  tcflush(D_userfd, TCOFLUSH);
 # else
 #  ifdef TCFLSH
-  (void) ioctl(d_userfd, TCFLSH, (char *) 1);
+  (void) ioctl(D_userfd, TCFLSH, (char *) 1);
 #  endif
 # endif
 
-  d_obufp = d_obuf;
-  d_obuffree += len;
-  d_top = d_bot = -1;
-  PutStr(TI);
-  PutStr(IS);
+  D_obufp = D_obuf;
+  D_obuffree += len;
+  D_top = D_bot = -1;
+  PutStr(D_TI);
+  PutStr(D_IS);
   /* Turn off all attributes. (Tim MacKenzie) */
-  if (ME)
-    PutStr(ME);
+  if (D_ME)
+    PutStr(D_ME);
   else
     {
-      PutStr(SE);
-      PutStr(UE);
+      PutStr(D_SE);
+      PutStr(D_UE);
     }
   /* Check for toggle */
-  if (IM && strcmp(IM, EI))
-    PutStr(EI);
-  d_insert = 0;
+  if (D_IM && strcmp(D_IM, D_EI))
+    PutStr(D_EI);
+  D_insert = 0;
   /* Check for toggle */
-  if (KS && strcmp(KS, KE))
-    PutStr(KE);
-  d_keypad = 0;
-  if (CCS && strcmp(CCS, CCE))
-    PutStr(CCE);
-  d_cursorkeys = 0;
-  PutStr(CE0);
-  d_font = ASCII;
-  d_attr = 0;
+#ifndef MAPKEYS
+  if (D_KS && strcmp(D_KS, D_KE))
+    PutStr(D_KE);
+  D_keypad = 0;
+  if (D_CCS && strcmp(D_CCS, D_CCE))
+    PutStr(D_CCE);
+  D_cursorkeys = 0;
+#endif
+  PutStr(D_CE0);
+  D_font = ASCII;
+  D_attr = 0;
+  D_atyp = 0;
+  PutStr(D_DS);
+  D_hstatus = 0;
   ChangeScrollRegion(oldtop, oldbot);
   SetAttrFont(oldattr, oldfont);
   KeypadMode(oldkeypad);
   CursorkeysMode(oldcursorkeys);
-  if (CWS)
+  if (D_CWS)
     {
       debug("ResizeDisplay: using WS\n");
-      PutStr(tgoto(CWS, d_width, d_height));
+      PutStr(tgoto(D_CWS, D_width, D_height));
     }
-  else if (CZ0 && (d_width == Z0width || d_width == Z1width))
+  else if (D_CZ0 && (D_width == Z0width || D_width == Z1width))
     {
       debug("ResizeDisplay: using Z0/Z1\n");
-      PutStr(d_width == Z0width ? CZ0 : CZ1);
+      PutStr(D_width == Z0width ? D_CZ0 : D_CZ1);
     }
 }
 #endif /* AUTO_NUKE */
+
+#ifdef KANJI
+int
+badkanji(f, x)
+char *f;
+int x;
+{
+  int i, j;
+  if (f[x] != KANJI)
+    return 0;
+  for (i = j = 0; i < x; i++)
+    if (*f++ == KANJI)
+      j ^= 1;
+  return j;
+}
+#endif
