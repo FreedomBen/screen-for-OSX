@@ -135,6 +135,7 @@ struct win
   struct pseudowin *w_pwin;	/* ptr to pseudo */
 #endif
   struct display *w_pdisplay;	/* display for printer relay */
+  struct display *w_lastdisp;	/* where the last input was made */
   int	 w_number;		/* window number */
   struct event w_readev;
   struct event w_writeev;
@@ -249,7 +250,9 @@ struct win
   char	 w_tty[MAXSTR];
 
   int    w_zauto;
+#ifdef ZMODEM
   struct display *w_zdisplay;
+#endif
 #ifdef BUILTIN_TELNET
   struct sockaddr_in w_telsa;
   char   w_telbuf[IOSIZE];

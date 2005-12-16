@@ -21,9 +21,6 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
@@ -633,6 +630,7 @@ struct NewWindow *newwin;
   p->w_layer.l_data = (char *)p;
   p->w_savelayer = &p->w_layer;
   p->w_pdisplay = 0;
+  p->w_lastdisp = 0;
 
 #ifdef MULTIUSER
   if (display && !AclCheckPermWin(D_user, ACL_WRITE, p))
@@ -2109,9 +2107,11 @@ int len;
       struct display *d, *olddisplay;
 
       olddisplay = display;
-      for (d = displays; d; d = d->d_next)
-	if (d->d_fore == p)
-	  break;
+      d = p->w_lastdisp;
+      if (!d || d->d_fore != p)
+        for (d = displays; d; d = d->d_next)
+	  if (d->d_fore == p)
+	    break;
       if (!d && p->w_layer.l_cvlist)
 	d = p->w_layer.l_cvlist->c_display;
       if (!d)

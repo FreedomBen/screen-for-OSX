@@ -21,9 +21,6 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include <sys/types.h>
 
 #include "config.h"

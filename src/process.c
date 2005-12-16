@@ -21,9 +21,6 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
@@ -150,6 +147,7 @@ static void confirm_fn __P((char *, int, char *));
 static int  IsOnDisplay __P((struct win *));
 static void ResizeRegions __P((char*));
 static void ResizeFin __P((char *, int, char *));
+static struct action *FindKtab __P((char *, int));
 
 
 extern struct layer *flayer;
@@ -571,7 +569,7 @@ InitKeytab()
   idleaction.argl = 0;
 }
 
-struct action *
+static struct action *
 FindKtab(class, create)
 char *class;
 int create;
@@ -694,7 +692,7 @@ int ilen;
 		  debug1("Mapping former hit #%d - ", i);
 		  debug2("%d(%s) - ", q[2], q + 3);
 		  if (StuffKey(i))
-		    ProcessInput2(q + 3, q[2]);
+		    ProcessInput2((char *)q + 3, q[2]);
 		  if (display == 0)
 		    return;
 		  l -= q[2];
@@ -2029,9 +2027,15 @@ int key;
 #endif
     case RC_WINDOWLIST:
       if (!*args)
-        display_wlist(0);
+        display_wlist(0, WLIST_NUM);
+      else if (!strcmp(*args, "-m") && !args[1])
+        display_wlist(0, WLIST_MRU);
       else if (!strcmp(*args, "-b") && !args[1])
-        display_wlist(1);
+        display_wlist(1, WLIST_NUM);
+      else if (!strcmp(*args, "-b") && !strcmp(args[1], "-m") && !args[2])
+        display_wlist(1, WLIST_MRU);
+      else if (!strcmp(*args, "-m") && !strcmp(args[1], "-b") && !args[2])
+        display_wlist(1, WLIST_MRU);
       else if (!strcmp(*args, "string"))
 	{
 	  if (args[1])
@@ -4038,7 +4042,7 @@ int bufl, *argl;
 		      int right = buf + bufl - (p + strlen(p) + 1);
 		      if (right > 0)
 			{
-			  bcopy(p, p + right, strlen(p));
+			  bcopy(p, p + right, strlen(p) + 1);
 			  p += right;
 			}
 		    }
@@ -4510,13 +4514,17 @@ struct win *wi;
 	  /*
 	   * Place the window at the head of the most-recently-used list
 	   */
-	  for (pp = &windows; (p = *pp); pp = &p->w_next)
-	    if (p == wi)
-	      break;
-	  ASSERT(p);
-	  *pp = p->w_next;
-	  p->w_next = windows;
-	  windows = p;
+	  if (windows != wi)
+	    {
+	      for (pp = &windows; (p = *pp); pp = &p->w_next)
+		if (p == wi)
+		  break;
+	      ASSERT(p);
+	      *pp = p->w_next;
+	      p->w_next = windows;
+	      windows = p;
+	      WListLinkChanged();
+	    }
 	}
     }
 }
@@ -5083,7 +5091,7 @@ char *data;	/* dummy */
       else
 	{
 	  bcopy(buf, mbuf, len);
-          RcLine(buf, sizeof mbuf);
+          RcLine(mbuf, sizeof mbuf);
 	}
     }
 }

@@ -30,10 +30,6 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
-
 #include <sys/types.h>
 #include <ctype.h>
 
@@ -148,10 +144,11 @@ static void  serv_select_fn __P((struct event *, char *));
 static void  logflush_fn __P((struct event *, char *));
 static void  backtick_filter __P((struct backtick *));
 static void  backtick_fn __P((struct event *, char *));
-static char *runbacktick __P((struct backtick *, int *, time_t, struct win *));
+static char *runbacktick __P((struct backtick *, int *, time_t));
 static int   IsSymbol __P((char *, char *));
 static char *ParseChar __P((char *, char *));
 static int   ParseEscape __P((char *));
+static char *pad_expand __P((char *, char *, int, int));
 #ifdef DEBUG
 static void  fds __P((void));
 #endif
@@ -919,7 +916,7 @@ char **av;
 #ifdef _MODE_T
   oumask = umask(0);		/* well, unsigned never fails? jw. */
 #else
-  if ((oumask = umask(0)) == -1)
+  if ((oumask = (int)umask(0)) == -1)
     Panic(errno, "Cannot change umask to zero");
 #endif
   SockDir = getenv("SCREENDIR");
@@ -2226,11 +2223,10 @@ char **cmdv;
 }
 
 static char *
-runbacktick(bt, tickp, now, win)
+runbacktick(bt, tickp, now)
 struct backtick *bt;
 int *tickp;
 time_t now;
-struct win *win;
 {
   int f, i, l, j;
   time_t now2;
@@ -2507,7 +2503,7 @@ int rec;
 	      *p = 0;
 	      strcpy(savebuf, winmsg_buf);
 	      winmsg_numrend = -winmsg_numrend;
-	      MakeWinMsgEv(*s == 'h' ? win->w_hstatus : runbacktick(bt, &oldtick, now.tv_sec, win), win, '\005', 0, (struct event *)0, rec + 1);
+	      MakeWinMsgEv(*s == 'h' ? win->w_hstatus : runbacktick(bt, &oldtick, now.tv_sec), win, '\005', 0, (struct event *)0, rec + 1);
 	      debug2("oldtick=%d tick=%d\n", oldtick, tick);
 	      if (!tick || oldtick < tick)
 		tick = oldtick;

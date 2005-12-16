@@ -21,15 +21,12 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include <sys/types.h>
 #include "config.h"
 #include "screen.h"
 #include "extern.h"
 
-#define DEBUGG
+#undef DEBUGG
 
 extern struct display *display, *displays;
 extern int real_uid, real_gid, eff_uid, eff_gid;
@@ -692,7 +689,7 @@ int nr;
   i = p - D_kmaps;
   if (D_nseqs + 2 * k + 4 >= D_aseqs)
     {
-      D_kmaps = xrealloc(D_kmaps, D_aseqs + 256);
+      D_kmaps = (unsigned char *)xrealloc((char *)D_kmaps, D_aseqs + 256);
       D_aseqs += 256;
       p = D_kmaps + i;
     }
@@ -701,7 +698,7 @@ int nr;
   D_seqh = 0;
   evdeq(&D_mapev);
   if (j > 0)
-    bcopy(p, p + 2 * k + 4, D_nseqs - i);
+    bcopy((char *)p, (char *)p + 2 * k + 4, D_nseqs - i);
   p[0] = nr >> 8;
   p[1] = nr;
   p[2] = k;
@@ -767,7 +764,7 @@ int k;
         }
     }
   if (D_kmaps + D_nseqs > p + 2 * k + 4)
-    bcopy(p + 2 * k + 4, p, (D_kmaps + D_nseqs) - (p + 2 * k + 4));
+    bcopy((char *)p + 2 * k + 4, (char *)p, (D_kmaps + D_nseqs) - (p + 2 * k + 4));
   D_nseqs -= 2 * k + 4;
   D_seqp = D_kmaps + 3;
   D_seql = 0;
@@ -849,7 +846,10 @@ int aflag;
 {
   char buf[TERMCAP_BUFSIZE];
   register char *p, *cp, *s, ch, *tname;
-  int i, wi, he, found;
+  int i, wi, he;
+#if 0
+  int found;
+#endif
 
   if (display)
     {
@@ -879,7 +879,9 @@ int aflag;
       debug("MakeTermcap sets screenterm=screen\n");
       strcpy(screenterm, "screen");
     }
+#if 0
   found = 1;
+#endif
   do
     {
       strcpy(Term, "TERM=");
@@ -910,7 +912,9 @@ int aflag;
       if (e_tgetent(buf, p) == 1)
 	break;
       strcpy(p, "vt100");
+#if 0
       found = 0;
+#endif
     }
   while (0);		/* Goto free programming... */
 

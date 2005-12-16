@@ -287,3 +287,9 @@ struct baud_values
   int bps;	/* bits per seconds */
   int sym;	/* symbol defined in ttydev.h */
 };
+
+/*
+ * windowlist orders
+ */
+#define WLIST_NUM 0
+#define WLIST_MRU 1

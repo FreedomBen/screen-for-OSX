@@ -21,11 +21,8 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
-
 #include <sys/types.h>
+#include <signal.h>
 #include <fcntl.h>
 #ifndef sun
 # include <sys/ioctl.h>
@@ -395,6 +392,8 @@ FreeDisplay()
     {
       if (p->w_pdisplay == display)
 	p->w_pdisplay = 0;
+      if (p->w_lastdisp == display)
+	p->w_lastdisp = 0;
       if (p->w_readev.condneg == &D_status || p->w_readev.condneg == &D_obuflenmax)
 	p->w_readev.condpos = p->w_readev.condneg = 0;
     }
@@ -3539,6 +3538,8 @@ char *data;
 #endif
   if (idletimo > 0)
     ResetIdle();
+  if (D_fore)
+    D_fore->w_lastdisp = display;
   if (D_mouse && D_forecv)
     {
       unsigned char *bp = (unsigned char *)buf;
@@ -3699,7 +3700,7 @@ char *data;
   debug("Flushing map sequence\n");
   if (!(l = D_seql))
     return;
-  p = D_seqp - l;
+  p = (char *)D_seqp - l;
   D_seqp = D_kmaps + 3;
   D_seql = 0;
   if ((q = D_seqh) != 0)
@@ -3710,7 +3711,7 @@ char *data;
       debug1("Mapping former hit #%d - ", i);
       debug2("%d(%s) - ", q[2], q + 3); 
       if (StuffKey(i))
-	ProcessInput2(q + 3, q[2]);
+	ProcessInput2((char *)q + 3, q[2]);
       if (display == 0)
 	return;
       l -= q[2];
@@ -3735,7 +3736,7 @@ char *data;
   olddisplay = display;
   flayer = D_forecv->c_layer;
   fore = D_fore;
-  DoAction(&idleaction, 0);
+  DoAction(&idleaction, -1);
   if (idleaction.nr == RC_BLANKER)
     return;
   for (display = displays; display; display = display->d_next)

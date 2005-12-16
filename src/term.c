@@ -21,9 +21,6 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include "term.h"
 
 #define KMAPDEF(s)

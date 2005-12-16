@@ -21,9 +21,6 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include <sys/types.h>
 #include <sys/stat.h>	/* mkdir() declaration */
 #include <signal.h>
@@ -42,7 +39,7 @@ extern int eff_uid, real_uid;
 extern int eff_gid, real_gid;
 extern struct mline mline_old;
 extern struct mchar mchar_blank;
-extern char *null, *blank;
+extern unsigned char *null, *blank;
 
 #ifdef HAVE_FDWALK
 static int close_func __P((void *, int));
@@ -72,7 +69,7 @@ int n;
     Panic(0, strnomem);
   else
     {
-      bcopy(str, cp, n);
+      bcopy((char *)str, cp, n);
       cp[n] = 0;
     }
   return cp;
@@ -323,7 +320,7 @@ bclear(p, n)
 char *p;
 int n;
 {
-  bcopy(blank, p, n);
+  bcopy((char *)blank, p, n);
 }
 
 

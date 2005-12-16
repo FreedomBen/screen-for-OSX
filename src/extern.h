@@ -122,9 +122,10 @@ extern void  display_help __P((char *, struct action *));
 extern void  display_copyright __P((void));
 extern void  display_displays __P((void));
 extern void  display_bindkey __P((char *, struct action *));
-extern void  display_wlist __P((int));
+extern void  display_wlist __P((int, int));
 extern int   InWList __P((void));
 extern void  WListUpdatecv __P((struct canvas *, struct win *));
+extern void  WListLinkChanged __P((void));
 #ifdef ZMODEM
 extern void  ZmodemPage __P((void));
 #endif

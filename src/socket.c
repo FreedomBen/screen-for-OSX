@@ -21,9 +21,6 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include "config.h"
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1220,7 +1217,7 @@ struct msg *m;
 #endif
 	{
 	  flayer = D_forecv->c_layer;
-	  display_wlist(1);
+	  display_wlist(1, WLIST_NUM);
 	  noshowwin = 1;
 	}
     }

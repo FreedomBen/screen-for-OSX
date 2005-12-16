@@ -21,9 +21,6 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include <sys/types.h>		/* dev_t, ino_t, off_t, ... */
 #include <sys/stat.h>		/* struct stat */
 #include <fcntl.h>		/* O_WRONLY for logfile_reopen */

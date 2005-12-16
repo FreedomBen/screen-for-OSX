@@ -21,9 +21,6 @@
  ****************************************************************
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include <sys/types.h>
 #include <fcntl.h>
 #ifndef sun	/* we want to know about TIOCPKT. */
@@ -1574,9 +1571,11 @@ PrintStart()
   curr->w_pdisplay = 0;
 
   /* find us a nice display to print on, fore prefered */
-  for (display = displays; display; display = display->d_next)
-    if (curr == D_fore && (printcmd || D_PO))
-      break;
+  display = curr->w_lastdisp;
+  if (!(display && curr == D_fore && (printcmd || D_PO)))
+    for (display = displays; display; display = display->d_next)
+      if (curr == D_fore && (printcmd || D_PO))
+        break;
   if (!display)
     {
       struct canvas *cv;

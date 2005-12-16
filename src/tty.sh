@@ -52,9 +52,6 @@ exit 0
  * Do not change anything here. If you then change tty.sh.
  */
 
-#include "rcs.h"
-RCS_ID("$Id$ FAU")
-
 #include <sys/types.h>
 #include <signal.h>
 #include <fcntl.h>
