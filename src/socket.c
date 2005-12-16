@@ -1112,6 +1112,7 @@ struct msg *m;
   char *p;
   int pid;
   int noshowwin;
+  int r = 0;
   struct win *wi;
 
   ASSERT(display);
@@ -1143,12 +1144,20 @@ struct msg *m;
 #ifdef ETCSCREENRC
 # ifdef ALLOW_SYSSCREENRC
   if ((p = getenv("SYSSCREENRC")))
-    StartRc(p);
+    r = StartRc(p, 1);
   else
 # endif
-    StartRc(ETCSCREENRC);
+    r = StartRc(ETCSCREENRC, 1);
 #endif
-  StartRc(RcFileName);
+  r += StartRc(RcFileName, 1);
+  if (r)
+    {
+      FreeDisplay();
+      Kill(pid, SIG_BYE);
+      Msg(0, "Failed reattach attempt at terminal %s.", m->m_tty);
+      return;
+    }
+
   if (InitTermcap(m->m.attach.columns, m->m.attach.lines))
     {
       FreeDisplay();

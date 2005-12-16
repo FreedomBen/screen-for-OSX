@@ -1255,12 +1255,12 @@ char **av;
 #ifdef ETCSCREENRC
 # ifdef ALLOW_SYSSCREENRC
   if ((ap = getenv("SYSSCREENRC")))
-    StartRc(ap);
+    (void)StartRc(ap, 0);
   else
 # endif
-    StartRc(ETCSCREENRC);
+    (void)StartRc(ETCSCREENRC, 0);
 #endif
-  StartRc(RcFileName);
+  (void)StartRc(RcFileName, 0);
 # ifdef UTMPOK
 #  ifndef UTNOKEEP
   InitUtmp(); 

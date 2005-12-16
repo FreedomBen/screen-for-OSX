@@ -65,7 +65,7 @@ extern void  WindowChanged __P((struct win *, int));
 extern int   MFindUsedLine __P((struct win *, int, int));
 
 /* fileio.c */
-extern void  StartRc __P((char *));
+extern int   StartRc __P((char *, int));
 extern void  FinishRc __P((char *));
 extern void  RcLine __P((char *, int));
 extern FILE *secfopen __P((char *, char *));

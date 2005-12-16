@@ -519,11 +519,12 @@
  * 05.12.2003  4.00.02 fixed a bug in the ansi parser. fixed execs
  *                     on ttys. fixed hardstatus line on blanked screen.
  *                     -- DISTRIBUTED
+ * 11.10.2004, 4.00.03jw handle StartRc errors nonfatal if due to a msg.
  */
 
 #define ORIGIN "FAU"
 #define REV 4
 #define VERS 0
-#define PATCHLEVEL 2
-#define DATE "5-Dec-03"
-#define STATE ""
+#define PATCHLEVEL 3
+#define DATE "11-Oct-04"
+#define STATE "jw"

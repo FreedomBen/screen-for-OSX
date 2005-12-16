@@ -128,9 +128,9 @@ char *rcfile;
  * 1) rcfilename = "/etc/screenrc"
  * 2) rcfilename = RcFileName
  */
-void
-StartRc(rcfilename)
-char *rcfilename;
+int
+StartRc(rcfilename, nopanic)
+char *rcfilename, int nopanic;
 {
   register int argc, len;
   register char *p, *cp;
@@ -159,13 +159,13 @@ char *rcfilename;
            * the file.
            */
 	  debug3("StartRc: '%s','%s', '%s'\n", RcFileName, rc_name, rcfilename);
-          Panic(0, "Unable to open \"%s\".", rc_name);
-	  /* NOTREACHED */
+          if (!nopanic) Panic(0, "Unable to open \"%s\".", rc_name);
+	  /* possibly NOTREACHED */
 	}
       debug1("StartRc: '%s' no good. ignored\n", rc_name);
       Free(rc_name);
       rc_name = oldrc_name;
-      return;
+      return 1;
     }
   while (fgets(buf, sizeof buf, fp) != NULL)
     {
@@ -238,7 +238,7 @@ char *rcfilename;
 	  if (rc_recursion <= 10)
 	    {
 	      rc_recursion++;
-	      StartRc(args[1]);
+	      (void)StartRc(args[1], 0);
 	      rc_recursion--;
 	    }
 	}
@@ -246,6 +246,7 @@ char *rcfilename;
   fclose(fp);
   Free(rc_name);
   rc_name = oldrc_name;
+  return 0;
 }
 
 void
