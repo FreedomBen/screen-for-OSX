@@ -1,0 +1,37 @@
+static struct win *curr, *other;
+    trace("Apres SetCurrWindow(%d), *curr = %d, *other = %d",n,*curr,*other);
+    	  	trace("Appel de RemoveStatus(%d) (ansi.c)",*curr);
+		RemoveStatus (curr);
+	    w |= 1 << curr->ptyfd;
+    	    trace("1 : Appel de RemoveStatus(%d) (ansi.c)",*curr);
+	    RemoveStatus (curr);
+    	    trace("2 : Appel de RemoveStatus(%d) (ansi.c)",curr);
+	    RemoveStatus (curr);
+	if (w & 1 << curr->ptyfd && inlen > 0) {
+	    if ((len = write (curr->ptyfd, inbuf, inlen)) > 0) {
+		    if (*pp == curr)
+			curr = 0;
+			trace("curr = %d",curr);
+    /* If the current window disappeared and the "other" window is still
+     * If there current window is still there, but the "other" window
+    trace("CheckWindow : curr %d, other %d",curr,other);
+    if (!curr && other) {
+    if (curr && !other) {
+	    if (!curr)
+		    if (other == curr)
+		    curr = wtab[CurrNum] = 0;
+		    trace("curr = %d",curr);
+    trace("SetCurrWindow : n = %d, curr = %d, other = %d",n,curr,other);
+    if (curr) {
+	curr->active = 0;
+	other = curr;
+    curr = wtab[n];
+    trace("SetCurrWindow : *curr = %d, CurrNum = %d",*curr,CurrNum);
+    curr->active = 1;
+     * If the "other" window is currently undefined (at program start
+    if (other == 0 || other == curr) {
+		p = curr->image[i];
+	    if (p = index (MakeTermcap (curr->aflag), '=')) {
+	if (p == curr)
+    register struct win *wp = curr;
+	MakeStatus (buf, curr);

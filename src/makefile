@@ -15,14 +15,17 @@
 OPTIONS=-DsysV
 CFLAGS=-GO
 
-CFILES= screen.c ansi.c Berklib.c
-OFILES= screen.o ansi.o Berklib.o
+CFILES= screen_trace.c ansi.c Berklib.c
+OFILES= screen_trace.o tr.c ansi.o Berklib.o
 
-screen: $(OFILES)
-	cc $(CFLAGS) -o screen $(OFILES) -lcurses
+screen_trace: $(OFILES)
+	cc $(CFLAGS) -o screen_trace $(OFILES) -lcurses
 
-screen.o: screen.c screen.h
-	cc $(OPTIONS) $(CFLAGS) -c screen.c
+screen_trace.o: screen_trace.c screen.h
+	cc $(OPTIONS) $(CFLAGS) -c screen_trace.c
+
+tr.o: tr.c 
+	cc $(CFLAGS) -c tr.c
 
 ansi.o: ansi.c screen.h
 	cc $(CFLAGS) -c ansi.c

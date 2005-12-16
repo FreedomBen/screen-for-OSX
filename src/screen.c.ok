@@ -8,7 +8,7 @@
  * not modified.
  */
 
-static char ScreenVersion[] = "screen 1.4i  1-Jul-87 13-Oct-91 (Version PIPE)";
+static char ScreenVersion[] = "screen 1.3i  1-Jul-87 3-Oct-91";
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -1135,19 +1135,7 @@ static GetSockName () {
     strcat (SockPath, SockName);
     return client;
 }
-static MakeServerSocket () {
-    register s;
-    int ret;
 
-    (void) unlink (SockPath);
-	ret = mknod (SockPath , S_IFIFO |S_IREAD |S_IWRITE , 0);
-	if (ret==-1 && errno != EEXIST)	/* si le pipe existe pas d'erreurs */
-	Msg (errno, "mknod");
-    s = open (SockPath , 2);
-    return s;
-}
-
-/*
 static MakeServerSocket () {
     register s;
     struct sockaddr_un a;
@@ -1164,14 +1152,7 @@ static MakeServerSocket () {
 	Msg (errno, "listen");
     return s;
 }
-*/
-static MakeClientSocket () {
-    register s;
 
-    s = open (SockPath , 2);
-    return s;
-}
-/*
 static MakeClientSocket () {
     register s;
     struct sockaddr_un a;
@@ -1184,7 +1165,6 @@ static MakeClientSocket () {
 	Msg (errno, "connect: %s", SockPath);
     return s;
 }
-*/
 
 static SendCreateMsg (s, ac, av, aflag) char **av; {
     struct msg m;

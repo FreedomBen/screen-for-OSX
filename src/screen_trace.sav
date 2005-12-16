@@ -8,7 +8,12 @@
  * not modified.
  */
 
+/*
+   Modified bye E. KISS 27-Oct-1992, Version with traces
+*/
+
 static char ScreenVersion[] = "screen 1.4i  1-Jul-87 13-Oct-91 (Version PIPE)";
+
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -55,6 +60,8 @@ static char ScreenVersion[] = "screen 1.4i  1-Jul-87 13-Oct-91 (Version PIPE)";
 #define MSGWAIT     5
 
 #define Ctrl(c) ((c)&037)
+
+extern void trace();
 
 extern char *blank, Term[], **environ;
 extern rows, cols;
@@ -190,6 +197,7 @@ main (ac, av) char **av; {
     register struct win **pp, *p;
     char *ap;
     int s, r, w, x = 0;
+    int i;		/*	indice de boucle	*/
     int aflag = 0;
     struct timeval tv;
     time_t now;
@@ -200,6 +208,7 @@ main (ac, av) char **av; {
     printf ("THIS PROGRAM IS MODIFIED BY V. KAHALE. %s\n" , ScreenVersion);
     if (pipe_screen = getenv ("PIPE_SCREEN"))
     {
+	trace("Variable PIPE_SCREEN is positioned");
 	printf ("PIPE=%s\n" , pipe_screen);
 	fd_pipe = open (pipe_screen , O_RDWR);
     }
@@ -246,72 +255,114 @@ main (ac, av) char **av; {
     if ((ShellProg = getenv ("SHELL")) == 0)
 	ShellProg = DefaultShell;
     ShellArgs[0] = ShellProg;
+trace("ShellArgs[0] = %s",ShellArgs[0]);
     if (ac == 0) {
 	ac = 1;
 	av = ShellArgs;
     }
     if (GetSockName ()) {
 	/* Client */
+	trace("Cote client, appel de MakeClientSocket");
 	s = MakeClientSocket ();
+	trace("Apres MakeClientSocket : fd de socket (RDWR) = %d",s);
 	SendCreateMsg (s, ac, av, aflag);
 	close (s);
 	exit (0);
     }
+    else {
+  	trace("Cote serveur");
+    }
     (void) gethostname (HostName, MAXSTR);
     HostName[MAXSTR-1] = '\0';
+    trace("HostName : %s",HostName);
     if (ap = index (HostName, '.'))
 	*ap = '\0';
+    trace("Apres index, HostName : %s",HostName);
     s = MakeServerSocket ();
+    trace("Apres MakeServerSocket : fd de socket (RDWR) = %d",s);
+    trace("Appel d'InitTerm (ansi.c)");
     InitTerm ();
     if (fflag)
 	flowctl = 1;
     else if (nflag)
 	flowctl = 0;
+    trace("flowctl = %d",flowctl);
     MakeNewEnv ();
+    for ( i=0; NewEnv[i]!=NULL; i++)
+	{
+    	trace("NewEnv[%d] : %s ",i,NewEnv[i]);
+	}
     GetTTY (0, &OldMode);
+    trace("Lecture de TTY mode de stdin");
 #ifdef sysV
     ospeed = (short)(OldMode.c_cflag | OCBAUD) >> 12;
 #else
     ospeed = (short)OldMode.m_ttyb.sg_ospeed;
 #endif
+    trace("Appel d'InitUtmp");
     InitUtmp ();
+    trace("Apres InitUtmp, utmp = %d",utmp);
 #ifdef LOADAV
+    trace("Appel d'InitKmem");
     InitKmem ();
+    trace("Apres InitKmem, avenrun = %d",avenrun);
 #endif
+    trace("Capturer les signaux par Finit()");
     signal (SIGHUP, Finit);
     signal (SIGINT, Finit);
     signal (SIGQUIT, Finit);
     signal (SIGTERM, Finit);
+    trace("Appel d'InitKeytab");
     InitKeytab ();
     sprintf (rc, "%.*s/.screenrc", 245, home);
+    trace("Appel de ReadRc,  rc : %s",rc);
     ReadRc (rc);
+    trace("Appel de Makewindow");
     if ((n = MakeWindow (*av, av, aflag, 0, (char *)0)) == -1) {
 	SetTTY (0, &OldMode);
 	FinitTerm ();
 	exit (1);
     }
+    trace("n = %d",n);
+    for ( i=0; NewEnv[i]!=NULL; i++)
+	{
+    	trace("NewEnv[%d] : %s ",i,NewEnv[i]);
+	}
     SetCurrWindow (n);
+    trace("Apres SetCurrWindow, curr->wpid = %d, other->wpid = %d",curr->wpid,other->wpid);
+    trace("Apres SetCurrWindow, CurrNum = %d, OtherNum = %d",CurrNum,OtherNum);
     HasWindow = 1;
+    trace("Appel de SetMode");
     SetMode (&OldMode, &NewMode);
     SetTTY (0, &NewMode);
     tv.tv_usec = 0;
+    trace("Entree dans WHILE(1)");
     while (1) {
 	signal (SIGCHLD, SigChld);
+    	trace("status = %d",status);
 	if (status) {
 	    time (&now);
+	    trace("now = %d, TimeDisplayed = %d",now, TimeDisplayed);
 	    if (now - TimeDisplayed < MSGWAIT) {
 		tv.tv_sec = MSGWAIT - (now - TimeDisplayed);
-	    } else RemoveStatus (curr);
+	    } 
+	    else {
+    	  	trace("Appel de RemoveStatus(0x%x) (ansi.c)",curr);
+		RemoveStatus (curr);
+	    }
 	}
 	r = 0;
 	w = 0;
+	trace("inlen %d",inlen);
 	if (inlen)
 	    w |= 1 << curr->ptyfd;
 	else
 	    r |= 1 << 0;
+	trace("w : 0x%08x, r : 0x%08x, p* : %d",w,r,p);
 	for (pp = wtab; pp < wtab+MAXWIN; ++pp) {
 	    if (!(p = *pp))
 		continue;
+	    trace("active = %d, outlen = %d",(*pp)->active,(*pp)->outlen);
 	    if ((*pp)->active && status)
 		continue;
 	    if ((*pp)->outlen > 0)
@@ -319,9 +370,14 @@ main (ac, av) char **av; {
 	    r |= 1 << (*pp)->ptyfd;
 	}
 	r |= 1 << s;
+	trace("1 :     w : 0x%08x, r : 0x%08x, s : 0x%08x, x : 0x%08x",w,r,s,x);
 	fflush (stdout);
 	if (fd_pipe != -1)
+		{
 		r |= 1 << fd_pipe ;
+		trace("2 :     w : 0x%08x, r : 0x%08x, s : 0x%08x, x : 0x%08x",w,r,s,x);
+		}
+	trace("Appel de select");
 	if (select (32, &r, &w, &x, status ? &tv : (struct timeval *)0) == -1) {
 	    if (errno == EINTR)
 		continue;
@@ -344,16 +400,20 @@ main (ac, av) char **av; {
 	else
 		nb_err_select=0;
 	if (GotSignal && !status) {
+	    trace("1 : GotSignal && !status"); 
 	    SigHandler ();
 	    continue;
 	}
 	if (r & 1 << s) {
+    	    trace("1 : Appel de RemoveStatus(0x%x) (ansi.c)",curr);
 	    RemoveStatus (curr);
 	    ReceiveMsg (s);
 	}
-	if (r & 1 << 0) {
+	if (r & 1 << 0) {	
+    	    trace("2 : Appel de RemoveStatus(0x%x) (ansi.c)",curr);
 	    RemoveStatus (curr);
 	    if (ESCseen) {
+		trace("ESCseen");
 		inbuf[0] = Esc;
 		inlen = read (0, inbuf+1, IOSIZE-1) + 1;
 		ESCseen = 0;
@@ -361,21 +421,28 @@ main (ac, av) char **av; {
 		inlen = read (0, inbuf, IOSIZE);
 	    }
 	    if (inlen > 0)
+		{
+		trace("1 : Appel de ProcessInput");
 		inlen = ProcessInput (inbuf, inlen);
+		}
 	    if (inlen > 0)
 		continue;
 	}
 	if (GotSignal && !status) {
+	    trace("2 : GotSignal && !status"); 
 	    SigHandler ();
 	    continue;
 	}
 	if (w & 1 << curr->ptyfd && inlen > 0) {
+	    trace("w & 1 << curr->ptyfd && inlen > 0");
 	    if ((len = write (curr->ptyfd, inbuf, inlen)) > 0) {
 		inlen -= len;
+		trace("inlen = %d",inlen);
 		bcopy (inbuf+len, inbuf, inlen);
 	    }
 	}
 	if (GotSignal && !status) {
+	    trace("3 : GotSignal && !status"); 
 	    SigHandler ();
 	    continue;
 	}
@@ -383,19 +450,25 @@ main (ac, av) char **av; {
 	if (fd_pipe != -1 && (r & 1 << fd_pipe))
 	{
 		int lenx;
+
+		trace("fd_pipe <> -1 et r & 1 << fd_pipe");
 	    	lenx = read (fd_pipe , inbuf+inlen , IOSIZE );
 		if (len > 0)
 		{
 			inlen += lenx;
 		}
 	    if (inlen > 0)
+		{
+		trace("2 : Appel de ProcessInput");
 		inlen = ProcessInput (inbuf, inlen);
+		}
 	    if (inlen > 0)
 		continue;
 	}
 	for (pp = wtab; pp < wtab+MAXWIN; ++pp) {
 	    if (!(p = *pp))
 		continue;
+	    trace("active = %d, outlen = %d",(*pp)->active,(*pp)->outlen);
 	    if (p->outlen) {
 		WriteString (p, p->outbuf, p->outlen);
 	    } else if (r & 1 << p->ptyfd) {
@@ -412,35 +485,26 @@ main (ac, av) char **av; {
 	    }
 	}
 	if (GotSignal && !status)
+	    trace("4 : GotSignal && !status"); 
 	    SigHandler ();
     }
     /*NOTREACHED*/
 }
 
 static SigHandler () {
-#ifdef DEBUG
-    fprintf(stderr, "Sighandler: enterig. GotSignal is %d\r\n", GotSignal);
-#endif
+    trace("SigHandler: enterig. GotSignal is %d", GotSignal);
     while (GotSignal) {
 	GotSignal = 0;
-#ifdef DEBUG
-	fprintf(stderr, "calling DoWait: GotSignal is now %d\r\n", GotSignal);
-#endif
+	trace("calling DoWait: GotSignal is now %d", GotSignal);
 	DoWait ();
-#ifdef DEBUG
-	fprintf(stderr, "exit from DoWait: GotSignal is now %d\r\n", GotSignal);
-#endif
+	trace("exit from DoWait: GotSignal is now %d", GotSignal);
     }
 }
 
 static SigChld () {
-#ifdef DEBUG
-    fprintf(stderr, "SigChld received: GotSignal was %d\r\n", GotSignal);
-#endif
+    trace("SigChld received: GotSignal was %d", GotSignal);
     GotSignal = 1;
-#ifdef DEBUG
-    fprintf(stderr, "GotSignal is now %d\r\n", GotSignal);
-#endif
+    trace("GotSignal is now %d", GotSignal);
 }
 
 static DoWait () {
@@ -454,9 +518,7 @@ static DoWait () {
 
 #ifdef sysV
     if ((pid = wait(&wstat)) > 0) {
-#ifdef DEBUG
-	fprintf(stderr, "Dowait: pid %d status %d\r\n", pid, status);
-#endif
+	trace("Dowait: pid %d status %d, wstat %d", pid, status, wstat);
 #else
     while ((pid = wait3 (&wstat, WNOHANG|WUNTRACED, NULL)) > 0) {
 #endif
@@ -464,7 +526,7 @@ static DoWait () {
 	    if (*pp && pid == (*pp)->wpid) {
 #ifdef sysV
 		if ((wstat & WSTOPPED) == WSTOPPED) {
-		    ;
+		    trace("DoWait : WSTOPPED");
 #else
 		if (WIFSTOPPED (wstat)) {
 		    kill((*pp)->wpid, SIGCONT);
@@ -472,12 +534,11 @@ static DoWait () {
 		} else {
 		    if (*pp == curr)
 			curr = 0;
+			trace("curr = 0x%x",curr);
 		    if (*pp == other)
 			other = 0;
-#ifdef DEBUG
-		    fprintf(stderr, "calling FreeWindow for window %s\r\n",
-			    (*pp)->tty);
-#endif
+			trace("other = 0x%x",other);
+		    trace("calling FreeWindow for window %s", (*pp)->tty);
 		    FreeWindow (*pp);
 		    *pp = 0;
 		}
@@ -486,9 +547,7 @@ static DoWait () {
     }
 #ifdef sysV
     else {
-#ifdef DEBUG
-	fprintf(stderr, "Dowait: pid %d status %d errno %d\r\n",
-		pid, status, errno);
+	trace("Dowait: pid %d status %d errno %d", pid, status, errno);
 #endif
     }
     CheckWindows ();
@@ -505,6 +564,8 @@ static CheckWindows () {
      * to "other".
      * If no window is alive at all, exit.
      */
+    trace("CheckWindow : curr = 0x%x, other = 0x%x",curr,other);
+
     if (!curr && other) {
 	SwitchWindow (OtherNum);
 	return;
@@ -529,6 +590,7 @@ static Finit () {
     for (pp = wtab; pp < wtab+MAXWIN; ++pp) {
 	if (p = *pp)
 	    FreeWindow (p);
+	trace("Finit : Terminaison d'une fenetre");
     }
     SetTTY (0, &OldMode);
     FinitTerm ();
@@ -614,7 +676,9 @@ static ProcessInput (buf, len) char *buf; {
 		    FreeWindow (wtab[CurrNum]);
 		    if (other == curr)
 			other = 0;
+			trace("other = 0x%x",other);
 		    curr = wtab[CurrNum] = 0;
+		    trace("curr = 0x%x",curr);
 		    CheckWindows ();
 		    break;
 		case KEY_QUIT:
@@ -674,6 +738,7 @@ static SetCurrWindow (n) {
      * If we come from another window, this window becomes the
      * "other" window:
      */
+
     if (curr) {
 	curr->active = 0;
 	other = curr;
@@ -756,6 +821,7 @@ static MakeWindow (prog, args, aflag, StartAt, dir)
     register char **cp;
     register n, f;
     int tf;
+    int i;
     int mypid;
     char ebuf[10];
 
@@ -766,16 +832,23 @@ static MakeWindow (prog, args, aflag, StartAt, dir)
 	if (++pp == wtab+MAXWIN)
 	    pp = wtab;
     } while (pp != wtab+StartAt);
+
     if (*pp) {
 	Msg (0, "No more windows.");
 	return -1;
     }
     n = pp - wtab;
+    trace("MakeWindow : No de la premiere fenetre libre = %d",n);
+
     if ((f = OpenPTY ()) == -1) {
 	Msg (0, "No more PTYs.");
 	return -1;
     }
+    trace("MakeWindow : fd de pty = %d",f);
+
     fcntl (f, F_SETFL, FNDELAY);
+    trace("MakeWindow : Non-blocking I/O pour ce fd");
+
     if ((p = *pp = (struct win *)malloc (sizeof (struct win))) == 0) {
 nomem:
 	Msg (0, "Out of memory.");
@@ -809,12 +882,14 @@ nomem:
     (void) chown (TtyName, getuid (), getgid ());
     (void) chmod (TtyName, 0622);
     p->slot = SetUtmp (TtyName);
+    trace("MakeWindow : alloc OK, init de struct win OK, fork");
     switch (p->wpid = fork ()) {
     case -1:
 	Msg (errno, "Cannot fork");
 	free (p);
 	return -1;
     case 0:
+        trace("MakeWindow : apres fork dans le fils");
 	signal (SIGHUP, SIG_DFL);
 	signal (SIGINT, SIG_DFL);
 	signal (SIGQUIT, SIG_DFL);
@@ -826,22 +901,27 @@ nomem:
 	    exit (1);
 	}
 #ifdef sysV
+        trace("MakeWindow : Dissociation de control terminal");
 	(void) setpgrp();
 #endif
 	mypid = getpid ();
+        trace("MakeWindow : pid de fils = %d, parent = %d",mypid,getppid());
 #ifndef sysV
 	if ((f = open ("/dev/tty", O_RDWR)) != -1) {
 	    ioctl (f, TIOCNOTTY, (char *)0);
 	    close (f);
 	}
 #endif
+        trace("MakeWindow : fd de /dev/tty = %d",f);
 	if ((tf = open (TtyName, O_RDWR)) == -1) {
 	    SendErrorMsg ("Cannot open %s: %s", TtyName, sys_errlist[errno]);
 	    exit (1);
 	}
+        trace("MakeWindow : fd de %s = %d",TtyName,f);
 	dup2 (tf, 0);
 	dup2 (tf, 1);
 	dup2 (tf, 2);
+        trace("MakeWindow : dup2 de std I/O OK");
 	for (f = getdtablesize () - 1; f > 2; f--)
 	    close (f);
 #ifndef sysV
@@ -852,6 +932,10 @@ nomem:
 	NewEnv[2] = MakeTermcap (aflag);
 	sprintf (ebuf, "WINDOW=%d", n);
 	NewEnv[3] = ebuf;
+    	for ( i=2; NewEnv[i]!=NULL; i++)
+		{
+    		trace("MakeWindow : pour le fils NewEnv[%d] : %s ",i,NewEnv[i]);
+		}
 	execvpe (prog, args, NewEnv);
 	SendErrorMsg ("Cannot exec %s: %s", prog, sys_errlist[errno]);
 	exit (1);
@@ -1114,9 +1198,11 @@ static GetSockName () {
 	SockName = Filename (p);
 	client = 0;
     }
+    trace("GetSockName : SockName = %s, client = %d",SockName,client);
     if ((home = getenv ("HOME")) == 0)
 	Msg (0, "$HOME is undefined.");
     sprintf (SockPath, "%s/%s", home, SockDir);
+    trace("GetSockName : SockPath = %s",SockPath);
     if (stat (SockPath, &s) == -1) {
 	if (errno == ENOENT) {
 	    if (mkdir (SockPath, 0700) == -1)
@@ -1133,13 +1219,16 @@ static GetSockName () {
     }
     strcat (SockPath, "/");
     strcat (SockPath, SockName);
+    trace("GetSockName : apres concatenation : SockPath = %s",SockPath);
     return client;
 }
 static MakeServerSocket () {
     register s;
     int ret;
 
+    trace("MakeServerSocket : unlink(SockPath)");
     (void) unlink (SockPath);
+    	trace("MakeServerSocket : mknod(SockPath)");
 	ret = mknod (SockPath , S_IFIFO |S_IREAD |S_IWRITE , 0);
 	if (ret==-1 && errno != EEXIST)	/* si le pipe existe pas d'erreurs */
 	Msg (errno, "mknod");
@@ -1277,9 +1366,15 @@ static ReadRc (fn) char *fn; {
 
     ap = args;
     if (access (fn, R_OK) == -1)
+	{
+	trace("sortie de ReadRc : acces NOK");
 	return;
+	}
     if ((f = fopen (fn, "r")) == NULL)
+	{
+	trace("sortie de ReadRc : open NOK");
 	return;
+	}
     while (fgets (buf, 256, f) != NULL) {
 	if (p = rindex (buf, '\n'))
 	    *p = '\0';
@@ -1401,10 +1496,19 @@ static MakeNewEnv () {
     if (strlen (SockName) > MAXSTR-5)
 	SockName = "?";
     sprintf (buf, "STY=%s", SockName);
+/*
+    trace("MakeNewEnv : buf = %s",buf);
+*/
     *np++ = buf;
     *np++ = Term;
     np += 2;
+/*
+    trace("MakeNewEnv : np -> %s",np);
+*/
     for (op = environ; *op; ++op) {
+/*
+	trace("MakeNewEnv : op -> %s",*op);
+*/
 	if (np == NewEnv + MAXARGS - 1)
 	    break;
 	if (!IsSymbol (*op, "TERM") && !IsSymbol (*op, "TERMCAP")
@@ -1482,17 +1586,24 @@ static InitUtmp ()
 {
     struct passwd *p;
 
+    trace("Entree de InitUtmp");
     if ((utmpf = open (UtmpName, O_WRONLY)) == -1) {
 	if (errno != EACCES)
 	  Msg (errno, UtmpName);
+        trace("Sortie 1 de InitUtmp");
 	return;
     }
+    trace("InitUtmp : fd de %s = %d",UtmpName,utmpf);
     if ((LoginName = getlogin ()) == 0 || LoginName[0] == '\0') {
 	if ((p = (struct passwd *)getpwuid (getuid ())) == 0)
+	  {
+          trace("Sortie 2 de InitUtmp, LoginName = %s",LoginName);
 	  return;
+          }
 	LoginName = p->pw_name;
     }
     utmp = 1;
+    trace("Sortie 3 de InitUtmp, LoginName = %s",LoginName);
 }
 
 static SetUtmp (name) char *name; {
@@ -1639,7 +1750,9 @@ static struct ttyent *getttyent () {
 static InitKmem () {
     if ((kmemf = open (KmemName, O_RDONLY)) == -1)
 	return;
+    trace("InitKmem : fd de /dev/kmem = %d",kmemf);
     nl[0].n_name = AvenrunSym;
+    trace("InitKmem : appel de nlist(%s)",UnixName);
     nlist (UnixName, nl);
     if (nl[0].n_type == 0 || nl[0].n_value == 0)
 	return;
