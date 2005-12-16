@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -21,8 +29,6 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
- * Wayne Davison's online help -- split apart by jw.
- *****************************************
  */
 
 #ifndef lint
@@ -41,6 +47,7 @@
 #include "screen.h"
 #include "ansi.h"
 #include "extern.h"
+#include "patchlevel.h"
 
 int help_page = 0;
 int command_search, command_bindings = 0;
@@ -55,6 +62,7 @@ static void centerline __P((char *));
 static void HelpRedisplayLine __P((int, int, int, int));
 static void process_help_input __P((char **, int *));
 static void AbortHelp __P((void));
+static void add_key_to_buf __P((char *, int));
 
 void
 exit_with_usage(myname)
@@ -63,25 +71,27 @@ char *myname;
   printf("Use: %s [-opts] [cmd [args]]\n", myname);
   printf(" or: %s -r [host.tty]\n\nOptions:\n", myname);
   printf("-a           Force all capabilities into each window's termcap\n");
+  printf("-A -[r|R]    Adapt all windows to the new display width & height\n");
   printf("-c file      Read configuration file instead of .screenrc\n");
+#ifdef REMOTE_DETACH
+  printf("-d (-r)      Detach the elsewhere running screen (and reattach here)\n");
+  printf("-D (-r)      Detach and logout remote (and reattach here)\n");
+#endif
   printf("-e xy        Change command characters\n");
   printf("-f           Flow control on, -fn = off, -fa = auto\n");
   printf("-h lines     Set the size of the scrollback history buffer\n");
   printf("-i           Interrupt output sooner when flow control is on\n");
   printf("-l           Login mode on (update /etc/utmp), -ln = off\n");
-  printf("-list        Do nothing, just list our SockDir\n");
-  printf("-t title     Set command's a.k.a. (window title)\n");
-  printf("-wipe        Do nothing, just clean up SockDir\n");
+  printf("-list        or -ls. Do nothing, just list our SockDir\n");
   printf("-L           Terminal's last character can be safely updated\n");
   printf("-O           Choose optimal output rather than exact vt100 emulation\n");
+  printf("-q           Quiet startup. Sets $status if unsuccessful.\n");
   printf("-r           Reattach to a detached screen process\n");
   printf("-R           Reattach if possible, otherwise start a new session\n");
-#ifdef REMOTE_DETACH
-  printf("-d (-r)      Detach the elsewhere running screen (and reattach here)\n");
-  printf("-D (-r)      Detach and logout remote (and reattach here)\n");
-#endif
-  printf("-q           Quiet startup. Sets $status if unsuccessful.\n");
   printf("-s shell     Shell to execute rather than $SHELL\n");
+  printf("-T term      Use term as $TERM for windows, rather than \"screen\"\n");
+  printf("-t title     Set command's a.k.a. (window title)\n");
+  printf("-wipe        Do nothing, just clean up SockDir\n");
   exit(1);
 }
 
@@ -177,7 +187,7 @@ display_help()
 	numskip += screenheight-5;
       numskip %= screenheight-5;
       debug1("Numskip: %d\n", numskip);
-      if (numskip > screenheight/3)
+      if (numskip > screenheight/3 || numskip > command_bindings)
 	numskip = 1;
       maxrow = 2 + numrows + numskip + command_bindings;
       grow = 0;
@@ -265,7 +275,7 @@ display_help()
 		  sprintf(buf + 1, "%s%c", cp, *buf);
 		  cp = buf;
 		}
-	      if ((col += strlen(cp) + 1) >= screenwidth)
+	      if ((col += (unsigned)strlen(cp) + 1) >= screenwidth)
 		{
 		  col = screenwidth - (col - (strlen(cp) + 1)) - 2;
 		  if (col >= 0)
@@ -298,7 +308,7 @@ display_help()
   return(0);
 }
 
-void
+static void
 add_key_to_buf(buf, key)
 char *buf;
 int key;
@@ -326,10 +336,10 @@ centerline(str)
 char *str;
 {
   int l;
-  l = (screenwidth-1 + strlen(str)) / 2;
-  if (l > screenwidth-1)
-    l=screenwidth-1;
-  printf("%*.*s\r\n",l,l,str);
+  l = (screenwidth - 1 + (unsigned)strlen(str)) / 2;
+  if (l > screenwidth - 1)
+    l = screenwidth - 1;
+  printf("%*.*s\r\n", l, l, str);
 }
 
 static void
@@ -340,9 +350,170 @@ int y, xs, xe, isblank;
     return;
   if (CE)
     {
-      GotoPos(xs,y);
+      GotoPos(xs, y);
       PutStr(CE);
       return;
     }
   DisplayLine(null, null, null, blank, null, null, y, xs, xe);
 }
+
+/*
+ * here all the copyright stuff 
+ */
+
+
+static char version[40];
+
+static char cpmsg[] = "\
+\n\
+iScreen version %v\n\
+\n\
+Copyright (c) 1991\n\
+    Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)\n\
+    Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)\n\
+Copyright (c) 1987 Oliver Laumann\n\
+\n\
+This program is free software; you can redistribute it and/or \
+modify it under the terms of the GNU General Public License as published \
+by the Free Software Foundation; either version 1, or (at your option) \
+any later version.\n\
+\n\
+This program is distributed in the hope that it will be useful, \
+but WITHOUT ANY WARRANTY; without even the implied warranty of \
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the \
+GNU General Public License for more details.\n\
+\n\
+You should have received a copy of the GNU General Public License \
+along with this program (see the file COPYING); if not, write to the \
+Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.\n";
+
+
+static void process_copyright_input __P((char **, int *));
+static void AbortCopyright __P((void));
+static void copypage __P((void));
+
+static char *cps, *savedcps;
+
+static void
+process_copyright_input(ppbuf, plen)
+char **ppbuf;
+int *plen;
+{
+  int done = 0;
+
+  if (ppbuf == 0)
+    {
+      AbortCopyright();
+      return;
+    }
+  while (!done && *plen > 0)
+    {
+      switch (**ppbuf)
+	{
+	case ' ':
+          if (*cps)
+	    {
+	      copypage();
+	      break;
+	    }
+	  /* FALLTHROUGH */
+	case '\r':
+	case '\n':
+	  AbortCopyright();
+	  done = 1;
+	  break;
+	default:
+	  break;
+	}
+      ++*ppbuf;
+      --*plen;
+    }
+}
+
+static void
+AbortCopyright()
+{
+  ExitOverlayPage();
+  Activate();
+}
+
+void
+display_copyright()
+{
+  if (screenwidth < 10 || screenheight < 5)
+    {
+      Msg(0, "Window size too small for copyright page");
+      return;
+    }
+  InitOverlayPage(process_copyright_input, HelpRedisplayLine, 0, 0);
+  sprintf(version, "%d.%.2d.%.2d%s (%s) %s", REV, VERS, PATCHLEVEL, STATE, ORIGIN, DATE);
+  cps = cpmsg;
+  savedcps = 0;
+  copypage();
+}
+
+
+static void
+copypage()
+{
+  char *ws;
+  int x, y, l;
+  char cbuf[80];
+
+  ClearDisplay();
+  x = y = 0;
+  while(*cps)
+    {
+      ws = cps;
+      while (*cps == ' ')
+	cps++;
+      if (strncmp(cps, "%v", 2) == 0)
+	{
+	  savedcps = cps + 2;
+	  ws = cps = version;
+	}
+      while (*cps && *cps != ' ' && *cps != '\n')
+	cps++;
+      l = cps - ws;
+      cps = ws;
+      if (l > screenwidth - 1)
+	l = screenwidth - 1;
+      if (x && x + l >= screenwidth - 2)
+	{
+	  printf("\r\n");
+	  x = 0;
+	  if (++y > screenheight - 4)
+            break;
+	}
+      if (x)
+	{
+	  putchar(' ');
+	  x++;
+	}
+      printf("%*.*s", l, l, ws);
+      x += l;
+      cps += l;
+      if (*cps == 0 && savedcps)
+	{
+	  cps = savedcps;
+	  savedcps = 0;
+	}
+      if (*cps == '\n')
+	{
+	  printf("\r\n");
+	  x = 0;
+	  if (++y > screenheight - 4)
+            break;
+	}
+      if (*cps == ' ' || *cps == '\n')
+	cps++;
+    }
+  while (y++ < screenheight - 2)
+    printf("\r\n");
+  sprintf(cbuf,"[Press Space %s Return to end.]",
+	 *cps ? "for next page;" : "or");
+  centerline(cbuf);
+  fflush(stdout);
+  SetLastPos(0, screenheight-1);
+}
+  

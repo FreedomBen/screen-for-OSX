@@ -292,7 +292,7 @@ Call a screenlock program (/local/bin/lck or /usr/bin/lock or a builtin, if no
 other is available). Screen does not accept any command keys until this program
 terminates. Meanwhile processes in the windows may continue, as the windows 
 are in the `detached' state. The screenlock program may be changed through the
-environment variable LOCKPRG (which must be set in the shell from which 
+environment variable $LOCKPRG (which must be set in the shell from which 
 .I screen
 is started) and is executed with the user's uid and gid.
 .IP "\fBC-a z\fP  or  \fBC-a C-z\fP   (suspend)"
@@ -873,7 +873,8 @@ baud rate, etc.
 Establish a new window.
 The flow-control options (\fB\-f\fP, \fB\-fn\fP and \fB\-fa\fP),
 title (a.\|k.\|a.) option (\fB\-t\fP), login options (\fB-l\fP and \fB-ln\fP)
-and scrollback option (\fB-h\fP <num>) may be specified for each command.
+, terminal type option (\fB-T <term>\fP) and scrollback option (\fB-h\fP <num>)
+may be specified for each command.
 If an optional number \fIn\fP in the range 0..9 is given, the window
 number \fIn\fP is assigned to the newly created window (or, if this
 number is already in-use, the next available number).
@@ -939,6 +940,11 @@ or terminfo data base, you can pretend that the terminal emulator is - say -
 \*Qvt100\*U. This won't do much harm, as 
 .I screen
 is VT100/ANSI compatible.
+The use of the \*Qterm\*U command is discouraged for non-default purpose.
+That is, one may want to specify special $TERM settings (e.g. vt100) for the
+next \*Qscreen rlogin othermacine\*U command. Use the command \*Qscreen -T vt100
+rlogin othermachine\*U rather than setting (\*Qterm vt100\*U) and resetting
+(\*Qterm screen\*U) the default before and after the \*Qscreen\*U command.
 .PP
 .ne 3
 .B "termcap \fIterm\fP \fIterminal-tweaks\fP \fP[\fIwindow-tweaks\fP]"

@@ -6,9 +6,11 @@
 
 # If you choose to compile with the tried and true:
 CC= cc
-#CFLAGS= -O
-#CFLAGS= -g -DTMPTEST -DDEBUG
-CFLAGS= -g 
+# Compiled on SGI MIPS Iris4D/20 running Irix 3.3.2, compiler doesn't define us 
+# any specific id so we define it here, maybe it should be defined in config.h
+#CFLAGS= -O -DMIPS -DSGI -I/usr/include/bsd
+#CFLAGS= -g -DTMPTEST -DDEBUG -DMIPS -DSGI -I/usr/include/bsd
+CFLAGS= -g -DMIPS -DSGI -I/usr/include/bsd
 LDFLAGS=
 
 # If you're using GNU C, be sure to use the -traditional flag:
@@ -20,10 +22,12 @@ LDFLAGS=
 #LDFLAGS= -s
 
 #LIBS= nmalloc.o -ltermcap 
-LIBS= -ltermcap 
+#LIBS= -ltermcap
+# mld needed on MIPS to have nlist for loadaverage
+LIBS= -ltermcap -lsun -lbsd -lmld -lc_s
 
-CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c putenv.c
-OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o putenv.o
+CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c
+OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o
 
 screen: $(OFILES)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o screen $(OFILES) $(LIBS)
@@ -48,10 +52,6 @@ window.o: window.c config.h screen.h  extern.h
 
 socket.o: socket.c config.h screen.h  extern.h
 	$(CC) $(CFLAGS) -c socket.c
-
-putenv.o: putenv.c config.h
-	$(CC) $(CFLAGS) -c putenv.c
-
 
 clean:
 	rm -f $(OFILES) screen

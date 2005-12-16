@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -21,16 +29,14 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
- * socket.c -- split apart from screen.c by jw.
- * all functions that have "Socket" in their name, and the NAMEDPIPE code too.
- ****************************************************************/
+ */
 
 #ifndef lint
   static char rcs_id[] = "$Id$ FAU";
 #endif
 
 #include "config.h"
-#ifdef MIPS
+#if defined(MIPS) || defined(GOULD_NP1) || defined(B43)
 extern int errno;
 #endif
 #if defined(BSD) || defined(sequent) || defined(pyr)
@@ -41,9 +47,13 @@ extern int errno;
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/file.h>
+#ifndef NAMEDPIPE
 #include <sys/socket.h>
+#endif
 #include <fcntl.h>
+#ifndef NAMEDPIPE
 #include <sys/un.h>
+#endif
 #include <signal.h>
 #include <sys/time.h>
 #ifdef DIRENT
@@ -54,7 +64,7 @@ extern int errno;
 # define dirent direct
 #endif
 #ifdef USEVARARGS
-# if __STDC__
+# if defined(__STDC__)
 #  include <stdarg.h>
 # else
 #  include <varargs.h>
@@ -298,7 +308,11 @@ int *fdp;
 	      printf("\t%s\t(Detached)\n", foundsock[s].name);
 	      break;
 	    case -1:
+#if defined(__STDC__)
+	      printf("\t%s\t(Dead \?\?\?)\n", foundsock[s].name);
+#else
 	      printf("\t%s\t(Dead ???)\n", foundsock[s].name);
+#endif
 	      break;
 	    case -2:
 	      printf("\t%s\t(Removed)\n", foundsock[s].name);
@@ -547,9 +561,10 @@ char *name;
 
 
 void
-SendCreateMsg(s, ac, av, aflag, flowflag, lflag, histheight)
+SendCreateMsg(s, ac, av, aflag, flowflag, lflag, histheight, sterm)
 int s, ac, aflag, flowflag, lflag, histheight;
 char **av;
+char *sterm;
 {
   struct msg m;
   register char *p;
@@ -581,6 +596,8 @@ char **av;
     if (getwd(m.m.create.dir) == 0)
 #endif
       Msg(0, "%s", m.m.create.dir);
+  strncpy(m.m.create.screenterm, sterm, 19);
+  m.m.create.screenterm[19] = '\0';
   debug1("SendCreateMsg writing '%s'\n", m.m.create.line);
   if (write(s, (char *) &m, sizeof m) != sizeof m)
     Msg(errno, "write");
@@ -589,7 +606,7 @@ char **av;
 void
 #ifdef USEVARARGS
 /*VARARGS1*/
-# if __STDC__
+# if defined(__STDC__)
 SendErrorMsg(char *fmt, ...)
 # else
 SendErrorMsg(fmt, va_alist)
@@ -612,7 +629,7 @@ unsigned long p1, p2, p3, p4, p5, p6;
   debug1("SendErrorMsg() to '%s'\n", SockPath);
   m.type = MSG_ERROR;
 #ifdef USEVARARGS
-# if __STDC__
+# if defined(__STDC__)
   va_start(ap, fmt);
 # else
   va_start(ap);
@@ -634,7 +651,8 @@ int pid;
 char *pwd, *tty;
 {
   if (CheckPassword && 
-      strcmp(crypt(pwd, (strlen(Password) > 1) ? Password : "JW"), Password))
+      strcmp(crypt(pwd, ((unsigned)strlen(Password) > 1) ? Password : "JW"),
+	     Password))
     {
       if (*pwd)
 	{
@@ -672,7 +690,7 @@ struct msg *mp;
     p = 0;
   MakeWindow(p, args, mp->m.create.aflag, mp->m.create.flowflag,
 		      0, mp->m.create.dir, mp->m.create.lflag,
-		      mp->m.create.hheight);
+		      mp->m.create.hheight, mp->m.create.screenterm);
 }
 
 void
@@ -682,6 +700,7 @@ int s;
   int left, len, i;
   struct msg m;
   char *p;
+  char buf[20];
 #ifdef NAMEDPIPE
   /*
    * we may be called if there are no pending messages, so we will have to
@@ -893,9 +912,9 @@ int s;
        */
       if (*m.m.attach.envterm)
 	{
-#if defined(pyr) || defined(xelos)
+#if defined(pyr) || defined(xelos) || defined(sequent)
 	  /*
-	   * these systems have braindamaged termcap routines,
+	   * Kludge for systems with braindamaged termcap routines,
 	   * which evaluate $TERMCAP, regardless weather it describes
 	   * the correct terminal type or not.
 	   */
@@ -906,12 +925,28 @@ int s;
 	    }
 #endif
 	
-#if !defined(sequent)
+#if !defined(sequent) && !defined(MIPS)
 	  putenv(m.m.attach.envterm);
 #else
 	  setenv("TERM", m.m.attach.envterm + 5, 1);
 #endif
 	}
+#if !defined(sequent) && !defined(MIPS)
+      sprintf(buf, "LINES=%d", m.m.attach.lines);
+      if (m.m.attach.lines > 0 || getenv("LINES"))
+        putenv(buf);
+      sprintf(buf, "COLUMNS=%d", m.m.attach.columns);
+      if (m.m.attach.columns > 0 || getenv("COLUMNS"))
+        putenv(buf);
+#else
+      sprintf(buf, "%d", m.m.attach.lines);
+      if (m.m.attach.lines > 0 || getenv("LINES"))
+        setenv("LINES", buf);
+      sprintf(buf, "%d", m.m.attach.columns);
+      if (m.m.attach.columns > 0 || getenv("COLUMNS"))
+        setenv("COLUMNS", buf);
+#endif
+      
       /*
        * We reboot our Terminal Emulator. Forget all we knew about
        * the old terminal, reread the termcap entries in .screenrc
@@ -931,7 +966,7 @@ int s;
 #endif
       StartRc(RcFileName);
       InitTermcap();
-      InitTerm();
+      InitTerm(m.m.attach.adaptflag);
       fore->active = 1;
       Activate();
       debug("activated...\n");
@@ -965,7 +1000,7 @@ int s;
 	Detach(D_REMOTE);
       else
 #endif
-      SigHup();
+      SigHup(SIGARG);
       break;
     default:
       Msg(0, "Invalid message (type %d).", m.type);

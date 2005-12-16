@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -21,8 +29,6 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
- * window.c -- process all window sizing
- *****************************************
  */
 
 #ifndef lint
@@ -51,7 +57,7 @@ static int ResizeScreenArray __P((struct win *, char ***, int, int, int));
 static void FreeArray __P((char ***, int));
 
 extern TermcapCOLS, TermcapROWS;
-extern int cols, rows, maxwidth;
+extern int maxwidth;
 extern int default_width, default_height, screenwidth, screenheight;
 extern char *blank, *null, *OldImage, *OldAttr;
 extern char *OldFont, *LastMsg;
@@ -66,12 +72,21 @@ extern int Detached;
   struct winsize glwz;
 #endif
 
+/*
+ * ChangeFlag:   0: try to modify no window
+ *               1: modify fore (and try to modify no other)
+ *               2: modify all windows
+ *
+ * Note: Activate() is only called if change_flag == 1
+ *       i.e. on a WINCH event
+ */
 
 void
-CheckScreenSize(change_fore)
-int change_fore;
+CheckScreenSize(change_flag)
+int change_flag;
 {
-  int width, height;
+  int width, height, n;
+  struct win *p;
 
   if (Detached)
     {
@@ -101,13 +116,21 @@ int change_fore;
   
   debug2("CheckScreenSize: screen is (%d,%d)\n", width, height);
 
+  if (change_flag == 2)
+    {
+      for (n = WinList; n != -1; n = p->WinLink)
+        {
+          p = wtab[n];
+          ChangeWindowSize(p, width, height);
+	}
+    }
   if (screenwidth == width && screenheight == height)
     {
-    debug("CheckScreenSize: No change -> return.\n");
-    return;
+      debug("CheckScreenSize: No change -> return.\n");
+      return;
     }
-  ChangeScreenSize(width, height, change_fore);
-  if (change_fore && WinList != -1) /* was HasWindow */
+  ChangeScreenSize(width, height, change_flag);
+  if (change_flag == 1 && WinList != -1)	/* was HasWindow */
     Activate ();
 }
 
@@ -143,11 +166,6 @@ int change_fore;
       default_height = height;
     }
   debug2("Default size: (%d,%d)\n",default_width, default_height);
-  
-#ifdef TIOCSWINSZ
-  (void) ioctl(0,TIOCGWINSZ,&glwz);
-#endif
-
   if (change_fore)
     {
       if (WinList != -1 && change_fore) /* was HasWindow */
@@ -359,7 +377,7 @@ int hi;
 
   if (*arr == 0)
     return;
-  for (t = hi, p = *arr; t--;)
+  for (t = hi, p = *arr; t--; p++)
     if (*p)
       Free(*p);
   Free(*arr);
@@ -407,8 +425,9 @@ int width, height;
       LastMsg[maxwidth]=0;
       if (!(blank && null && OldImage && OldAttr && OldFont && LastMsg))
 	{
-nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) ;
-	  if (t>=0)
+nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) 
+	    ;
+	  if (t >= 0)
 	    KillWindow(t);
 	  Msg(0, "Out of memory -> Window destroyed !!");
 	  return(-1);
@@ -423,8 +442,8 @@ nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) ;
       return(0);
     }
 
-  debug2("ChangeWindowSize from (%d,%d) to ",p->width,p->height);
-  debug2("(%d,%d)\n",width,height);
+  debug2("ChangeWindowSize from (%d,%d) to ", p->width, p->height);
+  debug2("(%d,%d)\n", width, height);
 
   if (width == 0 && height == 0)
     {
@@ -439,6 +458,7 @@ nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) ;
       return(0);
     }
 
+  /* when window gets smaller, scr is the no. of lines we scroll up */
   scr = p->height - height;
   if (scr < 0)
     scr = 0;
@@ -468,18 +488,21 @@ nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) ;
         goto nomem;
       t = p->width;
     }
-  for (t=(t+7)&8; t<width; t+=8)
-    p->tabs[t]=1; 
+  for (t = (t + 7) & 8; t < width; t += 8)
+    p->tabs[t] = 1; 
   p->height = height;
   p->width = width;
   if (p->x >= width)
     p->x = width - 1;
-  if ((p->y-=scr) < 0)
+  if ((p->y -= scr) < 0)
     p->y = 0;
   if (p->Saved_x >= width)
     p->Saved_x = width - 1;
-  if ((p->Saved_y-=scr) < 0)
+  if ((p->Saved_y -= scr) < 0)
     p->Saved_y = 0;
+  if (p->autoaka > 0) 
+    if ((p->autoaka -= scr) < 1)
+      p->autoaka = 1;
   p->top = 0;
   p->bot = height - 1;
 #ifdef TIOCSWINSZ
@@ -488,23 +511,23 @@ nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) ;
       glwz.ws_col = width;
       glwz.ws_row = height;
       debug("Setting pty winsize.\n");
-      if (ioctl(p->ptyfd,TIOCSWINSZ,&glwz))
-	debug2("SetPtySize: errno %d (fd:%d)\n",errno,p->ptyfd);
+      if (ioctl(p->ptyfd, TIOCSWINSZ, &glwz))
+	debug2("SetPtySize: errno %d (fd:%d)\n", errno, p->ptyfd);
 # if defined(STUPIDTIOCSWINSZ) && defined(SIGWINCH)
 #  ifdef POSIX
-      pgrp=tcgetpgrp(p->ptyfd);
+      pgrp = tcgetpgrp(p->ptyfd);
 #  else
       if (ioctl(p->ptyfd, TIOCGPGRP, &pgrp))
-	pgrp=0;
+	pgrp = 0;
 #  endif
       if (pgrp)
 	{
-	  debug1("Sending SIGWINCH to pgrp %d.\n",pgrp);
+	  debug1("Sending SIGWINCH to pgrp %d.\n", pgrp);
 	  if (killpg(pgrp, SIGWINCH))
-	    debug1("killpg: errno %d\n",errno);
+	    debug1("killpg: errno %d\n", errno);
 	}
       else
-	debug1("Could not get pgrp: errno %d\n",errno);
+	debug1("Could not get pgrp: errno %d\n", errno);
 # endif /* STUPIDTIOCSWINSZ */
     }
 #endif
@@ -533,7 +556,7 @@ struct win *wi;
       debug("ResizeScreen: No change\n");
       return;
     }
-  debug2("ResizeScreen: to (%d,%d).\n",width,height);
+  debug2("ResizeScreen: to (%d,%d).\n", width, height);
   if (WS)
     {
       debug("ResizeScreen: using WS\n");
@@ -544,12 +567,12 @@ struct win *wi;
     {
       debug("ResizeScreen: using Z0/Z1\n");
       PutStr(width == Z0width ? Z0 : Z1);
-      ChangeScreenSize(width, height, 0);
+      ChangeScreenSize(width, screenheight, 0);
     }
-  else
+  if (screenwidth != width || screenheight != height)
     {
       debug2("BUG: Cannot resize from (%d,%d)",screenwidth, screenheight);
-      debug2(" to (%d,%d) !!\n",width,height);
+      debug2(" to (%d,%d) !!\n", width, height);
       if (wi)
 	ChangeWindowSize(wi, screenwidth, screenheight);
     }

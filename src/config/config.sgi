@@ -32,6 +32,12 @@
  * $Id$ FAU
  */
 
+/****************************************************************
+ * This file is by Andrea Malagoli (alagoli@mhd4.uchicago.edu).
+ * It was done for a SGI MIPS Iris4D/20 running Irix 3.3.2.
+ ********************************************************** 
+ */
+
 
 /*
  *		Beginning of User Configuration Section
@@ -53,13 +59,7 @@
 /*
  * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
  */
-#define POSIX
-
-/*
- * Define BSDJOBS if you have BSD-style job control (both process
- * groups and a tty that deals correctly with them).
- */
-#define BSDJOBS
+#undef  POSIX
 
 /*
  * Define TERMIO if you have struct termio instead of struct sgttyb.
@@ -67,7 +67,7 @@
  * POSIX systems should define this anyway, even though they use
  * struct termios.
  */
-#define TERMIO
+#define  TERMIO
 
 /*
  * Define TERMINFO if your machine emulates the termcap routines
@@ -86,12 +86,12 @@
  * Define SIGVOID if your signal handlers return void.  On older
  * systems, signal returns int, but on newer ones, it returns void.
  */
-#define SIGVOID 
+#define  SIGVOID 
 
 /*
  * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
  */
-#define DIRENT
+#define  DIRENT
 
 /*
  * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
@@ -104,18 +104,18 @@
  * if you want entries added to /etc/utmp by default, else set it to zero (0).
  */
 #undef UTMPOK
-#define LOGINDEFAULT	1
+#define LOGINDEFAULT	0
 
 /*
  * If your system has getutent(), pututline(), etc. to write to the
  * utmp file, define GETUTENT.
  */
-#define GETUTENT
+#undef GETUTENT
 
 /*
  * Define UTHOST if the utmp file has a host field.
  */
-#undef UTHOST
+#undef  UTHOST
 
 /*
  * If UTMPOK is defined and your system (incorrectly) counts logins by
@@ -149,8 +149,9 @@
  * and have a load average format that screen understands.  We handle the
  * following formats:  3 doubles (BSD), 3 longs (sun), and 4 longs (alliant).
  */
-#define  LOADAV_3DOUBLES
-#undef LOADAV_3LONGS
+#undef  LOADAV
+#undef  LOADAV_3DOUBLES
+#undef  LOADAV_3LONGS
 #undef  LOADAV_4LONGS
 
 /*
@@ -179,13 +180,13 @@
  * If you want to have your socket directory in "/tmp/screens" then
  * define LOCALSOCKDIR and change the definition of SOCKDIR below.
  */
-#define LOCALSOCKDIR
+#undef  LOCALSOCKDIR
 
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
-#  define SOCKDIR "/local/screens"
-# else
 #  define SOCKDIR "/tmp/screens"
+# else
+#  define SOCKDIR "/tmp/testscreens"
 # endif
 #endif
 
@@ -194,7 +195,7 @@
  * overlapping of source and destination blocks.  When undefined, screen
  * uses its own (probably slower) version of bcopy().
  */
-#undef USEBCOPY
+#define USEBCOPY
 
 /*
  * If you'd rather see the status line on the first line of your
@@ -234,7 +235,7 @@
  * try to throw out phrases that are somewhat more familiar
  * to ...well, at least familiar to us NetHack players.
  */
-#undef NETHACK 
+#define NETHACK
 
 /*
  * and another sneaky feature: screen sources two startup files.
@@ -242,7 +243,7 @@
  * your local $HOME/.screenrc
  * Don't define this, if you don't want it.
  */
-#define ETCSCREENRC "/local/etc/screenrc"
+#define ETCSCREENRC "/etc/screenrc"
 
 /*
  *	End of User Configuration Section

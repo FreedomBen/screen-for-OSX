@@ -1,5 +1,6 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
  * All rights reserved.  Not derived from licensed software.
  *
@@ -51,6 +52,8 @@ extern char *malloc();
 extern struct win *fore;
 extern int ForeNum;
 extern force_vt, assume_LP;
+extern int BellDisplayed;
+extern int MsgMinWait;
 
 #ifdef TIOCGWINSZ
 extern struct winsize glwz;
@@ -78,7 +81,7 @@ char *Termcap, *extra_incap, *extra_outcap;
 static int Termcaplen;
 char *blank, *null, *LastMsg;
 char Term[MAXSTR+5];	/* +5: "TERM=" */
-char screenterm[MAXSTR] = "screen";
+char screenterm[20] = "screen";
 char *Z0, *Z1;
 int ISO2022, HS;
 time_t TimeDisplayed, time();
@@ -146,6 +149,7 @@ static void process_inp_input __P((char **, int *));
 static void AbortInp __P((void));
 static void AKAfin __P((char *, int));
 static void Colonfin __P((char *, int));
+static void RAW_PUTCHAR __P((int));
 static char *e_tgetstr __P((char *, char **));
 static int e_tgetflag __P((char *));
 static int e_tgetnum __P((char *));
@@ -160,7 +164,7 @@ static char *CM, *US, *UE, *SO, *SE, *CD, *DO, *SR, *SF, *AL;
 static char *CS, *DL, *DC, *IC, *IM, *EI, *ND, *KS, *KE;
 static char *MB, *MD, *MH, *MR, *ME, *PO, *PF, *HO;
 static char *TS, *FS, *DS, *VI, *VE, *VS;
-static char *CDC, *CDL, *CAL;
+static char *CDC, *CDL, *CAL, *CUP, *CDO, *CLE, *CRI, *CIC;
 static char *attrtab[NATTR];
 static AM, MS, COP;
 int LP;
@@ -177,7 +181,7 @@ char *OldImage, *OldAttr, *OldFont;
 static struct win *curr;
 static display = 1;
 static StrCost;
-static UPcost, DOcost, LEcost, NDcost, CRcost, IMcost, EIcost;
+static UPcost, DOcost, LEcost, NDcost, CRcost, IMcost, EIcost, NLcost;
 static tcLineLen;
 static StatLen;
 static lp_missing = 0;
@@ -193,9 +197,10 @@ static char *KeyCaps[] =
   "k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9",
   "kb", "kd", "kh", "kl", "ko", "kr", "ku",
   "K1", "K2", "K3", "K4", "K5",
-  "l0", "l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8", "l9",
-  0,
+  "l0", "l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8", "l9"
 };
+#define NKEYCAPS (sizeof(KeyCaps)/sizeof(*KeyCaps))
+static char *KeyCapsArr[NKEYCAPS];
 
 static char TermcapConst[] = "\\\n\
 \t:DO=\\E[%dB:LE=\\E[%dD:RI=\\E[%dC:UP=\\E[%dA:bs:bt=\\E[Z:\\\n\
@@ -317,7 +322,7 @@ InitTermcap()
        * clearly specified by the termcap manual. Anyway, we should at
        * least look whether ME and SE/UE are equal:
        */
-      if (UE && (SE && strcmp(SE, UE) == 0) || (ME && strcmp(ME, UE) == 0))
+      if (UE && ((SE && strcmp(SE, UE) == 0) || (ME && strcmp(ME, UE) == 0)))
 	UE = 0;
       if (SE && (ME && strcmp(ME, SE) == 0))
 	SE = 0;
@@ -355,21 +360,34 @@ InitTermcap()
   CS = e_tgetstr("cs", &tp);
   DC = e_tgetstr("dc", &tp);
   IC = e_tgetstr("ic", &tp);
+  CIC = e_tgetstr("IC", &tp);
   CDC = e_tgetstr("DC", &tp);
   CDL = e_tgetstr("DL", &tp);
   CAL = e_tgetstr("AL", &tp);
+  CUP = e_tgetstr("UP", &tp);
+  CDO = e_tgetstr("DO", &tp);
+  CLE = e_tgetstr("LE", &tp);
+  CRI = e_tgetstr("RI", &tp);
   IM = e_tgetstr("im", &tp);
   EI = e_tgetstr("ei", &tp);
   if (e_tgetflag("in"))
     IC = IM = 0;
   if (IC && IC[0] == '\0')
     IC = 0;
+  if (CIC && CIC[0] == '\0')
+    CIC = 0;
   if (IM && IM[0] == '\0')
     IM = 0;
   if (EI && EI[0] == '\0')
     EI = 0;
+  if (EI == 0)
+    IM = 0;
+  if (IC && IM && strcmp(IC, IM) == 0)
+    IC = 0;
   KS = e_tgetstr("ks", &tp);
   KE = e_tgetstr("ke", &tp);
+  if (KE == 0)
+    KS = 0;
   ISO2022 = e_tgetflag("G0");
   if (ISO2022)
     {
@@ -435,28 +453,44 @@ InitTermcap()
 
   UPcost = CalcCost(UP);
   DOcost = CalcCost(DO);
+  NLcost = CalcCost(NL);
   LEcost = CalcCost(BC);
   NDcost = CalcCost(ND);
   CRcost = CalcCost(CR);
   IMcost = CalcCost(IM);
   EIcost = CalcCost(EI);
+  for (i = 0; i < NKEYCAPS; i++)
+    KeyCapsArr[i] = e_tgetstr(KeyCaps[i], &tp);
   MakeTermcap(0);
 }
 
+/*
+ * if the adaptflag is on, we keep the size of this display, else
+ * we may try to restore our old window sizes.
+ */
 void
-InitTerm()
+InitTerm(adapt)
+int adapt;
 {
   display = 1;
   screentop = screenbot = -1;
   PutStr(IS);
   PutStr(TI);
+  if (IM && strcmp(IM, EI))
+    PutStr(EI);
+  insert = 0;
+  if (KS && strcmp(KS, KE))
+    PutStr(KE);
+  keypad = 0;
   ResizeScreen((struct win *)0);
   ChangeScrollRegion(0, screenheight-1);
   PutStr(CL);
   screenx = screeny = 0;
   fflush(stdout);
-  CheckScreenSize(0);	/* In case the size was changed
-			   by a init sequence */
+  debug1("we %swant to adapt all our windows to the display\n", 
+	 (adapt) ? "" : "don't ");
+  /* In case the size was changed by a init sequence */
+  CheckScreenSize((adapt) ? 2 : 0);
 }
 
 void
@@ -476,17 +510,17 @@ FinitTerm()
   if (Termcap) 
     {
       Free(Termcap);
-      debug("FInitTerm: old termcap freed\n");
+      debug("FinitTerm: old termcap freed\n");
     }
   if (tbuf) 
     {
       Free(tbuf);
-      debug("FInitTerm: old tbuf freed\n");
+      debug("FinitTerm: old tbuf freed\n");
     }
   if (tentry) 
     {
       Free(tentry);
-      debug("FInitTerm: old tentry freed\n");
+      debug("FinitTerm: old tentry freed\n");
     }
 }
 
@@ -515,7 +549,8 @@ char *MakeTermcap(aflag)
 int aflag;
 {
   char buf[1024];
-  register char **pp, *p, *cp, ch;
+  register char *p, *cp, ch;
+  int i;
 
   if (screencap)
     {
@@ -531,7 +566,7 @@ int aflag;
     {
       sprintf(Term, "TERM=");
       p = Term + 5;
-      if (!aflag && strlen(screenterm)+strlen(termname) < MAXSTR-1)
+      if (!aflag && (unsigned)strlen(screenterm)+strlen(termname) < MAXSTR-1)
 	{
 	  sprintf(p, "%s.%s", screenterm, termname);
 	  if (tgetent(buf, p) == 1)
@@ -564,7 +599,7 @@ int aflag;
 	}
       tcLineLen = 100;	/* Force NL */
     }
-  if (Termcaplen + strlen(TermcapConst) < 1024)
+  if (Termcaplen + (unsigned)strlen(TermcapConst) < 1024)
     {
       strcpy(Termcap + Termcaplen, TermcapConst);
       Termcaplen += strlen(TermcapConst);
@@ -617,11 +652,13 @@ int aflag;
       AddCap("dc=\\E[P:");
       AddCap("DC=\\E[%dP:");
     }
-  if (IC || IM || aflag)
+  if (CIC || IC || IM || aflag)
     {
       AddCap("im=\\E[4h:");
       AddCap("ei=\\E[4l:");
       AddCap("mi:");
+      AddCap("ic=\\E[@:");
+      AddCap("IC=\\E[%d@:");
     }
   if (KS)
     AddCap("ks=\\E=:");
@@ -641,19 +678,20 @@ int aflag;
     }
   if (WS)
     AddCap("WS=\\E[8;%d;%dt:");
-  for (pp = KeyCaps; *pp; ++pp)
-    if (p = e_tgetstr(*pp, &tp))
-      {
-	MakeString(*pp, buf, sizeof(buf), p);
-	AddCap(buf);
-      }
+  for (i = 0; i < NKEYCAPS; i++)
+    {
+      if (KeyCapsArr[i] == 0)
+	continue;
+      MakeString(KeyCaps[i], buf, sizeof(buf), KeyCapsArr[i]);
+      AddCap(buf);
+    }
   return Termcap;
 }
 
 static void MakeString(cap, buf, buflen, s)
 char *cap, *buf;
 int buflen;
-register char *s;
+char *s;
 {
   register char *p, *pmax;
   register unsigned int c;
@@ -663,7 +701,7 @@ register char *s;
   *p++ = *cap++;
   *p++ = *cap;
   *p++ = '=';
-  while (c = *s++ && p < pmax)
+  while ((c = *s++) && p < pmax)
     {
       switch (c)
 	{
@@ -703,14 +741,14 @@ void
 Activate()
 {
   debug("Activate()\n");
-  RemoveStatus();
-  fore->active = 1;
-  SetCurr(fore);
+  if (display)
+    RemoveStatus();
+  display = fore->active = 1;
   ResizeScreen(fore);
-  debug3("Fore (%d) has size %dx%d",ForeNum,curr->width,curr->height);
+  SetCurr(fore);
+  debug3("Fore (%d) has size %dx%d", ForeNum, curr->width, curr->height);
   debug1("(%d)\n", curr->histheight);
   ChangeScrollRegion(curr->top, curr->bot);
-  InsertMode(curr->insert);
   KeypadMode(curr->keypad);
   FlowMode(curr->flow);
   if (curr->monitor != MON_OFF)
@@ -979,9 +1017,8 @@ int len;
 		{
 		  intermediate = 0;
 		  curr->state = ESC;
-		  if (display && lp_missing && (IC || IM))
+		  if (display && lp_missing && (CIC || IC || IM))
 		    {
-		      GotoPos(cols - 2, screenbot);
 		      RedisplayLine(blank, null, null, screenbot,
 				    cols - 2, cols - 1);
 		      GotoPos(curr->x, curr->y);
@@ -1013,7 +1050,7 @@ int len;
 		      if (curr->wrap && (LP || !force_vt || COP))
 			{
 			  if (display)
-			    PUTCHAR(c);
+			    RAW_PUTCHAR(c);
 			  SetChar(c);
 			  if (AM && !LP)
 			    {
@@ -1029,7 +1066,7 @@ int len;
 			    {
 			      if (LP || curr->y != screenbot)
 				{
-				  PUTCHAR(c);
+				  RAW_PUTCHAR(c);
 				  GotoPos(curr->x, curr->y);
 				}
 			      else
@@ -1328,8 +1365,9 @@ int c, intermediate;
 	  if (a1 == curr->width && a2 == curr->height)
 	    break;
           ChangeWindowSize(curr, a1, a2);
+	  SetCurr(curr);
 	  if (display)
-	    Redisplay();
+	    Activate();
 	  break;
 	case 'u':
 	  RestoreCursor();
@@ -1392,8 +1430,9 @@ int c, intermediate;
 	  if ((Z0 || WS) && curr->width != i)
 	    {
               ChangeWindowSize(curr, i, curr->height);
+	      SetCurr(curr);
 	      if (display)
-		Redisplay();
+		Activate();
 	    }
 	  break;
 	case 5:
@@ -1431,12 +1470,42 @@ int c, intermediate;
     }
 }
 
-/*
- * this putchar() is for all text that will be displayed.
- * NOTE, that charset Nr. 0 has a conversion table, but c1, c2, ... don't.
- */
+void
+INSERTCHAR(c)
+int c;
+{
+  if (!insert && (IC || CIC))
+    {
+      if (IC)
+        PutStr(IC);
+      else
+        CPutStr(CIC, 1);
+      RAW_PUTCHAR(c);
+      return;
+    }
+  InsertMode(1);
+  if (insert)
+    RAW_PUTCHAR(c);
+  else
+    RefreshLine(screeny, screenx, screenwidth-1);
+}
+
 void
 PUTCHAR(c)
+int c;
+{
+  if (insert)
+    InsertMode(0);
+  RAW_PUTCHAR(c);
+}
+
+/*
+ * RAW_PUTCHAR() is for all text that will be displayed.
+ * NOTE, that charset Nr. 0 has a conversion table, but c1, c2, ... don't.
+ */
+
+static void
+RAW_PUTCHAR(c)
 int c;
 {
   if (GlobalCharset == '0')
@@ -1550,7 +1619,7 @@ int on;
 static void KeypadMode(on)
 int on;
 {
-  if (display && keypad != on)
+  if (display && keypad != on && KS)
     {
       keypad = on;
       if (keypad)
@@ -1667,9 +1736,10 @@ GotoPos(x2, y2)
 int x2, y2;
 {
   register int dy, dx, x1, y1;
-  register int cost = 0;
+  register int costx, costy;
+  register int m;
   register char *s;
-  int CMcost, n = 0, m;
+  int CMcost;
   enum move_t xm = M_NONE, ym = M_NONE;
 
   if (!display)
@@ -1678,115 +1748,173 @@ int x2, y2;
   x1 = screenx;
   y1 = screeny;
 
-  if (x1 == cols)
+  if (x1 == screenwidth)
     if (LP && AM)
-      x1 = -1;
+      x1 = -1;		/* don't know how the terminal treats this */
     else
       x1--;
-  if (x2 == cols)
+  if (x2 == screenwidth)
     x2--;
   dx = x2 - x1;
   dy = y2 - y1;
   if (dy == 0 && dx == 0)
-    return;
-  if (!MS && GlobalAttr)
+    {
+      return;
+    }
+  if (!MS && GlobalAttr)	/* Save to move in SO mode ? */
     NewRendition(0);
-  if (HO && !x2 && !y2)
-    s = HO;
-  else
-    s = tgoto(CM, x2, y2);
-  if (y1 == -1
-      || (y2 > screenbot && y1 <= screenbot)
-      || (y2 < screentop && y1 >= screentop))
+  if (y1 < 0			/* don't know the y position */
+      || (y2 > screenbot && y1 <= screenbot)	/* have to cross border */
+      || (y2 < screentop && y1 >= screentop))	/* of scrollregion ?    */
     {
     DoCM:
-      PutStr(s);
+      if (HO && !x2 && !y2)
+        PutStr(HO);
+      else
+        PutStr(tgoto(CM, x2, y2));
       screenx = x2;
       screeny = y2;
       return;
     }
+  /* Calculate CMcost */
+  if (HO && !x2 && !y2)
+    s = HO;
+  else
+    s = tgoto(CM, x2, y2);
   CMcost = CalcCost(s);
-  if (x1 >= 0)
+
+  /* Calculate the cost to move the cursor to the right x position */
+  costx = EXPENSIVE;
+  if (x1 >= 0)	/* relativ x positioning only if we know where we are */
     {
       if (dx > 0)
 	{
-	  if ((n = Rewrite(y1, x1, x2, 0)) < (m = dx * NDcost))
+	  if (CRI && (dx > 1 || !ND))
 	    {
-	      cost = n;
-	      xm = M_RW;
+	      costx = CalcCost(tgoto(CRI, 0, dx));
+	      xm = M_CRI;
 	    }
-	  else
+	  if ((m = NDcost * dx) < costx)
 	    {
-	      cost = m;
+	      costx = m;
 	      xm = M_RI;
+	    }
+	  /* Speedup: dx <= Rewrite() */
+	  if (dx < costx && (m = Rewrite(y1, x1, x2, 0)) < costx)
+	    {
+	      costx = m;
+	      xm = M_RW;
 	    }
 	}
       else if (dx < 0)
 	{
-	  cost = -dx * LEcost;
-	  xm = M_LE;
+	  if (CLE && (dx < -1 || !BC))
+	    {
+	      costx = CalcCost(tgoto(CLE, 0, -dx));
+	      xm = M_CLE;
+	    }
+	  if ((m = -dx * LEcost) < costx)
+	    {
+	      costx = m;
+	      xm = M_LE;
+	    }
 	}
+      else
+	costx = 0;
     }
-  else
-    cost = EXPENSIVE;
-  if (dx && (n = Rewrite(y1, 0, x2, 0) + CRcost) < cost)
+  /* Speedup: Rewrite() >= x2 */
+  if (x2 + CRcost < costx && (m = Rewrite(y1, 0, x2, 0) + CRcost) < costx)
     {
-      cost = n;
+      costx = m;
       xm = M_CR;
     }
-  if (cost >= CMcost)
+
+  /* Check if it is already cheaper to do CM */
+  if (costx >= CMcost)
     goto DoCM;
+
+  /* Calculate the cost to move the cursor to the right y position */
+  costy = EXPENSIVE;
   if (dy > 0)
     {
-      cost += dy * DOcost;
-      ym = M_DO;
+      if (CDO && dy > 1)	/* DO & NL are always != 0 */
+	{
+	  costy = CalcCost(tgoto(CDO, 0, dy));
+	  ym = M_CDO;
+	}
+      if ((m = dy * ((x2 == 0) ? NLcost : DOcost)) < costy)
+	{
+	  costy = m;
+	  ym = M_DO;
+	}
     }
   else if (dy < 0)
     {
-      cost += -dy * UPcost;
-      ym = M_UP;
+      if (CUP && (dy < -1 || !UP))
+	{
+	  costy = CalcCost(tgoto(CUP, 0, -dy));
+	  ym = M_CUP;
+	}
+      if ((m = -dy * UPcost) < costy)
+	{
+	  costy = m;
+	  ym = M_UP;
+	}
     }
-  if (cost >= CMcost)
+  else
+    costy = 0;
+
+  /* Finally check if it is cheaper to do CM */
+  if (costx + costy >= CMcost)
     goto DoCM;
-  if (xm != M_NONE)
+
+  switch (xm)
     {
-      if (xm == M_LE || xm == M_RI)
-	{
-	  if (xm == M_LE)
-	    {
-	      s = BC;
-	      dx = -dx;
-	    }
-	  else
-	    s = ND;
-	  while (dx-- > 0)
-	    PutStr(s);
-	}
-      else
-	{
-	  if (xm == M_CR)
-	    {
-	      PutStr(CR);
-	      screenx = 0;
-	      x1 = 0;
-	    }
-	  if (x1 < x2)
-	    Rewrite(y1, x1, x2, 1);
-	}
+    case M_LE:
+      while (dx++ < 0)
+	PutStr(BC);
+      break;
+    case M_CLE:
+      CPutStr(CLE, -dx);
+      break;
+    case M_RI:
+      while (dx-- > 0)
+	PutStr(ND);
+      break;
+    case M_CRI:
+      CPutStr(CRI, dx);
+      break;
+    case M_CR:
+      PutStr(CR);
+      screenx = 0;
+      x1 = 0;
+      /* FALLTHROUGH */
+    case M_RW:
+      if (x1 < x2)
+	Rewrite(y1, x1, x2, 1);
+      break;
+    default:
+      break;
     }
-  if (ym != M_NONE)
+  switch (ym)
     {
-      if (ym == M_UP)
-	{
-	  s = UP;
-	  dy = -dy;
-	}
-      else if (x2 == 0)
-	s = NL;
-      else
-	s = DO;
+    case M_UP:
+      while (dy++ < 0)
+	PutStr(UP);
+      break;
+    case M_CUP:
+      CPutStr(CUP, -dy);
+      break;
+    case M_DO:
+      s =  (x2 == 0) ? NL : DO;
       while (dy-- > 0)
 	PutStr(s);
+      break;
+    case M_CDO:
+      CPutStr(CDO, dy);
+      break;
+    default:
+      break;
     }
   screenx = x2;
   screeny = y2;
@@ -1811,11 +1939,9 @@ int y, x1, x2, doit;
   dx = x2 - x1;
   if (doit)
     {
-      InsertMode(0);
       i = curr->image[y] + x1;
       while (dx-- > 0)
 	PUTCHAR(*i++);
-      InsertMode(curr->insert);
       return(0);
     }
   p = curr->attr[y] + x1;
@@ -1836,32 +1962,15 @@ static void BackSpace()
 {
   if (curr->x > 0)
     {
-      if (display)
-	{
-	  if (curr->x < cols)
-	    {
-	      if (BC)
-		{
-		  PutStr(BC);
-		  screenx--;
-		}
-	      else
-		GotoPos(curr->x - 1, curr->y);
-	    }
-	  else if (AM && LP)
-	    {
-	      screeny = screenx = -1; /* XXX: ?? */
-	      GotoPos(curr->x - 1, curr->y);
-	    }
-	}
       curr->x--;
     }
   else if (curr->wrap && curr->y > 0)
     {
       curr->x = cols - 1;
       curr->y--;
-      GotoPos(curr->x, curr->y);
     }
+  if (display)
+    GotoPos(curr->x, curr->y);
 }
 
 static void Return()
@@ -1870,10 +1979,7 @@ static void Return()
     {
       curr->x = 0;
       if (display)
-	{
-          PutStr(CR);
-	  screenx = 0;
-	}
+        GotoPos(curr->x, curr->y);
     }
 }
 
@@ -1891,33 +1997,13 @@ int out_mode;
 	GotoPos(curr->x, curr->y);
       return;
     }
-  if (lp_missing && curr->y == screenbot)
-    {
-      if (out_mode && display)
-	{
-	  FixLP(screenwidth - 1, screenbot);	/* scrolls the screen */
-	  GotoPos(curr->x, curr->y);
-	}
-      ScrollUpMap(1);
-      if (curr->autoaka > 1)
-	curr->autoaka--;
-      return;
-    }
   ScrollUpMap(1);
   if (curr->autoaka > 1)
     curr->autoaka--;
   if (out_mode && display)
     {
-      if (curr->bot == screenbot)
-	{
-	  GotoPos(curr->x, curr->y);
-	  PutStr(NL);		/* scrolls */
-	}
-      else
-	{
-	  ScrollRegion(curr->top, curr->bot, 1);
-	  GotoPos(curr->x, curr->y);
-	}
+      ScrollRegion(curr->top, curr->bot, 1);
+      GotoPos(curr->x, curr->y);
     }
 }
 
@@ -1951,12 +2037,10 @@ int c;
   SetChar(c);
   if (!display)
     return;
-  if (IC || IM)
+  if (CIC || IC || IM)
     {
-      InsertMode(1);
-      PutStr(IC);
-      PUTCHAR(c);
       InsertMode(curr->insert);
+      INSERTCHAR(c);
       if (y == screenbot)
 	lp_missing = 0;
     }
@@ -1972,6 +2056,21 @@ int n;
 {
   register int i, y = curr->y, x = curr->x;
 
+  if (n <= 0)
+    return;
+  /*
+   * The termcap manual states that only one of IM and IC is
+   * to be defined unless the terminal needs both sequences.
+   * We don't like this because we think that there may be cases
+   * where it is preferable to send IC instead of IM/EI.
+   * The hack is to ignore the IC sequence if we are already
+   * in insert mode, so that programs which follow the termcap
+   * guidelines still work. (I don't believe that there are
+   * terminals which need IC in the insert mode. Why switch to
+   * insert mode if you must send IC before every character ???)
+   */
+  if (curr->insert)
+    return;
   if (x == cols)
     --x;
   bcopy(curr->image[y], OldImage, cols);
@@ -1985,18 +2084,27 @@ int n;
   ClearInLine(0, y, x, x + n - 1);
   if (!display)
     return;
-  if (IC || IM)
+  if (IC || CIC || IM)
     {
-      InsertMode(1);
-      for (i = n; i; i--)
-	{
-	  PutStr(IC);
-	  PUTCHAR(' ');
-	}
-      InsertMode(curr->insert);
-      GotoPos(x, y);
       if (y == screenbot)
 	lp_missing = 0;
+      if (!insert)
+	{
+	  if (n == 1 && IC)
+	    {
+	      PutStr(IC);
+	      return;
+            }
+	  if (CIC)
+	    {
+	      CPutStr(CIC, n);
+	      return;
+            }
+	}
+      InsertMode(1);
+      for (i = n; i--; )
+	INSERTCHAR(' ');
+      GotoPos(x, y);
     }
   else
     {
@@ -2105,17 +2213,19 @@ int ys, ye, n;
       lp_missing = 0;
       return;
     }
+
   if (lp_missing)
     {
       if (screenbot>ye || screenbot<ys)
 	missy = screenbot;
       else
 	{
-	  missy = screenbot + n;
+	  missy = screenbot - n;
           if (missy>ye || missy<ys)
 	    lp_missing = 0;
 	}
     }
+
   up = 1;
   if (n < 0)
     {
@@ -2124,11 +2234,35 @@ int ys, ye, n;
     }
   if (n >= ye-ys+1)
     n = ye-ys+1;
+
   oldtop = screentop;
   oldbot = screenbot;
-  ChangeScrollRegion(ys, ye);
+  if (screenbot != ye)
+    ChangeScrollRegion(ys, ye);
   alok = (AL || CAL || (ye == screenbot &&  up));
   dlok = (DL || CDL || (ye == screenbot && !up));
+  if (screentop != ys && !(alok && dlok))
+    ChangeScrollRegion(ys, ye);
+
+  if (lp_missing && 
+      (oldbot != screenbot ||
+       oldbot == screenbot && up && screentop == ys && screenbot == ye))
+    {
+      /* Can't use FixLP */
+      GotoPos(screenwidth-1, oldbot);
+      SaveSetAttr(curr->attr[missy][screenwidth-1], curr->font[missy][screenwidth-1]);
+      PUTCHAR(curr->image[missy][screenwidth-1]);
+      RestoreAttr();
+      lp_missing = 0;
+      if (oldbot == screenbot)		/* have scrolled */
+	{
+	  if (--n == 0)
+	    {
+	      ChangeScrollRegion(oldtop, oldbot);
+	      return;
+	    }
+	}
+    }
 
   aldlfaster = (n > 1 && ye == screenbot && (up && CDL || !up && CAL));
 
@@ -2138,7 +2272,7 @@ int ys, ye, n;
 	{
 	  GotoPos(0, ye);
 	  while (n-- > 0)
-	    PutStr(SF);
+	    PutStr(NL); /* was SF, I think NL is faster */
 	}
       else
 	{
@@ -2257,7 +2391,7 @@ static void ForwardTab()
       x = 0;
     }
   if (curr->tabs[x] && x < cols - 1)
-    ++x;
+    x++;
   while (x < cols - 1 && !curr->tabs[x])
     x++;
   GotoPos(x, curr->y);
@@ -2281,18 +2415,18 @@ static void ClearScreen()
   register int i;
   register char **ppi = curr->image, **ppa = curr->attr, **ppf = curr->font;
 
+  for (i = 0; i < rows; ++i)
+    {
+      AddLineToHist(curr, ppi, ppa, ppf);
+      bclear(*ppi++, cols);
+      bzero(*ppa++, cols);
+      bzero(*ppf++, cols);
+    }
   if (display)
     {
       PutStr(CL);
       screenx = screeny = 0;
       lp_missing = 0;
-    }
-  curr->firstline = 0;
-  for (i = 0; i < rows; ++i)
-    {
-      bclear(*ppi++, cols);
-      bzero(*ppa++, cols);
-      bzero(*ppf++, cols);
     }
 }
 
@@ -2556,7 +2690,6 @@ int newattr, newcharset;
 {
   NewRendition(newattr);
   NewCharset(newcharset);
-  InsertMode(0);
 }
 
 void
@@ -2564,7 +2697,6 @@ RestoreAttr()
 {
   NewRendition(curr->LocalAttr);
   NewCharset(curr->charsets[curr->LocalCharset]);
-  InsertMode(curr->insert);
 }
 
 static void FillWithEs()
@@ -2593,18 +2725,16 @@ void Redisplay()
   PutStr(CL);
   screenx = screeny = 0;
   lp_missing = 0;
-  InsertMode(0);
   for (i = 0; i < rows; ++i)
     {
       if (in_ovl)
-	ovl_RedisplayLine(i, 0, cols - 1, 1);
+	(*ovl_RedisplayLine)(i, 0, cols - 1, 1);
       else
         DisplayLine(blank, null, null, curr->image[i], curr->attr[i],
 		    curr->font[i], i, 0, cols - 1);
     }
   if (!in_ovl)
     {
-      InsertMode(curr->insert);
       GotoPos(curr->x, curr->y);
       NewRendition(curr->LocalAttr);
       NewCharset(curr->charsets[curr->LocalCharset]);
@@ -2657,10 +2787,7 @@ register char *os, *oa, *of, *s, *as, *fs;
       GotoPos(x, y);
       NewRendition(as[x]);
       NewCharset(fs[x]);
-      InsertMode(1);
-      PutStr(IC);
-      PUTCHAR(s[x]);
-      InsertMode(curr->insert);
+      INSERTCHAR(s[x]);
     }
   else if (delete_lp)
     {
@@ -2677,33 +2804,29 @@ void
 RefreshLine(y, from, to)
 int y, from, to;
 {
-  InsertMode(0);
-  GotoPos(from, y);
-  if (CE && to-from+1 > screenwidth-1-to)
+  char *oi = null;
+
+  if (CE && to == screenwidth-1)
     {
+      GotoPos(from, y);
       PutStr(CE);
-      DisplayLine(blank, null, null,
-		  curr->image[y], curr->attr[y], curr->font[y],
-		  y, from, screenwidth - 1);
+      oi = blank;
     }
+  if (in_ovl)
+    (*ovl_RedisplayLine)(y, from, to, (oi == blank));
   else
-    {
-      DisplayLine(null, null, null,
-		  curr->image[y], curr->attr[y], curr->font[y],
-		  y, from, to);
-    }
+    DisplayLine(oi, null, null, curr->image[y], curr->attr[y],
+                curr->font[y], y, from, to);
 }
 
 static void RedisplayLine(os, oa, of, y, from, to)
 int from, to, y;
 char *os, *oa, *of;
 {
-  InsertMode(0);
   DisplayLine(os, oa, of, curr->image[y], curr->attr[y],
 	      curr->font[y], y, from, to);
   NewRendition(curr->LocalAttr);
   NewCharset(curr->charsets[curr->LocalCharset]);
-  InsertMode(curr->insert);
 }
 
 void
@@ -2760,7 +2883,7 @@ static void FindAKA()
   register int len = strlen(wp->cmd);
   int y;
 
-  y = (wp->autoaka > 0 ? wp->autoaka - 1 : wp->y);
+  y = (wp->autoaka > 0 && wp->autoaka <= wp->height) ? wp->autoaka - 1 : wp->y;
   cols = wp->width;
  try_line:
   cp = line = wp->image[y];
@@ -2800,6 +2923,7 @@ static void FindAKA()
   else
     wp->autoaka = 0;
 }
+
 
 /* We dont use HS status line with Input.
  * If we would use it, then we should check e_tgetflag("es") if
@@ -2898,7 +3022,7 @@ int *plen;
 	    inplen = 0;
 	  inpbuf[inplen] = 0;
           AbortInp(); /* redisplays... */
-          inpfinfunc(inpbuf, inplen);
+          (*inpfinfunc)(inpbuf, inplen);
 	  break;
 	}
     }
@@ -2909,7 +3033,7 @@ int *plen;
 static void
 AbortInp()
 {
-  GotoPos(0, STATLINE);
+  in_ovl = 0;	/* So we can use RefreshLine() */
   RefreshLine(STATLINE, 0, screenwidth-1);
   ExitOverlayPage();
 }
@@ -2983,13 +3107,13 @@ InputAKA()
   Input("Set window's a.k.a. to: ", 20, AKAfin);
 }
 
-/*ARGSUSED*/
 static void
 Colonfin(buf, len)
 char *buf;
 int len;
 {
-  RcLine(buf);
+  if (len)
+    RcLine(buf);
 }
 
 void
@@ -3014,7 +3138,7 @@ MakeStatus(msg)
 char *msg;
 {
   register char *s, *t;
-  register int max;
+  register int max, ti;
 
   SetCurr(fore);
   display = 1;
@@ -3024,8 +3148,12 @@ char *msg;
     }
   if (status)
     {
-      if (time((time_t *) 0) - TimeDisplayed < 2)
-	sleep(1);
+      if (!BellDisplayed)
+	{
+	  ti = time((time_t *) 0) - TimeDisplayed;
+	  if (ti < MsgMinWait)
+	    sleep(MsgMinWait - ti);
+	}
       RemoveStatus();
     }
   for (s = t = msg; *s && t - msg < max; ++s)
@@ -3045,19 +3173,18 @@ char *msg;
 	{
 	  GotoPos(0, STATLINE);
           SaveSetAttr(A_SO, ASCII);
+	  InsertMode(0);
 	  printf("%s", msg);
-	  /* RestoreAttr() in RemoveStatus */
           screenx = -1;
 	}
       else
 	{
 	  debug("HS:");
           SaveSetAttr(A_SO, ASCII);
+	  InsertMode(0);
 	  CPutStr(TS, 0);
 	  printf("%s", msg);
 	  PutStr(FS);
-          RestoreAttr();
-          screeny = screenx = -1;
 	}
       (void) fflush(stdout);
       (void) time(&TimeDisplayed);
@@ -3070,6 +3197,7 @@ RemoveStatus()
   if (!status)
     return;
   status = 0;
+  BellDisplayed = 0;
   SetCurr(fore);
   display = 1;
   if (!HS)
@@ -3082,7 +3210,9 @@ RemoveStatus()
       GotoPos(status_lastx, status_lasty);
     }
   else
-    PutStr(DS);
+    {
+      PutStr(DS);
+    }
 }
 
 void
@@ -3135,6 +3265,7 @@ SetOvlCurr()
 {
   SetCurr(fore);
   SaveSetAttr(0, ASCII);
+  InsertMode(0);
   display = 1;
 }
 
@@ -3150,6 +3281,7 @@ void
 WSresize(width, height)
 int width, height;
 {
+  debug2("(display=%d:WSresize says:'%s'\n", display, tgoto(WS, width, height));
   PutStr(tgoto(WS, width, height));
 }
 

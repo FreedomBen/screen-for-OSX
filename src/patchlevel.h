@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -21,6 +29,9 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
+ */
+
+/****************************************************************
  * $Header$ 
  *
  * patchlevel.h: Our life story.
@@ -34,14 +45,19 @@
  *                     instead of %c
  *  28.8.91 -- 3.00.07 environment variable support. security. terminfo.
  *                     pyramid and ultrix support.
- *  07.9.91 -- 3.00.99 secopen(), MIPS support, SVR4 support, backspace bug.
- *  09.9.91 -- 3.01    backspace bug fixed.
+ *  07.9.91 -- 3.00.99 secopen(), MIPS support, SVR4 support.
+ *  09.9.91 -- 3.01.00 backspace bug fixed.
+ * 03.10.91 -- 3.01.01 ansi.c: null-ptr fixed, CLS now saves to scrollback.
+ *                     Using setresuid on hpux. Memory leak fixed.
+ *		       Better GotoPos(). Support for IC. Another resize bug.
+ *                     Detach() w/o fore crashed. -T and -A(dapt) option.
+ *                     GNU copyleft.
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 1
-#define PATCHLEVEL 0
-#define DATE "09/09/91"
+#define PATCHLEVEL 1
+#define DATE "10/10/91"
 #define STATE ""
 

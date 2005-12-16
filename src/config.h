@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -45,7 +53,9 @@
 /*
  * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
  */
-#undef POSIX
+#ifndef POSIX
+# define POSIX
+#endif
 
 /*
  * Define BSDJOBS if you have BSD-style job control (both process
@@ -59,7 +69,7 @@
  * POSIX systems should define this anyway, even though they use
  * struct termios.
  */
-#undef TERMIO
+#define TERMIO
 
 /*
  * Define TERMINFO if your machine emulates the termcap routines
@@ -78,25 +88,25 @@
  * Define SIGVOID if your signal handlers return void.  On older
  * systems, signal returns int, but on newer ones, it returns void.
  */
-#undef SIGVOID 
+#define SIGVOID 
 
 /*
  * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
  */
-#undef DIRENT
+#define DIRENT
 
 /*
  * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
  */
-#define SUIDROOT
+#undef SUIDROOT
 
 /*
  * If screen is installed with permissions to update /etc/utmp (such as if
  * it is installed set-uid root), define UTMPOK.  Set LOGINDEFAULT to one (1)
  * if you want entries added to /etc/utmp by default, else set it to zero (0).
  */
-#define UTMPOK
-#define LOGINDEFAULT	1
+#undef UTMPOK
+#define LOGINDEFAULT	0
 
 /*
  * If your system has getutent(), pututline(), etc. to write to the
@@ -107,7 +117,7 @@
 /*
  * Define UTHOST if the utmp file has a host field.
  */
-#define UTHOST
+#undef UTHOST
 
 /*
  * If UTMPOK is defined and your system (incorrectly) counts logins by
@@ -141,15 +151,15 @@
  * and have a load average format that screen understands.  We handle the
  * following formats:  3 doubles (BSD), 3 longs (sun), and 4 longs (alliant).
  */
-#undef  LOADAV_3DOUBLES
-#define LOADAV_3LONGS
+#define  LOADAV_3DOUBLES
+#undef LOADAV_3LONGS
 #undef  LOADAV_4LONGS
 
 /*
  * If your system has the new format /etc/ttys (like 4.3 BSD) and the
  * getttyent(3) library functions, define GETTTYENT.
  */
-#undef GETTTYENT
+#define GETTTYENT
 
 /*
  * If your version of NFS supports named sockets and you install screen
@@ -171,7 +181,8 @@
  * If you want to have your socket directory in "/tmp/screens" then
  * define LOCALSOCKDIR and change the definition of SOCKDIR below.
  */
-#define LOCALSOCKDIR
+#undef LOCALSOCKDIR
+#undef TMPTEST
 
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
@@ -204,7 +215,7 @@
 /*
  * Define this if your system supports named pipes.
  */
-#undef NAMEDPIPE
+#define NAMEDPIPE
 
 /*
  * here come the erlangen extensions to screen:
@@ -234,8 +245,24 @@
  * your local $HOME/.screenrc
  * Don't define this, if you don't want it.
  */
-#define ETCSCREENRC "/local/etc/screenrc"
+#define ETCSCREENRC "/users/en-eeen/martind/.../global.screenrc"
+
+/*
+ * Set if you want to suppress the intial display of the copyright notice 
+ */
+#define SUPPRESS_CR
+
+/*
+ * Set if you want it to rename the background part of the process in the 
+ * following manner.  If argv[0] == screen then renames it SCREEN
+ * and if some other name then just changes first letter to 'S'.  Useful if 
+ * you need to distinguish the two screen processes.
+ */
+#undef RENAME_PROCESS
 
 /*
  *	End of User Configuration Section
  */
+
+
+#define NEEDSETENV

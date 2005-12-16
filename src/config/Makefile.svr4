@@ -6,7 +6,7 @@
 
 # If you choose to compile with the tried and true:
 CC= cc
-CFLAGS= -O
+CFLAGS= -O -DNEEDSETENV
 #CFLAGS= -g -DTMPTEST -DDEBUG
 #CFLAGS= -g 
 LDFLAGS=
@@ -20,10 +20,13 @@ LDFLAGS=
 #LDFLAGS= -s
 
 #LIBS= nmalloc.o -ltermcap 
-LIBS= -ltermcap 
+#LIBS= -ltermcap 
 
-CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c
-OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o
+# Use the following line on SVR4
+LIBS= -ltermlib -lelf
+
+CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c putenv.c
+OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o putenv.o
 
 screen: $(OFILES)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o screen $(OFILES) $(LIBS)
@@ -31,7 +34,7 @@ screen: $(OFILES)
 screen.o: screen.c screen.h config.h patchlevel.h extern.h
 	$(CC) $(CFLAGS) -c screen.c
 
-help.o: help.c screen.h config.h ansi.h extern.h
+help.o: help.c screen.h config.h extern.h
 	$(CC) $(CFLAGS) -c help.c
 
 fileio.o: fileio.c screen.h config.h extern.h
@@ -48,6 +51,9 @@ window.o: window.c config.h screen.h  extern.h
 
 socket.o: socket.c config.h screen.h  extern.h
 	$(CC) $(CFLAGS) -c socket.c
+
+putenv.o: putenv.c
+	$(CC) $(CFLAGS) -c putenv.c
 
 clean:
 	rm -f $(OFILES) screen

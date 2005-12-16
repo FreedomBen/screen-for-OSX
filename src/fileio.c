@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -21,15 +29,13 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
- * fileio.c  -- parse .screenrc, write termcap, hardcopies, xchange buffers
- * and all the utmp and kmem stuff.
- ****************************************/
+ */
 
 #ifndef lint
   static char rcs_id[] = "$Id$ FAU";
 #endif
 
-#if defined(pyr) || defined(MIPS)
+#if defined(pyr) || defined(MIPS) || defined(GOULD_NP1) || defined(B43)
 extern int errno;
 #endif
 #include <sys/types.h>
@@ -41,7 +47,6 @@ extern int errno;
 # include <string.h>
 #endif
 #include <fcntl.h>
-#include <nlist.h>
 
 #include "config.h"
 #include "screen.h"
@@ -69,6 +74,9 @@ static char ttys[] = "/etc/ttys";
 #endif
 
 #ifdef LOADAV
+
+#include <nlist.h>
+
 static char KmemName[] = "/dev/kmem";
 # if defined(_SEQUENT_) || defined(MIPS) || defined(SVR4)
 static char UnixName[] = "/unix";
@@ -109,7 +117,8 @@ long loadav[4];
 double loadav[3];
 #  endif
 # endif
-#endif
+
+#endif /* LOADAV */
 
 #define BUFFERFILE "screen-exchange"
 
@@ -128,6 +137,7 @@ extern nethackflag;
 extern char *RcFileName, *home, *extra_incap, *extra_outcap;
 extern char *BellString, *ActivityString, *ShellProg, *ShellArgs[];
 extern char *PowDetachString, *VisualBellString;
+extern int VBellWait, MsgWait, MsgMinWait;
 extern struct key ktab[];
 extern char Esc, MetaEsc;
 extern char *shellaka, SockPath[], *SockNamePtr, *LoginName;
@@ -136,9 +146,9 @@ extern iflag, mflag, rflag, dflag;
 extern flowctl, wrap;
 extern HS, termcapHS, use_hardstatus, visual_bell, default_monitor;
 extern default_histheight;
+extern default_startup;
 extern slowpaste;
 extern DeadlyMsg, HasWindow;
-extern command_bindings;
 extern ForeNum, screenwidth, screenheight;
 extern struct win *fore;
 extern char screenterm[];
@@ -175,9 +185,13 @@ static struct ttyent *getttyent __P((void));
 /*
  * XXX: system
  */
-extern char *getpass __P((char *));
 extern time_t time __P((time_t *));
+#ifndef SVR4
+extern char *getpass __P((char *));
+# ifdef LOADAV
 extern int nlist __P((char *, struct nlist *));
+# endif
+#endif
 
 char *KeyNames[] = 
 {
@@ -185,12 +199,67 @@ char *KeyNames[] =
   "select0", "select1", "select2", "select3", "select4",
   "select5", "select6", "select7", "select8", "select9",
   "aka", "autoflow", "clear", "colon", "copy", "detach", "flow",
-  "hardcopy", "help", "history", "info", "kill", "lastmsg", "lockscreen",
-  "log", "login", "monitor", "next", "other", "paste", "pow_detach",
-  "prev", "quit", "readbuf", "redisplay", "removebuf", "reset",
-  "set", "shell", "suspend", "termcap", "time", "vbell", "version",
-  "width", "windows", "wrap", "writebuf", "xoff", "xon",
+  "hardcopy", "help", "history", "info", "kill", "lastmsg", "license",
+  "lockscreen", "log", "login", "monitor", "next", "other", "paste",
+  "pow_detach", "prev", "quit", "readbuf", "redisplay", "removebuf",
+  "reset", "set", "shell", "suspend", "termcap", "time", "vbell",
+  "version", "width", "windows", "wrap", "writebuf", "xoff", "xon",
   0,
+};
+
+
+/* Must be in alpha order !!! */
+
+char *RCNames[] =
+{
+  "activity", "all", "autodetach", "bell", "bind", "chdir", "crlf",
+  "echo", "escape", "flow", "hardstatus", "login", "markkeys", "mode",
+  "monitor", "msgminwait", "msgwait", "nethack", "password",
+  "pow_detach_msg", "screen", "scrollback", "shell", "shellaka",
+  "sleep", "slowpaste", "startup_message", "term", "termcap",
+  "terminfo", "vbell", "vbell_msg", "vbellwait", "visualbell",
+  "visualbell_msg", "wrap",
+};
+
+enum RCcases
+{
+  RC_ACTIVITY,
+  RC_ALL,
+  RC_AUTODETACH,
+  RC_BELL,
+  RC_BIND,
+  RC_CHDIR,
+  RC_CRLF,
+  RC_ECHO,
+  RC_ESCAPE,
+  RC_FLOW,
+  RC_HARDSTATUS,
+  RC_LOGIN,
+  RC_MARKKEYS,
+  RC_MODE,
+  RC_MONITOR,
+  RC_MSGMINWAIT,
+  RC_MSGWAIT,
+  RC_NETHACK,
+  RC_PASSWORD,
+  RC_POW_DETACH_MSG,
+  RC_SCREEN,
+  RC_SCROLLBACK,
+  RC_SHELL,
+  RC_SHELLAKA,
+  RC_SLEEP,
+  RC_SLOWPASTE,
+  RC_STARTUP_MESSAGE,
+  RC_TERM,
+  RC_TERMCAP,
+  RC_TERMINFO,
+  RC_VBELL,
+  RC_VBELL_MSG,
+  RC_VBELLWAIT,
+  RC_VISUALBELL,
+  RC_VISUALBELL_MSG,
+  RC_WRAP,
+  RC_RCEND,
 };
 
 
@@ -275,7 +344,7 @@ char *rcfile;
       else
 	{
 	  debug("  ...nothing in $SCREENRC, defaulting $HOME/.screenrc\n");
-	  if (strlen(home) > 244)
+	  if ((unsigned)strlen(home) > 244)
 	    Msg(0, "Rc: home too large");
 	  sprintf(buf, "%s/.iscreenrc", home);
           if (access(buf, R_OK))
@@ -332,22 +401,24 @@ char *rcfilename;
       if (strcmp(args[0], "echo") == 0)
 	{
 	  if (argc < 2 || (argc == 3 && strcmp(args[1], "-n")) || argc > 3)
-	    Msg(0, "%s: 'echo [-n] \"string\"' expected.", rc_name);
-	  if (argc == 3)
 	    {
-	      printf("%s", args[2]);
+	      DeadlyMsg = 0;
+	      Msg(0, "%s: 'echo [-n] \"string\"' expected.", rc_name);
 	    }
 	  else
 	    {
-	      printf("%s\r\n", args[1]);
+	      printf((argc == 3) ? "%s" : "%s\r\n", args[argc - 1]);
 	    }
-	  fflush(stdout);
 	}
       else if (strcmp(args[0], "sleep") == 0)
 	{
 	  if (argc != 2)
-	    Msg(0, "%s: sleep: one argument expected.", rc_name);
-	  sleep(atoi(args[1]));
+	    {
+	      DeadlyMsg = 0;
+	      Msg(0, "%s: sleep: one numeric argument expected.", rc_name);
+	    }
+	  else
+	    sleep(atoi(args[1]));
 	}
 #ifdef TERMINFO
       else if (strcmp(args[0], "terminfo") == 0)
@@ -510,7 +581,7 @@ char *rcfilename;
   debug("finishrc is going...\n");
   while (fgets(buf, sizeof buf, fp) != NULL)
     {
-      (void) RcLine(buf);
+      RcLine(buf);
     }
   (void) fclose(fp);
   Free(rc_name);
@@ -537,7 +608,7 @@ char **argv;
       return;
     }
   sprintf(p, "set"); p+=3;
-  while(*argv && (strlen(buf) + strlen(*argv) < 255))
+  while(*argv && ((unsigned)strlen(buf) + (unsigned)strlen(*argv) < 255))
     {
       sprintf(p, " %s", *argv++);
       p += strlen(p);
@@ -563,7 +634,7 @@ char *ss;
   register char *s = ss;
   register char *v;
 
-  while (*s && esize > 0)
+  while (*s && *s != '\n' && esize > 0)
     {
       if (*s == '\'')
 	quofl ^= 1;
@@ -581,15 +652,21 @@ char *ss;
 	    }
 	  else
 	    {
-	      while (*p != ' ' && *p != '\0')
+	      while (*p != ' ' && *p != '\0' && *p != '\n')
 		p++;
 	    }
 	  c = *p;
+	  debug1("exp: c='%c'\n", c);
 	  *p = '\0';
 	  if (v = getenv(s)) 
-	    while (*v && esize-- > 0)
-	      *e++ = *v++;
-	  if ((*p = c) != ' ')
+	    {
+	      debug2("exp: $'%s'='%s'\n", s, v);
+	      while (*v && esize-- > 0)
+	        *e++ = *v++;
+	    }
+	  else 
+	    debug1("exp: '%s' not env\n", s);
+	  if ((*p = c) == '}')
 	    p++;
 	  s = p;
 	}
@@ -609,7 +686,8 @@ char *ss;
   return ebuf;
 }
 
-int RcLine(ubuf)
+void
+RcLine(ubuf)
 char *ubuf;
 {
   char *args[MAXARGS];
@@ -617,6 +695,7 @@ char *ubuf;
   register int argc, setflag;
   int q, qq;
   char key;
+  int low, high, mid, x;
 
   buf = expand_env_vars(ubuf); 
 
@@ -626,13 +705,13 @@ char *ubuf;
     *p = '\0';
   if (strncmp("set ", buf, 4) == 0)
     {
-      buf+=4;
+      buf += 4;
       setflag = 1;
       debug1("RcLine: '%s' is a set command\n", buf);
     }
   else if (strncmp("se ", buf, 3) == 0)
     {
-      buf+=3;
+      buf += 3;
       setflag = 1;
       debug1("RcLine: '%s' is a se command\n", buf);
     }
@@ -648,65 +727,87 @@ char *ubuf;
 	  DeadlyMsg = 0;
 	  Msg(0, "%s: set what?\n", rc_name);
 	}
-      return 0;
+      return;
     }
-  if (strcmp(ap[0], "escape") == 0)
+
+  low = 0;
+  high = (int)RC_RCEND - 1;
+  while (low <= high)
     {
+      mid = (low + high) / 2;
+      x = strcmp(ap[0], RCNames[mid]);
+      if (x < 0)
+        high = mid - 1;
+      else if (x > 0)
+        low = mid + 1;
+      else
+        break;
+    }
+  if (low > high)
+    mid = (int)RC_RCEND;
+  switch ((enum RCcases) mid)
+    {
+    case RC_ESCAPE:
       if (argc != 2 || !ParseEscape(ap[1]))
 	{
 	  DeadlyMsg = 0; 
 	  Msg(0, "%s: two characters required after escape.", rc_name);
-	  return 0;
+	  return;
 	}
       if (Esc != MetaEsc)
 	ktab[Esc].type = KEY_OTHER;
       else
 	ktab[Esc].type = KEY_IGNORE;
-    }
-  else if (strcmp(ap[0], "chdir") == 0 && !setflag)
-    {
+      return;
+    case RC_CHDIR:
+      if (setflag)
+	break;
       p = argc < 2 ? home : ap[1];
       if (chdir(p) == -1)
 	{
 	  DeadlyMsg = 0; 
 	  Msg(errno, "%s", p);
-	  return 0;
 	}
-    }
-  else if (strcmp(ap[0], "shell") == 0)
-    {
+      return;
+    case RC_SHELL:
       if (argc != 2)
 	{
 	  DeadlyMsg = 0; 
 	  Msg(0, "%s: shell: one argument required.", rc_name);
-	  return 0;
+	  return;
 	}
       ShellProg = ShellArgs[0] = SaveStr(ap[1]);
-    }
-  else if (strcmp(ap[0], "shellaka") == 0)
-    {
+      return;
+    case RC_SHELLAKA:
       if (argc != 2)
 	{
 	  DeadlyMsg = 0; 
 	  Msg(0, "%s: shellaka: one argument required.", rc_name);
-	  return 0;
+	  return;
 	}
       shellaka = SaveStr(ap[1]);
-    }
-  else if (strcmp(ap[0], "screen") == 0 && !setflag)
-    {
+      return;
+    case RC_SCREEN:
+      if (setflag)
+	break;
       DoScreen(rc_name, ap + 1);
-    }
-  else if (strcmp(ap[0], "termcap") == 0)
-    {
-     ;				/* Already handled */
-    }
-  else if (strcmp(ap[0], "terminfo") == 0)
-    {
-     ;				/* Already handled */
-    }
-  else if (strcmp(ap[0], "echo") == 0)
-    {
+      return;
+    case RC_SLEEP:
+    case RC_TERMCAP:
+    case RC_TERMINFO:
+      return;			/* Already handled */
+    case RC_TERM:
+      if ((argc != 2) || ((unsigned)strlen(args[1]) >= 20))
+	{
+	  DeadlyMsg = 0;
+	  Msg(0,"%s: term: one argument required.", rc_name);
+	  return;
+	}
+      strcpy(screenterm, args[1]);
+      debug1("screenterm set to %s\n", screenterm);
+      MakeTermcap(0);
+      return;	
+    case RC_ECHO:
       if (HasWindow && *rc_name == '\0')
 	{
 	  /*
@@ -719,48 +820,41 @@ char *ubuf;
 	  else
  	    Msg(0, "%s: 'echo [-n] \"string\"' expected.", rc_name);
 	}
-      else	
-        ;			/* Already handled */
-    }
-  else if (strcmp(ap[0], "sleep") == 0)
-    {
-      ;				/* Already handled */
-    }
-  else if (strcmp(ap[0], "bell") == 0)
-    {
+      return;
+    case RC_BELL:
       if (argc != 2)
 	{
 	  DeadlyMsg = 0; 
 	  Msg(0, "%s: bell: one argument required.", rc_name);
-	  return 0;
+	  return;
 	}
-     if (BellString) Free(BellString);
+      if (BellString)
+	Free(BellString);
       BellString = SaveStr(ap[1]);
-    }
-  else if (strcmp(ap[0], "activity") == 0)
-    {
+      return;
+    case RC_ACTIVITY:
       if (argc != 2)
 	{
 	  DeadlyMsg = 0; 
 	  Msg(0, "%s: activity: one argument required.", rc_name);
-	  return 0;
+	  return;
 	}
-      if (ActivityString) Free(ActivityString);
+      if (ActivityString)
+	Free(ActivityString);
       ActivityString = SaveStr(ap[1]);
-    }
-  else if (strcmp(ap[0], "pow_detach_msg") == 0)
-    {
+      return;
+    case RC_POW_DETACH_MSG:
       if (argc != 2)
 	{
 	  DeadlyMsg = 0;
 	  Msg(0, "%s: pow_detach: one argument required.", rc_name);
-	  return 0;
+	  return;
 	}
-      if (PowDetachString) Free(PowDetachString);
+      if (PowDetachString)
+        Free(PowDetachString);
       PowDetachString = SaveStr(ap[1]);
-    }
-  else if (strcmp(ap[0], "login") == 0)
-    {
+      return;
+    case RC_LOGIN:
 #ifdef UTMPOK
       q = loginflag;
       ParseOnOff(argc, ap, &loginflag);
@@ -770,9 +864,8 @@ char *ubuf;
 	  loginflag = q;
 	}
 #endif
-    }
-  else if (strcmp(ap[0], "flow") == 0)
-    {
+      return;
+    case RC_FLOW:
       if (argc == 3 && ap[2][0] == 'i')
 	{
 	  iflag = 1;
@@ -785,115 +878,124 @@ char *ubuf;
 	  ParseOnOff(argc, ap, &flowctl);
 	  flowctl++;
 	}
-   }
-  else if (strcmp(ap[0], "wrap") == 0)
-    {
+      return;
+    case RC_WRAP:
       ParseOnOff(argc, ap, &wrap);
-    }
-  else if (strcmp(ap[0], "hardstatus") == 0)
-    {
+      return;
+    case RC_HARDSTATUS:
       ParseOnOff(argc, ap, &use_hardstatus);
       if (use_hardstatus)
 	HS = termcapHS;
       else
 	HS = 0;
-    }
-  else if (strcmp(ap[0], "monitor") == 0)
-    {
-      int f; 
+      return;
+    case RC_MONITOR:
+	{
+	  int f; 
 
-      ParseOnOff(argc, ap, &f);
-      if (fore && setflag)
-	fore->monitor = (f == 0) ? MON_OFF : MON_ON;
-      else
-	default_monitor = (f == 0) ? MON_OFF : MON_ON;
-    }
-  else if (strcmp(ap[0], "vbell") == 0 || strcmp(ap[0], "visualbell") == 0)
-    {
+	  ParseOnOff(argc, ap, &f);
+	  if (fore && setflag)
+	    fore->monitor = (f == 0) ? MON_OFF : MON_ON;
+	  else
+	    default_monitor = (f == 0) ? MON_OFF : MON_ON;
+	}
+      return;
+    case RC_VBELL:
+    case RC_VISUALBELL:
       ParseOnOff(argc, ap, &visual_bell);
-    }
-  else if (strcmp(ap[0], "scrollback") == 0)
-    {
+      return;
+    case RC_VBELLWAIT:
+      ParseNum(argc, ap, &VBellWait);
+      if (fore && rc_name[0] == '\0')
+        Msg(0, "vbellwait set to %d seconds", VBellWait);
+      return;
+    case RC_MSGWAIT:
+      ParseNum(argc, ap, &MsgWait);
+      if (fore && rc_name[0] == '\0')
+        Msg(0, "msgwait set to %d seconds", MsgWait);
+      return;
+    case RC_MSGMINWAIT:
+      ParseNum(argc, ap, &MsgMinWait);
+      if (fore && rc_name[0] == '\0')
+        Msg(0, "msgminwait set to %d seconds", MsgMinWait);
+      return;
+    case RC_SCROLLBACK:
       if (fore && setflag)
 	{
 	  int i;
 
 	  ParseNum(argc, ap, &i);
 	  ChangeScrollback(fore, i, fore->width);
-	  if (rc_name[0] == '\0')
+	  if (fore && rc_name[0] == '\0')
 	    Msg(0, "scrollback set to %d", fore->histheight);
 	}
       else
 	ParseNum(argc, ap, &default_histheight);
-    }
-  else if (strcmp(ap[0], "slowpaste") == 0)
-    {
+      return;
+    case RC_SLOWPASTE:
       ParseNum(argc, ap, &slowpaste);
       if (fore && rc_name[0] == '\0')
 	Msg(0, "slowpaste set to %d milliseconds", slowpaste);
-    }
-  else if (strcmp(ap[0], "markkeys") == 0)
-    {
+      return;
+    case RC_MARKKEYS:
       if (argc != 2)
 	{
 	  DeadlyMsg = 0;
 	  Msg(0, "%s: markkeys: one argument required.", rc_name);
-	  return 0;
+	  return;
 	}
       if (CompileKeys(ap[1], mark_key_tab))
 	{
 	  DeadlyMsg = 0;
 	  Msg(0, "%s: markkeys: syntax error.", rc_name);
-	  return 0;
+	  return;
 	}
       debug1("markkeys %s\n", ap[1]);
-    }
+      return;
 #ifdef NETHACK
-  else if (strcmp(ap[0], "nethack") == 0)
-    {
+    case RC_NETHACK:
       ParseOnOff(argc, ap, &nethackflag);
-    }
+      return;
 #endif
-  else if (strcmp(ap[0], "vbell_msg") == 0 || strcmp(ap[0], "visualbell_msg") == 0)
-    {
+    case RC_VBELL_MSG:
+    case RC_VISUALBELL_MSG:
       if (argc != 2)
 	{
 	  DeadlyMsg = 0;
 	  Msg(0, "%s: vbell_msg: one argument required.", rc_name);
-	  return 0;
+	  return;
 	}
-	if (VisualBellString)
-  	  Free(VisualBellString);
-	VisualBellString = SaveStr(ap[1]);
-	debug1(" new vbellstr '%s'\n", VisualBellString);
-    }
-  else if (strcmp(ap[0], "mode") == 0)
-    {
+      if (VisualBellString)
+	Free(VisualBellString);
+      VisualBellString = SaveStr(ap[1]);
+      debug1(" new vbellstr '%s'\n", VisualBellString);
+      return;
+    case RC_MODE:
       if (argc != 2)
 	{
 	  DeadlyMsg = 0; 
 	  Msg(0, "%s: mode: one argument required.", rc_name);
-	  return 0;
+	  return;
 	}
       if (!IsNum(ap[1], 7))
 	{
 	  DeadlyMsg = 0; 
 	  Msg(0, "%s: mode: octal number expected.", rc_name);
-	  return 0;
+	  return;
 	}
       (void) sscanf(ap[1], "%o", &TtyMode);
-    }
-  else if (strcmp(ap[0], "crlf") == 0)
-    {
+      return;
+    case RC_CRLF:
       ParseOnOff(argc, ap, &join_with_cr);
-    }
-  else if (strcmp(ap[0], "autodetach") == 0)
-    {
+      return;
+    case RC_AUTODETACH:
       ParseOnOff(argc, ap, &auto_detach);
-    }
+      return;
+    case RC_STARTUP_MESSAGE:
+      ParseOnOff(argc, ap, &default_startup);
+      return;
 #ifdef PASSWORD
-  else if (strcmp(ap[0], "password") == 0)
-    {
+    case RC_PASSWORD:
       CheckPassword = 1;
       if (argc >= 2)
 	{
@@ -946,7 +1048,7 @@ char *ubuf;
 	      if ((copybuffer = (char *) malloc(copylen+1)) == NULL)
 		{
 		  Msg_nomem;
-		  return 0;
+		  return;
 		}
 	      strcpy(copybuffer, Password);
 	      mstr = "[ Password moved into copybuffer ]";
@@ -977,46 +1079,32 @@ char *ubuf;
 	    }
 	}
       debug1("finishrc: our password is: --%s%-- \n", Password);
-    }
+      return;
 #endif				/* PASSWORD */
-  else if (strcmp(ap[0], "term") == 0)
-    {
-      if ((argc != 2) || (strlen(ap[1]) >= MAXSTR-2)) /* room for -w */
-	{
-	  DeadlyMsg = 0;
-	  Msg(0,"%s: term: one argument required\n");
-	  return 0;
-	}
-      else 
-        strcpy(screenterm, ap[1]);
-    }
-  else if (strcmp(ap[0], "all") == 0 && setflag)
-    {
+    case RC_ALL:
+      if (!setflag || !HasWindow || *rc_name)
+        break;
       display_help();
-    }
-  else if (strcmp(ap[0], "bind") == 0 && !setflag)
-    {
+      return;
+    case RC_BIND:
+      if (setflag)
+	break;
       p = ap[1];
       if (argc < 2 || *p == '\0')
 	{
 	  DeadlyMsg = 0; 
 	  Msg(0, "%s: key expected after bind.", rc_name);
-	  return 0;
+	  return;
 	}
       if ((p = ParseChar(p, &key)) == NULL || *p)
 	{
 	  DeadlyMsg = 0; 
 	  Msg(0, "%s: bind: character, ^x, or (octal) \\032 expected.",
 	      rc_name);
-	  return 0;
+	  return;
 	}
       if (ktab[key].type != KEY_IGNORE)
 	{
-	  if (ktab[key].type == KEY_SCREEN
-	      || ktab[key].type == KEY_CREATE
-	      || ktab[key].type == KEY_SET
-	      || (ktab[key].type == KEY_AKA && ktab[key].args))
-	    command_bindings--;
 	  ktab[key].type = KEY_IGNORE;
 	  if ((pp = ktab[key].args) != NULL)
 	    {
@@ -1032,9 +1120,6 @@ char *ubuf;
 	      break;
 	  if (*pp)
 	    {
-#ifdef notdef
-	      debug1("binding key %d..\n", key); 
-#endif
 	      ktab[key].type = (enum keytype) (pp - KeyNames + 1);
 	      if (argc > 3)
 		{
@@ -1042,33 +1127,29 @@ char *ubuf;
 		}
 	      else
 		ktab[key].args = NULL;
-	      if (ktab[key].type == KEY_SCREEN
-		  || ktab[key].type == KEY_SET
-		  || (ktab[key].type == KEY_AKA && ktab[key].args))
-		command_bindings++;
 	    }
 	  else
 	    {
 	      ktab[key].type = KEY_CREATE;
 	      ktab[key].args = SaveArgs(argc - 2, ap + 2);
-	      command_bindings++;
 	    }
 	}
-    }
-  else
-    {
-      /*
-       * now we are user-friendly: 
-       * if anyone typed a key name like "help" or "next" ...
-       * we did not match anything above. so look in the KeyNames table.
-       */
-      debug1("--ap[0] %s\n", ap[0]);
-      for (pp = KeyNames; *pp; ++pp)
-	if (strcmp(ap[0], *pp) == 0)
-	    break;
-      if (*pp)
+      return;
+    case RC_RCEND:
+    default:
 	{
 	  char ibuf[3];
+	  /*
+	   * now we are user-friendly: 
+	   * if anyone typed a key name like "help" or "next" ...
+	   * we did not match anything above. so look in the KeyNames table.
+	   */
+	  debug1("--ap[0] %s\n", ap[0]);
+	  for (pp = KeyNames; *pp; ++pp)
+	    if (strcmp(ap[0], *pp) == 0)
+		break;
+	  if (*pp == 0)
+	    break;
 
 	  ibuf[0] = Esc;
 	  ibuf[1] = pp - KeyNames +1;
@@ -1083,17 +1164,11 @@ char *ubuf;
 	          rc_name, ap[0]);
 	    }
 	}
-      else
-        {
-	  DeadlyMsg = 0; 
-	  Msg(0, "%s: unknown %skeyword \"%s\"", rc_name, 
-	      setflag?"'set' ":"", ap[0]);
-        }
+      return;
     }
-#ifdef notdef
-    debug("RcLine done\n");/**/
-#endif
-  return 0;
+  DeadlyMsg = 0; 
+  Msg(0, "%s: unknown %skeyword \"%s\"", rc_name, 
+      setflag?"'set' ":"", ap[0]);
 }
 
 static int Parse(buf, args)
@@ -1307,9 +1382,13 @@ char *fn, **av;
   register char *aka = NULL;
   register int histheight = default_histheight;
   char buf[20];
+  char termbuf[25];
+  char *termp;
   char *args[2];
 
   flowflag = flowctl;
+  termbuf[0] = '\0';
+  termp = NULL;
   while (av && *av && av[0][0] == '-')
     {
       switch (av[0][1])
@@ -1339,6 +1418,14 @@ char *fn, **av;
 	    aka = &av[0][2];
 	  else if (*++av)
 	    aka = *av;
+	  else
+	    --av;
+	  break;
+	case 'T':
+	  if (av[0][2])
+	    termp = &av[0][2];
+	  else if (*++av)
+	    termp = *av;
 	  else
 	    --av;
 	  break;
@@ -1390,9 +1477,8 @@ char *fn, **av;
       if (!aka)
 	aka = shellaka;
     }
-  MakeWindow(aka, av, 0, flowflag, num, (char *) 0, lflag, histheight);
+  MakeWindow(aka, av, 0, flowflag, num, (char *) 0, lflag, histheight, termp);
 }
-
 
 void
 WriteFile(dump)
@@ -1684,9 +1770,14 @@ RestoreLoginSlot()
 # endif	/* _SEQUENT */
 #else	/* GETUTENT */
       debug1(" logging you in again (slot %d)\n", loginslot);
+# ifdef sequent
+      /* call sequent undocumented routine to count logins and add utmp entry if possible */
+      if (add_utmp(loginslot, &utmp_logintty) == -1)
+# else
       (void) lseek(utmpf, (off_t) (loginslot * sizeof(struct utmp)), 0);
-      if (write(utmpf, (char *) &utmp_logintty, sizeof (struct utmp))
-	  != sizeof (struct utmp))
+      if (write(utmpf, (char *) &utmp_logintty, sizeof(struct utmp))
+	  != sizeof(struct utmp))
+# endif /* sequent */
 #endif	/* GETUTENT */
         {
 #ifdef NETHACK
@@ -1774,10 +1865,10 @@ struct utmp *up;
 static char *stripdev(nam)
 char *nam;
 {
-  if (nam==0)
+  if (nam == 0)
     return(0);
-  if (strncmp(nam,"/dev/",5)==0)
-    return(nam+5);
+  if (strncmp(nam, "/dev/", 5) == 0)
+    return(nam + 5);
   return(nam);
 }
 
@@ -1913,8 +2004,13 @@ int displaynumber;
   strncpy(u.ut_id, line + 3, 4);
 # endif /* MIPS */
   (void) time(&u.ut_time);
+# ifdef sequent
+/* call sequent undocumented routine to count logins and add utmp entry if possible */
+  if (add_utmp(slot, &u) == -1)
+# else
   (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);
   if (write(utmpf, (char *) &u, sizeof u) != sizeof u)
+# endif /* sequent */
 #endif	/* GETUTENT */
     {
 #ifdef NETHACK
@@ -2028,7 +2124,7 @@ struct win *wi;
   uu->ut_exit.e_exit= 0;
   if (pututline(uu) == 0)
 # endif
-#else
+#else	/* GETUTENT */
   (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);
   if (write(utmpf, (char *) &u, sizeof u) != sizeof u)
 #endif

@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -41,7 +49,7 @@ extern int errno;
 
 #ifdef POSIX
 #include <unistd.h>
-# ifdef __STDC__
+# if defined(__STDC__)
 #  include <stdlib.h>
 # endif
 #endif
@@ -105,7 +113,9 @@ extern int errno;
 #define R_OK 4
 #endif
 
-#define MAXPATH 1024
+#ifndef MAXPATH
+# define MAXPATH 1024
+#endif
 
 #ifdef SIGVOID
 # if defined(ultrix)
@@ -117,8 +127,24 @@ extern int errno;
    typedef int sig_t;
 #endif
 
+#ifdef SVR4
+#define SIGPROTOARG   (int)
+#define SIGDEFARG     int sigsig
+#define SIGARG        0
+#else
+#define SIGPROTOARG   (void)
+#define SIGDEFARG
+#define SIGARG
+#endif
+
 #if (!defined(SYSV) && !defined(POSIX)) || defined(sysV68)
 typedef int pid_t;
+#endif
+
+#if defined(M_XENIX)
+typedef int pid_t;
+typedef int gid_t;
+typedef int uid_t;
 #endif
 
 #if defined(UTMPOK) && defined(_SEQUENT_)
@@ -179,6 +205,7 @@ enum string_t
 #define MAXSTR		256
 #define MAXARGS 	64
 #define MSGWAIT 	5
+#define MSGMINWAIT 	1
 
 /* 
  * 4 <= IOSIZE <=1000
@@ -194,10 +221,6 @@ enum string_t
  */
 #define MAXHISTHEIGHT 2000
 #define DEFAULTHISTHEIGHT 50
-
-#define IMAGE(p,y) p->image[((y) + p->firstline) % p->height]
-#define ATTR(p,y) p->attr[((y) + p->firstline) % p->height]
-#define FONT(p,y) p->font[((y) + p->firstline) % p->height]
 
 struct win 
 {
@@ -216,7 +239,6 @@ struct win
   char **image;
   char **attr;
   char **font;
-  int firstline;
   int LocalCharset;
   int charsets[4];
   int ss;
@@ -288,11 +310,14 @@ struct msg
 	  int nargs;
 	  char line[MAXPATH];
 	  char dir[MAXPATH];
+	  char screenterm[20]; /* is screen really "screen" ? */
 	}
       create;
       struct
 	{
 	  int apid;
+	  int adaptflag; /* do we wish to adapt window size? */
+	  int lines, columns;
 	  char tty[MAXPATH];
 	  char password[20];
 	  char envterm[MAXPATH];
@@ -345,6 +370,7 @@ struct mode
 };
 
 #define BELL		7
+#define VBELLWAIT	1 /* No. of seconds a vbell will be displayed */
 
 #define BELL_OFF	0 /* No bell has occurred in the window */
 #define BELL_ON 	1 /* A bell has occurred, but user not yet notified */
@@ -393,6 +419,7 @@ enum keytype
   KEY_INFO,
   KEY_KILL,
   KEY_LASTMSG,
+  KEY_LICENSE,
   KEY_LOCK,
   KEY_LOGTOGGLE,
   KEY_LOGIN,
@@ -451,11 +478,16 @@ struct key
 #	define debug3(x,a,b,c) {}
 #endif
 
-#if __STDC__
+#if defined(__STDC__)
 # define __P(a) a
 #else
 # define __P(a) ()
 # define const
+#endif
+
+#ifdef hpux
+# define setreuid(ruid, euid) setresuid(ruid, euid, -1)
+# define setregid(rgid, egid) setresgid(rgid, egid, -1)
 #endif
 
 #if !defined(SYSV) || defined(sun) || defined(RENO) || defined(xelos)

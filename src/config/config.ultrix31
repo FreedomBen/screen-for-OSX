@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -173,8 +181,8 @@
  * If you want to have your socket directory in "/tmp/screens" then
  * define LOCALSOCKDIR and change the definition of SOCKDIR below.
  */
-#define LOCALSOCKDIR
-#define TMPTEST
+#undef LOCALSOCKDIR
+#undef TMPTEST
 
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
@@ -237,7 +245,20 @@
  * your local $HOME/.screenrc
  * Don't define this, if you don't want it.
  */
-#undef ETCSCREENRC "/local/etc/screenrc"
+#define ETCSCREENRC "/users/en-eeen/martind/.../global.screenrc"
+
+/*
+ * Set if you want to suppress the intial display of the copyright notice 
+ */
+#define SUPPRESS_CR
+
+/*
+ * Set if you want it to rename the background part of the process in the 
+ * following manner.  If argv[0] == screen then renames it SCREEN
+ * and if some other name then just changes first letter to 'S'.  Useful if 
+ * you need to distinguish the two screen processes.
+ */
+#undef RENAME_PROCESS
 
 /*
  *	End of User Configuration Section

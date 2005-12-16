@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -21,15 +29,7 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
- *
- * putenv -- screen brings it's own putenv/getenv to systems like
- *           pyramid, ultrix3.0. 
- *
- * thanks to Tim MacKenzie
  */
-#ifndef lint
-  static char rcs_id[] = "$Id$ FAU";
-#endif
 
 /*
  *  putenv  --  put value into environment
@@ -64,9 +64,9 @@
  *    copying the entire environment onto the heap the first time you
  *    call putenv(), then doing realloc() uniformly later on.
  */
-#if defined(NEEDSETENV)
-
 #include "config.h"
+
+#if defined(NEEDSETENV)
 
 #define EXTRASIZE 5        /* increment to add to env. size */
 

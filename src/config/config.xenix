@@ -32,6 +32,14 @@
  * $Id$ FAU
  */
 
+/****************************************************************
+ * minimal config for SCO XENIX 386 2.3.[34].  avenrun could be
+ * configured in, but a) I can't be bothered and b) I want the binaries
+ * to work unchanged on SCO UNIX too
+ *    Ronald Khoo <ronald@robobar.co.uk> 
+ ****************************************************************
+ */
+
 
 /*
  *		Beginning of User Configuration Section
@@ -49,17 +57,16 @@
  * run screen as a regular program -- its major functions will be unaffected.
  */
 
-
 /*
  * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
  */
-#define POSIX
+#undef POSIX
 
 /*
  * Define BSDJOBS if you have BSD-style job control (both process
  * groups and a tty that deals correctly with them).
  */
-#define BSDJOBS
+#undef BSDJOBS
 
 /*
  * Define TERMIO if you have struct termio instead of struct sgttyb.
@@ -75,10 +82,11 @@
  * Thus the .screenrc file is parsed for
  * the command 'terminfo' and not 'termcap'.
  */
-#define TERMINFO
+#undef TERMINFO
 
 /*
  * Define SYSV if your machine is SYSV complient (Sys V, HPUX, A/UX)
+ * We use uname() instead of Gethostname().
  */
 #define SYSV
 
@@ -96,7 +104,7 @@
 /*
  * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
  */
-#define SUIDROOT
+#undef SUIDROOT
 
 /*
  * If screen is installed with permissions to update /etc/utmp (such as if
@@ -104,7 +112,7 @@
  * if you want entries added to /etc/utmp by default, else set it to zero (0).
  */
 #undef UTMPOK
-#define LOGINDEFAULT	1
+#define LOGINDEFAULT	0
 
 /*
  * If your system has getutent(), pututline(), etc. to write to the
@@ -141,7 +149,7 @@
  * files without retaining any special privileges.  (Output logging will be
  * disabled, however.)
  */
-#undef NOREUID
+#define NOREUID
 
 /*
  * If you want the "time" command to display the current load average
@@ -149,8 +157,8 @@
  * and have a load average format that screen understands.  We handle the
  * following formats:  3 doubles (BSD), 3 longs (sun), and 4 longs (alliant).
  */
-#define  LOADAV_3DOUBLES
-#undef LOADAV_3LONGS
+#undef  LOADAV_3DOUBLES
+#undef  LOADAV_3LONGS
 #undef  LOADAV_4LONGS
 
 /*
@@ -179,7 +187,7 @@
  * If you want to have your socket directory in "/tmp/screens" then
  * define LOCALSOCKDIR and change the definition of SOCKDIR below.
  */
-#define LOCALSOCKDIR
+#undef LOCALSOCKDIR
 
 #ifdef LOCALSOCKDIR
 # ifndef TMPTEST
@@ -212,7 +220,7 @@
 /*
  * Define this if your system supports named pipes.
  */
-#undef NAMEDPIPE
+#define NAMEDPIPE
 
 /*
  * here come the erlangen extensions to screen:
@@ -234,7 +242,7 @@
  * try to throw out phrases that are somewhat more familiar
  * to ...well, at least familiar to us NetHack players.
  */
-#undef NETHACK 
+#undef NETHACK
 
 /*
  * and another sneaky feature: screen sources two startup files.
@@ -242,7 +250,7 @@
  * your local $HOME/.screenrc
  * Don't define this, if you don't want it.
  */
-#define ETCSCREENRC "/local/etc/screenrc"
+/* #define ETCSCREENRC "/local/etc/screenrc" */
 
 /*
  *	End of User Configuration Section

@@ -30,4 +30,4 @@ screen and (from a users point of view) more secure pty's you should
 consult a system administrator and discuss installing screen setuid-root
 in some globally accessible directory like /usr/local/bin.
 
-Juergen Weigert. jnweiger@immd4.uni-erlangen.de
+Juergen Weigert. jnweiger@immd4.informatik.uni-erlangen.de

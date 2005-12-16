@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -21,38 +29,7 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
- *
- * MarkRoutine - a modification for screen.
- * Copy & paste across windows.
- *
- * written by Rudolf Koenig, Michael Schroeder & Juergen Weigert.
- *
- * now with repeat count and 'h,j,k,l,G,H,L,w,W,b,0,^,$
- * ,Y,y,+,-,^u,^d',| keys.  See VI manual for explanation :-)
- *
- * Non VI keys:
- *	' '	set first/second mark.
- *	c	set left copy-margin
- *	C	set right copy-margin
- *	v	set left copy-margin to skip 'Vi's line numbering'
- *	V	set left copy-margin to leftmost position
- *	B	scroll back one page.
- *	F	scroll forward one page.
- *	^B	left one char
- *	^F	right one char
- *	^N	down one line
- *	^P	up une line
- *	a	set append mode
- *	A	set append mode and finish.
- *	>	write buffer to file and finish.
- *	J	toggle join mode.
- *      ?       display coordinates.
- *	%	move to nnn percent (like in less)
- *
- * 11.2.91 tricky mode added.
- * 10.8.91 scrollback added.
- *
- *******************************************************/
+ */
 
 #ifndef lint
   static char rcs_id[] = "$Id$ FAU";
@@ -79,6 +56,7 @@ static int eq __P((int, int ));
 static void revto __P((int, int));
 static void revto_line __P((int, int, int));
 static void MarkRedisplayLine __P((int, int, int, int));
+static int MarkRewrite __P((int, int, int, int));
 static void process_mark_input __P((char **, int *));
 static void AbortMarkRoutine __P((void));
 static int MarkScrollDownDisplay __P((int));
@@ -89,6 +67,7 @@ extern struct win *fore, *wtab[];
 extern int screenwidth, screenheight;
 extern int screentop, screenbot;
 extern char GlobalAttr, GlobalCharset;
+extern int in_ovl;
 extern int HS;
 extern int LP;
 extern char *null, *blank;
@@ -338,7 +317,6 @@ int MarkRoutine(flag)	/* return value 1 when copybuffer changed; */
 int flag;
 {
   int x, y, i;
-  int MarkRewrite();
  
   hist_offset = fore->histheight;
  
@@ -582,6 +560,9 @@ int *inlenp;
 	  else
             GotoPos(cx, W2D(cy));
 	  break;
+	case '@':
+	  /* it may be usefull to have a key that does nothing */
+	  break;
 	case '%':
 	  rep_cnt--;
 	  /* rep_cnt is a percentage for the history buffer */
@@ -754,7 +735,8 @@ int *inlenp;
 	      revto(x1, y1);
 #ifdef NETHACK
 	      if (nethackflag)
-		Msg(0, "You drop a magic marker - Column %d Line %d", cx+1, cy+1);
+		Msg(0, "You drop a magic marker - Column %d Line %d",
+	    	    cx+1, W2D(cy)+1, hist_offset);
 	      else
 #endif
 	      Msg(0, "First mark set - Column %d Line %d", cx+1, cy+1);
@@ -821,9 +803,12 @@ int *inlenp;
 		    }
 		  copylen += rem(x1, y1, x2, y2, hist_offset == fore->histheight, copybuffer + copylen, yend);
 		}
-	      ExitOverlayPage();
 	      if (hist_offset != fore->histheight)
-		Activate();
+		{
+		  in_ovl = 0;	/* So we can use Activate() */
+		  Activate();
+		}
+	      ExitOverlayPage();
 	      if (append_mode)
 		Msg(0, "Appended %d characters to buffer",
 		    newcopylen);
@@ -877,9 +862,9 @@ int tx, ty, line;
   
   fx = cx; fy = cy;
   cx = tx; cy = ty;
-  debug2("revto(%d, %d, ", x1, y1);
+/*debug2("revto(%d, %d, ", x1, y1);
   debug2("%d, %d, ", fx, fy);
-  debug2("%d, %d)\n", tx, ty);
+  debug2("%d, %d)\n", tx, ty);*/
  
   /*
    * if we go to a position that is currently offscreen 
@@ -982,14 +967,14 @@ static void AbortMarkRoutine()
     }
   if (hist_offset != fore->histheight)
     {
-      ExitOverlayPage();
-      Activate();			/* to do a complete redisplay */
+      in_ovl = 0;	/* So we can use Activate() */
+      Activate();	/* to do a complete redisplay */
     }
   else
     {
       rem(x1, y1, cx, cy, redisp, 0, yend);
-      ExitOverlayPage();
     }
+  ExitOverlayPage();
   in_mark = 0;
 }
 
@@ -1049,7 +1034,7 @@ int isblank;
 }
 
 
-int
+static int
 MarkRewrite(ry, xs, xe, doit)
 int ry, xs, xe, doit;
 {

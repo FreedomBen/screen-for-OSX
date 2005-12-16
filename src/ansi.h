@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -21,6 +29,7 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
+ * $Id$ FAU
  */
 
 #define NATTR		6
@@ -40,15 +49,19 @@
 #define A_BL	(1<<ATTR_BL)
 #define A_MAX	(1<<(NATTR-1))
 
-/* Types of movement used by Goto() */
+/* Types of movement used by GotoPos() */
 enum move_t {
 	M_NONE,
 	M_UP,
+	M_CUP,
 	M_DO,
+	M_CDO,
 	M_LE,
+	M_CLE,
 	M_RI,
+	M_CRI,
 	M_RW,
-	M_CR,
+	M_CR,	/* CR and rewrite */
 };
 
 #define EXPENSIVE	 1000

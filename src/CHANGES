@@ -1,3 +1,27 @@
+3.1.1
+------
+
+iScreen is now under the GNU copyleft license. See file COPYING.
+
+command line option -A. $LINES, $COLUMNS improved.
+
+C-A : vbell_wait <sec>
+
+XENIX support (Ronald Khoo)
+
+SYSV has uname() instead of gethostname().
+
+hpux has setresuid.
+
+ClearScreen now saves image to scrollback buffer.
+
+mips has setenv.
+
+numerous bugfixes.
+
+3.1 finally released version.
+=============================
+
 3.0.99: last minute changes:
 ----------------------------
 

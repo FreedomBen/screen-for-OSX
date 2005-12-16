@@ -1,13 +1,21 @@
-/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
- *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+/* Copyright (c) 1991
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
- * All rights reserved.  Not derived from licensed software.
  *
- * Permission is granted to freely use, copy, modify, and redistribute
- * this software, provided that no attempt is made to gain profit from it,
- * the authors are not construed to be liable for any results of using the
- * software, alterations are clearly marked as such, and this notice is
- * not modified.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 1, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * Noteworthy contributors to screen's design and implementation:
  *	Wayne Davison (davison@borland.com)
@@ -21,13 +29,17 @@
  *	Marc Boucher (marc@CAM.ORG)
  *
  ****************************************************************
+ * $Id$ FAU
+ */
+
+/****************************************************************
  * Thanks to Christos S. Zoulas (christos@ee.cornell.edu) who 
  * mangled the screen source through 'gcc -Wall'.
  *
  * this is his extern.h
  ****************************************************************
- * $Id$ FAU
  */
+
 #ifndef SYSV
 extern void bzero __P((char *, int));
 #endif
@@ -43,13 +55,24 @@ extern int wait3 __P((union wait *, int, struct rusage *));
 extern int wait3 __P((int *, int, struct rusage *));
 #endif
 extern int getdtablesize __P((void));
+#if !defined(NOREUID)
+# ifdef hpux
+extern int setresuid __P((int, int, int));
+extern int setresgid __P((int, int, int));
+# else
 extern int setreuid __P((uid_t, uid_t));
 extern int setregid __P((gid_t, gid_t));
+# endif
+#endif
 extern char *crypt __P((char *, char *));
 #ifdef sun
 extern int getpgrp __P((int));
 #endif
+#ifdef POSIX
+extern int mknod __P((char *, mode_t, dev_t));
+#else
 extern int mknod __P((char *, int, int));
+#endif
 extern int putenv __P((char *));
 extern int kill __P((pid_t, int));
 #ifndef SYSV
@@ -65,7 +88,11 @@ extern unsigned char     *_flsbuf __P((unsigned char, FILE *));
 extern int _flsbuf __P((unsigned char, FILE *));
 #ifdef POSIX
 extern pid_t setsid __P((void));
+#ifdef SVR4
+extern int setpgid __P((pid_t, pid_t));
+#else
 extern int setpgid __P((pid_t, int));
+#endif
 extern int tcsetpgrp __P((int, pid_t));
 #endif
 extern pid_t getpid __P((void));
@@ -77,7 +104,9 @@ extern int isatty __P((int));
 #ifdef notdef
 extern int chown __P((const char *, uid_t, gid_t)); 
 #endif
+#ifndef SVR4
 extern int gethostname __P((char *, size_t));
+#endif
 extern off_t lseek __P((int, off_t, int));
 #if defined(sun) && !defined(__GNUC__)		/* sun's exit returns ??? */
 extern int exit __P((int));
@@ -90,7 +119,7 @@ extern time_t time __P((time_t *));
 
 extern char *getlogin(), *getpass(), *ttyname();
 extern int fflush(); 
-#if !__STDC__ || !defined(POSIX)
+#if !defined(__STDC__) || !defined(POSIX)
 extern char *malloc(), *realloc();
 #endif
 
@@ -113,20 +142,21 @@ extern int GetAvenrun __P((void));
 extern int GetSockName __P((void));
 extern int MakeClientSocket __P((int, char *));
 extern int MakeServerSocket __P((void));
-extern int MakeWindow __P((char *, char **, int, int, int, char *, int, int));
+extern int MakeWindow __P((char *, char **, int, int, int, char *, int, int, char *));
 extern int MarkRoutine __P((int));
 extern int ParseEscape __P((char *));
-extern int RcLine __P((char *));
+extern void RcLine __P((char *));
 extern int RecoverSocket __P((void));
 extern int RemoveUtmp __P((struct win *));
 extern int SetUtmp __P((struct win *, int));
 extern int UserContext __P((void));
 extern int UserStatus __P((void));
 extern int display_help __P((void));
+extern void display_copyright __P((void));
 #ifdef DEBUG
-extern sig_t FEChld __P((void));
+extern sig_t FEChld __P(SIGPROTOARG);
 #endif
-extern sig_t SigHup __P((void));
+extern sig_t SigHup __P(SIGPROTOARG);
 extern void AbortRc __P((void));
 extern void Activate __P((void));
 extern void ChangeScreenSize __P((int, int, int));
@@ -146,7 +176,7 @@ extern void GetTTY __P((int, struct mode *));
 extern void GotoPos __P((int, int));
 extern void InitKmem __P((void));
 extern void InitOverlayPage __P((void (*)(), void (*)(), int (*)(), int));
-extern void InitTerm __P((void));
+extern void InitTerm __P((int));
 extern void InitTermcap __P((void));
 extern void InitUtmp __P((void));
 extern void InputAKA __P((void));
@@ -165,6 +195,7 @@ extern void Msg __P(());
 extern void NewCharset __P((int));
 extern void NewRendition __P(());
 extern void PUTCHAR __P((int));
+extern void INSERTCHAR __P((int));
 extern void ParseNum __P((int, char *[], int *));
 extern void ParseOnOff __P((int, char *[], int *));
 extern void PutChar __P((int));
@@ -184,7 +215,7 @@ extern void RestoreAttr __P((void));
 extern void RestoreLoginSlot __P((void));
 extern void SaveSetAttr __P((int, int));
 extern void ScrollRegion __P((int, int, int));
-extern void SendCreateMsg __P((int, int, char **, int, int, int, int));
+extern void SendCreateMsg __P((int, int, char **, int, int, int, int, char *));
 #ifdef USEVARARGS
 extern void SendErrorMsg __P((char *, ...));
 #else
@@ -203,11 +234,8 @@ extern void UserReturn __P((int));
 extern void WSresize __P((int, int));
 extern void WriteFile __P((int));
 extern void WriteString __P((struct win *, char *, int));
-extern void add_key_to_buf __P((char *, int));
 extern void bclear __P((char *, int));
 extern void bcopy __P((char *, char *, int));
-extern void brktty __P((void));
-extern void dofg __P((void));
 extern void eexit __P((int));
 extern void exit_with_usage __P((char *));
 extern void main __P((int, char **));
