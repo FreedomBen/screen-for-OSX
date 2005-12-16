@@ -46,8 +46,8 @@
 #include "screen.h"
 #include "ansi.h"
 #include "extern.h"
-#include "patchlevel.h"
 
+char version[40];	/* initialised by main() */
 int help_page = 0;
 int command_search, command_bindings = 0;
 extern char Esc, MetaEsc;
@@ -56,6 +56,7 @@ extern struct key ktab[];
 extern int screenwidth, screenheight;
 extern char *blank, *null, *CE;
 extern struct win *fore;
+extern int in_ovl;
 
 static void centerline __P((char *));
 static void HelpRedisplayLine __P((int, int, int, int));
@@ -83,13 +84,16 @@ char *myname;
   printf("-l           Login mode on (update %s), -ln = off\n", UTMPFILE);
   printf("-list        or -ls. Do nothing, just list our SockDir\n");
   printf("-L           Terminal's last character can be safely updated\n");
+  printf("-m           ignore $STY variable, do create a new screen session\n");
   printf("-O           Choose optimal output rather than exact vt100 emulation\n");
-  printf("-q           Quiet startup. Sets $status if unsuccessful.\n");
+  printf("-q           Quiet startup. Exits with non-zero return code if unsuccessful.\n");
   printf("-r           Reattach to a detached screen process\n");
   printf("-R           Reattach if possible, otherwise start a new session\n");
   printf("-s shell     Shell to execute rather than $SHELL\n");
+  printf("-S sockname  Name this session <pid>.sockname instead of <pid>.<tty>.<host>\n");
   printf("-T term      Use term as $TERM for windows, rather than \"screen\"\n");
   printf("-t title     Set command's a.k.a. (window title)\n");
+  printf("-v           Print \"Version %s\"\n", version);
   printf("-wipe        Do nothing, just clean up SockDir\n");
   exit(1);
 }
@@ -138,8 +142,9 @@ static void
 AbortHelp()
 {
   help_page = 0;
-  ExitOverlayPage();
+  in_ovl = 0;
   Activate(0);
+  ExitOverlayPage();
 }
 
 static int maxrow, grow, numcols, numrows, num_names;
@@ -361,8 +366,6 @@ int y, xs, xe, isblank;
  */
 
 
-static char version[40];
-
 static char cpmsg[] = "\
 \n\
 iScreen version %v\n\
@@ -432,8 +435,9 @@ int *plen;
 static void
 AbortCopyright()
 {
-  ExitOverlayPage();
+  in_ovl = 0;
   Activate(0);
+  ExitOverlayPage();
 }
 
 void
@@ -445,7 +449,6 @@ display_copyright()
       return;
     }
   InitOverlayPage(process_copyright_input, HelpRedisplayLine, (int (*)())0, 0);
-  sprintf(version, "%d.%.2d.%.2d%s (%s) %s", REV, VERS, PATCHLEVEL, STATE, ORIGIN, DATE);
   cps = cpmsg;
   savedcps = 0;
   copypage();
@@ -461,7 +464,7 @@ copypage()
 
   ClearDisplay();
   x = y = 0;
-  while(*cps)
+  while (*cps && y < screenheight - 3)
     {
       ws = cps;
       while (*cps == ' ')
@@ -469,7 +472,8 @@ copypage()
       if (strncmp(cps, "%v", 2) == 0)
 	{
 	  savedcps = cps + 2;
-	  ws = cps = version;
+	  cps = version;
+	  continue;
 	}
       while (*cps && *cps != ' ' && *cps != '\n')
 	cps++;
@@ -481,8 +485,8 @@ copypage()
 	{
 	  printf("\r\n");
 	  x = 0;
-	  if (++y > screenheight - 4)
-            break;
+	  y++;
+	  continue;
 	}
       if (x)
 	{
@@ -502,12 +506,13 @@ copypage()
 	{
 	  printf("\r\n");
 	  x = 0;
-	  if (++y > screenheight - 4)
-            break;
+	  y++;
 	}
       if (*cps == ' ' || *cps == '\n')
 	cps++;
     }
+  while (*cps == '\n')
+    cps++;
   while (y++ < screenheight - 2)
     printf("\r\n");
   sprintf(cbuf,"[Press Space %s Return to end.]",

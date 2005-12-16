@@ -471,6 +471,13 @@ window's termcap, even if
 .I screen
 must redraw parts of the display in order to implement a function.
 .TP 5
+.B \-A
+Adapt. When attaching to a terminal that can change its size, (e.g. suncmd,
+or some xterms) 
+.I screen
+will adapt the current terminal size to all its windows as if it were attached 
+to a fixed size terminal. 
+.TP 5
 .B "\-c \fIfile\fP"
 override the default configuration file from \*Q$HOME/.screenrc\*U
 to \fIfile\fP.
@@ -524,6 +531,16 @@ Sessions marked `detached' can be resumed with \*Qscreen -r\*U. Those marked
 `dead' should be thoroughly checked and removed. Ask your system administrator
 if you are not sure. Remove sessions with the \fB-wipe\fP option.
 .TP 5
+.B \-m
+causes 
+.I screen
+to ignore the $STY environment variable. With \*Qscreen -m\*U creation of
+a new session is enforced, regardless whether 
+.I screen
+is called from within another 
+.I screen
+environment or not.
+.TP 5
 .B "\-t \fIname\fP"
 sets the title (a.\|k.\|a.) for the default shell or specified program.
 See also the \*Qshellaka\*U .screenrc command.
@@ -570,6 +587,12 @@ were not specified.
 sets the default shell to the program specified, instead of the value
 in the environment variable $SHELL (or \*Q/bin/sh\*U if not defined).
 This can also be defined through the \*Qshell\*U .screenrc command.
+.TP 5
+.B \-S \fPsessionname\fI
+When creating a new session, this option can be used to specify a
+meaningfull name for the session. This name identifies the session for
+\*Qscreen -list\*U and \*Qscreen -r\*U actions. It substitutes the 
+default [\fItty.host\fP] suffix.
 .SH CUSTOMIZATION
 The \*Qsocket directory\*U defaults either to $HOME/.screen or preferably
 to /local/screens. If
@@ -749,15 +772,18 @@ that creates an non-login window with a.\|k.\|a. \*Qroot\*U in slot #9, with
 a super-user shell and a scrollbackbuffer of 1000 lines.
 .PP
 .ne 3
-.B "bufferfile \fIexchange-file\fP"
+.B "bufferfile \fP[\fIexchange-file\fP]"
 .sp
 Change the filename used for reading and writing with the copybuffer.
-The default is \*Q/tmp/screen-exchange\*U. The following example
-will paste the system's password file into the screen window:
+If the optional argument to the \*Qbufferfile\*U command is omitted, 
+the default setting (\*Q/tmp/screen-exchange\*U) is reactivated.
+The following example will paste the system's password file into 
+the screen window:
 .PP
 .nf
 	C-a : bufferfile /etc/passwd
 	C-a < C-a ]
+	C-a : bufferfile
 .fi
 .PP
 .ne 3
@@ -928,15 +954,16 @@ Thus, if your \*Q.screenrc\*U contains the lines
 .sp
 .nf
 	# example for .screenrc:
-	screen 1
-	screen -fn -t foobar 2 telnet foobar
+	screen 0
+	screen -fn -t foobar 1 telnet foobar
 .fi
 .sp
 .I screen
 creates a shell window (in window #1), a window with a TELNET connection
 to the machine foobar (with no flow-control using the a.\|k.\|a. \*Qfoobar\*U
-in window #2), and finally, a second shell window
-(the default window) which gets a window number of zero.
+in window #2). Note, that unlike previous versions of
+.I screen
+no default window is created when \Q*screen\U* commands are used.
 When the initialization is completed,
 .I screen
 switches to the last window specified in your .screenrc file or, if none, it
@@ -950,6 +977,13 @@ Set the size of the scrollback buffer for new windows to \fInum\fP lines.
 The default scrollback is 50 lines.
 Use "C-a : set scrollback \fInum\fP" to change the scrollback size of the
 current window and use "C-a i" to view the current setting. 
+.PP
+.ne
+.B "sessionname \fP[\fIname\fP]"
+.sp
+Rename the current session. Note, that for \*Qscreen -list\*U the
+name shows up with the process-id prepended. If the argument \*Qname\*U
+is ommitted, the name of this session is displayed.
 .PP
 .ne 3
 .B "redraw on\fP|\fBoff"

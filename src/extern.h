@@ -101,7 +101,8 @@ extern void tputs __P((char *, int, void (*)(int)));
 #ifdef notdef
 extern unsigned char     *_flsbuf __P((unsigned char, FILE *));
 #endif
-#ifndef NeXT
+#if !defined(NeXT) && !defined(apollo)
+/* not all apollo's may have this. grrr */
 extern int _flsbuf __P((unsigned char, FILE *));
 #endif
 # ifdef POSIX

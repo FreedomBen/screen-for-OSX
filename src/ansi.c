@@ -34,13 +34,13 @@
 #include <sys/signal.h>
 #endif /* BSDI */
 #include <fcntl.h>
+#ifndef sun /* we want to know about TIOCGWINSZ. jw. */
+# include <sys/ioctl.h>
+#endif
 #include "config.h"
 #include "screen.h"
 #include "ansi.h"
 #include "extern.h"
-#ifndef sun /* we want to know about TIOCGWINSZ. jw. */
-# include <sys/ioctl.h>
-#endif
 
 extern char *getenv(), *tgetstr(), *tgoto();
 #ifndef __STDC__
@@ -49,6 +49,7 @@ extern char *malloc();
 
 extern struct win *fore;
 extern int ForeNum;
+extern int Detached;
 extern force_vt, assume_LP;
 extern int BellDisplayed;
 extern int MsgMinWait;
@@ -78,11 +79,12 @@ static int rows, cols;		/* window size of the curr window */
 
 int default_flow = -1, wrap = 1, default_monitor = 0; 
 int visual_bell = 0, termcapHS, use_hardstatus = 1;
-char *Termcap, *extra_incap, *extra_outcap;
+char Termcap[1024+8];	/* +8: "TERMCAP=" */
+char *extra_incap, *extra_outcap;
 static int Termcaplen;
 char *blank, *null, *LastMsg;
 char Term[MAXSTR+5];	/* +5: "TERM=" */
-char screenterm[20] = "screen";
+char screenterm[20];
 char *Z0, *Z1;
 int ISO2022, HS;
 time_t TimeDisplayed, time();
@@ -176,7 +178,6 @@ static char *C0, *S0, *E0;
 static char c0_tab[256];
 /*
  */
-static screencap = 0;
 char *OldImage, *OldAttr, *OldFont;
 static struct win *curr;
 static display = 1;
@@ -214,21 +215,9 @@ InitTermcap()
   register char *s;
   int i;
 
-  screencap = 0;
-  if ((s = getenv("SCREENCAP")) != 0)
-    {
-      if ((Termcap = malloc(strlen(s) + 10)) != 0)
-	{
-	  sprintf(Termcap, "TERMCAP=%s", s);
-	  screencap = 1;
-	}
-    }
-  else
-    Termcap = malloc((unsigned) 1024);
-  Termcaplen = 0;
   tbuf = malloc((unsigned) 1024);
   tentry = tp = malloc((unsigned) 1024);
-  if (!(Termcap && tbuf && tentry))
+  if (!(tbuf && tentry))
     Msg_nomem;
   bzero(tbuf, 1024);
   if ((termname = getenv("TERM")) == 0)
@@ -498,11 +487,6 @@ FinitTerm()
   GotoPos(0, screenheight - 1);
   PutStr(TE);
   fflush(stdout);
-  if (Termcap) 
-    {
-      Free(Termcap);
-      debug("FinitTerm: old termcap freed\n");
-    }
   if (tbuf) 
     {
       Free(tbuf);
@@ -540,20 +524,26 @@ char *MakeTermcap(aflag)
 int aflag;
 {
   char buf[1024];
-  register char *p, *cp, ch;
+  register char *p, *cp, *s, ch;
   int i;
 
-  if (screencap)
+  debug1("MakeTermcap(%d)\n", aflag);
+  if ((s = getenv("SCREENCAP")) && strlen(s) < 1024)
     {
+      sprintf(Termcap, "TERMCAP=%s", s);	/* 1024 + ... ? XXX */
       sprintf(Term, "TERM=screen");
+      debug("getenvSCREENCAP o.k.\n");
       return Termcap;
     }
-  if (screenterm == 0 || *screenterm == '\0')
+  Termcaplen = 0;
+  debug1("MakeTermcap screenterm='%s'\n", screenterm);
+  debug1("MakeTermcap termname='%s'\n", termname);
+  if (*screenterm == '\0')
     {
       debug("MakeTermcap sets screenterm=screen\n");
       strcpy(screenterm, "screen");
     }
-  for (;;)
+  for (;;)		
     {
       sprintf(Term, "TERM=");
       p = Term + 5;
@@ -577,8 +567,9 @@ int aflag;
     }
   tcLineLen = 100;	/* Force NL */
   sprintf(Termcap,
-	  "TERMCAP=SC|%s|VT 100/ANSI X3.64 virtual terminal|", p);
+	  "TERMCAP=SC|%s|VT 100/ANSI X3.64 virtual terminal|", Term + 5);
   Termcaplen = strlen(Termcap);
+  debug1("MakeTermcap decided '%s'\n", p);
   if (extra_outcap && *extra_outcap)
     {
       for (cp = extra_outcap; p = index(cp, ':'); cp = p)
@@ -590,6 +581,7 @@ int aflag;
 	}
       tcLineLen = 100;	/* Force NL */
     }
+  debug1("MakeTermcap after outcap '%s'\n", TermcapConst);
   if (Termcaplen + strlen(TermcapConst) < 1024)
     {
       strcpy(Termcap + Termcaplen, TermcapConst);
@@ -733,6 +725,8 @@ Activate(norefresh)
 int norefresh;
 {
   debug1("Activate(%d)\n", norefresh);
+  if (Detached)
+    return;
   if (display)
     RemoveStatus();
   display = fore->active = 1;
@@ -812,6 +806,54 @@ int len;
       c = (unsigned char)*buf++;
       if (c == '\0' || c == '\177')
 	continue;
+
+      /* The next part is only for speed */
+      if (curr->state == LIT && c >= ' ' && !curr->insert && !curr->ss)
+	{
+	  register int currx;
+	  register char *imp, *atp, *fop, attr, font;
+
+	  currx = curr->x;
+	  imp = curr->image[curr->y] + currx;
+	  atp = curr->attr[curr->y] + currx;
+	  fop = curr->font[curr->y] + currx;
+	  attr = curr->LocalAttr;
+	  font = curr->charsets[curr->LocalCharset];
+	  if (display)
+	    {
+	      if (screenx != currx || screeny != curr->y)
+		GotoPos(currx, curr->y);
+	      if (GlobalAttr != attr)
+		NewRendition(attr);
+	      if (GlobalCharset != font)
+		NewCharset(font);
+	      if (insert)
+		InsertMode(0);
+	    }
+	  while (currx < cols - 1)
+	    {
+	      if (display)
+		putchar(font != '0' ? c : c0_tab[c]);
+	      *imp++ = c;
+	      *atp++ = attr;
+	      *fop++ = font;
+	      currx++;
+    skip:     if (--len == 0)
+		break;
+              c = (unsigned char)*buf++;
+	      if (c == '\0' || c == '\177')
+		goto skip;
+	      if (c < ' ')
+		break;
+	    }
+	  curr->x = currx;
+	  if (display)
+	    screenx = currx;
+	  if (len == 0)
+	    break;
+	}
+      /* end of speedup code */
+
     NextChar:
       switch (curr->state)
 	{
@@ -1178,15 +1220,15 @@ int c, intermediate;
 	  break;
 	case '=':
 	  KeypadMode(curr->keypad = 1);
-#if !defined(TIOCPKT) || defined(sgi)
+#ifndef TIOCPKT
 	  NewAutoFlow(curr, 0);
-#endif /* !TIOCPKT || sgi */
+#endif /* !TIOCPKT */
 	  break;
 	case '>':
 	  KeypadMode(curr->keypad = 0);
-#if !defined(TIOCPKT) || defined(sgi)
+#ifndef TIOCPKT
 	  NewAutoFlow(curr, 1);
-#endif /* !TIOCPKT || sgi */
+#endif /* !TIOCPKT */
 	  break;
 	case 'n':		/* LS2 */
 	  MapCharset(G2);

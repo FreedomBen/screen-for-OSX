@@ -1,16 +1,15 @@
 #
-# Makefile for screen under RS6000
+# Makefile for screen under AIX (language: ANSI C)
 #
 # See config.h for configuration options.
 #
 # Marc Boucher <marc@CAM.ORG>
-# nothing special about this makefile, except it links with -lcurses
 
 # If you choose to compile with the tried and true:
 CC= cc
-CFLAGS= -O
-#CFLAGS= -g -DTMPTEST -DDEBUG
-#CFLAGS= -g 
+CFLAGS= -O -qlanglvl=ansi
+#CFLAGS= -qlanglvl=ansi -g -DTMPTEST -DDEBUG
+#CFLAGS= -qlanglvl=ansi -g 
 LDFLAGS=
 
 # If you're using GNU C, be sure to use the -traditional flag:

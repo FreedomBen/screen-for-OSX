@@ -6,20 +6,24 @@
 
 # If you choose to compile with the tried and true:
 CC= cc
-#CFLAGS= -O
-#CFLAGS= -g -DTMPTEST -DDEBUG
-CFLAGS= -g 
+#CFLAGS= -O -DNEEDSETENV
+#CFLAGS= -g -DTMPTEST -DDEBUG -DNEEDSETENV
+CFLAGS= -g  -DNEEDSETENV
 LDFLAGS=
 
+# If you're using GNU C, be sure to use the -traditional flag:
 #CC= gcc
-#CFLAGS = -g -fstrength-reduce -fcombine-regs -finline-functions #-Wall
-#CFLAGS = -g -DTMPTEST -DDEBUG -fstrength-reduce -fcombine-regs -finline-functions # -Wall
+#CFLAGS = -O -fstrength-reduce -fcombine-regs -finline-functions -DNEEDSETENV #-Wall
+#CFLAGS= -traditional -O -DNEEDSETENV
+#CFLAGS= -g -traditional -DTMPTEST -DNEEDSETENV
+#CFLAGS= -g -traditional -DTMPTEST -DDEBUG -DNEEDSETENV
+#LDFLAGS= -s
 
 #LIBS= nmalloc.o -ltermcap 
 LIBS= -ltermcap 
 
-CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c tty.c
-OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o tty.o
+CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c putenv.c tty.c
+OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o putenv.o tty.o
 
 screen: $(OFILES)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o screen $(OFILES) $(LIBS)
@@ -45,8 +49,9 @@ window.o: window.c config.h screen.h  extern.h
 socket.o: socket.c config.h screen.h  extern.h
 	$(CC) $(CFLAGS) -c socket.c
 
-tty.o: tty.c config.h screen.h  extern.h
-	$(CC) $(CFLAGS) -c tty.c
+putenv.o: putenv.c config.h
+	$(CC) $(CFLAGS) -c putenv.c
+
 
 clean:
 	rm -f $(OFILES) screen

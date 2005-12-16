@@ -7,8 +7,8 @@
 # If you choose to compile with the tried and true:
 CC= cc
 #CFLAGS= -O
-#CFLAGS= -g -DTMPTEST -DDEBUG
-CFLAGS= -g 
+CFLAGS= -g -DTMPTEST -DDEBUG
+#CFLAGS= -g 
 LDFLAGS=
 
 #CC= gcc

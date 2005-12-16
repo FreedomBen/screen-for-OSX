@@ -167,6 +167,8 @@ extern int HasWindow;
 extern char mark_key_tab[];
 extern int real_uid, eff_uid;
 extern int real_gid, eff_gid;
+extern int Detached;
+extern int intrc, origintrc;
 
 #ifdef PASSWORD
 int CheckPassword;
@@ -228,9 +230,9 @@ char *RCNames[] =
   "activity", "all", "autodetach", "bell", "bind", "bufferfile", "chdir",
   "crlf", "echo", "escape", "flow", "hardcopy_append", "hardstatus", "login", 
   "markkeys", "mode", "monitor", "msgminwait", "msgwait", "nethack", "password",
-  "pow_detach_msg", "redraw", "refresh", "screen", "scrollback", "shell", 
-  "shellaka", "sleep", "slowpaste", "startup_message", "term", "termcap",
-  "terminfo", "vbell", "vbell_msg", "vbellwait", "visualbell",
+  "pow_detach_msg", "redraw", "refresh", "screen", "scrollback", "sessionname",
+  "shell", "shellaka", "sleep", "slowpaste", "startup_message", "term",
+  "termcap", "terminfo", "vbell", "vbell_msg", "vbellwait", "visualbell",
   "visualbell_msg", "wrap",
 };
 
@@ -262,6 +264,7 @@ enum RCcases
   RC_REFRESH,
   RC_SCREEN,
   RC_SCROLLBACK,
+  RC_SESSIONNAME,
   RC_SHELL,
   RC_SHELLAKA,
   RC_SLEEP,
@@ -589,6 +592,7 @@ char *rcfilename;
   debug("finishrc is going...\n");
   while (fgets(buf, sizeof buf, fp) != NULL)
     {
+      debug1("RCFILE:%s", buf);
       RcLine(buf);
     }
   (void) fclose(fp);
@@ -715,18 +719,18 @@ char *ubuf;
     {
       buf += 4;
       setflag = 1;
-      debug1("RcLine: '%s' is a set command\n", buf);
+      /* debug1("RcLine: '%s' is a set command\n", buf); */
     }
   else if (strncmp("se ", buf, 3) == 0)
     {
       buf += 3;
       setflag = 1;
-      debug1("RcLine: '%s' is a se command\n", buf);
+      /* debug1("RcLine: '%s' is a se command\n", buf); */
     }
   else
     {
       setflag = 0;
-      debug1("RcLine: '%s'\n", buf);
+      /* debug1("RcLine: '%s'\n", buf); */
     }
   if ((argc = Parse(buf, ap)) == 0)
     {
@@ -810,7 +814,8 @@ char *ubuf;
         strcpy(screenterm, args[1]);
 	Free(tmp);
         debug1("screenterm set to %s\n", screenterm);
-        MakeTermcap(0);
+        MakeTermcap(Detached);
+	debug("new termcap made\n");
         return;	
       }
     case RC_ECHO:
@@ -831,6 +836,13 @@ char *ubuf;
       ParseSaveStr(argc, ap, &BellString, "bell");
       return;
     case RC_BUFFERFILE:
+      if (argc == 1)
+	{
+	  argc = 2;
+	  ap[1] = DEFAULT_BUFFERFILE;
+	  DeadlyMsg = 0;
+	  Msg(0, "Bufferfile is now '%s'\n", DEFAULT_BUFFERFILE);
+	}
       ParseSaveStr(argc, ap, &BufferFile, "bufferfile");
       return;
     case RC_ACTIVITY:
@@ -854,6 +866,19 @@ char *ubuf;
       if (argc == 3 && ap[2][0] == 'i')
 	{
 	  iflag = 1;
+#if defined(TERMIO) || defined(POSIX)
+	  if ((intrc == VDISABLE) && (origintrc != VDISABLE))
+	    {
+	      intrc = NewMode.tio.c_cc[VINTR] = origintrc;
+#else
+	  if ((intrc == -1) && (origintrc != -1))
+	    {
+	      intrc = NewMode.m_tchars.t_intrc = origintrc;
+#endif /* TERMIO || POSIX */
+
+	      if (!Detached)
+		SetTTY(0, &NewMode);
+	    } /* hallo vi :-} */
 	  argc--;
 	}
       if (argc == 2 && ap[1][0] == 'a')
@@ -932,6 +957,45 @@ char *ubuf;
       else
 	ParseNum(argc, ap, &default_histheight);
       return;
+    case RC_SESSIONNAME:
+      if (argc < 2)
+	{
+	  DeadlyMsg = 0;
+	  Msg(0, "This session is named '%s'\n", SockNamePtr);
+	}
+      else
+	{
+	  char buf[MAXPATH];
+	  char *s = NULL;
+
+	  ParseSaveStr(argc, ap, &s, "sessionname");
+	  if (!s)
+	    return;
+	  if (!*s)
+	    {
+	      DeadlyMsg = 0;
+	      Msg(0, "Bad session name '%s'\n", s);
+	      Free(s);
+	    }
+	  sprintf(buf, "%s", SockPath);
+	  sprintf(buf + (SockNamePtr - SockPath), "%d.%s", getpid(), s); 
+	  Free(s);
+	  if ((access(buf, F_OK) == 0) || (errno != ENOENT))
+	    {
+	      DeadlyMsg = 0;
+	      Msg(0, "inapropriate path: '%s'\n", buf);
+	      return;
+	    }
+	  if (rename(SockPath, buf))
+	    {
+	      DeadlyMsg = 0;
+	      Msg(errno, "failed to rename(%s, %s)\n", SockPath, buf);
+	      return;
+	    }
+	  debug2("rename(%s, %s) done\n", SockPath, buf);
+	  sprintf(SockPath, "%s", buf);
+        }
+      return;
     case RC_SLOWPASTE:
       ParseNum(argc, ap, &slowpaste);
       if (fore && rc_name[0] == '\0')
@@ -1005,20 +1069,27 @@ char *ubuf;
 	  int msleep = 0, st;
           char salt[2];
 
+	  if (Detached)			/* XXX */
+	    {
+	      debug("prompting for password while Detached???\n");
+	      return;
+	    }
 #ifdef POSIX
 	  if (HasWindow)
 	    {
 	      Msg(0, "Cannot ask for password on POSIX systems");
 	      return;
 	    }
-#endif
+#endif /* POSIX */
 	  /* there is a clear screen sequence in the buffer. */
 	  fflush(stdout);
+#ifndef POSIX
 	  if (HasWindow)
 	    {
-              ClearDisplay();
+	      ClearDisplay();
 	      SetTTY(0, &OldMode);
 	    }
+#endif /* POSIX */
 	  strncpy(Password, getpass("New screen password:"),
 		  sizeof(Password));
 	  if (strcmp(Password, getpass("Retype new password:")))
@@ -1027,7 +1098,7 @@ char *ubuf;
               if (nethackflag)
 	        mstr = "[ Passwords don't match - your armor crumbles away ]";
 	      else
-#endif
+#endif /* NETHACK */
 	      mstr = "[ Passwords don't match - checking turned off ]";
 	      msleep = 1;
 	      CheckPassword = 0;
@@ -1061,6 +1132,7 @@ char *ubuf;
 	      msleep = 5;
 #endif				/* COPY_PASTE */
 	    }
+#ifndef POSIX
           if (HasWindow)
 	    {
 	      SetTTY(0, &NewMode);
@@ -1071,6 +1143,7 @@ char *ubuf;
 	        }
 	    }
           else
+#endif /* POSIX */
 	    {
 	      if (mstr)
 	        {
@@ -1156,7 +1229,7 @@ char *ubuf;
 
 	  ibuf[0] = Esc;
 	  ibuf[1] = pp - KeyNames +1;
-	  debug1("RcLine: it was a keyname: '%s'\n", *pp);
+	  /* debug1("RcLine: it was a keyname: '%s'\n", *pp); */
 	  q = 2; qq = 0;
 	  if (HasWindow)
 	    ProcessInput(ibuf, &q, (char *)0, &qq, 0);
@@ -1720,18 +1793,41 @@ CountUsers()
 }
 #endif
 
+/*
+ * used in screen.c
+ */
+char *
+stripdev(nam)
+char *nam;
+{
+#ifdef apollo
+  char *p;
+  
+  if (nam == NULL)
+    return NULL;
+  if (p = strstr(nam,"/dev/"))
+    return p + 5;
+#else /* apollo */
+  if (nam == NULL)
+    return NULL;
+  if (strncmp(nam, "/dev/", 5) == 0)
+    return nam + 5;
+#endif /* apollo */
+  return nam;
+}
+
 #ifdef UTMPOK
 
 static slot_t loginslot;
 static struct utmp utmp_logintty;
-#ifdef _SEQUENT_
+# ifdef _SEQUENT_
 static char loginhost[100+1];
-#endif
+# endif /* _SEQUENT_ */
 
 void
 InitUtmp()
 {
-  debug("InitUtmp testing...\n");
+  debug1("InitUtmp testing '%s'...\n", UtmpName);
   if ((utmpf = open(UtmpName, O_RDWR)) == -1)
     {
       if (errno != EACCES)
@@ -1740,42 +1836,42 @@ InitUtmp()
       utmp = 0;
       return;
     }
-#ifdef GETUTENT
+# ifdef GETUTENT
   close(utmpf);
   utmpf= -1;
-#endif
-#ifdef MIPS
+# endif /* GETUTENT */
+# ifdef MIPS
   if ((utmpfappend = open(UtmpName, O_APPEND)) == -1) 
     {
       if (errno != EACCES)
 	Msg(errno, UtmpName);
       return;
     }
-#endif
+# endif /* MIPS */
   utmp = 1;
-#ifndef apollo
+# ifndef apollo
   ReInitUtmp();
-#endif
+# endif /* apollo */
 }
 
 void
 ReInitUtmp()
 {
-#ifndef apollo
+# ifndef apollo
   if (!utmp)
     {
       debug("Reinitutmp: utmp == 0\n");
       return;
     }
-#endif
+# endif /* !apollo */
   debug("(Re)InitUtmp: removing your logintty\n");
   loginslot = TtyNameSlot(display_tty);
   if (loginslot!=(slot_t)0 && loginslot!=(slot_t)-1)
     {
-#ifdef _SEQUENT_
+# ifdef _SEQUENT_
       if (p=ut_find_host(loginslot))
         strncpy(loginhost, p, 100);
-#endif
+# endif /* _SEQUENT_ */
       RemoveLoginSlot(loginslot, &utmp_logintty);
     }
   debug1(" slot %d zapped\n", loginslot);
@@ -1785,13 +1881,13 @@ void
 RestoreLoginSlot()
 {
   debug("RestoreLoginSlot()\n");
-#ifdef apollo
+# ifdef apollo
   InitUtmp();
-#endif
+# endif /* !apollo */
   if (utmp && loginslot!=(slot_t)0 && loginslot!=(slot_t)-1)
     {
-#ifdef GETUTENT
-# ifdef _SEQUENT_
+# ifdef GETUTENT
+#  ifdef _SEQUENT_
       int fail;
       debug1(" logging you in again (slot %s)\n", loginslot);
 /*
@@ -1812,34 +1908,34 @@ RestoreLoginSlot()
           fail = (pututline(&utmp_logintty) == 0);
         }
       if (fail)
-# else	/* _SEQUENT_ */
+#  else	/* _SEQUENT_ */
       debug1(" logging you in again (slot %s)\n", loginslot);
       setutent();
       if (pututline(&utmp_logintty)==0)
-# endif	/* _SEQUENT */
-#else	/* GETUTENT */
+#  endif	/* _SEQUENT */
+# else	/* GETUTENT */
       debug1(" logging you in again (slot %d)\n", loginslot);
-# ifdef sequent
+#  ifdef sequent
       /* call sequent undocumented routine to count logins and add utmp entry if possible */
       if (add_utmp(loginslot, &utmp_logintty) == -1)
-# else
+#  else /* sequent */
       (void) lseek(utmpf, (off_t) (loginslot * sizeof(struct utmp)), 0);
       if (write(utmpf, (char *) &utmp_logintty, sizeof(struct utmp))
 	  != sizeof(struct utmp))
-# endif /* sequent */
-#endif	/* GETUTENT */
+#  endif /* sequent */
+# endif	/* GETUTENT */
         {
-#ifdef NETHACK
+# ifdef NETHACK
           if (nethackflag)
             Msg(errno, "%s is too hard to dig in.", UTMPFILE);
 	  else
-#endif
+# endif /* NETHACK */
           Msg(errno,"Could not write %s.", UTMPFILE);
         }
     }
-#ifdef apollo
+# ifdef apollo
   close(utmpf);
-#endif
+# endif /* apollo */
   loginslot = (slot_t) 0;
 }
 
@@ -1848,32 +1944,32 @@ RemoveLoginSlot(slot, up)
 slot_t slot;
 struct utmp *up;
 {
-#ifdef GETUTENT
+# ifdef GETUTENT
   struct utmp *uu;
-#endif
+# endif /* GETUTENT */
   struct utmp u;
-#ifdef apollo
+# ifdef apollo
   struct utmp *uq;
-#endif
+# endif /* apollo */
 
-#ifdef GETUTENT
+# ifdef GETUTENT
   debug2("RemoveLoginSlot(%s, %08x)\n", (slot == (slot_t) 0 ||
          slot == (slot_t) -1 ) ? "no slot" : slot, up);
-#else
+# else /* GETUTENT */
   debug2("RemoveLoginSlot(%d, %08x)\n", slot, up);
-#endif
-#ifdef apollo
+# endif /* GETUTENT */
+# ifdef apollo
   InitUtmp();
   bzero((char *)up, sizeof(struct utmp));
   uq = (struct utmp *)malloc(sizeof(struct utmp));
   bzero((char *)uq, sizeof(struct utmp));
-#endif /* apollo */
+# endif /* apollo */
   if (!utmp)
     return;
   if (slot != (slot_t) 0 && slot != (slot_t) -1)
     {
       bzero((char *) &u, sizeof u);
-#ifdef GETUTENT
+# ifdef GETUTENT
       setutent();
       strncpy(u.ut_line, slot, sizeof(u.ut_line));
       if ((uu = getutline(&u)) == 0)
@@ -1883,15 +1979,15 @@ struct utmp *up;
           return;
         }
       *up= *uu;
-# ifdef _SEQUENT_
+#  ifdef _SEQUENT_
       if (ut_delete_user(slot, uu->ut_pid, 0, 0) == 0)
-# else
+#  else /* _SEQUENT_ */
       uu->ut_type = DEAD_PROCESS;
       uu->ut_exit.e_termination = 0;
       uu->ut_exit.e_exit= 0;
       if (pututline(uu) == 0)
-# endif
-#else
+#  endif /* _SEQUENT_ */
+# else /* GETUTENT */
       (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);
       if (read(utmpf, (char *) up, sizeof u) != sizeof u)
 	{
@@ -1900,24 +1996,24 @@ struct utmp *up;
 	  sleep(1);
 	}
       (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);
-# ifdef apollo
+#  ifdef apollo
       bcopy((char *)up, (char *)uq, sizeof(struct utmp));
       bzero(uq->ut_name, sizeof(uq->ut_name));
       bzero(uq->ut_host, sizeof(uq->ut_host));
       if (write(utmpf, (char *)uq, sizeof(struct utmp)) != sizeof(struct utmp))
-# else
+#  else /* apollo */
       if (write(utmpf, (char *) &u, sizeof u) != sizeof u)
-# endif /* apollo */
-#endif
+#  endif /* apollo */
+# endif /* GETUTENT */
         {
-#ifdef NETHACK
+# ifdef NETHACK
           if (nethackflag)
 	    {
 	      DeadlyMsg = 0;
               Msg(errno, "%s is too hard to dig in.", UTMPFILE); 
 	    }
           else
-#endif
+# endif /* NETHACK */
 	    {
 	      DeadlyMsg = 0;
               Msg(errno, "Could not write %s.", UTMPFILE);
@@ -1928,30 +2024,10 @@ struct utmp *up;
     {
       debug1("There is no utmp-slot to be removed(%d)\n", slot);
     }
-#ifdef apollo
+# ifdef apollo
   close(utmpf);
   free(uq);
-#endif
-}
-
-char *
-stripdev(nam)
-char *nam;
-{
-#ifdef apollo
-  char *p;
-
-  if (nam == NULL)
-    return NULL;
-  if (p = strstr(nam,"/dev/"))
-    return p + 5;
-#else
-  if (nam == NULL)
-    return NULL;
-  if (strncmp(nam, "/dev/", 5) == 0)
-    return nam + 5;
-#endif
-  return nam;
+# endif /* apollo */
 }
 
 static slot_t TtyNameSlot(nam)
@@ -1959,24 +2035,24 @@ char *nam;
 {
   char *name;
   register slot_t slot;
-#ifndef GETUTENT
+# ifndef GETUTENT
   register struct ttyent *tp;
-#endif
-#ifdef apollo
+# endif /* GETUTENT */
+# ifdef apollo
   struct utmp *up;
-#endif
+# endif /* apollo */
 
   debug1("TtyNameSlot(%s)\n", nam);
-#ifdef apollo
+# ifdef apollo
   InitUtmp();
-#endif
+# endif /* apollo */
   if (!utmp || nam == NULL)
     return (slot_t)0;
   name = stripdev(nam);
-#ifdef GETUTENT
+# ifdef GETUTENT
   slot = name;
-#else
-# ifdef apollo
+# else /* GETUTENT */
+#  ifdef apollo
   slot = 0;
   up = (struct utmp *)malloc(sizeof(struct utmp));
   while (1)
@@ -1989,7 +2065,7 @@ char *nam;
     }
   close(utmpf);
   free(up);
-# else /* !apollo */
+#  else /* !apollo */
   slot = 1;
   setttyent();
   while ((tp = getttyent()) != NULL && strcmp(name, tp->ty_name) != 0)
@@ -1998,14 +2074,14 @@ char *nam;
       ++slot;
     }
   debug("\n");
-#  ifdef MIPS
+#   ifdef MIPS
   if (tp == NULL)
     {
       slot = CreateUtmp(name);
     }
-#  endif /* MIPS */
-# endif /* apollo */
-#endif /* GETUTENT */
+#   endif /* MIPS */
+#  endif /* apollo */
+# endif /* GETUTENT */
   return slot;
 }
 
@@ -2018,13 +2094,13 @@ int displaynumber;
   register slot_t slot;
   char *line;
   struct utmp u;
-#ifdef UTHOST
-# ifdef _SEQUENT_
+# ifdef UTHOST
+#  ifdef _SEQUENT_
   char host[100+5];
-# else
+#  else /* _SEQUENT_ */
   char host[sizeof(utmp_logintty.ut_host)+5];
-# endif
-#endif
+#  endif /* _SEQUENT_ */
+# endif /* UTHOST */
 
   wi->slot = (slot_t) 0;
   if (!utmp)
@@ -2035,17 +2111,17 @@ int displaynumber;
       return -1;
     }
   debug2("SetUtmp %d will get slot %d...\n", displaynumber, (int)slot);
-#ifdef apollo
+# ifdef apollo
   InitUtmp();
-#endif
+# endif /* apollo */
 
-#ifdef UTHOST
+# ifdef UTHOST
   host[sizeof(host)-5] = '\0';
-# ifdef _SEQUENT_
+#  ifdef _SEQUENT_
   strncpy(host, loginhost, sizeof(host) - 5);
-# else
+#  else /* _SEQUENT */
   strncpy(host, utmp_logintty.ut_host, sizeof(host) - 5);
-# endif
+#  endif /* _SEQUENT */
   if (loginslot != (slot_t)0 && loginslot != (slot_t)-1 && host[0] != '\0')
     {
       /*
@@ -2080,74 +2156,81 @@ int displaynumber;
   debug1("rlogin hostname: '%s'\n", host);
   sprintf(host + strlen(host), ":S.%c", '0' + displaynumber);
   debug1("rlogin hostname: '%s'\n", host);
-#endif /* UTHOST */
+# endif /* UTHOST */
 
   line = stripdev(wi->tty);
   bzero((char *) &u, sizeof u);
 
-#ifdef GETUTENT
-# ifdef _SEQUENT_
+# ifdef GETUTENT
+#  ifdef _SEQUENT_
   if (ut_add_user(LoginName, slot, wi->wpid, host)==0)
-# else
+#  else /* _SEQUENT_ */
   strncpy(u.ut_user, LoginName, sizeof(u.ut_user));
+#   ifdef sgi
+  strncpy(u.ut_id, line + 3, sizeof(u.ut_id));
+#   else /* sgi */
   strncpy(u.ut_id, line + strlen(line) - 2, sizeof(u.ut_id));
+#   endif /* sgi */
   strncpy(u.ut_line, line, sizeof(u.ut_line));
   u.ut_pid = wi->wpid;
   u.ut_type = USER_PROCESS;
-#  ifdef SVR4
+#   ifdef SVR4
     (void) time(&u.ut_tv.tv_sec);
     u.ut_tv.tv_usec=0;
-#  else
+#   else /* SVR4 */
     (void) time(&u.ut_time);
-#  endif /* SVR4 */
+#   endif /* SVR4 */
+#   ifdef UTHOST
+  strncpy(u.ut_host, host, sizeof(u.ut_host));
+#   endif /* UTHOST */
+  if (pututline(&u) == 0)
+#  endif /* _SEQUENT_ */
+# else	/* GETUTENT */
+  strncpy(u.ut_line, line, sizeof(u.ut_line));
+  strncpy(u.ut_name, LoginName, sizeof(u.ut_name));
 #  ifdef UTHOST
   strncpy(u.ut_host, host, sizeof(u.ut_host));
 #  endif /* UTHOST */
-  if (pututline(&u) == 0)
-# endif /* _SEQUENT_ */
-#else	/* GETUTENT */
-  strncpy(u.ut_line, line, sizeof(u.ut_line));
-  strncpy(u.ut_name, LoginName, sizeof(u.ut_name));
-# ifdef UTHOST
-  strncpy(u.ut_host, host, sizeof(u.ut_host));
-# endif	/* UTHOST */
-# ifdef MIPS
+#  ifdef MIPS
   u.ut_type = 7; /* USER_PROCESS */
   strncpy(u.ut_id, line + 3, 4);
-# endif /* MIPS */
+#  endif /* MIPS */
   (void) time(&u.ut_time);
-# ifdef sequent
-/* call sequent undocumented routine to count logins and add utmp entry if possible */
+#  ifdef sequent
+  /*
+   * call sequent undocumented routine to count logins and 
+   * add utmp entry if possible 
+   */
   if (add_utmp(slot, &u) == -1)
-# else
+#  else /* sequent */
   (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);
   if (write(utmpf, (char *) &u, sizeof u) != sizeof u)
-# endif /* sequent */
-#endif	/* GETUTENT */
+#  endif /* sequent */
+# endif	/* GETUTENT */
 
     {
-#ifdef NETHACK
+# ifdef NETHACK
       if (nethackflag)
         Msg(errno, "%s is too hard to dig in.", UTMPFILE);
       else
-#endif
+# endif /* NETHACK */
       Msg(errno,"Could not write %s.", UTMPFILE);
-#ifdef apollo
+# ifdef apollo
       close(utmpf);
-#endif
+# endif /* apollo */
       return -1;
     }
   debug("SetUtmp successful\n");
   wi->slot = slot;
-#ifdef apollo
+# ifdef apollo
   close(utmpf);
-#endif
+# endif /* apollo */
   return 0;
 }
 
-#ifdef MIPS
+# ifdef MIPS
 
-#define GETTTYENT
+# define GETTTYENT
 static int ttyfd = 0;
 
 static void setttyent()
@@ -2195,7 +2278,7 @@ char *name;
     }
   return slot;
 }
-#endif /* MIPS */
+# endif /* MIPS */
 
 /*
  * if slot could be removed or was 0,  wi->slot = -1;
@@ -2205,27 +2288,27 @@ int
 RemoveUtmp(wi)
 struct win *wi;
 {
-#ifdef GETUTENT
+# ifdef GETUTENT
   struct utmp *uu;
-#endif
-#ifdef apollo
+# endif /* GETUTENT */
+# ifdef apollo
   struct utmp *up;
-#endif
+# endif /* apollo */
   struct utmp u;
   slot_t slot;
 
   slot = wi->slot;
-#ifdef GETUTENT
+# ifdef GETUTENT
   debug1("RemoveUtmp(%s)\n", (slot == (slot_t) 0) ?
          "no slot (0)":((slot == (slot_t) -1) ? "no slot (-1)" : slot));
-#else
+# else /* GETUTENT */
   debug1("RemoveUtmp(wi.slot: %d)\n", slot);
-#endif
-#ifdef apollo
+# endif /* GETUTENT */
+# ifdef apollo
   InitUtmp();
   up = (struct utmp *)malloc(sizeof(struct utmp));
   bzero((char *)up, sizeof(struct utmp));
-#endif /* apollo */
+# endif /* apollo */
   if (!utmp)
     return -1;
   if (slot == (slot_t) 0 || slot == (slot_t) -1)
@@ -2235,7 +2318,7 @@ struct win *wi;
       return 0;
     }
   bzero((char *) &u, sizeof u);
-#ifdef GETUTENT
+# ifdef GETUTENT
   setutent();
   strncpy(u.ut_line, slot, sizeof(u.ut_line));
   if ((uu = getutline(&u)) == 0)
@@ -2243,17 +2326,17 @@ struct win *wi;
       Msg(0, "Utmp slot not found -> not removed");
       return -1;
     }
-# ifdef _SEQUENT_
+#  ifdef _SEQUENT_
   if (ut_delete_user(slot, uu->ut_pid, 0, 0) == 0)
-# else
+#  else /* _SEQUENT_ */
   uu->ut_type = DEAD_PROCESS;
   uu->ut_exit.e_termination = 0;
   uu->ut_exit.e_exit= 0;
   if (pututline(uu) == 0)
-# endif
-#else	/* GETUTENT */
+#  endif /* _SEQUENT_ */
+# else /* GETUTENT */
   (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);
-# ifdef apollo
+#  ifdef apollo
   if (read(utmpf, (char *) up, sizeof u) != sizeof u)
     {
       DeadlyMsg = 0;
@@ -2264,33 +2347,33 @@ struct win *wi;
   bzero(up->ut_name, sizeof(u.ut_name));
   bzero(up->ut_host, sizeof(u.ut_host));
   if (write(utmpf, (char *)up, sizeof u) != sizeof u)
-# else
+#  else /* apollo */
   if (write(utmpf, (char *) &u, sizeof u) != sizeof u)
-# endif /* apollo */
-#endif
+#  endif /* apollo */
+# endif /* GETUTENT */
     {
-#ifdef NETHACK
+# ifdef NETHACK
       if (nethackflag)
         Msg(errno, "%s is too hard to dig in.", UTMPFILE);
       else
-#endif
+# endif /* NETHACK */
       Msg(errno,"Could not write %s.", UTMPFILE);
-#ifdef apollo
+# ifdef apollo
       close(utmpf);
       free(up);
-#endif
+# endif /* apollo */
       return -1;
     }
   debug("RemoveUtmp successfull\n");
   wi->slot = (slot_t) -1;
-#ifdef apollo
+# ifdef apollo
   close(utmpf);
   free(up);
-#endif
+# endif /* apollo */
   return 0;
 }
 
-#endif	/* UTMPOK */
+#endif /* UTMPOK */
 
 #if !defined(GETTTYENT) && !defined(GETUTENT)
 

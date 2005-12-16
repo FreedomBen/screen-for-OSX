@@ -163,7 +163,7 @@ extern int errno;
 # endif
 #endif /* SIG_T_DEFINED */
 
-#if defined(SVR4) || (defined(SYSV) && defined(ISC))
+#if defined(SVR4) || (defined(SYSV) && defined(ISC)) || defined(_AIX)
 # define SIGPROTOARG   (int)
 # define SIGDEFARG     int sigsig
 # define SIGARG        0
@@ -266,6 +266,7 @@ enum string_t
  */
 #define MAXHISTHEIGHT 3000
 #define DEFAULTHISTHEIGHT 100
+#define DEFAULT_BUFFERFILE "/tmp/screen-exchange"
 
 struct win 
 {
@@ -404,25 +405,24 @@ struct msg
 #define SIG_PW_OK	SIGUSR1
 #define SIG_PW_FAIL	SIG_BYE
 
-
 struct mode
 {
 #ifdef POSIX
   struct termios tio;
 # ifdef hpux
   struct ltchars m_ltchars;
-# endif
-#else
+# endif /* hpux */
+#else /* POSIX */
 # ifdef TERMIO
   struct termio tio;
-# else
+# else /* TERMIO */
   struct sgttyb m_ttyb;
   struct tchars m_tchars;
   struct ltchars m_ltchars;
   int m_ldisc;
   int m_lmode;
-# endif				/* TERMIO */
-#endif				/* POSIX */
+# endif	/* TERMIO */
+#endif /* POSIX */
 };
 
 #define BELL		7
@@ -451,7 +451,7 @@ struct mode
 #endif
 
 /* the key definitions are used in screen.c and help.c */
-/* keep this list synchronus with the names given in fileio.c */
+/* keep this list synchronous with the names given in fileio.c */
 enum keytype
 {
   KEY_IGNORE, /* Keep these first 2 at the start */
@@ -506,7 +506,7 @@ enum keytype
   KEY_EXTEND,
   KEY_X_WINDOWS,
   KEY_BONUSWINDOW,
-  KEY_CREATE,
+  KEY_CREATE
 };
 
 struct key 
@@ -581,3 +581,16 @@ struct key
 #if !defined(SYSV) || defined(sun) || defined(RENO) || defined(xelos)
 # define BSDWAIT
 #endif
+
+#if defined(sgi) && !defined(IRIX_4_0)
+# undef TIOCPKT
+#endif
+
+#if ( defined(TERMIO) || defined(POSIX) ) && !defined(VDISABLE)
+# ifdef _POSIX_VDISABLE
+#  define VDISABLE _POSIX_VDISABLE
+# else
+#  define VDISABLE 0377
+# endif /* _POSIX_VDISABLE */
+#endif /* (TERMIO || POSIX) && !VDISABLE */
+
