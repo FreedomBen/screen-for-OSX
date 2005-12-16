@@ -55,6 +55,7 @@ struct comm comms[RC_LAST + 1] =
   { "addacl",		ARGS_1234 },
 #endif
   { "allpartial",	NEED_DISPLAY|ARGS_1 },
+  { "altscreen",	ARGS_01 },
   { "at",		NEED_DISPLAY|ARGS_2|ARGS_ORMORE },
 #ifdef COLOR
   { "attrcolor",	ARGS_12 },
@@ -63,6 +64,7 @@ struct comm comms[RC_LAST + 1] =
 #ifdef AUTO_NUKE
   { "autonuke",		NEED_DISPLAY|ARGS_1 },
 #endif
+  { "backtick",		ARGS_1|ARGS_ORMORE },
 #ifdef COLOR
   { "bce",		NEED_FORE|ARGS_01 },
 #endif
@@ -213,6 +215,7 @@ struct comm comms[RC_LAST + 1] =
 #ifdef COPY_PASTE
   { "markkeys",		ARGS_1 },
 #endif
+  { "maxwin",		ARGS_1 },
   { "meta",		NEED_LAYER|ARGS_0 },
   { "monitor",		NEED_FORE|ARGS_01 },
   { "msgminwait",	ARGS_1 },

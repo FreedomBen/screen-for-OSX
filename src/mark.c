@@ -144,11 +144,13 @@ int y;
  *  NW_BACK:		search backward
  *  NW_ENDOFWORD:	find the end of the word
  *  NW_MUSTMOVE:	move at least one char
+ *  NW_BIG:             match WORDs not words
  */
 
 #define NW_BACK		(1<<0)
 #define NW_ENDOFWORD	(1<<1)
 #define NW_MUSTMOVE	(1<<2)
+#define NW_BIG		(1<<3)
 
 static void
 nextword(xp, yp, flags, num)
@@ -168,6 +170,8 @@ int *xp, *yp, flags, num;
     {
       if (x >= xx || x < 0)
 	q = 0;
+      else if (flags & NW_BIG)
+        q = ml->image[x] == ' ';
       else
         q = is_letter(ml->image[x]);
       if (oq >= 0 && oq != q)
@@ -282,7 +286,7 @@ char *pt;
 	      c |= cf << 8;
 	      if (c == UCS_HIDDEN)
 		continue;
-	      c = ToUtf8(pt, c);
+	      c = ToUtf8_comb(pt, c);
 	      l += c;
 	      if (pt)
 	        pt += c;
@@ -293,6 +297,7 @@ char *pt;
 	  if (is_dw_font(cf))
 	    {
 	      c = c << 8 | (unsigned char)*im++;
+	      fo++;
 	      j++;
 	    }
 # endif
@@ -702,15 +707,17 @@ int *inlenp;
 	  revto(cx, cy);
 	  break;
 	case 'e':
+	case 'E':
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  nextword(&cx, &cy, NW_ENDOFWORD|NW_MUSTMOVE, rep_cnt);
+	  nextword(&cx, &cy, NW_ENDOFWORD|NW_MUSTMOVE | (od == 'E' ? NW_BIG : 0), rep_cnt);
 	  revto(cx, cy);
 	  break;
 	case 'b':
+	case 'B':
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
-	  nextword(&cx, &cy, NW_BACK|NW_ENDOFWORD|NW_MUSTMOVE, rep_cnt);
+	  nextword(&cx, &cy, NW_BACK|NW_ENDOFWORD|NW_MUSTMOVE | (od == 'B' ? NW_BIG : 0), rep_cnt);
 	  revto(cx, cy);
 	  break;
 	case 'a':
@@ -1156,6 +1163,10 @@ int isblank;
 
   if (markdata->second == 0)
     {
+      if (dw_right(ml, xs, fore->w_encoding) && xs > 0)
+	xs--;
+      if (dw_left(ml, xe, fore->w_encoding) && xe < fore->w_width - 1)
+	xe++;
       if (xs == 0 && y > 0 && wy > 0 && WIN(wy - 1)->image[flayer->l_width] == 0)
         LCDisplayLineWrap(flayer, ml, y, xs, xe, isblank);
       else

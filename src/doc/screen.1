@@ -1,5 +1,5 @@
 .\" vi:set wm=5
-.TH SCREEN 1 "Jan 2002"
+.TH SCREEN 1 "Mar 2003"
 .if n .ds Q \&"
 .if n .ds U \&"
 .if t .ds Q ``
@@ -130,7 +130,7 @@ deals with the contents of your .screenrc.
 .PP
 If your terminal is a \*Qtrue\*U auto-margin terminal (it doesn't allow
 the last position on the screen to be updated without scrolling the
-screen) consider to use a version of your terminal's termcap that has
+screen) consider using a version of your terminal's termcap that has
 automatic margins turned \fIoff\fP. This will ensure an accurate and
 optimal update of the screen in all circumstances. Most terminals
 nowadays have \*Qmagic\*U margins (automatic margins plus usable last
@@ -253,9 +253,7 @@ Ask your system administrator if you are not sure. Remove sessions with the
 .B \-L
 tells
 .I screen
-your auto-margin terminal has a writable last-position on
-the screen.  This can also be set in your .screenrc by specifying `LP' in a
-\*Qtermcap\*U command.
+to turn on automatic output logging for the windows.
 .TP 5
 .B \-m
 causes
@@ -283,6 +281,13 @@ selects a more optimal output mode for your terminal rather than true VT100
 emulation (only affects auto-margin terminals without `LP').
 This can also be set in your .screenrc by specifying `OP' in a \*Qtermcap\*U
 command.
+.TP 5
+.BI "\-p " number_or_name
+Preselect a window. This is usefull when you want to reattach to a
+specific windor or you want to send a command via the \*Q-X\*U
+option to a specific window. As with screen's select commant, \*Q-\*U
+selects the blank window. As a special case for reattach, \*Q=\*U
+brings up the windowlist on the blank window.
 .TP 5
 .B \-q
 Suppress printing of error messages. In combination with \*Q-ls\*U the exit 
@@ -748,6 +753,12 @@ on all windows overriding the \*Qpartial\*U settings. It does not change the
 default redraw behavior of newly created windows.
 .sp
 .ne 3
+.BR "altscreen on" | off
+.PP
+If set to on, "alternate screen" support is enabled in virtual terminals,
+just like in xterm.  Initial setting is `off'.
+.sp
+.ne 3
 .BR "at " "[\fIidentifier\fP][" "#\fP|\fP*\fP|\fP%\fP] "
 .IR "command " [ args " ... ]"
 .PP
@@ -777,7 +788,7 @@ once per window. Commands that change the internal arrangement of windows
 (like \*Qother\*U) may be called again. In shared windows the command will
 be repeated for each attached display. Beware, when issuing toggle commands
 like \*Qlogin\*U!
-Some commands (e.g. \*Qstuff\*U, \*Qprocess\*U or \*Qpaste\*U) require that 
+Some commands (e.g. \*Qprocess\*U) require that 
 a display is associated with the target windows.  These commands may not work
 correctly under \*Qat\*U looping over windows.
 .sp
@@ -804,7 +815,7 @@ attrcolor u "-u b"
 .PP
 Use blue text instead of underline.
 .IP
-attrcolor b "I"
+attrcolor b ".I"
 .PP
 Use bright colors for bold text. Most terminal emulators do this
 already.
@@ -832,6 +843,35 @@ and all the processes it contains. Autodetach is on by default.
 Sets whether a clear screen sequence should nuke all the output
 that has not been written to the terminal. See also
 \*Qobuflimit\*U.
+.sp
+.ne 3
+.BI "backtick " id
+.I lifespan
+.I autorefresh
+.I cmd
+.I args...
+.br
+.BI "backtick " id
+.PP
+Program the backtick command with the numerical id \fIid\fP.
+The output of such a command is used for substitution of the
+\*Q%`\*U string escape. The specified \fIlifespan\fP is the number
+of seconds the output is considered valid. After this time, the
+command is run again if a corresponding string escape is encountered.
+The \fIautorefresh\fP parameter triggers an
+automatic refresh for caption and hardstatus strings after the
+specified number of seconds. Only the last line of output is used
+for substitution.
+.br
+If both the \fIlifespan\fP and the \fIautorefresh\fP parameters
+are zero, the backtick program is expected to stay in the
+background and generate output once in a while.
+In this case, the command is executed right away and screen stores
+the last line of output. If a new line gets printed screen will
+automatically refresh the hardstatus or the captions.
+.br
+The second form of the command deletes the backtick command
+with the numerical id \fIid\fP.
 .sp
 .ne 3
 .BR "bce " [ on | off ]
@@ -1154,7 +1194,7 @@ class.  See also \*Qbind\*U and \*Qbindkey\*U.
 .ne 3
 .BR "compacthist " [ on | off ]
 .PP
-This tells screen weather to suppress trailing blank lines when
+This tells screen whether to suppress trailing blank lines when
 scrolling up text into the history buffer.
 .sp 
 .ne 3
@@ -1198,6 +1238,9 @@ of the top, center or bottom line of the window.
 .br
 .ti -2n
 \fBw\fP, \fBb\fP, \fBe\fP move the cursor word by word.
+.br 
+.ti -2n
+\fBB\fP, \fBE\fP move the cursor WORD by WORD (as in vi).
 .br 
 .ti -2n
 \fBC-u\fP and \fBC-d\fP scroll the display up/down by the specified amount of 
@@ -1624,7 +1667,7 @@ The default is \*Q^Aa\*U.
 .RI [ command2
 .IR ... ]
 .PP
-Parses and executes each argument as seperate command.
+Parses and executes each argument as separate command.
 .sp
 .ne 3
 .B exec
@@ -1820,7 +1863,7 @@ message mechanism and
 \*Qignore\*U tells 
 .I screen 
 never to display the hardstatus.
-If you prepend the word \*Qalways\*U to the type, 
+If you prepend the word \*Qalways\*U to the type (e.g., \*Qalwayslastline\*U), 
 .I screen 
 will use the type even if the terminal supports a hardstatus.
 .P
@@ -1891,7 +1934,7 @@ Change the window's hardstatus line to the string \fIstatus\fP.
 .ne 3
 .BR "ignorecase " [ on | off ]
 .PP
-Tell screen to ignore the case of caracters in searches. Default is
+Tell screen to ignore the case of characters in searches. Default is
 `off'.
 .sp
 .ne 3
@@ -1916,7 +1959,6 @@ The current line wrap setting (`+wrap' indicates enabled, `\-wrap' not) is
 also shown. The flags `ins', `org', `app', `log', `mon' or `nored' are 
 displayed when the window is in insert mode, origin mode, 
 application-keypad mode, has output logging,
-insert mode, origin mode, application-keypad mode, output logging, 
 activity monitoring or partial redraw enabled.
 
 The currently active character set (\fIG0\fP, \fIG1\fP, \fIG2\fP,
@@ -1950,7 +1992,7 @@ needed as screen uses the locale setting to detect the encoding.
 There is also a way to select a terminal encoding depending on
 the terminal type by using the \*QKJ\*U termcap entry.
 
-Supported encodings are eucJP, SJIS, eucKR, eucCN, Big5, KOI8-R,
+Supported encodings are eucJP, SJIS, eucKR, eucCN, Big5, GBK, KOI8-R,
 CP1251, UTF-8, ISO8859-2, ISO8859-3, ISO8859-4, ISO8859-5, ISO8859-6,
 ISO8859-7, ISO8859-8, ISO8859-9, ISO8859-10, ISO8859-15, jis.
 
@@ -2118,6 +2160,12 @@ The no-op character is `@' and is used like this: \*Qmarkkeys
 @=L=H\*U if you do not want to use the `H' or `L' commands any longer.
 As shown in this example, multiple keys can be assigned to one function in a 
 single statement.
+.sp
+.ne 3
+.BI "maxwin " num
+.PP
+Set the maximum window number screen will create. Doesn't affect
+already existing windows. The number may only be decreased.
 .sp
 .ne 3
 .B meta
@@ -2583,7 +2631,7 @@ text.
 .PP
 Read and execute commands from file \fIfile\fP. Source commands may
 be nested to a maximum recursion level of ten. If file is not an
-absolute path and screen already processes a source command, the
+absolute path and screen is already processing a source command, the
 parent directory of the running source command file is used to search
 for the new command file before screen's current directory.
 
@@ -2606,7 +2654,8 @@ The default is currently \*Q=s dd\*U (standout, default colors).
 .PP
 Split the current region into two new ones. All regions on the
 display are resized to make room for the new region. The blank
-window is displayed on the new region.
+window is displayed on the new region. Use the \*Qremove\*U or the
+\*Qonly\*U command to delete regions.
 .sp
 .ne 3
 .B "startup_message on\fP|\fBoff"
@@ -2783,9 +2832,9 @@ described in the \*QSTRING ESCAPES\*U chapter. Screen uses a default of
 "%c:%s %M %d %H%? %l%?".
 .sp
 .ne 3
-.BR "title " [ \fIwindowalias ]
+.BR "title " [ \fIwindowtitle ]
 .PP
-Set the name of the current window to \fIwindowalias\fP. If no name is 
+Set the name of the current window to \fIwindowtitle\fP. If no name is 
 specified,
 .I screen
 prompts for one. This command was known as `aka' in previous
@@ -3175,8 +3224,8 @@ last two digits of the year number
 .IP Y
 full year number
 .IP ?
-the part to the next '%?' is displayed only if an escape expands to an
-nonempty string
+the part to the next '%?' is displayed only if a '%' escape
+inside the part expands to a non-empty string
 .IP :
 else part of '%?'
 .IP =
@@ -3200,6 +3249,9 @@ operator.) The 'L' qualifier tells screen to mark the truncated
 parts with '...'.
 .IP {
 attribute/color modifier string terminated by the next \*Q}\*U
+.IP `
+Substitute with the output of a 'backtick' command. The length
+qualifier is misused to identify one of the commands.
 .P
 The 'c' and 'C' escape may be qualified with a '0' to make 
 .I screen 
@@ -3226,9 +3278,11 @@ change the current attributes to the specified set
 .PP
 The attribute set can either be specified as a hexadecimal number or
 a combination of the following letters:
+.IP d
+dim
+.PD 0
 .IP u
 underline
-.PD 0
 .IP b
 bold
 .IP r
@@ -3632,6 +3686,9 @@ scrolling regions. Note that this may provoke confusion, when
 the session is reattached on a different terminal, as the value
 of $TERMCAP cannot be modified by parent processes.
 .PP
+The "alternate screen" capability is not enabled by default.
+Set the \fBaltscreen\fP .screenrc command to enable it.
+.PP
 The following is a list of control sequences recognized by
 .IR screen .
 \*Q(V)\*U and \*Q(A)\*U indicate VT100-specific and ANSI- or
@@ -3959,8 +4016,17 @@ X10 mouse tracking
 \h'\w'ESC [ Ps = 'u'\fB?25\fP	(V)
 Visible Cursor
 .TP 27
+\h'\w'ESC [ Ps = 'u'\fB?47\fP
+Alternate Screen (old xterm code)
+.TP 27
 \h'\w'ESC [ Ps = 'u'\fB?1000\fP	(V)
 VT200 mouse tracking
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB?1047\fP
+Alternate Screen (new xterm code)
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB?1049\fP
+Alternate Screen (new xterm code)
 .TP 27
 .BR "ESC [ 5 i" "	(A)"
 Start relay to printer (ANSI Media Copy)
@@ -4313,7 +4379,7 @@ produced by Wayne Davison, Juergen Weigert and Michael Schroeder.
 
 .SH COPYLEFT
 .nf
-Copyright (C) 1993-2002
+Copyright (C) 1993-2003
 	Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
 	Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
 Copyright (C) 1987 Oliver Laumann
@@ -4357,8 +4423,8 @@ Frank van der Linden (vdlinden@fwi.uva.nl),
 Martin Schweikert (schweik@cpp.ob.open.de),
 David Vrona (dave@sashimi.lcu.com),
 E. Tye McQueen (tye%spillman.UUCP@uunet.uu.net),
-Matthew Green (mrg@mame.mu.oz.au),
-Christopher Williams (cgw@unt.edu),
+Matthew Green (mrg@eterna.com.au),
+Christopher Williams (cgw@pobox.com),
 Matt Mosley (mattm@access.digex.net),
 Gregory Neil Shapiro (gshapiro@wpi.WPI.EDU),
 Johannes Zellner (johannes@zellner.org),
@@ -4367,7 +4433,7 @@ Pablo Averbuj (pablo@averbuj.com).
 
 
 .SH VERSION
-This is version 3.9.9. Its roots are a merge of a custom version
+This is version 3.9.15. Its roots are a merge of a custom version
 2.3PR7 by Wayne Davison
 and several enhancements to Oliver Laumann's version 2.0. Note that all versions
 numbered 2.x are copyright by Oliver Laumann. 

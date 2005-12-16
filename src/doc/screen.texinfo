@@ -7,7 +7,7 @@
 @finalout
 @setchapternewpage odd
 @c %**end of header
-@set version 3.9.11
+@set version 3.9.15
 
 @direntry
 * Screen: (screen).             Full-screen window manager.
@@ -24,7 +24,7 @@
 @ifinfo
 This file documents the @code{Screen} virtual terminal manager.
 
-Copyright (c) 1993-2002 Free Software Foundation, Inc.
+Copyright (c) 1993-2003 Free Software Foundation, Inc.
 
 Permission is granted to make and distribute verbatim copies of
 this manual provided the copyright notice and this permission notice
@@ -52,11 +52,11 @@ by the Foundation.
 @title Screen
 @subtitle The virtual terminal manager
 @subtitle for Version @value{version}
-@subtitle Jan 2002
+@subtitle Mar 2003
 
 @page
 @vskip 0pt plus 1filll
-Copyright @copyright{} 1993-2002 Free Software Foundation, Inc.
+Copyright @copyright{} 1993-2003 Free Software Foundation, Inc.
 
 Permission is granted to make and distribute verbatim copies of
 this manual provided the copyright notice and this permission notice
@@ -203,7 +203,7 @@ Another section (@pxref{Customization}) deals with the contents of your
 
 If your terminal is a ``true'' auto-margin terminal (it doesn't allow
 the last position on the screen to be updated without scrolling the
-screen) consider to use a version of your terminal's termcap that has
+screen) consider using a version of your terminal's termcap that has
 automatic margins turned @emph{off}.  This will ensure an accurate
 and optimal update of the screen in all circumstances.  Most terminals
 nowadays have ``magic'' margins (automatic margins plus usable last
@@ -279,7 +279,7 @@ Set the command character to @var{x}, and the character generating a
 literal command character (when typed after the command character) to
 @var{y}.  The defaults are @kbd{C-a} and @kbd{a}, which can be specified
 as @samp{-e^Aa}.  When creating a @code{screen} session, this option
-sets the default command caracter. In a multiuser session all users
+sets the default command character. In a multiuser session all users
 added will start off with this command character. But when attaching
 to an already running session, this option only changes the command
 character of the attaching user.
@@ -325,10 +325,8 @@ Ask your system administrator if you are not sure.
 Remove sessions with the @samp{-wipe} option.
 
 @item -L
-Tell @code{screen} that your auto-margin terminal allows programs to
-write to the last column of the last row of the screen without
-scrolling.  This can also be set in your @file{.screenrc} by specifying
-@samp{xn} in a @code{termcap} command (@pxref{Termcap}).
+Tell @code{screen} to turn on automatic output logging for the
+windows.
 
 @item -m
 Tell @code{screen} to ignore the @code{$STY} environment variable.  When
@@ -345,6 +343,13 @@ scripts.
 This also starts @code{screen} in @emph{detached} mode, but doesn't fork
 a new process. The command exits if the session terminates.
 @end table
+
+@item -p @var{name_or_number}
+Preselect a window. This is usefull when you want to reattach to a
+specific windor or you want to send a command via the @samp{-X}
+option to a specific window. As with screen's select commant, @samp{-}
+selects the blank window. As a special case for reattach, @samp{=}
+brings up the windowlist on the blank window.
 
 @item -q
 Suppress printing of error messages. In combination with @samp{-ls} the exit 
@@ -473,7 +478,7 @@ contain a number of useful examples for various commands.
 (none)@*
 Read and execute commands from file @var{file}. Source  commands
 may be nested to a maximum recursion level of ten. If @var{file}
-is not an absolute path and  screen  already  processes  a
+is not an absolute path and  screen  is already processing  a
 source command, the parent directory of the running source
 command file is used to search for the new command file  before
 screen's current directory.
@@ -821,6 +826,8 @@ Set the activity notification message.  @xref{Monitor}.
 Synonym to @code{acladd}.  @xref{Multiuser Session}.
 @item allpartial @var{state}
 Set all windows to partial refresh.  @xref{Redisplay}.
+@item altscreen @var{state}
+Enables support for the "alternate screen" terminal capability.  @xref{Redisplay}.
 @item at [@var{ident}][@kbd{#}@var{|}@kbd{*}@var{|}@kbd{%}] @var{command} [@var{args}]
 Execute a command at other displays or windows.  @xref{At}.
 @item attrcolor @var{attrib} [@var{attribute/color-modifier}]
@@ -829,6 +836,8 @@ Map attributes to colors.  @xref{Attrcolor}.
 Automatically detach the session on SIGHUP.  @xref{Detach}.
 @item autonuke @var{state}
 Enable a clear screen to discard unwritten output.  @xref{Autonuke}.
+@item backtick @var{id} @var{lifespan} @var{autorefresh} @var{command} [@var{args}]
+Define a command for the backtick string escape.  @xref{Backtick}.
 @item bce [@var{state}]
 Change background color erase.  @xref{Character Processing}.
 @item bell_msg [@var{message}]
@@ -991,6 +1000,8 @@ Don't try to do keymapping on the next keystroke.  @xref{Bindkey Control}.
 Set the inter-character timeout used for keymapping. @xref{Bindkey Control}.
 @item markkeys @var{string}
 Rebind keys in copy mode.  @xref{Copy Mode Keys}.
+@item maxwin @var{n}
+Set the maximum window number. @xref{Maxwin}.
 @item meta
 Insert the command character.  @xref{Command Character}.
 @item monitor [@var{state}]
@@ -1603,7 +1614,7 @@ Prefixing @samp{+} grants the permission, @samp{-} removes it. The third
 parameter is a comma separated list of commands or windows (specified either 
 by number or title). The special list @samp{#} refers to all windows, @samp{?} 
 to all commands. If @var{usernames} consists of a single @samp{*}, all 
-known users is affected. 
+known users are affected. 
 A command can be executed when the user has the @samp{x} bit for it. The user
 can type input to a window when he has its @samp{w} bit set and no other
 user obtains a writelock for this window. Other bits are currently ignored.
@@ -1911,7 +1922,7 @@ name when typed.  You can also bind predefined names to keys with the
 @kindex A
 @deffn Command title [windowtitle]
 (@kbd{C-a A})@*
-Set the name of the current window to @var{windowalias}. If no name is 
+Set the name of the current window to @var{windowtitle}. If no name is 
 specified, screen prompts for one.
 @end deffn
 
@@ -2334,7 +2345,10 @@ ESC [ Ps ;...; Ps l             Reset Mode
            ?7           (V)     @samp{Wrap} Mode
            ?9                   X10 mouse tracking
            ?25          (V)     Visible Cursor
+           ?47                  Alternate Screen (old xterm code)
            ?1000        (V)     VT200 mouse tracking
+           ?1047                Alternate Screen (new xterm code)
+           ?1049                Alternate Screen (new xterm code)
 ESC [ 5 i               (A)     Start relay to printer (ANSI Media Copy)
 ESC [ 4 i               (A)     Stop relay to printer (ANSI Media Copy)
 ESC [ 8 ; Ph ; Pw t             Resize the window to @samp{Ph} lines and
@@ -2539,7 +2553,6 @@ The current line wrap setting (@samp{+wrap} indicates enabled, @samp{-wrap}
 not) is also shown. The flags @samp{ins}, @samp{org}, @samp{app}, @samp{log},
 @samp{mon} and @samp{nored} are displayed when the window is in insert mode,
 origin mode, application-keypad mode, has output logging,
-insert mode, origin mode, application-keypad mode, output logging,
 activity monitoring or partial redraw enabled.
 
 The currently active 
@@ -2573,6 +2586,12 @@ previous setting of full/partial refresh for each window is restored
 with @code{allpartial off}. This is a global flag that immediately takes effect
 on all windows overriding the @code{partial} settings. It does not change the 
 default redraw behavior of newly created windows. 
+@end deffn
+
+@deffn Command altscreen state
+(none)@*
+If set to on, "alternate screen" support is enabled in virtual terminals,
+just like in xterm.  Initial setting is @samp{off}.
 @end deffn
 
 @deffn Command partial state
@@ -2688,7 +2707,7 @@ the terminal type by using the @samp{KJ} termcap entry. @xref{Special Capabiliti
 
 Supported encodings are
 @code{eucJP}, @code{SJIS}, @code{eucKR},
-@code{eucCN}, @code{Big5}, @code{KOI8-R}, @code{CP1251},
+@code{eucCN}, @code{Big5}, @code{GBK}, @code{KOI8-R}, @code{CP1251},
 @code{UTF-8}, @code{ISO8859-2}, @code{ISO8859-3},
 @code{ISO8859-4}, @code{ISO8859-5}, @code{ISO8859-6},
 @code{ISO8859-7}, @code{ISO8859-8}, @code{ISO8859-9},
@@ -2834,7 +2853,7 @@ to view the current setting.
 
 @deffn Command compacthist [state]
 (none)@*
-This tells screen weather to suppress trailing blank lines when
+This tells screen whether to suppress trailing blank lines when
 scrolling up text into the history buffer. Turn compacting @samp{on}
 to hold more useful lines in your scrollback buffer.
 @end deffn
@@ -2884,6 +2903,9 @@ or previous line.
 @noindent
 @kbd{w}, @kbd{b}, @kbd{e} move the cursor word by word.
  
+@noindent
+@kbd{B}, @kbd{E} move the cursor WORD by WORD (as in vi).
+
 @noindent
 @kbd{C-u} and @kbd{C-d} scroll the display up/down by the specified
 amount of lines while preserving the cursor position. (Default: half
@@ -2940,7 +2962,7 @@ digits @kbd{0@dots{}9}) which is taken as a repeat count. Example:
 
 @deffn Command ignorecase [state]
 (none)@*
-Tell screen to ignore the case of caracters in searches. Default is
+Tell screen to ignore the case of characters in searches. Default is
 @code{off}.
 @end deffn
 
@@ -3032,9 +3054,17 @@ display (terminal attached), as the registers are a global resource. The
 paste buffer exists once for every user.
 @end deffn
 
+@deffn Command stuff string
+(none)@*
+Stuff the string @var{string} in the input buffer of the current window.
+This is like the @code{paste} command, but with much less overhead.
+You cannot paste large buffers with the @code{stuff} command. It is most
+useful for key bindings. @xref{Bindkey}.
+@end deffn
+
 @deffn Command pastefont [state]
 Tell screen to include font information in the paste buffer. The
-default is not to do so. This command is especially usefull for
+default is not to do so. This command is especially useful for
 multi character fonts like kanji.
 @end deffn
 
@@ -3093,15 +3123,6 @@ keyboard. This command can be used to bind multiple actions to a single key.
 (none)@*
 Save the specified @var{string} to the register @var{key}.
 The encoding of the string can be specified via the @code{-e} option.
-@end deffn
-
-@deffn Command stuff string
-(none)@*
-Stuff the string @var{string} in the input buffer of the current window.
-This is like the @code{paste} command, but with much less overhead.
-You cannot paste large buffers with the @code{stuff} command. It is most
-useful for key bindings. @xref{Bindkey}.
-
 @end deffn
 
 @node Screen Exchange, History, Registers, Copy and Paste
@@ -3718,6 +3739,9 @@ cannot be modified by parent processes.  You can force @code{screen} to
 include all capabilities in @code{$TERMCAP} with the @samp{-a}
 command-line option (@pxref{Invoking Screen}).
 
+The "alternate screen" capability is not enabled by default.
+Set the @code{altscreen} @file{.screenrc} command to enable it.
+
 @node Dump Termcap, Termcap Syntax, Window Termcap, Termcap
 @section Write out the window's termcap entry
 @kindex .
@@ -4098,7 +4122,7 @@ have a hardstatus line (i.e. the termcap/terminfo capabilities
 display for the hardstatus. @code{message} uses
 @code{screen}'s message mechanism and
 @code{ignore} tells @code{screen} never to display the hardstatus.
-If you prepend the word @code{always} to the type, @code{screen} will use
+If you prepend the word @code{always} to the type (e.g., @code{alwayslastline}), @code{screen} will use
 the type even if the terminal supports a hardstatus line.
 
 The third form specifies the contents of the hardstatus line.
@@ -4289,6 +4313,8 @@ categories.
 * Attrcolor::			Map attributes to colors.
 * Setsid::			Change process group management
 * Eval::			Parse and execute arguments
+* Maxwin::			Set the maximum window number
+* Backtick::			Program a command for a backtick string escape.
 @end menu
 
 @node At, Break,  , Miscellaneous
@@ -4320,7 +4346,7 @@ once per window. Commands that change the internal arrangement of windows
 (like @code{other}) may be called again. In shared windows the command will
 be repeated for each attached display. Beware, when issuing toggle commands
 like @code{login}!
-Some commands (e.g. @code{stuff}, @code{\*Qprocess} or @code{paste}) require
+Some commands (e.g. @code{\*Qprocess}) require
 that a display is associated with the target windows.  These commands may not
 work correctly under @code{at} looping over windows.
 @end deffn
@@ -4540,7 +4566,7 @@ Examples:
 Change the color to bright red if bold text is to be printed.
 @item attrcolor u "-u b"
 Use blue text instead of underline.
-@item attrcolor b "I"
+@item attrcolor b ".I"
 Use bright colors for bold text. Most terminal emulators do this
 already.
 @item attrcolor i "+b"
@@ -4560,11 +4586,46 @@ The default is @code{on}, of course. This command is probably useful
 only in rare circumstances.
 @end deffn
 
-@node Eval, , Setsid, Miscellaneous
+@node Eval, Maxwin, Setsid, Miscellaneous
 @section Eval
 @deffn Command eval @var{command1} [@var{command2} ...]
 (none)@*
-Parses and executes each argument as seperate command.
+Parses and executes each argument as separate command.
+@end deffn
+
+@node Maxwin, Backtick, Eval, Miscellaneous
+@section Maxwin
+@deffn Command maxwin @var{n}
+(none)@*
+Set the maximum window number screen will create. Doesn't affect 
+already existing windows. The number may only be decreased.
+@end deffn
+
+@node Backtick, , Maxwin, Miscellaneous
+@section Backtick
+@deffn Command backtick @var{id} @var{lifespan} @var{autorefresh} @var{command} [@var{args}]
+@deffnx Command backtick @var{id}
+(none)@*
+Program the backtick command with the numerical id @var{id}.
+The output of such a command is used for substitution of the
+@code{%`} string escape (@pxref{String Escapes}).
+The specified @var{lifespan} is the number
+of seconds the output is considered valid. After this time, the
+command is run again if a corresponding string escape is encountered.
+The @var{autorefresh} parameter triggers an
+automatic refresh for caption and hardstatus strings after the
+specified number of seconds. Only the last line of output is used 
+for substitution.
+
+If both the @var{lifespan} and the @var{autorefresh} parameters
+are zero, the backtick program is expected to stay in the
+background and generate output once in a while.
+In this case, the command is executed right away and screen stores
+the last line of output. If a new line gets printed screen will
+automatically refresh the hardstatus or the captions.
+
+The second form of the command deletes the backtick command 
+with the numerical id @var{id}.
 @end deffn
 
 @node String Escapes, Environment, Miscellaneous, Top
@@ -4625,8 +4686,8 @@ last two digits of the year number
 @item Y
 full year number
 @item ?
-the part to the next @code{%?} is displayed only if an escape expands
-to an nonempty string
+the part to the next @code{%?} is displayed only if a @code{%} escape
+inside the part expands to a non-empty string
 @item :
 else part of @code{%?}
 @item =
@@ -4650,6 +4711,9 @@ operator.) The @code{L} qualifier tells screen to mark the truncated
 parts with @samp{...}.
 @item @{
 attribute/color modifier string terminated by the next @code{@}}
+@item `
+Substitute with the output of a `backtick' command. The length
+qualifier is misused to identify one of the commands. @xref{Backtick}.
 @end table
 The @code{c} and @code{C} escape may be qualified with a @code{0} to
 make screen use
@@ -4678,6 +4742,8 @@ change the current attributes to the specified set
 The attribute set can either be specified as a hexadecimal number or
 a combination of the following letters: 
 @table @code
+@item d
+dim
 @item u
 underline
 @item b
@@ -4889,8 +4955,8 @@ Contributors @*
      Martin Schweikert (schweik@@cpp.ob.open.de),
      David Vrona (dave@@sashimi.lcu.com),
      E. Tye McQueen (tye%spillman.UUCP@@uunet.uu.net),
-     Matthew Green (mrg@@mame.mu.oz.au),
-     Christopher Williams (cgw@@unt.edu),
+     Matthew Green (mrg@@eterna.com.au),
+     Christopher Williams (cgw@@pobox.com),
      Matt Mosley (mattm@@access.digex.net),
      Gregory Neil Shapiro (gshapiro@@wpi.WPI.EDU),
      Jason Merrill (jason@@jarthur.Claremont.EDU),

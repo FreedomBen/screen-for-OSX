@@ -94,6 +94,14 @@ static char TtyProto[] = "/dev/ttyXY";
 
 static void initmaster __P((int));
 
+#if defined(sun)
+/* sun's utmp_update program opens the salve side, thus corrupting
+ */
+int pty_preopen = 1;
+#else
+int pty_preopen = 0;
+#endif
+
 /*
  *  Open all ptys with O_NOCTTY, just to be on the safe side
  *  (RISCos mips breaks otherwise)
@@ -281,10 +289,6 @@ char **ttyn;
 #if defined(_AIX) && defined(HAVE_DEV_PTC) && !defined(PTY_DONE)
 #define PTY_DONE
 
-#ifdef _IBMR2
-int aixhack = -1;
-#endif
-
 int
 OpenPTY(ttyn)
 char **ttyn;
@@ -303,16 +307,29 @@ char **ttyn;
     }
   initmaster(f);
 # ifdef _IBMR2
-  if (aixhack >= 0)
-    close(aixhack);
-  if ((aixhack = open(TtyName, O_RDWR | O_NOCTTY)) < 0)
-    {
-      close(f);
-      return -1;
-    }
+  pty_preopen = 1;
 # endif
   *ttyn = TtyName;
   return f;
+}
+#endif
+
+/***************************************************************/
+
+#if defined(HAVE_OPENPTY) && !defined(PTY_DONE)
+#define PTY_DONE
+int
+OpenPTY(ttyn)
+char **ttyn;
+{
+  int f, s;
+  if (openpty(&f, &s, TtyName, NULL, NULL) != 0)
+    return -1;
+  close(s);
+  initmaster(f);
+  pty_preopen = 1;
+  *ttyn = TtyName;
+  return f;    
 }
 #endif
 

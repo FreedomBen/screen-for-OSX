@@ -45,9 +45,10 @@ extern void  DisplaySleep __P((int, int));
 extern void  Finit __P((int));
 extern void  MakeNewEnv __P((void));
 extern char *MakeWinMsg __P((char *, struct win *, int));
-extern char *MakeWinMsgEv __P((char *, struct win *, int, int, struct event *));
+extern char *MakeWinMsgEv __P((char *, struct win *, int, int, struct event *, int));
 extern int   PutWinMsg __P((char *, int, int));
 extern void  WindowDied __P((struct win *));
+extern void  setbacktick __P((int, int, int, char **));
 
 /* ansi.c */
 extern void  ResetAnsiState __P((struct win *));
@@ -74,6 +75,7 @@ extern void  WriteFile __P((struct acluser *, char *, int));
 extern char *ReadFile __P((char *, int *));
 extern void  KillBuffers __P((void));
 extern int   printpipe __P((struct win *, char *));
+extern int   readpipe __P((char **));
 extern void  do_source __P((char *));
 
 /* tty.c */
@@ -303,6 +305,9 @@ extern char *xrealloc __P((char *, int));
 extern void  ResizeLayersToCanvases __P((void));
 extern void  ResizeLayer __P((struct layer *, int, int, struct display *));
 extern int   MayResizeLayer __P((struct layer *));
+extern void  FreeAltScreen __P((struct win *));
+extern void  EnterAltScreen __P((struct win *));
+extern void  LeaveAltScreen __P((struct win *));
 
 /* sched.c */
 extern void  evenq __P((struct event *));
@@ -448,18 +453,15 @@ extern char *DoNLS __P((char *));
 #ifdef ENCODINGS
 # ifdef UTF8
 extern void  InitBuiltinTabs __P((void));
-extern int   recode_char __P((int, int, int));
-extern int   recode_char_to_encoding __P((int, int));
-#  ifdef DW_CHARS
-extern int   recode_char_dw __P((int, int *, int, int));
-extern int   recode_char_dw_to_encoding __P((int, int *, int));
-#  endif
 extern struct mchar *recode_mchar __P((struct mchar *, int, int));
 extern struct mline *recode_mline __P((struct mline *, int, int, int));
 extern int   FromUtf8 __P((int, int *));
 extern void  AddUtf8 __P((int));
 extern int   ToUtf8 __P((char *, int));
+extern int   ToUtf8_comb __P((char *, int));
 extern int   utf8_isdouble __P((int));
+extern int   utf8_iscomb __P((int));
+extern void  utf8_handle_comb __P((int, struct mchar *));
 extern int   ContainsSpecialDeffont __P((struct mline *, int, int, int));
 extern int   LoadFontTranslation __P((int, char *));
 extern void  LoadFontTranslationsForEncoding __P((int));

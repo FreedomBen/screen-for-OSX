@@ -1,4 +1,4 @@
-This is screen.info, produced by makeinfo version 4.0 from
+This is screen.info, produced by makeinfo version 4.2 from
 ./screen.texinfo.
 
 INFO-DIR-SECTION General Commands
@@ -8,7 +8,7 @@ END-INFO-DIR-ENTRY
 
    This file documents the `Screen' virtual terminal manager.
 
-   Copyright (c) 1993-2002 Free Software Foundation, Inc.
+   Copyright (c) 1993-2003 Free Software Foundation, Inc.
 
    Permission is granted to make and distribute verbatim copies of this
 manual provided the copyright notice and this permission notice are
@@ -23,6 +23,55 @@ permission notice identical to this one.
 manual into another language, under the above conditions for modified
 versions, except that this permission notice may be stated in a
 translation approved by the Foundation.
+
+
+File: screen.info,  Node: Termcap Examples,  Next: Special Capabilities,  Prev: Termcap Syntax,  Up: Termcap
+
+Termcap Examples
+================
+
+   Some examples:
+
+     termcap xterm*  xn:hs@
+
+Informs `screen' that all terminals that begin with `xterm' have firm
+auto-margins that allow the last position on the screen to be updated
+(xn), but they don't really have a status line (no 'hs' - append `@' to
+turn entries off).  Note that we assume `xn' for all terminal names
+that start with `vt', but only if you don't specify a termcap command
+for that terminal.
+
+     termcap vt*  xn
+     termcap vt102|vt220  Z0=\E[?3h:Z1=\E[?3l
+
+Specifies the firm-margined `xn' capability for all terminals that
+begin with `vt', and the second line will also add the escape-sequences
+to switch into (Z0) and back out of (Z1) 132-character-per-line mode if
+this is a VT102 or VT220.  (You must specify Z0 and Z1 in your termcap
+to use the width-changing commands.)
+
+     termcap vt100  ""  l0=PF1:l1=PF2:l2=PF3:l3=PF4
+
+This leaves your vt100 termcap alone and adds the function key labels to
+each window's termcap entry.
+
+     termcap h19|z19  am@:im=\E@:ei=\EO  dc=\E[P
+
+Takes a h19 or z19 termcap and turns off auto-margins (am@) and enables
+the insert mode (im) and end-insert (ei) capabilities (the `@' in the
+`im' string is after the `=', so it is part of the string).  Having the
+`im' and `ei' definitions put into your terminal's termcap will cause
+screen to automatically advertise the character-insert capability in
+each window's termcap.  Each window will also get the delete-character
+capability (dc) added to its termcap, which screen will translate into
+a line-update for the terminal (we're pretending it doesn't support
+character deletion).
+
+   If you would like to fully specify each window's termcap entry, you
+should instead set the `$SCREENCAP' variable prior to running `screen'.
+*Note Virtual Terminal::, for the details of the `screen' terminal
+emulation.  *Note Termcap: (termcap)Top, for more information on
+termcap definitions.
 
 
 File: screen.info,  Node: Special Capabilities,  Next: Autonuke,  Prev: Termcap Examples,  Up: Termcap
@@ -290,8 +339,9 @@ Hardware Status Line
      used, screen will reserve the last line of the display for the
      hardstatus. `message' uses `screen''s message mechanism and
      `ignore' tells `screen' never to display the hardstatus.  If you
-     prepend the word `always' to the type, `screen' will use the type
-     even if the terminal supports a hardstatus line.
+     prepend the word `always' to the type (e.g., `alwayslastline'),
+     `screen' will use the type even if the terminal supports a
+     hardstatus line.
 
      The third form specifies the contents of the hardstatus line.
      `%h' is used as default string, i.e. the stored hardstatus of the
@@ -495,6 +545,8 @@ categories.
 * Attrcolor::			Map attributes to colors.
 * Setsid::			Change process group management
 * Eval::			Parse and execute arguments
+* Maxwin::			Set the maximum window number
+* Backtick::			Program a command for a backtick string escape.
 
 
 File: screen.info,  Node: At,  Next: Break,  Up: Miscellaneous
@@ -528,10 +580,9 @@ At
      internal arrangement of windows (like `other') may be called
      again. In shared windows the command will be repeated for each
      attached display. Beware, when issuing toggle commands like
-     `login'!  Some commands (e.g. `stuff', `\*Qprocess' or `paste')
-     require that a display is associated with the target windows.
-     These commands may not work correctly under `at' looping over
-     windows.
+     `login'!  Some commands (e.g. `\*Qprocess') require that a display
+     is associated with the target windows.  These commands may not
+     work correctly under `at' looping over windows.
 
 
 File: screen.info,  Node: Break,  Next: Debug,  Prev: At,  Up: Miscellaneous
@@ -785,7 +836,7 @@ Attrcolor
     `attrcolor u "-u b"'
           Use blue text instead of underline.
 
-    `attrcolor b "I"'
+    `attrcolor b ".I"'
           Use bright colors for bold text. Most terminal emulators do
           this already.
 
@@ -808,14 +859,54 @@ Setsid
      in rare circumstances.
 
 
-File: screen.info,  Node: Eval,  Prev: Setsid,  Up: Miscellaneous
+File: screen.info,  Node: Eval,  Next: Maxwin,  Prev: Setsid,  Up: Miscellaneous
 
 Eval
 ====
 
  - Command: eval COMMAND1 [COMMAND2 ...]
      (none)
-     Parses and executes each argument as seperate command.
+     Parses and executes each argument as separate command.
+
+
+File: screen.info,  Node: Maxwin,  Next: Backtick,  Prev: Eval,  Up: Miscellaneous
+
+Maxwin
+======
+
+ - Command: maxwin N
+     (none)
+     Set the maximum window number screen will create. Doesn't affect
+     already existing windows. The number may only be decreased.
+
+
+File: screen.info,  Node: Backtick,  Prev: Maxwin,  Up: Miscellaneous
+
+Backtick
+========
+
+ - Command: backtick ID LIFESPAN AUTOREFRESH COMMAND [ARGS]
+ - Command: backtick ID
+     (none)
+     Program the backtick command with the numerical id ID.  The output
+     of such a command is used for substitution of the `%`' string
+     escape (*note String Escapes::).  The specified LIFESPAN is the
+     number of seconds the output is considered valid. After this time,
+     the command is run again if a corresponding string escape is
+     encountered.  The AUTOREFRESH parameter triggers an automatic
+     refresh for caption and hardstatus strings after the specified
+     number of seconds. Only the last line of output is used for
+     substitution.
+
+     If both the LIFESPAN and the AUTOREFRESH parameters are zero, the
+     backtick program is expected to stay in the background and
+     generate output once in a while.  In this case, the command is
+     executed right away and screen stores the last line of output. If
+     a new line gets printed screen will automatically refresh the
+     hardstatus or the captions.
+
+     The second form of the command deletes the backtick command with
+     the numerical id ID.
 
 
 File: screen.info,  Node: String Escapes,  Next: Environment,  Prev: Miscellaneous,  Up: Top
@@ -899,8 +990,8 @@ instead.
      full year number
 
 `?'
-     the part to the next `%?' is displayed only if an escape expands
-     to an nonempty string
+     the part to the next `%?' is displayed only if a `%' escape inside
+     the part expands to a non-empty string
 
 `:'
      else part of `%?'
@@ -928,12 +1019,16 @@ instead.
      `...'.
 
 `{'
-     attribute/color modifier string terminated by the next `}' The `c'
-and `C' escape may be qualified with a `0' to make screen use zero
-instead of space as fill character.  The `n' and `=' escapes understand
-a length qualifier (e.g. `%3n'), `D' and `M' can be prefixed with `L'
-to generate long names, `w' and `W' also show the window flags if `L'
-is given.
+     attribute/color modifier string terminated by the next `}'
+
+``'
+     Substitute with the output of a `backtick' command. The length
+     qualifier is misused to identify one of the commands. *Note
+     Backtick::.  The `c' and `C' escape may be qualified with a `0' to
+make screen use zero instead of space as fill character.  The `n' and
+`=' escapes understand a length qualifier (e.g. `%3n'), `D' and `M' can
+be prefixed with `L' to generate long names, `w' and `W' also show the
+window flags if `L' is given.
 
    An attribute/color modifier is is used to change the attributes or
 the color settings. Its format is `[attribute modifier] [color
@@ -953,6 +1048,9 @@ change types are known:
      change the current attributes to the specified set The attribute
 set can either be specified as a hexadecimal number or a combination of
 the following letters:
+`d'
+     dim
+
 `u'
      underline
 
@@ -1172,8 +1270,8 @@ Contributors
           Martin Schweikert (schweik@cpp.ob.open.de),
           David Vrona (dave@sashimi.lcu.com),
           E. Tye McQueen (tye%spillman.UUCP@uunet.uu.net),
-          Matthew Green (mrg@mame.mu.oz.au),
-          Christopher Williams (cgw@unt.edu),
+          Matthew Green (mrg@eterna.com.au),
+          Christopher Williams (cgw@pobox.com),
           Matt Mosley (mattm@access.digex.net),
           Gregory Neil Shapiro (gshapiro@wpi.WPI.EDU),
           Jason Merrill (jason@jarthur.Claremont.EDU),
@@ -1183,7 +1281,7 @@ Contributors
 Version
 =======
 
-   This manual describes version 3.9.11 of the `screen' program. Its
+   This manual describes version 3.9.15 of the `screen' program. Its
 roots are a merge of a custom version 2.3PR7 by Wayne Davison and
 several enhancements to Oliver Laumann's version 2.0.  Note that all
 versions numbered 2.x are copyright by Oliver Laumann.
@@ -1331,12 +1429,11 @@ Compiling Screen
 script. Before you compile the package run
 
                            `sh ./configure'
-
-   This will create a `config.h' and `Makefile' for your machine.  If
-`configure' fails for some reason, then look at the examples and
-comments found in the `Makefile.in' and `config.h.in' templates.
-Rename `config.status' to `config.status.MACHINE' when you want to keep
-configuration data for multiple architectures. Running `sh
+ This will create a `config.h' and `Makefile' for your
+machine.  If `configure' fails for some reason, then look at the
+examples and comments found in the `Makefile.in' and `config.h.in'
+templates.  Rename `config.status' to `config.status.MACHINE' when you
+want to keep configuration data for multiple architectures. Running `sh
 ./config.status.MACHINE' recreates your configuration significantly
 faster than rerunning `configure'.
 Read through the "User Configuration" section of `config.h', and verify
@@ -1347,9 +1444,8 @@ Check the compiler used in `Makefile', the prefix path where to install
 `screen'. Then run
 
                                 `make'
-
-   If `make' fails to produce one of the files `term.h', `comm.h' or
-`tty.c', then use `FILENAME.X.dist' instead.  For additional
+ If `make' fails to produce one of the files `term.h', `comm.h'
+or `tty.c', then use `FILENAME.X.dist' instead.  For additional
 information about installation of `screen' refer to the file
 `INSTALLATION', coming with this package.
 

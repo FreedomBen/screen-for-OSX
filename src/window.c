@@ -50,19 +50,16 @@ extern int SilenceWait;
 extern int real_uid, real_gid, eff_uid, eff_gid;
 extern char Termcap[];
 extern char **NewEnv;
-extern int visual_bell;
+extern int visual_bell, maxwin;
 extern struct event logflushev;
 extern int log_flush, logtstamp_after;
 extern int ZombieKey_destroy, ZombieKey_resurrect;
 extern struct layer *flayer;
 extern int maxusercount;
+extern int pty_preopen;
 
 #if defined(TIOCSWINSZ) || defined(TIOCGWINSZ)
 extern struct winsize glwz;
-#endif
-
-#ifdef _IBMR2
-extern int aixhack;
 #endif
 
 #ifdef O_NOCTTY
@@ -531,7 +528,7 @@ struct NewWindow *newwin;
   register int n, i;
   int f = -1;
   struct NewWindow nwin;
-  int type;
+  int type, startat;
   char *TtyName;
 #ifdef MULTIUSER
   extern struct acluser *users;
@@ -547,16 +544,17 @@ struct NewWindow *newwin;
   debug1("NWin: wlock   %d\n", nwin.wlock);
   debug1("NWin: Lflag   %d\n", nwin.Lflag);
 
-  pp = wtab + nwin.StartAt;
+  startat = nwin.StartAt < maxwin ? nwin.StartAt : 0;
+  pp = wtab + startat;
 
   do
     {
       if (*pp == 0)
 	break;
-      if (++pp == wtab + MAXWIN)
+      if (++pp == wtab + maxwin)
 	pp = wtab;
     }
-  while (pp != wtab + nwin.StartAt);
+  while (pp != wtab + startat);
   if (*pp)
     {
       Msg(0, "No more windows.");
@@ -972,6 +970,8 @@ struct win *wp;
       RethinkViewportOffsets(cv);
     }
   wp->w_layer.l_cvlist = 0;
+  if (flayer == &wp->w_layer)
+    flayer = 0;
 
 #ifdef MULTIUSER
   FreeWindowAcl(wp);
@@ -1069,6 +1069,7 @@ char **namep;
   if (*typep != W_TYPE_PTY)
     return f;
 
+#ifndef PTYROFS
 #ifdef PTYGROUP
   if (chown(*namep, real_uid, PTYGROUP) && !eff_uid)
 #else
@@ -1089,6 +1090,7 @@ char **namep;
       close(f);
       return -1;
     }
+#endif
   return f;
 }
 
@@ -1119,23 +1121,18 @@ char **args, *ttyn;
   int i, pat, wfdused;
   struct pseudowin *pwin = win->w_pwin;
 #endif
-#if (defined(sun) || defined(_IBMR2)) && defined(O_NOCTTY)
-  int slave;
-#endif
+  int slave = -1;
 
-#if defined(sun) && defined(O_NOCTTY)
-  /* sun's utmp_update program opens the salve side, thus corrupting
-   * pty semantics */
-  debug("pre-opening slave...\n");
-  if ((slave = open(ttyn, O_RDWR|O_NOCTTY)) == -1)
+#ifdef O_NOCTTY
+  if (pty_preopen)
     {
-      Msg(errno, "ttyn");
-      return -1;
+      debug("pre-opening slave...\n");
+      if ((slave = open(ttyn, O_RDWR|O_NOCTTY)) == -1)
+	{
+	  Msg(errno, "ttyn");
+	  return -1;
+	}
     }
-#endif
-#if defined(_IBMR2) && defined(O_NOCTTY)
-  slave = aixhack;
-  aixhack = -1;
 #endif
   debug("forking...\n");
   proc = *args;
@@ -1189,15 +1186,16 @@ char **args, *ttyn;
       if (dfp && dfp != stderr)
 	fclose(dfp);
 #endif
-#if (defined(sun) || defined(_IBMR2)) && defined(O_NOCTTY)
-      close(0);
-      dup(slave);
-      close(slave);
-      closeallfiles(win->w_ptyfd);
-      slave = dup(0);
-#else
-      closeallfiles(win->w_ptyfd);
-#endif
+      if (slave != -1)
+	{
+	  close(0);
+	  dup(slave);
+	  close(slave);
+	  closeallfiles(win->w_ptyfd);
+	  slave = dup(0);
+	}
+      else
+        closeallfiles(win->w_ptyfd);
 #ifdef DEBUG
       if (dfp)	/* do not produce child debug, when debug is "off" */
 	{
@@ -1274,9 +1272,8 @@ char **args, *ttyn;
       dup(0);
 #endif /* PSEUDOS */
       close(win->w_ptyfd);
-#if (defined(sun) || defined(_IBMR2)) && defined(O_NOCTTY)
-      close(slave);
-#endif
+      if (slave != -1)
+        close(slave);
       if (newfd >= 0)
 	{
 	  struct mode fakemode, *modep;
@@ -1375,9 +1372,8 @@ char **args, *ttyn;
     default:
       break;
     }
-#if (defined(sun) || defined(_IBMR2)) && defined(O_NOCTTY)
-  close(slave);
-#endif
+  if (slave != -1)
+    close(slave);
   return pid;
 }
 

@@ -1,4 +1,4 @@
-This is screen.info, produced by makeinfo version 4.0 from
+This is screen.info, produced by makeinfo version 4.2 from
 ./screen.texinfo.
 
 INFO-DIR-SECTION General Commands
@@ -8,7 +8,7 @@ END-INFO-DIR-ENTRY
 
    This file documents the `Screen' virtual terminal manager.
 
-   Copyright (c) 1993-2002 Free Software Foundation, Inc.
+   Copyright (c) 1993-2003 Free Software Foundation, Inc.
 
    Permission is granted to make and distribute verbatim copies of this
 manual provided the copyright notice and this permission notice are
@@ -23,6 +23,23 @@ permission notice identical to this one.
 manual into another language, under the above conditions for modified
 versions, except that this permission notice may be stated in a
 translation approved by the Foundation.
+
+
+File: screen.info,  Node: Selecting,  Next: Session Management,  Prev: New Window,  Up: Top
+
+Selecting a Window
+******************
+
+   This section describes the commands for switching between windows in
+an `screen' session.  The windows are numbered from 0 to 9, and are
+created in that order by default (*note New Window::).
+
+* Menu:
+
+* Next and Previous::           Forward or back one window.
+* Other Window::                Switch back and forth between two windows.
+* Select::                      Switch to a window (and to one after `kill').
+* Windowlist::                  Present a list of all windows for selection.
 
 
 File: screen.info,  Node: Next and Previous,  Next: Other Window,  Up: Selecting
@@ -257,7 +274,7 @@ Aclchg
      a comma separated list of commands or windows (specified either by
      number or title). The special list `#' refers to all windows, `?'
      to all commands. If USERNAMES consists of a single `*', all known
-     users is affected.  A command can be executed when the user has
+     users are affected.  A command can be executed when the user has
      the `x' bit for it. The user can type input to a window when he
      has its `w' bit set and no other user obtains a writelock for this
      window. Other bits are currently ignored.  To withdraw the
@@ -608,7 +625,7 @@ Title Command
 
  - Command: title [windowtitle]
      (`C-a A')
-     Set the name of the current window to WINDOWALIAS. If no name is
+     Set the name of the current window to WINDOWTITLE. If no name is
      specified, screen prompts for one.
 
 
@@ -1027,7 +1044,10 @@ functions, respectively.
                 ?7           (V)     `Wrap' Mode
                 ?9                   X10 mouse tracking
                 ?25          (V)     Visible Cursor
+                ?47                  Alternate Screen (old xterm code)
                 ?1000        (V)     VT200 mouse tracking
+                ?1047                Alternate Screen (new xterm code)
+                ?1049                Alternate Screen (new xterm code)
      ESC [ 5 i               (A)     Start relay to printer (ANSI Media Copy)
      ESC [ 4 i               (A)     Stop relay to printer (ANSI Media Copy)
      ESC [ 8 ; Ph ; Pw t             Resize the window to `Ph' lines and
@@ -1200,50 +1220,4 @@ Clear
  - Command: clear
      (`C-a C')
      Clears the screen and saves its contents to the scrollback buffer.
-
-
-File: screen.info,  Node: Info,  Next: Redisplay,  Prev: Clear,  Up: Virtual Terminal
-
-Info
-====
-
- - Command: info
-     (`C-a i', `C-a C-i')
-     Uses the message line to display some information about the current
-     window: the cursor position in the form `(COLUMN,ROW)' starting
-     with `(1,1)', the terminal width and height plus the size of the
-     scrollback buffer in lines, like in `(80,24)+50', the current
-     state of window XON/XOFF flow control is shown like this (*note
-     Flow Control::):
-            +flow     automatic flow control, currently on.
-            -flow     automatic flow control, currently off.
-            +(+)flow  flow control enabled. Agrees with automatic control.
-            -(+)flow  flow control disabled. Disagrees with automatic control.
-            +(-)flow  flow control enabled. Disagrees with automatic control.
-            -(-)flow  flow control disabled. Agrees with automatic control.
-
-     The current line wrap setting (`+wrap' indicates enabled, `-wrap'
-     not) is also shown. The flags `ins', `org', `app', `log', `mon'
-     and `nored' are displayed when the window is in insert mode,
-     origin mode, application-keypad mode, has output logging, insert
-     mode, origin mode, application-keypad mode, output logging,
-     activity monitoring or partial redraw enabled.
-
-     The currently active character set (`G0', `G1', `G2', or `G3'),
-     and in square brackets the terminal character sets that are
-     currently designated as `G0' through `G3'.  If the window is in
-     UTF-8 mode, the string `UTF-8' is shown instead.  Additional modes
-     depending on the type of the window are displayed at the end of
-     the status line (*note Window Types::).
-
-     If the state machine of the terminal emulator is in a non-default
-     state, the info line is started with a string identifying the
-     current state.
-
-     For system information use `time'.
-
- - Command: dinfo
-     (none)
-     Show what screen thinks about your terminal. Useful if you want to
-     know why features like color or the alternate charset don't work.
 

@@ -35,6 +35,9 @@ defscrollback 1000
 # don't kill window after the process died
 # zombie "^["
 
+# enable support for the "alternate screen" capability in all windows
+# altscreen on
+
 ################
 #
 # xterm tweaks
@@ -134,7 +137,7 @@ bind ^] paste [.]
 
 # screen -t local 0
 # screen -t mail 1 elm
-# screen -t 40 2 rlogin faui40
+# screen -t 40 2 rlogin server
 
 # caption always "%3n %t%? @%u%?%? [%h]%?%=%c"
 # hardstatus alwaysignore
@@ -145,5 +148,4 @@ bind ^] paste [.]
 # bind - resize -1
 # bind _ resize max
 #
-# attrcolor u "-u b"
-# attrcolor b "R"
+# hardstatus alwayslastline "%-Lw%50>%n%f* %t%+Lw%<"

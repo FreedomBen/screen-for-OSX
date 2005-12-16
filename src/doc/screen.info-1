@@ -1,4 +1,4 @@
-This is screen.info, produced by makeinfo version 4.0 from
+This is screen.info, produced by makeinfo version 4.2 from
 ./screen.texinfo.
 
 INFO-DIR-SECTION General Commands
@@ -8,7 +8,7 @@ END-INFO-DIR-ENTRY
 
    This file documents the `Screen' virtual terminal manager.
 
-   Copyright (c) 1993-2002 Free Software Foundation, Inc.
+   Copyright (c) 1993-2003 Free Software Foundation, Inc.
 
    Permission is granted to make and distribute verbatim copies of this
 manual provided the copyright notice and this permission notice are
@@ -31,7 +31,7 @@ Screen
 ******
 
    This file documents the `Screen' virtual terminal manager, version
-3.9.11.
+3.9.15.
 
 * Menu:
 
@@ -156,7 +156,7 @@ Another section (*note Customization::) deals with the contents of your
 
    If your terminal is a "true" auto-margin terminal (it doesn't allow
 the last position on the screen to be updated without scrolling the
-screen) consider to use a version of your terminal's termcap that has
+screen) consider using a version of your terminal's termcap that has
 automatic margins turned _off_.  This will ensure an accurate and
 optimal update of the screen in all circumstances.  Most terminals
 nowadays have "magic" margins (automatic margins plus usable last
@@ -235,7 +235,7 @@ Invoking `Screen'
      literal command character (when typed after the command character)
      to Y.  The defaults are `C-a' and `a', which can be specified as
      `-e^Aa'.  When creating a `screen' session, this option sets the
-     default command caracter. In a multiuser session all users added
+     default command character. In a multiuser session all users added
      will start off with this command character. But when attaching to
      an already running session, this option only changes the command
      character of the attaching user.  This option is equivalent to the
@@ -281,10 +281,7 @@ Invoking `Screen'
      `-wipe' option.
 
 `-L'
-     Tell `screen' that your auto-margin terminal allows programs to
-     write to the last column of the last row of the screen without
-     scrolling.  This can also be set in your `.screenrc' by specifying
-     `xn' in a `termcap' command (*note Termcap::).
+     Tell `screen' to turn on automatic output logging for the windows.
 
 `-m'
      Tell `screen' to ignore the `$STY' environment variable.  When
@@ -300,6 +297,13 @@ Invoking `Screen'
     `-D -m'
           This also starts `screen' in _detached_ mode, but doesn't fork
           a new process. The command exits if the session terminates.
+
+`-p NAME_OR_NUMBER'
+     Preselect a window. This is usefull when you want to reattach to a
+     specific windor or you want to send a command via the `-X' option
+     to a specific window. As with screen's select commant, `-' selects
+     the blank window. As a special case for reattach, `=' brings up
+     the windowlist on the blank window.
 
 `-q'
      Suppress printing of error messages. In combination with `-ls' the
@@ -430,9 +434,10 @@ Source
      (none)
      Read and execute commands from file FILE. Source  commands may be
      nested to a maximum recursion level of ten. If FILE is not an
-     absolute path and  screen  already  processes  a source command,
-     the parent directory of the running source command file is used to
-     search for the new command file  before screen's current directory.
+     absolute path and  screen  is already processing  a source
+     command, the parent directory of the running source command file
+     is used to search for the new command file  before screen's
+     current directory.
 
      Note  that termcap/terminfo/termcapinfo commands only work at
      startup and reattach time, so they must be reached  via the
@@ -785,6 +790,10 @@ Command Summary
 `allpartial STATE'
      Set all windows to partial refresh.  *Note Redisplay::.
 
+`altscreen STATE'
+     Enables support for the "alternate screen" terminal capability.
+     *Note Redisplay::.
+
 `at [IDENT][#|*|%] COMMAND [ARGS]'
      Execute a command at other displays or windows.  *Note At::.
 
@@ -797,6 +806,9 @@ Command Summary
 `autonuke STATE'
      Enable a clear screen to discard unwritten output.  *Note
      Autonuke::.
+
+`backtick ID LIFESPAN AUTOREFRESH COMMAND [ARGS]'
+     Define a command for the backtick string escape.  *Note Backtick::.
 
 `bce [STATE]'
      Change background color erase.  *Note Character Processing::.
@@ -1049,6 +1061,9 @@ Command Summary
 
 `markkeys STRING'
      Rebind keys in copy mode.  *Note Copy Mode Keys::.
+
+`maxwin N'
+     Set the maximum window number. *Note Maxwin::.
 
 `meta'
      Insert the command character.  *Note Command Character::.
@@ -1515,21 +1530,4 @@ efficiently as a console with 100 or more windows.
      For telnet windows, the command `break' sends the telnet code `IAC
      BREAK' (decimal 243) to the remote host.
 
-
-
-File: screen.info,  Node: Selecting,  Next: Session Management,  Prev: New Window,  Up: Top
-
-Selecting a Window
-******************
-
-   This section describes the commands for switching between windows in
-an `screen' session.  The windows are numbered from 0 to 9, and are
-created in that order by default (*note New Window::).
-
-* Menu:
-
-* Next and Previous::           Forward or back one window.
-* Other Window::                Switch back and forth between two windows.
-* Select::                      Switch to a window (and to one after `kill').
-* Windowlist::                  Present a list of all windows for selection.
 

@@ -1,4 +1,27 @@
                   -------------------------------
+                   What's new in screen-3.9.15 ?
+                  -------------------------------
+
+* unicode combining character support
+
+* new encoding: chinese GBK
+
+* new 'backtick' command and string escape to embed command
+  output into e.g. the hardstatus line
+
+
+                  -------------------------------
+                   What's new in screen-3.9.13 ?
+                  -------------------------------
+
+* altscreen support from Gurusamy Sarathy
+
+* new command "maxwin" to set a limit on the number of windows
+
+* new keys in copy&paste mode: 'B' and 'E'
+
+
+                  -------------------------------
                    What's new in screen-3.9.11 ?
                   -------------------------------
 

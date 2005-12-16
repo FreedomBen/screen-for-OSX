@@ -61,6 +61,7 @@ static int rows, cols;		/* window size of the curr window */
 int visual_bell = 0;
 int use_hardstatus = 1;		/* display status line in hs */
 char *printcmd = 0;
+int use_altscreen = 0;		/* enable alternate screen support? */
 
 unsigned char *blank;		/* line filled with spaces */
 unsigned char *null;		/* line filled with '\0' */
@@ -669,15 +670,74 @@ register int len;
 #ifdef FONT
 # ifdef DW_CHARS
 	  if (!curr->w_mbcs)
+	    {
 # endif
-	    curr->w_rend.font = (c >= 0x80 ? curr->w_FontR : curr->w_FontL);
+	      if (c < 0x80 || curr->w_gr == 0)
+	        curr->w_rend.font = curr->w_FontL;
+# ifdef ENCODINGS
+	      else if (curr->w_gr == 2 && !curr->w_ss)
+	        curr->w_rend.font = curr->w_FontE;
+# endif
+	      else
+	        curr->w_rend.font = curr->w_FontR;
+# ifdef DW_CHARS
+	    }
+# endif
 # ifdef UTF8
 	  if (curr->w_encoding == UTF8)
-	    curr->w_rend.font = 0;
+	    {
+	      if (curr->w_rend.font == '0')
+		{
+		  struct mchar mc, *mcp;
+
+		  debug1("SPECIAL %x\n", c);
+		  mc.image = c;
+		  mc.mbcs = 0;
+		  mc.font = '0';
+		  mcp = recode_mchar(&mc, 0, UTF8);
+		  debug2("%02x %02x\n", mcp->image, mcp->font);
+		  c = mcp->image | mcp->font << 8;
+		}
+	      curr->w_rend.font = 0;
+	    }
 #  ifdef DW_CHARS
-	  if (curr->w_encoding == UTF8 && utf8_isdouble(c))
+	  if (curr->w_encoding == UTF8 && c >= 0x1100 && utf8_isdouble(c))
 	    curr->w_mbcs = 0xff;
 #  endif
+	  if (curr->w_encoding == UTF8 && c >= 0x0300 && utf8_iscomb(c))
+	    {
+	      int ox, oy;
+	      struct mchar omc;
+
+	      ox = curr->w_x - 1;
+	      oy = curr->w_y;
+	      if (ox < 0)
+		{
+		  ox = curr->w_width - 1;
+	          oy--;
+		}
+	      if (oy < 0)
+		oy = 0;
+	      copy_mline2mchar(&omc, &curr->w_mlines[oy], ox);
+	      if (omc.image == 0xff && omc.font == 0xff)
+		{
+		  ox--;
+		  if (ox >= 0)
+		    {
+	              copy_mline2mchar(&omc, &curr->w_mlines[oy], ox);
+		      omc.mbcs = 0xff;
+		    }
+		}
+	      if (ox >= 0)
+		{
+		  utf8_handle_comb(c, &omc);
+		  MFixLine(curr, oy, &omc);
+		  copy_mchar2mline(&omc, &curr->w_mlines[oy], ox);
+		  LPutChar(&curr->w_layer, &omc, ox, oy);
+		  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
+		}
+	      break;
+	    }
 	  font = curr->w_rend.font;
 # endif
 # ifdef DW_CHARS
@@ -694,6 +754,8 @@ register int len;
 		}
 	    }
 #  endif
+	  if (font == 031 && c == 0x80)
+	    font = curr->w_rend.font = 0;
 	  if (is_dw_font(font) && c == ' ')
 	    font = curr->w_rend.font = 0;
 	  if (is_dw_font(font) || curr->w_mbcs)
@@ -746,7 +808,7 @@ register int len;
 		      debug2("SJIS after %x %x\n", c, t);
 		    }
 #  endif
-		  if (t && curr->w_gr && font != 030)
+		  if (t && curr->w_gr && font != 030 && font != 031)
 		    {
 		      t &= 0x7f;
 		      if (t < ' ')
@@ -769,7 +831,12 @@ register int len;
 	  else if (curr->w_gr)
 # endif
 	    {
-	      c &= 0x7f;
+#ifdef ENCODINGS
+	      if (c == 0x80 && font == 0 && curr->w_encoding == GBK)
+		c = 0xa4;
+	      else
+#endif
+	        c &= 0x7f;
 	      if (c < ' ')	/* this is ugly but kanji support */
 		goto tryagain;	/* prevents nicer programming */
 	    }
@@ -1334,10 +1401,28 @@ int c, intermediate;
 	 /* case 40:	         132 col enable */
 	 /* case 42:	   NRCM: 7bit NRC character mode */
 	 /* case 44:	         margin bell enable */
+	    case 47:    /*       xterm-like alternate screen */
+	    case 1047:  /*       xterm-like alternate screen */
+	    case 1049:  /*       xterm-like alternate screen */
+	      if (use_altscreen)
+		{
+		  if (i)
+		    EnterAltScreen(curr);
+		  else
+		    LeaveAltScreen(curr);
+		  if (a1 == 47 && !i)
+		    curr->w_saved = 0;
+		  LRefreshAll(&curr->w_layer, 0);
+		  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
+		}
+	      break;
 	 /* case 66:	   NKM:  Numeric keypad appl mode */
 	 /* case 68:	   KBUM: Keyboard usage mode (data process) */
 	    case 1000:	/* VT200 mouse tracking */
-	      curr->w_mouse = i ? 1000 : 0;
+	    case 1001:	/* VT200 highlight mouse */
+	    case 1002:	/* button event mouse*/
+	    case 1003:	/* any event mouse*/
+	      curr->w_mouse = i ? a1 : 0;
 	      LMouseMode(&curr->w_layer, curr->w_mouse);
 	      break;
 	    }
@@ -2097,10 +2182,18 @@ struct win *p;
 char *s;
 int l;
 {
-  if (l > 20)
-    l = 20;
-  strncpy(p->w_akachange, s, l);
-  p->w_akachange[l] = 0;
+  int i, c;
+
+  for (i = 0; i < 20 && l > 0; l--)
+    {
+      c = (unsigned char)*s++;
+      if (c == 0)
+	break;
+      if (c < 32 || c == 127 || (c >= 128 && c < 160 && p->w_c1))
+	continue;
+      p->w_akachange[i++] = c;
+    }
+  p->w_akachange[i] = 0;
   p->w_title = p->w_akachange;
   if (p->w_akachange != p->w_akabuf)
     if (p->w_akachange[0] == 0 || p->w_akachange[-1] == ':')

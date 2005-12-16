@@ -92,7 +92,7 @@ RCS_ID("$Id$ FAU")
 
 extern struct display *display, *displays;
 extern int iflag;
-#if !defined(TIOCCONS) && defined(SRIOCSREDIR)
+#if (!defined(TIOCCONS) && defined(SRIOCSREDIR)) || defined(linux)
 extern struct win *console_window;
 static void consredir_readev_fn __P((struct event *, char *));
 #endif
@@ -893,6 +893,8 @@ int fd, n, type;
 	{
 	  int i;
 
+	  if (!n)
+	    n++;
 	  for (i = 0; i < n; i++)
 	    if (tcsendbreak(fd, 0) < 0)
 	      {
@@ -1018,7 +1020,7 @@ int n, closeopen;
  *  Console grabbing
  */
 
-#if !defined(TIOCCONS) && defined(SRIOCSREDIR)
+#if (!defined(TIOCCONS) && defined(SRIOCSREDIR)) || defined(linux)
 
 static struct event consredir_ev;
 static int consredirfd[2] = {-1, -1};
@@ -1059,7 +1061,7 @@ TtyGrabConsole(fd, on, rc_name)
 int fd, on;
 char *rc_name;
 {
-#ifdef TIOCCONS
+#if defined(TIOCCONS) && !defined(linux)
   struct display *d;
   int ret = 0;
   int sfd = -1;
@@ -1091,7 +1093,7 @@ char *rc_name;
 	  Msg(errno, "%s: could not open detach pty master", rc_name);
 	  return -1;
 	}
-      if ((sfd = open(slave, O_RDWR)) < 0)
+      if ((sfd = open(slave, O_RDWR | O_NOCTTY)) < 0)
 	{
 	  Msg(errno, "%s: could not open detach pty slave", rc_name);
 	  close(fd);
@@ -1111,9 +1113,14 @@ char *rc_name;
   return ret;
 
 #else
-# ifdef SRIOCSREDIR
+# if defined(SRIOCSREDIR) || defined(linux)
   struct display *d;
+#  ifdef SRIOCSREDIR
   int cfd;
+#  else
+  struct mode new1, new2;
+  char *slave;
+#  endif
 
   if (on > 0)
     {
@@ -1140,6 +1147,7 @@ char *rc_name;
     }
   if (on <= 0)
     return 0;
+#  ifdef SRIOCSREDIR
   if ((cfd = secopen("/dev/console", O_RDWR|O_NOCTTY, 0)) == -1)
     {
       Msg(errno, "/dev/console");
@@ -1161,12 +1169,37 @@ char *rc_name;
       consredirfd[0] = consredirfd[1] = -1;
       return -1;
     }
-  
+  close(cfd);
+#  else
+  /* special linux workaround for a too restrictive kernel */
+  if ((consredirfd[0] = OpenPTY(&slave)) < 0)
+    {
+      Msg(errno, "%s: could not open detach pty master", rc_name);
+      return -1;
+    }
+  if ((consredirfd[1] = open(slave, O_RDWR | O_NOCTTY)) < 0)
+    {
+      Msg(errno, "%s: could not open detach pty slave", rc_name);
+      close(consredirfd[0]);
+      return -1;
+    }
+  InitTTY(&new1, 0);
+  SetMode(&new1, &new2, 0, 0);
+  SetTTY(consredirfd[1], &new2);
+  if (UserContext() == 1)
+    UserReturn(ioctl(consredirfd[1], TIOCCONS, (char *)&on));
+  if (UserStatus())
+    {
+      Msg(errno, "%s: ioctl TIOCCONS failed", rc_name);
+      close(consredirfd[0]);
+      close(consredirfd[1]);
+      return -1;
+    }
+#  endif
   consredir_ev.fd = consredirfd[0];
   consredir_ev.type = EV_READ;
   consredir_ev.handler = consredir_readev_fn;
   evenq(&consredir_ev);
-  close(cfd);
   return 0;
 # else
   if (on > 0)

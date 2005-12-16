@@ -99,9 +99,13 @@
  * tty to be in "your" group.
  * Note, screen is unable to change mode or group of the pty if it
  * is not installed with sufficient privilege. (e.g. set-uid-root)
+ * define PTYROFS if the /dev/pty devices are mounted on a read-only 
+ * filesystem so screen should not even attempt to set mode or group  
+ * even if running as root (e.g. on TiVo).
  */
 #undef PTYMODE
 #undef PTYGROUP
+#undef PTYROFS
 
 /*
  * If screen is NOT installed set-uid root, screen can provide tty
@@ -181,6 +185,8 @@
  * If you have a braille display you should define HAVE_BRAILLE.
  * The code inside #ifdef HAVE_BRAILLE was contributed by Hadi Bargi
  * Rangin (bargi@dots.physics.orst.edu).
+ * WARNING: this is more or less unsupported code, it may be full of
+ * bugs leading to security holes, enable at your own risk!
  */
 #undef HAVE_BRAILLE
 
@@ -289,6 +295,13 @@
  * (You may also need to add -lpam to LIBS in the Makefile.)
  */
 #undef USE_PAM
+
+/*
+ * Define CHECK_SCREEN_W if you want screen to set TERM to screen-w
+ * if the terminal width is greater than 131 columns. No longer needed
+ * on modern systems which use $COLUMNS or the tty settings instead.
+ */
+#undef CHECK_SCREEN_W
 
 /**********************************************************************
  *
@@ -621,6 +634,11 @@
  * define HAVE_GETPT if you have the getpt() function.
  */
 #undef HAVE_GETPT
+
+/*
+ * define HAVE_OPENPTY if your system has the openpty() call.
+ */
+#undef HAVE_OPENPTY
 
 /* 
  * define PTYRANGE0 and or PTYRANGE1 if you want to adapt screen

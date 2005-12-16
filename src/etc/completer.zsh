@@ -45,7 +45,7 @@ case $state in
   # Complete folder names.
   local screendir
 
-    screendir=(`screen -ls | grep Socket | tail -1 | sed -e 's/\.$//' | awk '{print $NF;}'`)
+    screendir=(`screen -ls | grep Socket | sed -n -e 's/\.$//' -e '$p' | awk '{print $NF;}'`)
 
   _wanted files expl 'screen process' _path_files -W screendir
 ;;

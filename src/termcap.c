@@ -705,13 +705,13 @@ char *s;
 {
   register int n;
 
-  if (tcLineLen + (n = strlen(s)) > 55 && Termcaplen < TERMCAP_BUFSIZE + 8 - 4)
+  if (tcLineLen + (n = strlen(s)) > 55 && Termcaplen < TERMCAP_BUFSIZE - 4 - 1)
     {
       strcpy(Termcap + Termcaplen, "\\\n\t:");
       Termcaplen += 4;
       tcLineLen = 0;
     }
-  if (Termcaplen + n < TERMCAP_BUFSIZE + 8)
+  if (Termcaplen + n < TERMCAP_BUFSIZE - 1)
     {
       strcpy(Termcap + Termcaplen, s);
       Termcaplen += n;
@@ -772,12 +772,22 @@ int aflag;
 	  if (e_tgetent(buf, p) == 1)
 	    break;
 	}
+#ifdef COLOR
+      if (nwin_default.bce)
+	{
+	  sprintf(p, "%s-bce", screenterm);
+          if (e_tgetent(buf, p) == 1)
+	    break;
+	}
+#endif
+#ifdef CHECK_SCREEN_W
       if (wi >= 132)
 	{
 	  sprintf(p, "%s-w", screenterm);
           if (e_tgetent(buf, p) == 1)
 	    break;
 	}
+#endif
       strcpy(p, screenterm);
       if (e_tgetent(buf, p) == 1)
 	break;
@@ -866,6 +876,8 @@ int aflag;
   AddCap("vi=\\E[?25l:");
   AddCap("ve=\\E[34h\\E[?25h:");
   AddCap("vs=\\E[34l:");
+  AddCap("ti=\\E[?1049h:");
+  AddCap("te=\\E[?1049l:");
   if (display)
     {
       if (D_US)

@@ -1,4 +1,4 @@
-This is screen.info, produced by makeinfo version 4.0 from
+This is screen.info, produced by makeinfo version 4.2 from
 ./screen.texinfo.
 
 INFO-DIR-SECTION General Commands
@@ -8,7 +8,7 @@ END-INFO-DIR-ENTRY
 
    This file documents the `Screen' virtual terminal manager.
 
-   Copyright (c) 1993-2002 Free Software Foundation, Inc.
+   Copyright (c) 1993-2003 Free Software Foundation, Inc.
 
    Permission is granted to make and distribute verbatim copies of this
 manual provided the copyright notice and this permission notice are
@@ -25,6 +25,51 @@ versions, except that this permission notice may be stated in a
 translation approved by the Foundation.
 
 
+File: screen.info,  Node: Info,  Next: Redisplay,  Prev: Clear,  Up: Virtual Terminal
+
+Info
+====
+
+ - Command: info
+     (`C-a i', `C-a C-i')
+     Uses the message line to display some information about the current
+     window: the cursor position in the form `(COLUMN,ROW)' starting
+     with `(1,1)', the terminal width and height plus the size of the
+     scrollback buffer in lines, like in `(80,24)+50', the current
+     state of window XON/XOFF flow control is shown like this (*note
+     Flow Control::):
+            +flow     automatic flow control, currently on.
+            -flow     automatic flow control, currently off.
+            +(+)flow  flow control enabled. Agrees with automatic control.
+            -(+)flow  flow control disabled. Disagrees with automatic control.
+            +(-)flow  flow control enabled. Disagrees with automatic control.
+            -(-)flow  flow control disabled. Agrees with automatic control.
+
+     The current line wrap setting (`+wrap' indicates enabled, `-wrap'
+     not) is also shown. The flags `ins', `org', `app', `log', `mon'
+     and `nored' are displayed when the window is in insert mode,
+     origin mode, application-keypad mode, has output logging, activity
+     monitoring or partial redraw enabled.
+
+     The currently active character set (`G0', `G1', `G2', or `G3'),
+     and in square brackets the terminal character sets that are
+     currently designated as `G0' through `G3'.  If the window is in
+     UTF-8 mode, the string `UTF-8' is shown instead.  Additional modes
+     depending on the type of the window are displayed at the end of
+     the status line (*note Window Types::).
+
+     If the state machine of the terminal emulator is in a non-default
+     state, the info line is started with a string identifying the
+     current state.
+
+     For system information use `time'.
+
+ - Command: dinfo
+     (none)
+     Show what screen thinks about your terminal. Useful if you want to
+     know why features like color or the alternate charset don't work.
+
+
 File: screen.info,  Node: Redisplay,  Next: Wrap,  Prev: Info,  Up: Virtual Terminal
 
 Redisplay
@@ -39,6 +84,11 @@ Redisplay
      that immediately takes effect on all windows overriding the
      `partial' settings. It does not change the default redraw behavior
      of newly created windows.
+
+ - Command: altscreen state
+     (none)
+     If set to on, "alternate screen" support is enabled in virtual
+     terminals, just like in xterm.  Initial setting is `off'.
 
  - Command: partial state
      (none)
@@ -151,7 +201,7 @@ Character Processing
      type by using the `KJ' termcap entry. *Note Special Capabilities::.
 
      Supported encodings are `eucJP', `SJIS', `eucKR', `eucCN', `Big5',
-     `KOI8-R', `CP1251', `UTF-8', `ISO8859-2', `ISO8859-3',
+     `GBK', `KOI8-R', `CP1251', `UTF-8', `ISO8859-2', `ISO8859-3',
      `ISO8859-4', `ISO8859-5', `ISO8859-6', `ISO8859-7', `ISO8859-8',
      `ISO8859-9', `ISO8859-10', `ISO8859-15', `jis'.
 
@@ -286,7 +336,7 @@ Scrollback
 
  - Command: compacthist [state]
      (none)
-     This tells screen weather to suppress trailing blank lines when
+     This tells screen whether to suppress trailing blank lines when
      scrolling up text into the history buffer. Turn compacting `on' to
      hold more useful lines in your scrollback buffer.
 
@@ -331,6 +381,8 @@ previous line.
 `|' moves to the specified absolute column.
 
 `w', `b', `e' move the cursor word by word.
+
+`B', `E' move the cursor WORD by WORD (as in vi).
 
 `C-u' and `C-d' scroll the display up/down by the specified amount of
 lines while preserving the cursor position. (Default: half screenfull).
@@ -387,8 +439,8 @@ Searching
 
  - Command: ignorecase [state]
      (none)
-     Tell screen to ignore the case of caracters in searches. Default is
-     `off'.
+     Tell screen to ignore the case of characters in searches. Default
+     is `off'.
 
 
 File: screen.info,  Node: Specials,  Prev: Searching,  Up: Copy
@@ -469,9 +521,16 @@ Paste
      attached), as the registers are a global resource. The paste
      buffer exists once for every user.
 
+ - Command: stuff string
+     (none)
+     Stuff the string STRING in the input buffer of the current window.
+     This is like the `paste' command, but with much less overhead.
+     You cannot paste large buffers with the `stuff' command. It is most
+     useful for key bindings. *Note Bindkey::.
+
  - Command: pastefont [state]
      Tell screen to include font information in the paste buffer. The
-     default is not to do so. This command is especially usefull for
+     default is not to do so. This command is especially useful for
      multi character fonts like kanji.
 
  - Command: slowpaste msec
@@ -526,14 +585,6 @@ Registers
      (none)
      Save the specified STRING to the register KEY.  The encoding of
      the string can be specified via the `-e' option.
-
- - Command: stuff string
-     (none)
-     Stuff the string STRING in the input buffer of the current window.
-     This is like the `paste' command, but with much less overhead.
-     You cannot paste large buffers with the `stuff' command. It is most
-     useful for key bindings. *Note Bindkey::.
-
 
 
 File: screen.info,  Node: Screen Exchange,  Next: History,  Prev: Registers,  Up: Copy and Paste
@@ -1133,6 +1184,9 @@ session is reattached on a different terminal, as the value of
 `screen' to include all capabilities in `$TERMCAP' with the `-a'
 command-line option (*note Invoking Screen::).
 
+   The "alternate screen" capability is not enabled by default.  Set
+the `altscreen' `.screenrc' command to enable it.
+
 
 File: screen.info,  Node: Dump Termcap,  Next: Termcap Syntax,  Prev: Window Termcap,  Up: Termcap
 
@@ -1193,53 +1247,4 @@ uses to perform certain functions.  Specify a null string to leave this
 unchanged (e.g. "").  The second (optional) tweak modifies all the
 window termcaps, and should contain definitions that screen understands
 (*note Virtual Terminal::).
-
-
-File: screen.info,  Node: Termcap Examples,  Next: Special Capabilities,  Prev: Termcap Syntax,  Up: Termcap
-
-Termcap Examples
-================
-
-   Some examples:
-
-     termcap xterm*  xn:hs@
-
-Informs `screen' that all terminals that begin with `xterm' have firm
-auto-margins that allow the last position on the screen to be updated
-(xn), but they don't really have a status line (no 'hs' - append `@' to
-turn entries off).  Note that we assume `xn' for all terminal names
-that start with `vt', but only if you don't specify a termcap command
-for that terminal.
-
-     termcap vt*  xn
-     termcap vt102|vt220  Z0=\E[?3h:Z1=\E[?3l
-
-Specifies the firm-margined `xn' capability for all terminals that
-begin with `vt', and the second line will also add the escape-sequences
-to switch into (Z0) and back out of (Z1) 132-character-per-line mode if
-this is a VT102 or VT220.  (You must specify Z0 and Z1 in your termcap
-to use the width-changing commands.)
-
-     termcap vt100  ""  l0=PF1:l1=PF2:l2=PF3:l3=PF4
-
-This leaves your vt100 termcap alone and adds the function key labels to
-each window's termcap entry.
-
-     termcap h19|z19  am@:im=\E@:ei=\EO  dc=\E[P
-
-Takes a h19 or z19 termcap and turns off auto-margins (am@) and enables
-the insert mode (im) and end-insert (ei) capabilities (the `@' in the
-`im' string is after the `=', so it is part of the string).  Having the
-`im' and `ei' definitions put into your terminal's termcap will cause
-screen to automatically advertise the character-insert capability in
-each window's termcap.  Each window will also get the delete-character
-capability (dc) added to its termcap, which screen will translate into
-a line-update for the terminal (we're pretending it doesn't support
-character deletion).
-
-   If you would like to fully specify each window's termcap entry, you
-should instead set the `$SCREENCAP' variable prior to running `screen'.
-*Note Virtual Terminal::, for the details of the `screen' terminal
-emulation.  *Note Termcap: (termcap)Top, for more information on
-termcap definitions.
 

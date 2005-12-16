@@ -182,7 +182,11 @@ sigret_t (*func) __P(SIGPROTOARG);
   struct sigaction osa, sa;
   sa.sa_handler = func;
   (void)sigemptyset(&sa.sa_mask);
+#ifdef SA_RESTART
+  sa.sa_flags = (sig == SIGCHLD ? SA_RESTART : 0);
+#else
   sa.sa_flags = 0;
+#endif
   if (sigaction(sig, &sa, &osa))
     return (sigret_t (*)__P(SIGPROTOARG))-1;
   return osa.sa_handler;
@@ -639,7 +643,7 @@ char *value;
 # endif /* NEEDSETENV */
 #else /* USESETENV */
 # if defined(linux) || defined(__convex__) || (BSD >= 199103)
-  setenv(var, value, 0);
+  setenv(var, value, 1);
 # else
   setenv(var, value);
 # endif /* linux || convex || BSD >= 199103 */

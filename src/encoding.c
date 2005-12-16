@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2002
+/* Copyright (c) 1993-2003
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann 
@@ -39,6 +39,15 @@ extern struct layer *flayer;
 extern char *screenencodings;
 
 static int  encmatch __P((char *, char *));
+# ifdef UTF8
+static int   recode_char __P((int, int, int));
+static int   recode_char_to_encoding __P((int, int));
+static void  comb_tofront __P((int, int));
+#  ifdef DW_CHARS
+static int   recode_char_dw __P((int, int *, int, int));
+static int   recode_char_dw_to_encoding __P((int, int *, int));
+#  endif
+# endif
 
 struct encoding {
   char *name;
@@ -74,6 +83,7 @@ struct encoding encodings[] = {
   { "ISO8859-10",	0,		0x80|'V',	0, 0, 0 },
   { "ISO8859-15",	0,		0x80|'b',	0, 0, 0 },
   { "jis",		0,		0,		0, 0, "\002\004I" },
+  { "GBK",		"B\031BB01",	0x80|'b',	1, 1, "\031" }
 };
 
 #ifdef UTF8
@@ -243,7 +253,7 @@ static unsigned short builtin_tabs[][2] = {
   { 0x007d, 0x00e7 },
   { 0, 0},
 
-  { 0xe2, 0},		/* 96-b: ISO-8859-15*/
+  { 0xe2, 0},		/* 96-b: ISO-8859-15 */
   { 0x00a4, 0x20ac },
   { 0x00a6, 0x0160 },
   { 0x00a8, 0x0161 },
@@ -293,21 +303,21 @@ InitBuiltinTabs()
     }
 }
 
-int
+static int
 recode_char(c, to_utf, font)
 int c, to_utf, font;
 {
   int f;
   unsigned short (*p)[2];
 
-  if (c < 256)
-    return c;
   if (to_utf)
     {
+      if (c < 256)
+	return c;
       f = (c >> 8) & 0xff;
       c &= 0xff;
       /* map aliases to keep the table small */
-      switch (c >> 8)
+      switch (f)
 	{
 	  case 'C':
 	    f ^= ('C' ^ '5');
@@ -339,20 +349,24 @@ int c, to_utf, font;
     }
   if (font == -1)
     {
-      for (font = 32; font < 256; font++)
+      if (c < 256)
+	return c;	/* latin1 */
+      for (font = 32; font < 128; font++)
 	{
 	  p = recodetabs[font].tab;
 	  if (p)
 	    for (; (*p)[1]; p++)
 	      {
 		if ((p[0][0] & 0x8000) && c <= p[0][1] && c >= p[-1][1])
-		  return c - p[-1][1] + p[-1][0];
+		  return (c - p[-1][1] + p[-1][0]) | (font << 8);
 	        if ((*p)[1] == c)
-		  return (*p)[0];
+		  return (*p)[0] | (font << 8);
 	      }
 	}
       return '?';
     }
+  if (c < 128 && (font & 128) != 0)
+    return c;
   if (font >= 32)
     {
       p = recodetabs[font].tab;
@@ -363,15 +377,19 @@ int c, to_utf, font;
 	}
       if (p)
 	for (; (*p)[1]; p++)
-	  if ((*p)[1] == c)
-	    return (*p)[0];
+	  {
+	    if ((p[0][0] & 0x8000) && c <= p[0][1] && c >= p[-1][1])
+	      return (c - p[-1][1] + p[-1][0]) | (font & 128 ? 0 : font << 8);
+	    if ((*p)[1] == c)
+	      return (*p)[0] | (font & 128 ? 0 : font << 8);
+	  }
     }
   return -1;
 }
 
 
 #ifdef DW_CHARS
-int
+static int
 recode_char_dw(c, c2p, to_utf, font)
 int c, *c2p, to_utf, font;
 {
@@ -403,7 +421,7 @@ int c, *c2p, to_utf, font;
     }
   if (font == -1)
     {
-      for (font = 0; font < 32; font++)
+      for (font = 0; font < 030; font++)
 	{
 	  p = recodetabs[font].tab;
 	  if (p)
@@ -437,7 +455,7 @@ int c, *c2p, to_utf, font;
 }
 #endif
 
-int
+static int
 recode_char_to_encoding(c, encoding)
 int c, encoding;
 {
@@ -457,7 +475,7 @@ int c, encoding;
 }
 
 #ifdef DW_CHARS
-int
+static int
 recode_char_dw_to_encoding(c, c2p, encoding)
 int c, *c2p, encoding;
 {
@@ -612,11 +630,24 @@ int from, to;
   return rl;
 }
 
+struct combchar {
+  unsigned short c1;
+  unsigned short c2;
+  unsigned short next;
+  unsigned short prev;
+};
+struct combchar **combchars;
+
 void
 AddUtf8(c)
 int c;
 {
   ASSERT(D_encoding == UTF8);
+  if (c >= 0xd800 && c < 0xe000 && combchars && combchars[c - 0xd800])
+    {
+      AddUtf8(combchars[c - 0xd800]->c1);
+      c = combchars[c - 0xd800]->c2;
+    }
   if (c >= 0x800)
     {
       AddChar((c & 0xf000) >> 12 | 0xe0);
@@ -628,6 +659,21 @@ int c;
       c = (c & 0x3f) | 0x80; 
     }
   AddChar(c);
+}
+
+int
+ToUtf8_comb(p, c)
+char *p;
+int c;
+{
+  int l;
+
+  if (c >= 0xd800 && c < 0xe000 && combchars && combchars[c - 0xd800])
+    {
+      l = ToUtf8_comb(p, combchars[c - 0xd800]->c1);
+      return l + ToUtf8(p ? p + l : 0, combchars[c - 0xd800]->c2);
+    }
+  return ToUtf8(p, c);
 }
 
 int
@@ -812,6 +858,7 @@ int c;
       (c >= 0x2e80 && c <= 0xa4cf && (c & ~0x0011) != 0x300a &&
        c != 0x303f) ||                  /* CJK ... Yi */
       (c >= 0xac00 && c <= 0xd7a3) || /* Hangul Syllables */
+      (c >= 0xdf00 && c <= 0xdfff) || /* dw combining sequence */
       (c >= 0xf900 && c <= 0xfaff) || /* CJK Compatibility Ideographs */
       (c >= 0xfe30 && c <= 0xfe6f) || /* CJK Compatibility Forms */
       (c >= 0xff00 && c <= 0xff5f) || /* Fullwidth Forms */
@@ -819,6 +866,157 @@ int c;
       (c >= 0x20000 && c <= 0x2ffff)));
 }
 #endif
+
+int
+utf8_iscomb(c)
+int c;
+{
+  /* taken from Markus Kuhn's wcwidth */
+  static struct {
+    unsigned short first;
+    unsigned short last;
+  } combining[] = {
+    { 0x0300, 0x034F }, { 0x0360, 0x036F }, { 0x0483, 0x0486 },
+    { 0x0488, 0x0489 }, { 0x0591, 0x05A1 }, { 0x05A3, 0x05B9 },
+    { 0x05BB, 0x05BD }, { 0x05BF, 0x05BF }, { 0x05C1, 0x05C2 },
+    { 0x05C4, 0x05C4 }, { 0x064B, 0x0655 }, { 0x0670, 0x0670 },
+    { 0x06D6, 0x06E4 }, { 0x06E7, 0x06E8 }, { 0x06EA, 0x06ED },
+    { 0x070F, 0x070F }, { 0x0711, 0x0711 }, { 0x0730, 0x074A },
+    { 0x07A6, 0x07B0 }, { 0x0901, 0x0902 }, { 0x093C, 0x093C },
+    { 0x0941, 0x0948 }, { 0x094D, 0x094D }, { 0x0951, 0x0954 },
+    { 0x0962, 0x0963 }, { 0x0981, 0x0981 }, { 0x09BC, 0x09BC },
+    { 0x09C1, 0x09C4 }, { 0x09CD, 0x09CD }, { 0x09E2, 0x09E3 },
+    { 0x0A02, 0x0A02 }, { 0x0A3C, 0x0A3C }, { 0x0A41, 0x0A42 },
+    { 0x0A47, 0x0A48 }, { 0x0A4B, 0x0A4D }, { 0x0A70, 0x0A71 },
+    { 0x0A81, 0x0A82 }, { 0x0ABC, 0x0ABC }, { 0x0AC1, 0x0AC5 },
+    { 0x0AC7, 0x0AC8 }, { 0x0ACD, 0x0ACD }, { 0x0B01, 0x0B01 },
+    { 0x0B3C, 0x0B3C }, { 0x0B3F, 0x0B3F }, { 0x0B41, 0x0B43 },
+    { 0x0B4D, 0x0B4D }, { 0x0B56, 0x0B56 }, { 0x0B82, 0x0B82 },
+    { 0x0BC0, 0x0BC0 }, { 0x0BCD, 0x0BCD }, { 0x0C3E, 0x0C40 },
+    { 0x0C46, 0x0C48 }, { 0x0C4A, 0x0C4D }, { 0x0C55, 0x0C56 },
+    { 0x0CBF, 0x0CBF }, { 0x0CC6, 0x0CC6 }, { 0x0CCC, 0x0CCD },
+    { 0x0D41, 0x0D43 }, { 0x0D4D, 0x0D4D }, { 0x0DCA, 0x0DCA },
+    { 0x0DD2, 0x0DD4 }, { 0x0DD6, 0x0DD6 }, { 0x0E31, 0x0E31 },
+    { 0x0E34, 0x0E3A }, { 0x0E47, 0x0E4E }, { 0x0EB1, 0x0EB1 },
+    { 0x0EB4, 0x0EB9 }, { 0x0EBB, 0x0EBC }, { 0x0EC8, 0x0ECD },
+    { 0x0F18, 0x0F19 }, { 0x0F35, 0x0F35 }, { 0x0F37, 0x0F37 },
+    { 0x0F39, 0x0F39 }, { 0x0F71, 0x0F7E }, { 0x0F80, 0x0F84 },
+    { 0x0F86, 0x0F87 }, { 0x0F90, 0x0F97 }, { 0x0F99, 0x0FBC },
+    { 0x0FC6, 0x0FC6 }, { 0x102D, 0x1030 }, { 0x1032, 0x1032 },
+    { 0x1036, 0x1037 }, { 0x1039, 0x1039 }, { 0x1058, 0x1059 },
+    { 0x1160, 0x11FF }, { 0x1712, 0x1714 }, { 0x1732, 0x1734 },
+    { 0x1752, 0x1753 }, { 0x1772, 0x1773 }, { 0x17B7, 0x17BD },
+    { 0x17C6, 0x17C6 }, { 0x17C9, 0x17D3 }, { 0x180B, 0x180E },
+    { 0x18A9, 0x18A9 }, { 0x200B, 0x200F }, { 0x202A, 0x202E },
+    { 0x2060, 0x2063 }, { 0x206A, 0x206F }, { 0x20D0, 0x20EA },
+    { 0x302A, 0x302F }, { 0x3099, 0x309A }, { 0xFB1E, 0xFB1E },
+    { 0xFE00, 0xFE0F }, { 0xFE20, 0xFE23 }, { 0xFEFF, 0xFEFF },
+    { 0xFFF9, 0xFFFB }
+  };
+  int mid, min = 0, max = sizeof(combining)/sizeof(*combining) - 1;
+
+  if (c < 0x0300 || c > 0xfffb)
+    return 0;
+  while (max >= min)
+    {
+      mid = (min + max) / 2;
+      if (c > combining[mid].last)
+	min = mid + 1;
+      else if (c < combining[mid].first)
+	max = mid - 1;
+      else
+	return 1;
+    }
+  return 0;
+}
+
+static void
+comb_tofront(root, i)
+int root, i;
+{
+  for (;;)
+    {
+      debug1("bring to front: %x\n", i);
+      combchars[combchars[i]->prev]->next = combchars[i]->next;
+      combchars[combchars[i]->next]->prev = combchars[i]->prev;
+      combchars[i]->next = combchars[root]->next;
+      combchars[i]->prev = root;
+      combchars[combchars[root]->next]->prev = i;
+      combchars[root]->next = i;
+      i = combchars[i]->c1;
+      if (i < 0xd800 || i >= 0xe000)
+	return;
+      i -= 0xd800;
+    }
+}
+
+void
+utf8_handle_comb(c, mc)
+int c;
+struct mchar *mc;
+{
+  int root, i, c1;
+  int isdouble;
+
+  c1 = mc->image | (mc->font << 8);
+  isdouble = c1 >= 0x1100 && utf8_isdouble(c1);
+  if (!combchars)
+    {
+      combchars = (struct combchar **)malloc(sizeof(struct combchar *) * 0x802);
+      if (!combchars)
+	return;
+      bzero((char *)combchars, sizeof(struct combchar *) * 0x802);
+      combchars[0x800] = (struct combchar *)malloc(sizeof(struct combchar));
+      combchars[0x801] = (struct combchar *)malloc(sizeof(struct combchar));
+      if (!combchars[0x800] || !combchars[0x801])
+	{
+	  if (combchars[0x800])
+	    free(combchars[0x800]);
+	  if (combchars[0x801])
+	    free(combchars[0x801]);
+	  free(combchars);
+	  return;
+	}
+      combchars[0x800]->c1 = 0x000;
+      combchars[0x800]->c2 = 0x700;
+      combchars[0x800]->next = 0x800;
+      combchars[0x800]->prev = 0x800;
+      combchars[0x801]->c1 = 0x700;
+      combchars[0x801]->c2 = 0x800;
+      combchars[0x801]->next = 0x801;
+      combchars[0x801]->prev = 0x801;
+    }
+  root = isdouble ? 0x801 : 0x800;
+  for (i = combchars[root]->c1; i < combchars[root]->c2; i++)
+    {
+      if (!combchars[i])
+	break;
+      if (combchars[i]->c1 == c1 && combchars[i]->c2 == c)
+	break;
+    }
+  if (i == combchars[root]->c2)
+    {
+      /* full, recycle old entry */
+      if (c1 >= 0xd800 && c1 < 0xe000)
+        comb_tofront(root, c1);
+      i = combchars[root]->prev;
+      /* FIXME: delete old char from all buffers */
+    }
+  else if (!combchars[i])
+    {
+      combchars[i] = (struct combchar *)malloc(sizeof(struct combchar));
+      if (!combchars[i])
+	return;
+      combchars[i]->prev = i;
+      combchars[i]->next = i;
+    }
+  combchars[i]->c1 = c1;
+  combchars[i]->c2 = c;
+  mc->image = i & 0xff;
+  mc->font  = (i >> 8) + 0xd8;
+  debug3("combinig char %x %x -> %x\n", c1, c, i + 0xd800);
+  comb_tofront(root, i);
+}
 
 #else /* !UTF8 */
 
@@ -872,6 +1070,7 @@ char *name;
 {
   int encoding;
 
+  debug1("FindEncoding %s\n", name);
   if (name == 0 || *name == 0)
     return 0;
   if (encmatch(name, "euc"))
@@ -923,7 +1122,12 @@ struct win *p;
   LoadFontTranslationsForEncoding(encoding);
 #endif
   if (encodings[encoding].usegr)
-    p->w_gr = 1;
+    {
+      p->w_gr = 2;
+      p->w_FontE = encodings[encoding].charsets[1];
+    }
+  else
+    p->w_FontE = 0;
   if (encodings[encoding].noc1)
     p->w_c1 = 0;
 }
@@ -1002,12 +1206,14 @@ int *statep;
       else
         return c | (KANJI << 16);
     }
-  if (encoding == BIG5)
+  if (encoding == BIG5 || encoding == GBK)
     {
       if (!*statep)
 	{
 	  if (c & 0x80)
 	    {
+	      if (encoding == GBK && c == 0x80)
+		return 0xa4 | (('b'|0x80) << 16);
 	      *statep = c;
 	      return -1;
 	    }
@@ -1017,7 +1223,7 @@ int *statep;
       c = *statep;
       *statep = 0;
       c &= 0x7f;
-      return c << 8 | t | (030 << 16);
+      return c << 8 | t | (encoding == BIG5  ? 030 << 16 : 031 << 16);
     }
   return c | (encodings[encoding].deffont << 16);
 }
@@ -1032,7 +1238,7 @@ int *fontp;
   int t, f, l;
 
   debug2("Encoding char %02x for encoding %d\n", c, encoding);
-  if (c == 0 && fontp)
+  if (c == -1 && fontp)
     {
       if (*fontp == 0)
 	return 0;
@@ -1067,7 +1273,7 @@ int *fontp;
         }
       return ToUtf8(bp, c);
     }
-  if ((c & 0xff00) && f == 0)
+  if ((c & 0xff00) && f == 0)	/* is_utf8? */
     {
 # ifdef DW_CHARS
       if (utf8_isdouble(c))
@@ -1086,7 +1292,6 @@ int *fontp;
       f = c >> 16;
     }
 #endif
-
   if (f & 0x80)		/* map special 96-fonts to latin1 */
     f = 0;
 
@@ -1147,7 +1352,7 @@ int *fontp;
 	}
       return 2;
     }
-  if (encoding == BIG5 && f == 030)
+  if ((encoding == BIG5 && f == 030) || (encoding == GBK && f == 031))
     {
       if (bp)
 	{
@@ -1156,6 +1361,8 @@ int *fontp;
 	}
       return 2;
     }
+  if (encoding == GBK && f == 0 && c == 0xa4)
+    c = 0x80;
 
   l = 0;
   if (fontp && f != *fontp)
@@ -1217,6 +1424,8 @@ int encoding, f;
       return f == 1;
     case BIG5:
       return f == 030;
+    case GBK:
+      return f == 031;
     default:
       break;
     }
@@ -1271,7 +1480,7 @@ int c;
       D_mbcs = t | 0x80;
       return c | 0x80;
     }
-  if (encoding == BIG5 && f == 030)
+  if ((encoding == BIG5 && f == 030) || (encoding == GBK && f == 031))
     return c | 0x80;
   return c;
 }
@@ -1297,7 +1506,7 @@ unsigned char *tbuf;
 	continue;
       j += EncodeChar(tbuf ? (char *)tbuf + j : 0, c, tenc, &font);
     }
-  j += EncodeChar(tbuf ? (char *)tbuf + j : 0, 0, tenc, &font);
+  j += EncodeChar(tbuf ? (char *)tbuf + j : 0, -1, tenc, &font);
   return j;
 }
 
@@ -1456,7 +1665,7 @@ int encoding;
 int *fontp;
 {
   int f, l;
-  f = c >> 16;
+  f = (c == -1) ? 0 : c >> 16;
   l = 0;
   if (fontp && f != *fontp)
     {
@@ -1486,7 +1695,7 @@ int *fontp;
 	  l += 3;
 	}
     }
-  if (c == 0)
+  if (c == -1)
     return l;
   if (c & 0xff00)
     {

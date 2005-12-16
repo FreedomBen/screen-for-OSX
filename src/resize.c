@@ -46,6 +46,7 @@ static int  AllocMline __P((struct mline *ml, int));
 static void MakeBlankLine __P((unsigned char *, int));
 static void kaablamm __P((void));
 static int  BcopyMline __P((struct mline *, int, struct mline *, int, int, int));
+static void SwapAltScreen __P((struct win *));
 
 extern struct layer *flayer;
 extern struct display *display, *displays;
@@ -1019,10 +1020,83 @@ int wi, he, hi;
     {
       ml = OLDWIN(fy);
       ASSERT(ml->image);
-      for (l = 0; l < p->w_width; l++)
-      ASSERT((unsigned char)ml->image[l] >= ' ');
+# ifdef UTF8
+      if (p->w_encoding == UTF8)
+	{
+	  for (l = 0; l < p->w_width; l++)
+	    ASSERT(ml->image[l] >= ' ' || ml->font[l]);
+	}
+      else
+#endif
+        for (l = 0; l < p->w_width; l++)
+          ASSERT(ml->image[l] >= ' ');
     }
 #endif
   return 0;
 }
 
+void
+FreeAltScreen(p)
+struct win *p;
+{
+  int i;
+
+  if (p->w_alt_mlines)
+    for (i = 0; i < p->w_alt_height; i++)
+      FreeMline(p->w_alt_mlines + i);
+  p->w_alt_mlines = 0;
+  p->w_alt_width = 0;
+  p->w_alt_height = 0;
+  p->w_alt_x = 0;
+  p->w_alt_y = 0;
+#ifdef COPY_PASTE
+  if (p->w_alt_hlines)
+    for (i = 0; i < p->w_alt_histheight; i++)
+      FreeMline(p->w_alt_hlines + i);
+  p->w_alt_hlines = 0;
+  p->w_alt_histidx = 0;
+#endif
+  p->w_alt_histheight = 0;
+}
+
+static void
+SwapAltScreen(p)
+struct win *p;
+{
+  struct mline *ml;
+  int t;
+
+  ml = p->w_alt_mlines; p->w_alt_mlines = p->w_mlines; p->w_mlines = ml;
+  t = p->w_alt_width; p->w_alt_width = p->w_width; p->w_width = t;
+  t = p->w_alt_height; p->w_alt_height = p->w_height; p->w_height = t;
+  t = p->w_alt_histheight; p->w_alt_histheight = p->w_histheight; p->w_histheight = t;
+  t = p->w_alt_x; p->w_alt_x = p->w_x; p->w_x = t;
+  t = p->w_alt_y; p->w_alt_y = p->w_y; p->w_y = t;
+#ifdef COPY_PASTE
+  ml = p->w_alt_hlines; p->w_alt_hlines = p->w_hlines; p->w_hlines = ml;
+  t = p->w_alt_histidx; p->w_alt_histidx = p->w_histidx; p->w_histidx = t;
+#endif
+}
+
+void
+EnterAltScreen(p)
+struct win *p;
+{
+  int ox = p->w_x, oy = p->w_y;
+  FreeAltScreen(p);
+  SwapAltScreen(p);
+  ChangeWindowSize(p, p->w_alt_width, p->w_alt_height, p->w_alt_histheight);
+  p->w_x = ox;
+  p->w_y = oy;
+}
+
+void
+LeaveAltScreen(p)
+struct win *p;
+{
+  if (!p->w_alt_mlines)
+    return;
+  SwapAltScreen(p);
+  ChangeWindowSize(p, p->w_alt_width, p->w_alt_height, p->w_alt_histheight);
+  FreeAltScreen(p);
+}

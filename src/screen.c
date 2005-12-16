@@ -130,6 +130,7 @@ char *ShellProg;
 char *ShellArgs[2];
 
 extern struct NewWindow nwin_undef, nwin_default, nwin_options;
+struct backtick;
 
 static struct passwd *getpwbyname __P((char *, struct passwd *));
 static void  SigChldHandler __P((void));
@@ -141,6 +142,9 @@ static void  DoWait __P((void));
 static void  serv_read_fn __P((struct event *, char *));
 static void  serv_select_fn __P((struct event *, char *));
 static void  logflush_fn __P((struct event *, char *));
+static void  backtick_filter __P((struct backtick *));
+static void  backtick_fn __P((struct event *, char *));
+static char *runbacktick __P((struct backtick *, int *, time_t, struct win *));
 static int   IsSymbol __P((char *, char *));
 #ifdef DEBUG
 static void  fds __P((void));
@@ -220,6 +224,7 @@ int nethackflag = 0;
 #ifdef MAPKEYS
 int maptimeout = 300000;
 #endif
+int maxwin = MAXWIN;
 
 
 struct layer *flayer;
@@ -713,6 +718,23 @@ char **av;
       else
 	break;
     }
+
+  real_uid = getuid();
+  real_gid = getgid();
+  eff_uid = geteuid();
+  eff_gid = getegid();
+  if (eff_uid != real_uid)
+    {		
+      /* if running with s-bit, we must install a special signal
+       * handler routine that resets the s-bit, so that we get a
+       * core file anyway.
+       */
+#ifdef SIGBUS /* OOPS, linux has no bus errors! */
+      signal(SIGBUS, CoreDump);
+#endif /* SIGBUS */
+      signal(SIGSEGV, CoreDump);
+    }
+
 #ifdef USE_LOCALE
   setlocale(LC_ALL, "");
 #endif
@@ -749,21 +771,6 @@ char **av;
 #endif
   if (ac)
     nwin.args = av;
-  real_uid = getuid();
-  real_gid = getgid();
-  eff_uid = geteuid();
-  eff_gid = getegid();
-  if (eff_uid != real_uid)
-    {		
-      /* if running with s-bit, we must install a special signal
-       * handler routine that resets the s-bit, so that we get a
-       * core file anyway.
-       */
-#ifdef SIGBUS /* OOPS, linux has no bus errors! */
-      signal(SIGBUS, CoreDump);
-#endif /* SIGBUS */
-      signal(SIGSEGV, CoreDump);
-    }
 
   /* make the write() calls return -1 on all errors */
 #ifdef SIGXFSZ
@@ -888,7 +895,7 @@ char **av;
 #ifdef MULTIUSER
       tty_mode = (int)st.st_mode & 0777;
 #endif
-      if ((n = secopen(attach_tty, O_RDWR, 0)) < 0)
+      if ((n = secopen(attach_tty, O_RDWR | O_NONBLOCK, 0)) < 0)
 	Panic(0, "Cannot open your terminal '%s' - please check.", attach_tty);
       close(n);
       debug1("attach_tty is %s\n", attach_tty);
@@ -1014,6 +1021,8 @@ char **av;
     }
   if ((st.st_mode & 0777) != 0700)
     Panic(0, "Directory %s must have mode 700.", SockPath);
+  if (SockMatch && index(SockMatch, '/'))
+    Panic(0, "Bad session name '%s'", SockMatch);
   SockName = SockPath + strlen(SockPath) + 1;
   *SockName = 0;
   (void) umask(oumask);
@@ -2054,13 +2063,221 @@ int padlen;
   return pn2;
 }
 
+struct backtick {
+  struct backtick *next;
+  int num;
+  int tick;
+  int lifespan;
+  time_t bestbefore;
+  char result[MAXSTR];
+  char **cmdv;
+  struct event ev;
+  char *buf;
+  int bufi;
+};
+
+struct backtick *backticks;
+
+static void
+backtick_filter(bt)
+struct backtick *bt;
+{
+  char *p, *q;
+  int c;
+
+  for (p = q = bt->result; (c = (unsigned char)*p++) != 0;)
+    {
+      if (c == '\t')
+	c = ' ';
+      if (c >= ' ' || c == '\005')
+	*q++ = c;
+    }
+  *q = 0;
+}
+
+static void
+backtick_fn(ev, data)
+struct event *ev;
+char *data;
+{
+  struct backtick *bt;
+  int i, j, k, l;
+
+  bt = (struct backtick *)data;
+  debug1("backtick_fn for #%d\n", bt->num);
+  i = bt->bufi;
+  l = read(ev->fd, bt->buf + i, MAXSTR - i);
+  if (l <= 0)
+    {
+      debug1("EOF on backtick #%d\n", bt->num);
+      evdeq(ev);
+      close(ev->fd);
+      ev->fd = -1;
+      return;
+    }
+  debug1("read %d bytes\n", l);
+  i += l;
+  for (j = 0; j < l; j++)
+    if (bt->buf[i - j - 1] == '\n')
+      break;
+  if (j < l)
+    {
+      for (k = i - j - 2; k >= 0; k--)
+	if (bt->buf[k] == '\n')
+	  break;
+      k++;
+      bcopy(bt->buf + k, bt->result, i - j - k);
+      bt->result[i - j - k - 1] = 0;
+      backtick_filter(bt);
+      WindowChanged(0, '`');
+    }
+  if (j == l && i == MAXSTR)
+    {
+      j = MAXSTR/2;
+      l = j + 1;
+    }
+  if (j < l)
+    {
+      if (j)
+        bcopy(bt->buf + i - j, bt->buf, j);
+      i = j;
+    }
+  bt->bufi = i;
+}
+
+void
+setbacktick(num, lifespan, tick, cmdv)
+int num;
+int lifespan;
+int tick;
+char **cmdv;
+{
+  struct backtick **btp, *bt;
+  char **v;
+
+  debug1("setbacktick called for backtick #%d\n", num);
+  for (btp = &backticks; (bt = *btp) != 0; btp = &bt->next)
+    if (bt->num == num)
+      break;
+  if (!bt && !cmdv)
+    return;
+  if (bt)
+    {
+      for (v = bt->cmdv; *v; v++)
+	free(*v);
+      free(bt->cmdv);
+      if (bt->buf)
+	free(bt->buf);
+      if (bt->ev.fd >= 0)
+	close(bt->ev.fd);
+      evdeq(&bt->ev);
+    }
+  if (bt && !cmdv)
+    {
+      *btp = bt->next;
+      free(bt);
+      return;
+    }
+  if (!bt)
+    {
+      bt = (struct backtick *)malloc(sizeof *bt);
+      if (!bt)
+	{
+	  Msg(0, strnomem);
+          return;
+	}
+      bzero(bt, sizeof(*bt));
+      bt->next = 0;
+      *btp = bt;
+    }
+  bt->num = num;
+  bt->tick = tick;
+  bt->lifespan = lifespan;
+  bt->bestbefore = 0;
+  bt->result[0] = 0;
+  bt->buf = 0;
+  bt->bufi = 0;
+  bt->cmdv = cmdv;
+  bt->ev.fd = -1;
+  if (bt->tick == 0 && bt->lifespan == 0)
+    {
+      debug("setbacktick: continuous mode\n");
+      bt->buf = (char *)malloc(MAXSTR);
+      if (bt->buf == 0)
+	{
+	  Msg(0, strnomem);
+	  setbacktick(num, 0, 0, (char **)0);
+          return;
+	}
+      bt->ev.type = EV_READ;
+      bt->ev.fd = readpipe(bt->cmdv);
+      bt->ev.handler = backtick_fn;
+      bt->ev.data = (char *)bt;
+      if (bt->ev.fd >= 0)
+	evenq(&bt->ev);
+    }
+}
+
+static char *
+runbacktick(bt, tickp, now, win)
+struct backtick *bt;
+int *tickp;
+time_t now;
+struct win *win;
+{
+  int f, i, l, j;
+  time_t now2;
+
+  debug1("runbacktick called for backtick #%d\n", bt->num);
+  if (bt->tick && (!*tickp || bt->tick < *tickp))
+    *tickp = bt->tick;
+  if ((bt->lifespan == 0 && bt->tick == 0) || now < bt->bestbefore)
+    {
+      debug1("returning old result (%d)\n", bt->lifespan);
+      return bt->result;
+    }
+  f = readpipe(bt->cmdv);
+  if (f == -1)
+    return bt->result;
+  i = 0;
+  while ((l = read(f, bt->result + i, sizeof(bt->result) - i)) > 0)
+    {
+      debug1("runbacktick: read %d bytes\n", l);
+      i += l;
+      for (j = 1; j < l; j++)
+	if (bt->result[i - j - 1] == '\n')
+	  break;
+      if (j == l && i == sizeof(bt->result))
+	{
+	  j = sizeof(bt->result) / 2;
+	  l = j + 1;
+	}
+      if (j < l)
+	{
+	  bcopy(bt->result + i - j, bt->result, j);
+	  i = j;
+	}
+    }
+  close(f);
+  bt->result[sizeof(bt->result) - 1] = '\n';
+  if (i && bt->result[i - 1] == '\n')
+    i--;
+  debug1("runbacktick: finished, %d bytes\n", i);
+  bt->result[i] = 0;
+  backtick_filter(bt);
+  (void)time(&now2);
+  bt->bestbefore = now2 + bt->lifespan;
+  return bt->result;
+}
+
 char *
-MakeWinMsgEv(str, win, esc, padlen, ev)
+MakeWinMsgEv(str, win, esc, padlen, ev, rec)
 char *str;
 struct win *win;
 int esc;
 int padlen;
 struct event *ev;
+int rec;
 {
   static int tick;
   char *s = str;
@@ -2081,6 +2298,7 @@ struct event *ev;
   int truncpos = -1;
   int truncper = 0;
   int trunclong = 0;
+  struct backtick *bt;
  
   if (winmsg_numrend >= 0)
     winmsg_numrend = 0;
@@ -2182,11 +2400,12 @@ struct event *ev;
 	      tm = localtime(&nowsec);
 	    }
 	  qmflag = 1;
+	  if (!tick || tick > 3600)
+	    tick = 3600;
 	  switch (*s)
 	    {
 	    case 'd':
 	      sprintf(p, "%02d", tm->tm_mday % 100);
-	      tick |= 4;
 	      break;
 	    case 'D':
 #ifdef USE_LOCALE
@@ -2194,11 +2413,9 @@ struct event *ev;
 #else
 	      sprintf(p, "%3.3s", days + 3 * tm->tm_wday);
 #endif
-	      tick |= 4;
 	      break;
 	    case 'm':
 	      sprintf(p, "%02d", tm->tm_mon + 1);
-	      tick |= 4;
 	      break;
 	    case 'M':
 #ifdef USE_LOCALE
@@ -2206,35 +2423,32 @@ struct event *ev;
 #else
 	      sprintf(p, "%3.3s", months + 3 * tm->tm_mon);
 #endif
-	      tick |= 4;
 	      break;
 	    case 'y':
 	      sprintf(p, "%02d", tm->tm_year % 100);
-	      tick |= 4;
 	      break;
 	    case 'Y':
 	      sprintf(p, "%04d", tm->tm_year + 1900);
-	      tick |= 4;
 	      break;
 	    case 'a':
 	      sprintf(p, tm->tm_hour >= 12 ? "pm" : "am");
-	      tick |= 4;
 	      break;
 	    case 'A':
 	      sprintf(p, tm->tm_hour >= 12 ? "PM" : "AM");
-	      tick |= 4;
 	      break;
 	    case 's':
 	      sprintf(p, "%02d", tm->tm_sec);
-	      tick |= 1;
+	      tick = 1;
 	      break;
 	    case 'c':
 	      sprintf(p, zeroflg ? "%02d:%02d" : "%2d:%02d", tm->tm_hour, tm->tm_min);
-	      tick |= 2;
+	      if (!tick || tick > 60)
+		tick = 60;
 	      break;
 	    case 'C':
 	      sprintf(p, zeroflg ? "%02d:%02d" : "%2d:%02d", (tm->tm_hour + 11) % 12 + 1, tm->tm_min);
-	      tick |= 2;
+	      if (!tick || tick > 60)
+		tick = 60;
 	      break;
 	    default:
 	      break;
@@ -2253,16 +2467,31 @@ struct event *ev;
 	    }
 	  else
 	    *p = '?';
-	  tick |= 2;
+	  if (!tick || tick > 60)
+	    tick = 60;
 #else
 	  *p = '?';
 #endif
 	  p += strlen(p) - 1;
 	  break;
+	case '`':
 	case 'h':
-	  if (win == 0 || win->w_hstatus == 0 || *win->w_hstatus == 0 || str == win->w_hstatus)
-	    p--;
-	  else
+	  if (rec >= 10 || (*s == 'h' && (win == 0 || win->w_hstatus == 0 || *win->w_hstatus == 0)))
+	    {
+	      p--;
+	      break;
+	    }
+	  if (*s == '`')
+	    {
+	      for (bt = backticks; bt; bt = bt->next)
+		if (bt->num == num)
+		  break;
+	      if (bt == 0)
+		{
+		  p--;
+		  break;
+		}
+	    }
 	    {
 	      char savebuf[sizeof(winmsg_buf)];
 	      int oldtick = tick;
@@ -2271,8 +2500,10 @@ struct event *ev;
 	      *p = 0;
 	      strcpy(savebuf, winmsg_buf);
 	      winmsg_numrend = -winmsg_numrend;
-	      MakeWinMsg(win->w_hstatus, win, '\005');
-	      tick |= oldtick;		/* small hack... */
+	      MakeWinMsgEv(*s == 'h' ? win->w_hstatus : runbacktick(bt, &oldtick, now.tv_sec, win), win, '\005', 0, (struct event *)0, rec + 1);
+	      debug2("oldtick=%d tick=%d\n", oldtick, tick);
+	      if (!tick || oldtick < tick)
+		tick = oldtick;
 	      if (strlen(winmsg_buf) < l)
 		strcat(savebuf, winmsg_buf);
 	      strcpy(winmsg_buf, savebuf);
@@ -2429,6 +2660,7 @@ struct event *ev;
 		  left = truncpos - trunc;
 		  if (left > p - winmsg_buf - num)
 		    left = p - winmsg_buf - num;
+		  debug1("lastpad = %d, ", lastpad);
 		  debug3("truncpos = %d, trunc = %d, left = %d\n", truncpos, trunc, left);
 		  if (left > 0)
 		    {
@@ -2475,6 +2707,7 @@ struct event *ev;
 		  trunclong = 0;
 		  if (lastpad > p - winmsg_buf)
 		    lastpad = p - winmsg_buf;
+		  debug1("lastpad now %d\n", lastpad);
 		}
 	      if (*s == '=')
 		{
@@ -2483,6 +2716,7 @@ struct event *ev;
 		  lastpad = p - winmsg_buf;
 		  truncpos = -1;
 		  trunclong = 0;
+		  debug1("lastpad2 now %d\n", lastpad);
 		}
 	      p--;
 	    }
@@ -2528,14 +2762,13 @@ struct event *ev;
     }
   if (ev && tick)
     {
-      now.tv_usec = 0;
-      if (tick & 1)
+      now.tv_usec = 100000;
+      if (tick == 1)
 	now.tv_sec++;
-      else if (tick & 2)
-	now.tv_sec += 60 - (now.tv_sec % 60);
-      else if (tick & 4)
-	now.tv_sec += 3600 - (now.tv_sec % 3600);
+      else
+	now.tv_sec += tick - (now.tv_sec % tick);
       ev->timeout = now;
+      debug2("NEW timeout %d %d\n", ev->timeout.tv_sec, tick);
     }
   return winmsg_buf;
 }
@@ -2546,7 +2779,7 @@ char *s;
 struct win *win;
 int esc;
 {
-  return MakeWinMsgEv(s, win, esc, 0, (struct event *)0);
+  return MakeWinMsgEv(s, win, esc, 0, (struct event *)0, 0);
 }
 
 int

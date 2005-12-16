@@ -200,8 +200,8 @@ LIBS="$LIBS -lelf"
 AC_CHECKING(SVR4)
 AC_TRY_LINK([#include <utmpx.h>
 ],,
-AC_CHECK_HEADER(dwarf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN),
-AC_CHECK_HEADER(elf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN)))
+[AC_CHECK_HEADER(dwarf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN),
+[AC_CHECK_HEADER(elf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN))])]
 ,LIBS="$oldlibs")
 
 AC_CHECKING(for Solaris 2.x)
@@ -681,11 +681,19 @@ AC_DEFINE(HAVE_DEV_PTC)
 fi
 
 AC_CHECKING(for SVR4 ptys)
+sysvr4ptys=
 if test -c /dev/ptmx ; then
-AC_TRY_LINK([],[ptsname(0);grantpt(0);unlockpt(0);],AC_DEFINE(HAVE_SVR4_PTYS))
+AC_TRY_LINK([],[ptsname(0);grantpt(0);unlockpt(0);],[AC_DEFINE(HAVE_SVR4_PTYS)
+sysvr4ptys=1])
 fi
 
 AC_CHECK_FUNCS(getpt)
+
+dnl check for openpty()
+if test -z "$sysvr4ptys"; then
+AC_CHECK_FUNCS(openpty,,
+[AC_CHECK_LIB(util,openpty, [AC_DEFINE(HAVE_OPENPTY)] [LIBS="$LIBS -lutil"])])
+fi
 
 AC_CHECKING(for ptyranges)
 if test -d /dev/ptym ; then
@@ -714,6 +722,14 @@ fi
 dnl    ****  pty mode/group handling ****
 dnl
 dnl support provided by Luke Mewburn <lm@rmit.edu.au>, 931222
+AC_ARG_WITH(pty-mode, [  --with-pty-mode=mode    default mode for ptys], [ ptymode="${withval}" ])
+AC_ARG_WITH(pty-group, [  --with-pty-group=group  default group for ptys], [ ptygrp="${withval}" ])
+test -n "$ptymode" || ptymode=0620
+if test -n "$ptygrp" ; then
+AC_DEFINE_UNQUOTED(PTYMODE, $ptymode)
+AC_DEFINE_UNQUOTED(PTYGROUP,$ptygrp)
+else
+
 AC_CHECKING(default tty permissions/group)
 rm -f conftest_grp
 AC_TRY_RUN([
@@ -747,8 +763,8 @@ main()
 ],[
     if test -f conftest_grp; then
 	ptygrp=`cat conftest_grp`
-	AC_NOTE([- pty mode: 0620, group: $ptygrp])
-	AC_DEFINE(PTYMODE, 0620)
+	AC_NOTE([- pty mode: $ptymode, group: $ptygrp])
+	AC_DEFINE_UNQUOTED(PTYMODE, $ptymode)
 	AC_DEFINE_UNQUOTED(PTYGROUP,$ptygrp)
     else
 	AC_NOTE(- ptys are world accessable)
@@ -778,8 +794,8 @@ main()
       found=`find $WRITEPATH $XTERMPATH $findfollow -perm -2000 -print` 
       if test -n "$found"; then
 	ptygrp=`ls -ln$lsfollow $found | sed -n -e 1p | $AWK '{print $4}'`
-	AC_NOTE([- pty mode: 0620, group: $ptygrp])
-	AC_DEFINE(PTYMODE, 0620)
+	AC_NOTE([- pty mode: $ptymode, group: $ptygrp])
+	AC_DEFINE_UNQUOTED(PTYMODE, $ptymode)
 	AC_DEFINE_UNQUOTED(PTYGROUP,$ptygrp)
       else
 	AC_NOTE(- ptys are world accessable)
@@ -790,6 +806,7 @@ main()
   ]
 )
 rm -f conftest_grp
+fi
 
 dnl
 dnl    ****  utmp handling  ****
@@ -1201,6 +1218,8 @@ AC_TRY_LINK([
 #include <langinfo.h>
 ],[nl_langinfo(CODESET);], AC_MSG_RESULT(yes);AC_DEFINE(HAVE_NL_LANGINFO), AC_MSG_RESULT(no))
 
+AC_SEARCH_LIBS(gethostname, nsl)
+
 AC_CHECK_FUNCS(rename fchmod fchown strerror lstat _exit utimes vsnprintf getcwd setlocale strftime)
 
 AC_ARG_ENABLE(pam, [  --enable-pam            enable PAM support])
@@ -1278,7 +1297,7 @@ echo "!!! and 'term.h.dist' to 'comm.h' and 'term.h'."
 echo "!!! Do _not_ change the user configuration section in config.h!"
 echo "Please check the pathnames in the Makefile."
 else
-echo "Now please check the pathnames in the Makefile and the user"
+echo "Now please check the pathnames in the Makefile and in the user"
 echo "configuration section in config.h."
 fi
 echo "Then type 'make' to make screen. Good luck."

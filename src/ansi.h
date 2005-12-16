@@ -127,6 +127,7 @@ enum move_t {
 #define BIG5	5
 #define KOI8R	6
 #define CP1251	7
+#define GBK	20
 
 #define EUC	EUC_JP
 
@@ -167,4 +168,3 @@ enum move_t {
 # define dw_left(ml, x, enc) 0
 # define dw_right(ml, x, enc) 0
 #endif
-

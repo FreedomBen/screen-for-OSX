@@ -60,11 +60,11 @@ extern int log_flush, logtstamp_on, logtstamp_after;
 extern char *VisualBellString;
 extern int VBellWait, MsgWait, MsgMinWait, SilenceWait;
 extern char SockPath[], *SockName;
-extern int TtyMode, auto_detach;
-extern int iflag;
+extern int TtyMode, auto_detach, use_altscreen;
+extern int iflag, maxwin;
 extern int use_hardstatus, visual_bell;
 #ifdef COLOR
-extern int attr2color[];
+extern int attr2color[][4];
 extern int nattr2color;
 #endif
 extern int hardstatusemu;
@@ -2622,7 +2622,7 @@ int key;
         {
 	  int old = fore->w_number;
 
-	  if (ParseNum(act, &n) || n >= MAXWIN)
+	  if (ParseNum(act, &n) || n >= maxwin)
 	    break;
 	  p = wtab[n];
 	  wtab[n] = fore;
@@ -2729,7 +2729,7 @@ int key;
 	  s = 0;
 	  if (ParseSaveStr(act, &s))
 	    break;
-	  if (!*s || strlen(s) + (SockName - SockPath) > MAXPATHLEN - 13)
+	  if (!*s || strlen(s) + (SockName - SockPath) > MAXPATHLEN - 13 || index(s, '/'))
 	    {
 	      Msg(0, "%s: bad session name '%s'\n", rc_name, s);
 	      free(s);
@@ -3165,8 +3165,16 @@ int key;
       break;
 #endif
     case RC_GR:
+#ifdef ENCODINGS
+      if (fore->w_gr == 2)
+	fore->w_gr = 0;
+#endif
       if (ParseSwitch(act, &fore->w_gr) == 0 && msgok)
         Msg(0, "Will %suse GR", fore->w_gr ? "" : "not ");
+#ifdef ENCODINGS
+      if (fore->w_gr == 0 && fore->w_FontE)
+	fore->w_gr = 2;
+#endif
       break;
     case RC_C1:
       if (ParseSwitch(act, &fore->w_c1) == 0 && msgok)
@@ -3377,13 +3385,28 @@ int key;
 #endif
 #ifdef COLOR
     case RC_ATTRCOLOR:
-      if (args[0][0] >= '0' && args[0][0] <= '9')
-        i = args[0][0] - '0';
+      s = args[0];
+      if (*s >= '0' && *s <= '9')
+        i = *s - '0';
       else
 	for (i = 0; i < 8; i++)
-	  if (args[0][0] == "dubrsBiI"[i])
+	  if (*s == "dubrsBiI"[i])
 	    break;
-      if (args[0][1] || i < 0 || i >= 8)
+      s++;
+      nr = 0;
+      if (*s && s[1] && !s[2])
+	{
+	  if (*s == 'd' && s[1] == 'd')
+	    nr = 3;
+	  else if (*s == '.' && s[1] == 'd')
+	    nr = 2;
+	  else if (*s == 'd' && s[1] == '.')
+	    nr = 1;
+	  else if (*s != '.' || s[1] != '.')
+	    s--;
+	  s += 2;
+	}
+      if (*s || i < 0 || i >= 8)
 	{
 	  Msg(0, "%s: attrcolor: unknown attribute '%s'.", rc_name, args[0]);
 	  break;
@@ -3393,10 +3416,10 @@ int key;
         n = ParseAttrColor(args[1], args[2], 1);
       if (n == -1)
 	break;
-      attr2color[i] = n;
+      attr2color[i][nr] = n;
       n = 0;
       for (i = 0; i < 8; i++)
-	if (attr2color[i])
+	if (attr2color[i][0] || attr2color[i][1] || attr2color[i][2] || attr2color[i][3])
 	  n |= 1 << i;
       nattr2color = n;
       break;
@@ -3517,6 +3540,42 @@ int key;
 	  RcLine(ss);
 	  free(ss);
 	}
+      break;
+    case RC_ALTSCREEN:
+      (void)ParseSwitch(act, &use_altscreen);
+      if (msgok)
+        Msg(0, "Will %sdo alternate screen switching", use_altscreen ? "" : "not ");
+      break;
+    case RC_MAXWIN:
+      if (ParseNum(act, &n))
+	break;
+      if (n < 1)
+        Msg(0, "illegal maxwin number specified");
+      else if (n > maxwin)
+        Msg(0, "may only decrease maxwin number");
+      else
+        maxwin = n;
+      break;
+    case RC_BACKTICK:
+      if (ParseBase(act, *args, &n, 10, "decimal"))
+	break;
+      if (!args[1])
+	setbacktick(n, 0, 0, (char **)0);
+      else
+	{
+	  int lifespan, tick;
+	  if (argc < 4)
+	    {
+	      Msg(0, "%s: usage: backtick num [lifespan tick cmd args...]", rc_name);
+	      break;
+	    }
+	  if (ParseBase(act, args[1], &lifespan, 10, "decimal"))
+	    break;
+	  if (ParseBase(act, args[2], &tick, 10, "decimal"))
+	    break;
+	  setbacktick(n, lifespan, tick, SaveArgs(args + 3));
+	}
+      break;
     default:
 #ifdef HAVE_BRAILLE
       /* key == -2: input from braille keybord, msgok always 0 */
@@ -4208,6 +4267,7 @@ PreviousWindow()
 static int
 MoreWindows()
 {
+  char *m = "No other window.";
   if (windows && (fore == 0 || windows->w_next))
     return 1;
   if (fore == 0)
@@ -4215,7 +4275,7 @@ MoreWindows()
       Msg(0, "No window available");
       return 0;
     }
-  Msg(0, "No other window."+1-1, fore->w_number);	/* other arg for nethack */
+  Msg(0, m, fore->w_number);	/* other arg for nethack */
   return 0;
 }
 
@@ -4510,7 +4570,21 @@ ShowInfo()
 # endif
     if (D_CC0 || (D_CS0 && *D_CS0))
       {
-	if (wp->w_gr)
+	if (wp->w_gr == 2)
+	  {
+	    sprintf(p, " G%c", wp->w_Charset + '0');
+	    if (wp->w_FontE >= ' ')
+	      p[3] = wp->w_FontE;
+	    else
+	      {
+	        p[3] = '^';
+	        p[4] = wp->w_FontE ^ 0x40;
+		p++;
+	      }
+	    p[4] = '[';
+	    p++;
+	  }
+	else if (wp->w_gr)
 	  sprintf(p++, " G%c%c[", wp->w_Charset + '0', wp->w_CharsetR + '0');
 	else
 	  sprintf(p, " G%c[", wp->w_Charset + '0');
@@ -4932,7 +5006,7 @@ char *data;	/* dummy */
       bcopy(D_user->u_plop.buf, pp->buf, D_user->u_plop.len);
     }
   pp->len = D_user->u_plop.len;
-#ifdef ENCODING
+#ifdef ENCODINGS
   pp->enc = D_user->u_plop.enc;
 #endif
   Msg(0, "Copied %d characters into register %c", D_user->u_plop.len, *buf);
@@ -5092,7 +5166,7 @@ int len;
 char *data;
 {
   int st;
-  char salt[2];
+  char salt[3];
   struct acluser *u = (struct acluser *)data;
 
   ASSERT(u);
@@ -5117,6 +5191,7 @@ char *data;
     {
       for (st = 0; st < 2; st++)
 	salt[st] = 'A' + (int)((time(0) >> 6 * st) % 26);
+      salt[2] = 0;
       buf = crypt(u->u_password, salt);
       bzero(u->u_password, strlen(u->u_password));
       free((char *)u->u_password);

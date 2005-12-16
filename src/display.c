@@ -83,7 +83,7 @@ short ospeed;
 
 struct display *display, *displays;
 #ifdef COLOR
-int  attr2color[8];
+int  attr2color[8][4];
 int  nattr2color;
 #endif
 
@@ -833,6 +833,13 @@ int c;
 	  return;
 	}
 #  endif
+      if (c < 32)
+	{
+	  AddCStr2(D_CS0, '0');
+	  AddChar(c + 0x5f);
+	  AddCStr(D_CE0);
+	  goto addedutf8;
+	}
       AddUtf8(c);
       goto addedutf8;
     }
@@ -1021,12 +1028,19 @@ int mode;
 {
   if (display && D_mouse != mode)
     {
+      char mousebuf[20];
       if (!D_CXT)
 	return;
       if (D_mouse)
-        AddStr(D_mouse == 9 ? "\033[?9l" : "\033[?1000l");
+        {
+          sprintf(mousebuf, "\033[?%dl", D_mouse);
+          AddStr(mousebuf);
+	}
       if (mode)
-        AddStr(mode == 9 ? "\033[?9h" : "\033[?1000h");
+        {
+          sprintf(mousebuf, "\033[?%dl", mode);
+          AddStr(mousebuf);
+	}
       D_mouse = mode;
     }
 }
@@ -1801,7 +1815,8 @@ void
 SetFont(new)
 int new;
 {
-  if (!display || D_rend.font == new)
+  int old = D_rend.font;
+  if (!display || old == new)
     return;
   D_rend.font = new;
 #ifdef ENCODINGS
@@ -1819,7 +1834,11 @@ int new;
     }
 
   if (!D_CG0 && new != '0')
-    new = ASCII;
+    {
+      new = ASCII;
+      if (old == new)
+	return;
+    }
 
   if (new == ASCII)
     AddCStr(D_CE0);
@@ -1902,8 +1921,17 @@ int f, b;
   of = rend_getfg(&D_rend);
   ob = rend_getbg(&D_rend);
 
+#ifdef COLORS16
+  /* intense default not invented yet */
+  if (f == 0x100)
+    f = 0;
+  if (b == 0x100)
+    b = 0;
+#endif
   debug2("SetColor %d %d", coli2e(of), coli2e(ob));
   debug2(" -> %d %d\n", coli2e(f), coli2e(b));
+  debug2("(%d %d", of, ob);
+  debug2(" -> %d %d)\n", f, b);
 
   if (!D_CAX && D_hascolor && ((f == 0 && f != of) || (b == 0 && b != ob)))
     {
@@ -2018,7 +2046,16 @@ struct mchar *mc;
       mmc = *mc;
       for (i = 0; i < 8; i++)
 	if (attr2color[i] && (mc->attr & (1 << i)) != 0)
-          ApplyAttrColor(attr2color[i], &mmc);
+	  {
+	    if (mc->color == 0 && attr2color[i][3])
+              ApplyAttrColor(attr2color[i][3], &mmc);
+	    else if ((mc->color & 0x0f) == 0 && attr2color[i][2])
+              ApplyAttrColor(attr2color[i][2], &mmc);
+	    else if ((mc->color & 0xf0) == 0 && attr2color[i][1])
+              ApplyAttrColor(attr2color[i][1], &mmc);
+	    else
+              ApplyAttrColor(attr2color[i][0], &mmc);
+	  }
       mc = &mmc;
       debug2("SetRendition: mapped to %02x %02x\n", (unsigned char)mc->attr, 0x99 - (unsigned char)mc->color);
     }
@@ -2347,7 +2384,7 @@ RefreshHStatus()
   evdeq(&D_hstatusev);
   if (D_status == STATUS_ON_HS)
     return;
-  buf = MakeWinMsgEv(hstatusstring, D_fore, '%', (D_HS && D_has_hstatus == HSTATUS_HS) ? D_WS : D_width - !D_CLP, &D_hstatusev);
+  buf = MakeWinMsgEv(hstatusstring, D_fore, '%', (D_HS && D_has_hstatus == HSTATUS_HS && D_WS > 0) ? D_WS : D_width - !D_CLP, &D_hstatusev, 0);
   if (buf && *buf)
     {
       ShowHStatus(buf);
@@ -2513,7 +2550,7 @@ int y, from, to, isblank;
     }
 
   p = Layer2Window(cv->c_layer);
-  buf = MakeWinMsgEv(captionstring, p, '%', D_width - !D_CLP, &cv->c_captev);
+  buf = MakeWinMsgEv(captionstring, p, '%', D_width - !D_CLP, &cv->c_captev, 0);
   if (cv->c_captev.timeout.tv_sec)
     evenq(&cv->c_captev);
   xx = strlen(buf);
@@ -2843,11 +2880,11 @@ int ins;
 	  y--;
 	}
     }
-  else if (y == D_bot)
-    ChangeScrollRegion(ys, ye);		/* remove unusable region */
+  else if (y == D_bot)	/* remove unusable region? */
+    ChangeScrollRegion(0, D_height - 1);
   if (D_x != D_width || D_y != y)
     {
-      if (D_CLP)			/* don't even try if !LP */
+      if (D_CLP && y >= 0)		/* don't even try if !LP */
         RefreshLine(y, D_width - 1, D_width - 1, 0);
       debug2("- refresh last char -> x,y now %d,%d\n", D_x, D_y);
       if (D_x != D_width || D_y != y)	/* sorry, no bonus */
@@ -2919,6 +2956,8 @@ int newtop, newbot;
 {
   if (display == 0)
     return;
+  if (newtop == newbot)
+    return;			/* xterm etc can't do it */
   if (newtop == -1)
     newtop = 0;
   if (newbot == -1)
@@ -3357,8 +3396,9 @@ char *data;
 #ifdef ENCODINGS
   if (D_encoding != (D_forecv ? D_forecv->c_layer->l_encoding : 0))
     {
-      int i, j, c;
+      int i, j, c, enc;
       char buf2[IOSIZE * 2 + 10];
+      enc = D_forecv ? D_forecv->c_layer->l_encoding : 0;
       for (i = j = 0; i < size; i++)
 	{
 	  c = ((unsigned char *)buf)[i];
@@ -3370,11 +3410,11 @@ char *data;
 	  if (pastefont)
 	    {
 	      int font = 0;
-	      j += EncodeChar(buf2 + j, c, D_forecv->c_layer->l_encoding, &font);
-	      j += EncodeChar(buf2 + j, 0, D_forecv->c_layer->l_encoding, &font);
+	      j += EncodeChar(buf2 + j, c, enc, &font);
+	      j += EncodeChar(buf2 + j, -1, enc, &font);
 	    }
 	  else
-	    j += EncodeChar(buf2 + j, c, D_forecv->c_layer->l_encoding, 0);
+	    j += EncodeChar(buf2 + j, c, enc, 0);
 	  if (j > sizeof(buf2) - 10)	/* just in case... */
 	    break;
 	}

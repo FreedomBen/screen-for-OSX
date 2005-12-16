@@ -76,6 +76,7 @@ extern char *getenv();
 extern char SockPath[];
 extern struct event serv_read;
 extern char *rc_name;
+extern struct comm comms[];
 
 #ifdef MULTIUSER
 # define SOCKMODE (S_IWRITE | S_IREAD | (displays ? S_IEXEC : 0) | (multi ? 1 : 0))
@@ -360,10 +361,11 @@ char *match;
     }
   if (ndead && !quietflag)
     {
+      char *m = "Remove dead screens with 'screen -wipe'.";
       if (wipeflag)
         Msg(0, "%d socket%s wiped out.", nwipe, nwipe > 1 ? "s" : "");
       else
-        Msg(0, "Remove dead screens with 'screen -wipe'."+1-1, ndead > 1 ? "s" : "", ndead > 1 ? "" : "es");	/* other args for nethack */
+        Msg(0, m, ndead > 1 ? "s" : "", ndead > 1 ? "" : "es");	/* other args for nethack */
     }
   if (firsts != -1)
     {
@@ -1112,6 +1114,7 @@ struct msg *m;
 {
   char *p;
   int pid;
+  int noshowwin;
   struct win *wi;
 
   ASSERT(display);
@@ -1193,11 +1196,36 @@ struct msg *m;
   if (D_user->u_detachotherwin >= 0)
     D_other = wtab[D_user->u_detachotherwin];
 
-  fore = FindNiceWindow(fore, *m->m.attach.preselect ? m->m.attach.preselect : 0);
+  noshowwin = 0;
+  if (*m->m.attach.preselect)
+    {
+      if (!strcmp(m->m.attach.preselect, "="))
+        fore = 0;
+      else if (!strcmp(m->m.attach.preselect, "-"))
+	{
+          fore = 0;
+	  noshowwin = 1;
+	}
+      else
+        fore = FindNiceWindow(fore, m->m.attach.preselect);
+    }
+  else
+    fore = FindNiceWindow(fore, 0);
   if (fore)
     SetForeWindow(fore);
+  else if (!noshowwin)
+    {
+#ifdef MULTIUSER
+      if (!AclCheckPermCmd(D_user, ACL_EXEC, &comms[RC_WINDOWLIST]))
+#endif
+	{
+	  flayer = D_forecv->c_layer;
+	  display_wlist(1);
+	  noshowwin = 1;
+	}
+    }
   Activate(0);
-  if (!D_fore)
+  if (!D_fore && !noshowwin)
     ShowWindows(-1);
   if (displays->d_next == 0 && console_window)
     {
@@ -1362,8 +1390,9 @@ struct msg *mp;
     display = displays;		/* sigh */
   if (*mp->m.command.preselect)
     {
-      int i;
-      i = WindowByNoN(mp->m.command.preselect);
+      int i = -1;
+      if (strcmp(mp->m.command.preselect, "-"))
+        i = WindowByNoN(mp->m.command.preselect);
       fore = i >= 0 ? wtab[i] : 0;
     }
   else if (!fore)

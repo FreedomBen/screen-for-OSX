@@ -1,4 +1,4 @@
-This is screen.info, produced by makeinfo version 4.0 from
+This is screen.info, produced by makeinfo version 4.2 from
 ./screen.texinfo.
 
 INFO-DIR-SECTION General Commands
@@ -8,7 +8,7 @@ END-INFO-DIR-ENTRY
 
    This file documents the `Screen' virtual terminal manager.
 
-   Copyright (c) 1993-2002 Free Software Foundation, Inc.
+   Copyright (c) 1993-2003 Free Software Foundation, Inc.
 
    Permission is granted to make and distribute verbatim copies of this
 manual provided the copyright notice and this permission notice are
@@ -42,10 +42,12 @@ Command Index
 * activity:                              Monitor.
 * addacl:                                Acladd.
 * allpartial:                            Redisplay.
+* altscreen:                             Redisplay.
 * at:                                    At.
 * attrcolor:                             Attrcolor.
 * autodetach:                            Detach.
 * autonuke:                              Autonuke.
+* backtick:                              Backtick.
 * bce:                                   Character Processing.
 * bell_msg:                              Bell.
 * bind:                                  Bind.
@@ -127,6 +129,7 @@ Command Index
 * mapnotnext:                            Bindkey Control.
 * maptimeout:                            Bindkey Control.
 * markkeys:                              Copy Mode Keys.
+* maxwin:                                Maxwin.
 * meta:                                  Command Character.
 * monitor:                               Monitor.
 * msgminwait:                            Message Wait.
@@ -174,7 +177,7 @@ Command Index
 * source:                                Source.
 * split:                                 Split.
 * startup_message:                       Startup Message.
-* stuff:                                 Registers.
+* stuff:                                 Paste.
 * su:                                    Su.
 * suspend:                               Suspend.
 * term:                                  Term.

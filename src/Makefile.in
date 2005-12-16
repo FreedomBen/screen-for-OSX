@@ -248,7 +248,7 @@ mdepend: $(CFILES) term.h
 	  echo `echo "$$i" | sed -e 's/.c$$/.o/'`": $$i" `\
             cc -E $$i |\
             grep '^# .*"\./.*\.h"' |\
-            sort -t'"' -u +1 -2 |\
+            (sort -t'"' -u -k 2,2 2>/dev/null || sort -t'"' -u +1 -2) |\
             sed -e 's/.*"\.\/\(.*\)".*/\1/'\
           ` >> DEPEND ; \
 	done

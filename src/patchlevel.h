@@ -488,11 +488,30 @@
  *                     use getpt() on linux systems. doc patches from
  *                     Adam Lazur. tty flow/intr cleanup.
  *                     -- DISTRIBUTED
+ * 29.08.2002  3.09.12 Port to POSIX 1003.1-2001 hosts (Paul Eggert).
+ *                     Fixed encoding for reattach password test.
+ *                     Fixed NUL characters when encodings are active.
+ *                     Fixed silly encodings bugs. Fixed bogus
+ *                     oldflayer when a window gets freed.
+ *                     Altscreen support by Gurusamy Sarathy.
+ *                     Reuse old password in builtin_screenlock.
+ *                     -- DISTRIBUTED
+ * 05.09.2002  3.09.13 added missing break statement that broke
+ *                     the eval command.
+ *                     -- DISTRIBUTED
+ * 13.03.2003  3.09.15 Console workaround for linux. Scrolling-region
+ *                     reset fix. GBK encoding added.
+ *                     support for unicode combining characters added.
+ *                     openpty() support added (thomas@xs4all.nl).
+ *                     preselect of blank window ('-') or window
+ *                     list ('=') added. Added %` string escape
+ *                     and backtick command.
+ *                     -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 9
-#define PATCHLEVEL 11
-#define DATE "14-Feb-02"
-#define STATE "" 
+#define PATCHLEVEL 15
+#define DATE "13-Mar-03"
+#define STATE ""

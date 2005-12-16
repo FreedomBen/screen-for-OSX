@@ -770,6 +770,10 @@ char *cmd;
     case 0:
       display = p->w_pdisplay;
       displays = 0;
+#ifdef DEBUG
+      if (dfp && dfp != stderr)
+        fclose(dfp);
+#endif
       close(0);
       dup(pi[0]);
       closeallfiles(0);
@@ -785,4 +789,43 @@ char *cmd;
     }
   close(pi[0]);
   return pi[1];
+}
+
+int
+readpipe(cmdv)
+char **cmdv;
+{
+  int pi[2];
+  if (pipe(pi))
+    {
+      Msg(errno, "pipe");
+      return -1;
+    }
+  switch (fork())
+    {
+    case -1:
+      Msg(errno, "fork");
+      return -1;
+    case 0:
+      displays = 0;
+#ifdef DEBUG
+      if (dfp && dfp != stderr)
+        fclose(dfp);
+#endif
+      close(1);
+      if (dup(pi[1]) != 1)
+        Panic(0, "dup");
+      closeallfiles(1);
+      if (setgid(real_gid) || setuid(real_uid))
+        Panic(errno, "setuid/setgid");
+#ifdef SIGPIPE
+      signal(SIGPIPE, SIG_DFL);
+#endif
+      execvp(*cmdv, cmdv);
+      Panic(errno, *cmdv);
+    default:
+      break;
+    }
+  close(pi[1]);
+  return pi[0];
 }

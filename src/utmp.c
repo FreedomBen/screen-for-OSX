@@ -405,14 +405,14 @@ int
 SetUtmp(wi)
 struct win *wi;
 {
-  register char *p;
   register slot_t slot;
   struct utmp u;
   int saved_ut;
 #ifdef UTHOST
+  char *p;
   char host[sizeof(D_loginhost) + 15];
 #else
-  int host = 0;
+  char *host = 0;
 #endif /* UTHOST */
 
   wi->w_slot = (slot_t)0;
@@ -832,7 +832,7 @@ getttyent()
 char *
 getlogin()
 {
-  char *tty;
+  char *tty = NULL;
 #ifdef utmp
 # undef utmp
 #endif

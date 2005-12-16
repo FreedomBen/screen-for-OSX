@@ -68,7 +68,7 @@ char *myname, *message, *arg;
   printf("-l            Login mode on (update %s), -ln = off.\n", UTMPFILE);
 #endif
   printf("-list         or -ls. Do nothing, just list our SockDir.\n");
-  printf("-L            Terminal's last character can be safely updated.\n");
+  printf("-L            Turn on output logging.\n");
   printf("-m            ignore $STY variable, do create a new screen session.\n");
   printf("-O            Choose optimal output rather than exact vt100 emulation.\n");
   printf("-p window     Preselect the named window if it exists.\n");
@@ -482,7 +482,7 @@ static const char cpmsg[] = "\
 \n\
 Screen version %v\n\
 \n\
-Copyright (c) 1993-2000 Juergen Weigert, Michael Schroeder\n\
+Copyright (c) 1993-2002 Juergen Weigert, Michael Schroeder\n\
 Copyright (c) 1987 Oliver Laumann\n\
 \n\
 This program is free software; you can redistribute it and/or \
@@ -904,13 +904,37 @@ int *plen;
   h = wlistdata->numwin;
   while (!done && *plen > 0)
     {
+      if ((unsigned char)**ppbuf >= '0' && (unsigned char)**ppbuf <= '9')
+	{
+	  int n = (unsigned char)**ppbuf - '0';
+	  int d = 0;
+	  if (n < MAXWIN && wtab[n])
+	    {
+	      while (wlistdata->pos > n)
+		{
+		  if (wtab[n])
+		    d--;
+		  n++;
+		}
+	      while (wlistdata->pos < n)
+		{
+		  if (wtab[n])
+		    d++;
+		  n--;
+		}
+	    }
+	  if (d)
+	    WListMove(d, -1);
+	}
       switch ((unsigned char)**ppbuf)
 	{
-	case 0220:
+	case 0220:	/* up */
+	case 16:	/* ^P like emacs */
 	case 'k':
 	  WListMove(-1, -1);
 	  break;
-	case 0216:
+	case 0216:	/* down */
+	case 14:	/* ^N like emacs */
 	case 'j':
 	  WListMove(1, -1);
 	  break;
@@ -928,10 +952,10 @@ int *plen;
 	case 'f':
 	  WListMove(h, -1);
 	  break;
-	case 0201:
+	case 0201:	/* home */
 	  WListMove(-wlistdata->pos, -1);
 	  break;
-	case 0205:
+	case 0205:	/* end */
 	  WListMove(MAXWIN, -1);
 	  break;
 	case '\r':
@@ -981,7 +1005,7 @@ int isblank;
   int n;
 
   display = 0;
-  str = MakeWinMsgEv(wliststr, wtab[i], '%', flayer->l_width, (struct event *)0);
+  str = MakeWinMsgEv(wliststr, wtab[i], '%', flayer->l_width, (struct event *)0, 0);
   n = strlen(str);
   if (i != pos && isblank)
     while (n && str[n - 1] == ' ')
@@ -1191,7 +1215,7 @@ wlistpage()
   wlistdata->pos = pos;
 
   display = 0;
-  str = MakeWinMsgEv(wlisttit, (struct win *)0, '%', flayer->l_width, (struct event *)0);
+  str = MakeWinMsgEv(wlisttit, (struct win *)0, '%', flayer->l_width, (struct event *)0, 0);
   LPutWinMsg(flayer, str, strlen(str), &mchar_blank, 0, 0);
   WListNormalize();
   WListLines(wlistdata->numwin, -1);
