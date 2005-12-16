@@ -322,6 +322,7 @@ int *lenp;
   int l = *lenp;
   char *buf = *bufpp, b1[10], b2[10];
 
+  debug1("ZombieProcess: %d bytes\n", *lenp);
   fore = (struct win *)flayer->l_data;
 
   ASSERT(fore->w_ptyfd < 0);
@@ -868,7 +869,10 @@ struct win *wp;
   CloseDevice(wp);
 
   if (wp == console_window)
-    console_window = 0;
+    {
+      TtyGrabConsole(-1, -1, "free");
+      console_window = 0;
+    }
   if (wp->w_log != NULL)
     logfclose(wp->w_log);
   ChangeWindowSize(wp, 0, 0, 0);
@@ -884,7 +888,7 @@ struct win *wp;
   for (d = displays; d; d = d->d_next)
     {
       if (d->d_other == wp)
-        d->d_other = NULL;
+        d->d_other = d->d_fore && d->d_fore->w_next != wp ? d->d_fore->w_next : wp->w_next;
       if (d->d_fore == wp)
         d->d_fore = NULL;
       for (cv = d->d_cvlist; cv; cv = cv->c_next)

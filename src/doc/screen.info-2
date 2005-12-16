@@ -1,4 +1,4 @@
-This is Info file screen.info, produced by Makeinfo-1.64 from the input
+This is Info file screen.info, produced by Makeinfo-1.55 from the input
 file ./screen.texinfo.
 
    This file documents the `Screen' virtual terminal manager.
@@ -667,10 +667,10 @@ Monitoring
      The notification message can be redefined by means of the
      `activity' command.  Each occurrence of `%' in MESSAGE is replaced
      by the number of the window in which activity has occurred, and
-     each occurrence of `~' is replaced by the definition for bell in
+     each occurrence of `^G' is replaced by the definition for bell in
      your termcap (usually an audible bell).  The default message is
 
-          'Activity in window %'
+          'Activity in window %n'
 
      Note that monitoring is off for all windows by default, but can be
      altered by use of the `monitor' command (`C-a M').
@@ -1012,11 +1012,11 @@ Bell
      displays a notification in the message line.  The notification
      message can be re-defined by this command.  Each occurrence of `%'
      in MESSAGE is replaced by the number of the window to which a bell
-     has been sent, and each occurrence of `~' is replaced by the
+     has been sent, and each occurrence of `^G' is replaced by the
      definition for bell in your termcap (usually an audible bell).
      The default message is
 
-          'Bell in window %'
+          'Bell in window %n'
 
      An empty message can be supplied to the `bell_msg' command to
      suppress output of a message line (`bell_msg ""').  Without

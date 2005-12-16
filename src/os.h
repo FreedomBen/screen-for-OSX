@@ -244,6 +244,10 @@ extern int errno;
 # define tputs xtputs
 #endif
 
+/* Alexandre Oliva: SVR4 style ptys don't work with osf */
+#ifdef __osf__
+# undef HAVE_SVR4_PTYS
+#endif
 
 /*****************************************************************
  *   utmp handling
@@ -256,7 +260,7 @@ extern int errno;
 #endif
 
 #if defined(UTMPOK) || defined(BUGGYGETLOGIN)
-# if defined(SVR4) && !defined(DGUX) && !defined(__hpux)
+# if defined(SVR4) && !defined(DGUX) && !defined(__hpux) && !defined(linux)
 #  include <utmpx.h>
 #  define UTMPFILE	UTMPX_FILE
 #  define utmp		utmpx

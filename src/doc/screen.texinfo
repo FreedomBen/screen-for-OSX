@@ -1078,9 +1078,9 @@ Keep dead windows.  @xref{Zombie}.
 
 This section describes the commands for creating a new window for
 running programs.  When a new window is created, the first available
-number from the range 0@dots{}9 is assigned to it.  There can be no more
-than 10 windows active at any one time unless @code{screen} was compiled
-with a higher MAXWIN setting.
+number from the range 0@dots{}9 is assigned to it.
+The number of windows is limited at compile-time by the MAXWIN
+configuration parameter.
 
 @menu
 * Chdir::                       Change the working directory for new windows.
@@ -1981,11 +1981,11 @@ When any activity occurs in a background window that is being monitored,
 notification message can be redefined by means of the @code{activity}
 command.  Each occurrence of @samp{%} in @var{message} is replaced by
 the number of the window in which activity has occurred, and each
-occurrence of @samp{~} is replaced by the definition for bell in your
+occurrence of @samp{^G} is replaced by the definition for bell in your
 termcap (usually an audible bell).  The default message is
 
 @example
-'Activity in window %'
+'Activity in window %n'
 @end example
 
 Note that monitoring is off for all windows by default, but can be altered
@@ -2329,12 +2329,12 @@ When a bell character is sent to a background window, @code{screen}
 displays a notification in the message line.  The notification message
 can be re-defined by this command.  Each occurrence
 of @samp{%} in @var{message} is replaced by the number of the window to
-which a bell has been sent, and each occurrence of @samp{~} is replaced
+which a bell has been sent, and each occurrence of @samp{^G} is replaced
 by the definition for bell in your termcap (usually an audible bell).
 The default message is
 
 @example
-'Bell in window %'
+'Bell in window %n'
 @end example
 
 An empty message can be supplied to the @code{bell_msg} command to suppress

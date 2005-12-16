@@ -30,7 +30,6 @@ RCS_ID("$Id$")
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <math.h>
 
 #include "config.h"
 #include "screen.h"

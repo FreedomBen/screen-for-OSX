@@ -3,9 +3,9 @@
 srcdir = @srcdir@
 VPATH = @srcdir@
 
-prefix = /usr/local
-mandir = $(prefix)/man
-infodir = $(prefix)/info
+prefix = @prefix@
+mandir = @mandir@
+infodir = @infodir@
 
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@

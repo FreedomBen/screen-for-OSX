@@ -1,4 +1,4 @@
-This is Info file screen.info, produced by Makeinfo-1.64 from the input
+This is Info file screen.info, produced by Makeinfo-1.55 from the input
 file ./screen.texinfo.
 
    This file documents the `Screen' virtual terminal manager.
@@ -935,6 +935,7 @@ Command Index
 * bufferfile:                           Screen-Exchange.
 * c1:                                   Character Processing.
 * caption:                              Caption.
+* caption:                              Caption.
 * chacl:                                Aclchg.
 * charset:                              Character Processing.
 * chdir:                                Chdir.
@@ -979,8 +980,10 @@ Command Index
 * focus:                                Focus.
 * gr:                                   Character Processing.
 * hardcopy:                             Hardcopy.
-* hardcopy_append:                      Hardcopy.
 * hardcopydir:                          Hardcopy.
+* hardcopy_append:                      Hardcopy.
+* hardstatus:                           Hardware Status Line.
+* hardstatus:                           Hardware Status Line.
 * hardstatus:                           Hardware Status Line.
 * height:                               Window Size.
 * help:                                 Help.
@@ -995,7 +998,10 @@ Command Index
 * lockscreen:                           Lock.
 * log:                                  Log.
 * logfile:                              Log.
+* logfile:                              Log.
 * login:                                Login.
+* logtstamp:                            Log.
+* logtstamp:                            Log.
 * logtstamp:                            Log.
 * mapdefault:                           Bindkey Control.
 * mapnotnext:                           Bindkey Control.
@@ -1057,8 +1063,8 @@ Command Index
 * umask:                                Umask.
 * unsetenv:                             Setenv.
 * vbell:                                Bell.
-* vbell_msg:                            Bell.
 * vbellwait:                            Bell.
+* vbell_msg:                            Bell.
 * verbose:                              Verbose.
 * version:                              Version.
 * wall:                                 Wall.
@@ -1095,15 +1101,10 @@ omitted from the key sequences, since it is the same for all bindings.
 * >:                                    Screen-Exchange.
 * ?:                                    Help.
 * {:                                    History.
-* [:                                    Copy.
-* ]:                                    Paste.
 * A:                                    Title Command.
 * a:                                    Command Character.
-* C:                                    Clear.
 * c:                                    Screen Command.
-* C-[:                                  Copy.
-* C-\:                                  Quit.
-* C-]:                                  Paste.
+* C:                                    Clear.
 * C-a:                                  Other Window.
 * C-c:                                  Screen Command.
 * C-d:                                  Detach.
@@ -1124,24 +1125,27 @@ omitted from the key sequences, since it is the same for all bindings.
 * C-w:                                  Windows.
 * C-x:                                  Lock.
 * C-z:                                  Suspend.
+* C-[:                                  Copy.
+* C-\:                                  Quit.
+* C-]:                                  Paste.
 * D:                                    Power Detach.
 * d:                                    Detach.
 * ESC:                                  Copy.
-* f:                                    Flow.
 * F:                                    Window Size.
-* h:                                    Hardcopy.
+* f:                                    Flow.
 * H:                                    Log.
+* h:                                    Hardcopy.
 * i:                                    Info.
 * k:                                    Kill.
-* L:                                    Login.
 * l:                                    Redisplay.
-* M:                                    Monitor.
+* L:                                    Login.
 * m:                                    Last Message.
+* M:                                    Monitor.
 * N:                                    Number.
 * n:                                    Next and Previous.
 * p:                                    Next and Previous.
-* Q:                                    Only.
 * q:                                    XON/XOFF.
+* Q:                                    Only.
 * r:                                    Wrap.
 * S:                                    Split.
 * s:                                    XON/XOFF.
@@ -1149,11 +1153,13 @@ omitted from the key sequences, since it is the same for all bindings.
 * t:                                    Time.
 * TAB:                                  Focus.
 * v:                                    Version.
-* W:                                    Window Size.
 * w:                                    Windows.
+* W:                                    Window Size.
 * x:                                    Lock.
 * X:                                    Remove.
-* Z:                                    Reset.
 * z:                                    Suspend.
+* Z:                                    Reset.
+* [:                                    Copy.
+* ]:                                    Paste.
 
 

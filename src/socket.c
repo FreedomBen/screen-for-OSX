@@ -964,6 +964,8 @@ ReceiveMsg()
 	}
       SetMode(&D_OldMode, &D_NewMode, D_flow, iflag);
       SetTTY(D_userfd, &D_NewMode);
+      if (fcntl(D_userfd, F_SETFL, FNBLOCK))
+        Msg(errno, "Warning: NBLOCK fcntl failed");
 
 #ifdef PASSWORD
       if (D_user->u_password && *D_user->u_password)
@@ -1169,7 +1171,7 @@ struct msg *m;
     SetForeWindow(fore);
   Activate(0);
   if (!D_fore)
-    ShowWindows();
+    ShowWindows(-1);
   if (displays->d_next == 0 && console_window)
     {
       if (TtyGrabConsole(console_window->w_ptyfd, 1, "reattach") == 0)

@@ -33,7 +33,6 @@
 
 /*
  * Maximum of simultaneously allowed windows per screen session.
- * Defaults to 10, if undefined here. 
  */
 #define MAXWIN 40
 

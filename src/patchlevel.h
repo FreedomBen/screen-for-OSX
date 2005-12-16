@@ -427,12 +427,18 @@
  *                     clip code. Many new features (see NEWS file).
  *  3.08.99 -- 3.09.02 -- DISTRIBUTED
  * 11.08.99 -- 3.09.04 small utmp fix, BSD chflags fix, tty mode fix
-                       -- DISTRIBUTED
+ *                     -- DISTRIBUTED
+ *  1.09.99 -- 3.09.05 linux SVR4_PTYS fixes, better ShowWindos(),
+ *                     Panic() displays bug fixed, strerror fixed,
+ *                     missing $srcdir & bad prefix in Makefiles.
+ *                     console grabbing with SRIOCSREDIR.
+ *                     linux utmp workaround added. Some KANJI bugs
+ *                     fixed. Stupid StuffKey() bug fixed.
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 9
-#define PATCHLEVEL 4
-#define DATE "11-Aug-99"
+#define PATCHLEVEL 5
+#define DATE "1-Sep-99"
 #define STATE "" 

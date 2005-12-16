@@ -605,6 +605,10 @@ skip:	      if (--len == 0)
 	  break;
 	case LIT:
 	default:
+#ifdef KANJI
+	  if (c <= ' ' || c == 0x7f || (c >= 0x80 && c < 0xa0 && curr->w_c1))
+	    curr->w_mbcs = 0;
+#endif
 	  if (c < ' ')
 	    {
 	      if (c == '\033')
@@ -661,6 +665,8 @@ skip:	      if (--len == 0)
 		  break;
 		}
 	    }
+	  if (font == KANJI && c == ' ')
+	    font = curr->w_rend.font = 0;
 	  if (font == KANJI || curr->w_mbcs)
 	    {
 	      int t = c;

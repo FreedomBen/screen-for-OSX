@@ -562,9 +562,6 @@ Shows where
 comes from, where it went to and why you can use it.
 .IP "\fBC-a _\fP	(silence)"
 Start/stop monitoring the current window for inactivity.
-.\" 						XXX removed in 3.8.0 XXX
-.\" .IP "\fBC-a ~\fP	(select -)"
-.\" Switch to the control window.
 .IP "\fBC-a *\fP	(displays)"
 Show a listing of all currently attached displays.
 
@@ -722,11 +719,11 @@ The notification message can be re-defined by means of the \*Qactivity\*U
 command.
 Each occurrence of `%' in \fImessage\fP is replaced by
 the number of the window in which activity has occurred,
-and each occurrence of `~' is replaced by the definition for bell
+and each occurrence of `^G' is replaced by the definition for bell
 in your termcap (usually an audible bell).
 The default message is
 .sp
-	'Activity in window %'
+	'Activity in window %n'
 .sp
 Note that monitoring is off for all windows by default, but can be altered
 by use of the \*Qmonitor\*U command (C-a M).
@@ -813,11 +810,11 @@ displays a notification in the message line.
 The notification message can be re-defined by this command.
 Each occurrence of `%' in \fImessage\fP is replaced by
 the number of the window to which a bell has been sent,
-and each occurrence of `~' is replaced by the definition for bell
+and each occurrence of `^G' is replaced by the definition for bell
 in your termcap (usually an audible bell).
 The default message is
 .sp
-	'Bell in window %'
+	'Bell in window %n'
 .sp
 An empty message can be supplied to the \*Qbell_msg\*U command to suppress
 output of a message line (bell_msg "").
@@ -2320,16 +2317,9 @@ number.
 The parameter is optional and if omitted, you get prompted for an identifier. 
 When a new window is established, the first available number
 is assigned to this window.
-Thus, the first window can be activated by \*Qselect 0\*U (there can be no more
-than 10 windows present simultaneously unless
-.I screen
-was compiled with a higher
-MAXWIN setting).
-.\" 						XXX removed in 3.8.0 XXX
-.\" The special command \*Qselect -\*U switches to a control window which 
-.\" can be used to enter 
-.\" .I screen
-.\" commands directly at the colon (:) prompt.
+Thus, the first window can be activated by \*Qselect 0\*U.
+The number of windows is limited at compile-time by the MAXWIN
+configuration parameter.
 .sp
 .ne
 .BR "sessionname " [ \fIname ]

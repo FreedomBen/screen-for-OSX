@@ -126,7 +126,7 @@ int f;
 {
   if (f < 0)
     return;
-#if defined(I_PUSH) && defined(HAVE_SVR4_PTYS) && !defined(sgi) && !defined(M_UNIX)
+#if defined(I_PUSH) && defined(HAVE_SVR4_PTYS) && !defined(sgi) && !defined(linux) && !defined(__osf__) && !defined(M_UNIX)
   if (ioctl(f, I_PUSH, "ptem"))
     Panic(errno, "InitPty: cannot I_PUSH ptem");
   if (ioctl(f, I_PUSH, "ldterm"))

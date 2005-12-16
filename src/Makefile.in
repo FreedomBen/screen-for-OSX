@@ -229,9 +229,9 @@ config:
 ###############################################################################
 
 .version:
-	@rev=`sed < patchlevel.h -n -e '/#define REV/s/#define REV  *//p'`; \
-	vers=`sed < patchlevel.h -n -e '/#define VERS/s/#define VERS  *//p'`; \
-	pat=`sed < patchlevel.h -n -e '/#define PATCHLEVEL/s/#define PATCHLEVEL  *//p'`; \
+	@rev=`sed < $(srcdir)/patchlevel.h -n -e '/#define REV/s/#define REV  *//p'`; \
+	vers=`sed < $(srcdir)/patchlevel.h -n -e '/#define VERS/s/#define VERS  *//p'`; \
+	pat=`sed < $(srcdir)/patchlevel.h -n -e '/#define PATCHLEVEL/s/#define PATCHLEVEL  *//p'`; \
 	if [ "$${rev}.$${vers}.$${pat}" != "$(VERSION)" ]; then \
 	echo "This distribution is screen-$${rev}.$${vers}.$${pat}, but"; \
 	echo "the Makefile is from $(VERSION). Please update!"; exit 1; fi

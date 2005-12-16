@@ -201,9 +201,8 @@ int he;
   if (D_CTF)
     {
       /* standard fixes for xterms etc */
-      /* assume color if name doesn't begin with vt but it
-         looks like a vt */
-      if (!D_CAF && strncmp(D_termname, "vt", 2) && D_ME && InStr(D_ME, "\033[m"))
+      /* assume color for everything that looks ansi-compatible */
+      if (!D_CAF && D_ME && InStr(D_ME, "\033[m"))
 	{
 #ifdef TERMINFO
 	  D_CAF = "\033[3%p1%dm";

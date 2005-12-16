@@ -1311,7 +1311,7 @@ int key;
       Activate(-1);
       break;
     case RC_WINDOWS:
-      ShowWindows();
+      ShowWindows(-1);
       break;
     case RC_VERSION:
       Msg(0, "screen %s", version);
@@ -1949,9 +1949,6 @@ int key;
     case RC_DEFLOGIN:
       (void)ParseOnOff(act, &nwin_default.lflag);
       break;
-    case RC_DEFSLOWPASTE:
-      (void)ParseOnOff(act, &nwin_default.slow);
-      break;
 #endif
     case RC_DEFFLOW:
       if (args[0] && args[1] && args[1][0] == 'i')
@@ -2174,6 +2171,7 @@ int key;
 	  /* exchange the acls for these windows. */
 	  AclWinSwap(old, n);
 #endif
+#ifdef UTMPOK
 	  /* exchange the utmp-slots for these windows */
 	  if ((fore->w_slot != (slot_t) -1) && (fore->w_slot != (slot_t) 0))
 	    {
@@ -2187,6 +2185,7 @@ int key;
 	      RemoveUtmp(p);
 	      SetUtmp(p);
 	    }
+#endif
 
 	  WindowChanged(fore, 'n');
 	  WindowChanged((struct win *)0, 'w');
@@ -2307,6 +2306,9 @@ int key;
       MakeNewEnv();
       break;
 #ifdef COPY_PASTE
+    case RC_DEFSLOWPASTE:
+      (void)ParseNum(act, &nwin_default.slow);
+      break;
     case RC_SLOWPASTE:
       if (*args == 0)
 	Msg(0, fore->w_slowpaste ? 
@@ -2402,9 +2404,9 @@ int key;
 	}
       else
 	{
-	  if (!display)
+	  if (!fore)
 	    {
-	      debug("no prompting for password w/o display\n");
+	      Msg(0, "%s: password: window required", rc_name);
 	      break;
 	    }
 	  Input("New screen password:", 100, INP_NOECHO, pass1, (char *)D_user);
@@ -3370,9 +3372,14 @@ int n;
   struct win *p;
 
   debug1("SwitchWindow %d\n", n);
-  if (n < 0 || n >= MAXWIN || (p = wtab[n]) == 0)
+  if (n < 0 || n >= MAXWIN)
     {
-      ShowWindows();
+      ShowWindows(-1);
+      return;
+    }
+  if ((p = wtab[n]) == 0)
+    {
+      ShowWindows(n);
       return;
     }
   if (display == 0)
@@ -3460,8 +3467,8 @@ struct win *wi;
   if (flayer == 0)
     flayer = l;
 
-  if (D_other == wi)
-    D_other = 0;
+  if (wi && D_other == wi)
+    D_other = wi->w_next;	/* Might be 0, but that's OK. */
   if (cv == D_forecv)
     {
       D_fore = wi;
@@ -3678,10 +3685,11 @@ int on;
 }
 
 char *
-AddWindows(buf, len, flags)
+AddWindows(buf, len, flags, where)
 char *buf;
 int len;
 int flags;
+int where;
 {
   register char *s, *ss;
   register struct win **pp, *p;
@@ -3690,6 +3698,8 @@ int flags;
   s = ss = buf;
   for (pp = wtab; pp < wtab + MAXWIN; pp++)
     {
+      if (pp - wtab == where && ss == buf)
+	ss = s;
       if ((p = *pp) == 0)
 	continue;
       if ((flags & 1) && display && p == D_fore)
@@ -3704,7 +3714,7 @@ int flags;
 	  *s++ = ' ';
 	}
       sprintf(s, "%d", p->w_number);
-      if (display && p == D_fore)
+      if (p->w_number == where)
         ss = s;
       s += strlen(s);
 
@@ -3785,14 +3795,17 @@ struct win *p;
 }
 
 void
-ShowWindows()
+ShowWindows(where)
+int where;
 {
   char buf[1024];
   char *s, *ss;
 
   if (!display)
     return;
-  ss = AddWindows(buf, sizeof(buf), 0);
+  if (where == -1 && D_fore)
+    where = D_fore->w_number;
+  ss = AddWindows(buf, sizeof(buf), 0, where);
   s = buf + strlen(buf);
   if (ss - buf > D_width / 2)
     {
@@ -4516,7 +4529,6 @@ int i;
 {
   struct action *act;
 
-  ASSERT(flayer);
   debug1("StuffKey #%d", i);
 #ifdef DEBUG
   if (i < KMAP_KEYS)
@@ -4527,6 +4539,7 @@ int i;
   else if (i >= T_KEYPAD - T_CAPS && i < T_OCAPS - T_CAPS && D_keypad)
     i += T_OCAPS - T_CURSOR;
   debug1(" - action %d\n", i);
+  flayer = D_forecv->c_layer;
   fore = D_fore;
   act = 0;
 #ifdef COPY_PASTE

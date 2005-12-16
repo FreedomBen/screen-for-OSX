@@ -22,10 +22,6 @@
  * $Id$ FAU
  */
 
-#ifndef MAXWIN
-# define MAXWIN	10
-#endif
-
 
 /* keep this in sync with the initialisations in window.c */
 struct NewWindow

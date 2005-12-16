@@ -303,6 +303,8 @@ int x, y;
 	GotoPos(x2, y2);
 	SetRendition(c);
 	PUTCHARLP(c->image);
+	if (D_AM && !D_CLP && x2 == D_width - 1)
+	  GotoPos(x2, y2);
       }
 }
 
@@ -917,7 +919,10 @@ VA_DECL
   if (err)
     {
       p += strlen(p);
-      sprintf(p, ": %s", strerror(err));
+      *p++ = ':';
+      *p++ = ' ';
+      strncpy(p, strerror(err), buf + sizeof(buf) - p - 1);
+      buf[sizeof(buf) - 1] = 0;
     }
   debug2("LMsg('%s') (%#x);\n", buf, (unsigned int)flayer);
   for (display = displays; display; display = display->d_next)

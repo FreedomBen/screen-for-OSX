@@ -583,8 +583,10 @@ makedead(u)
 struct utmp *u;
 {
   u->ut_type = DEAD_PROCESS;
+#if !defined(linux) || defined(EMPTY)
   u->ut_exit.e_termination = 0;
   u->ut_exit.e_exit = 0;
+#endif
 #if !defined(sun) || !defined(SVR4)
   u->ut_user[0] = 0;	/* for Digital UNIX, kilbi@rad.rwth-aachen.de */
 #endif

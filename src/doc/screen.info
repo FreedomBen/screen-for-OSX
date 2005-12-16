@@ -1,4 +1,4 @@
-This is Info file screen.info, produced by Makeinfo-1.64 from the input
+This is Info file screen.info, produced by Makeinfo-1.55 from the input
 file ./screen.texinfo.
 
    This file documents the `Screen' virtual terminal manager.
@@ -23,8 +23,8 @@ translation approved by the Foundation.
 Indirect:
 screen.info-1: 878
 screen.info-2: 50660
-screen.info-3: 100479
-screen.info-4: 150209
+screen.info-3: 100483
+screen.info-4: 150213
 
 Tag Table:
 (Indirect)
@@ -84,98 +84,98 @@ Node: Kill71649
 Node: Login72541
 Node: Mode73360
 Node: Monitor73759
-Node: Windows75170
-Node: Hardstatus76232
-Node: Virtual Terminal77425
-Node: Control Sequences78483
-Node: Input Translation85313
-Node: Digraph89829
-Node: Bell90621
-Node: Clear92498
-Node: Info92701
-Node: Redisplay94563
-Node: Wrap95694
-Node: Reset96445
-Node: Window Size96763
-Node: Character Processing97608
-Node: Copy and Paste100479
-Node: Copy101084
-Node: Line Termination101929
-Node: Scrollback102338
-Node: Copy Mode Keys103075
-Node: Movement103890
-Node: Marking105044
-Node: Repeat count105419
-Node: Searching105733
-Node: Specials105995
-Node: Paste107949
-Node: Registers110621
-Node: Screen-Exchange111627
-Node: History112710
-Node: Subprocess Execution113450
-Node: Exec113814
-Node: Using Exec115560
-Node: Key Binding117399
-Node: Bind118042
-Node: Bind Examples119029
-Node: Command Character119709
-Node: Help121250
-Node: Bindkey121763
-Node: Bindkey Examples123309
-Node: Bindkey Control124198
-Node: Flow Control124795
-Node: Flow Control Summary125371
-Node: Flow128305
-Node: XON/XOFF129079
-Node: Termcap129452
-Node: Window Termcap130309
-Node: Dump Termcap135552
-Node: Termcap Syntax136267
-Node: Termcap Examples138434
-Node: Special Capabilities140475
-Node: Autonuke143038
-Node: Obuflimit143688
-Node: Character Translation144517
-Node: Message Line147130
-Node: Privacy Message148041
-Node: Hardware Status Line148538
-Node: Last Message150209
-Node: Message Wait150636
-Node: Logging151062
-Node: Hardcopy151386
-Node: Log152182
-Node: Startup153798
-Node: echo154205
-Node: sleep154613
-Node: Startup Message154954
-Node: Miscellaneous155227
-Node: At156335
-Node: Break158329
-Node: Debug159976
-Node: License160453
-Node: Nethack160718
-Node: Nonblock161396
-Node: Number161850
-Node: Silence162220
-Node: Time163156
-Node: Verbose163530
-Node: Version163864
-Node: Zombie164073
-Node: Printcmd165127
-Node: Sorendition165833
-Node: String Escapes166485
-Node: Environment167810
-Node: Files168845
-Node: Credits169932
-Node: Bugs171845
-Node: Known Bugs172315
-Node: Reporting Bugs174409
-Node: Availability175175
-Node: Installation175719
-Node: Socket Directory176109
-Node: Compiling Screen176639
-Node: Concept Index178031
-Node: Command Index180088
-Node: Keystroke Index188080
+Node: Windows75172
+Node: Hardstatus76234
+Node: Virtual Terminal77427
+Node: Control Sequences78485
+Node: Input Translation85315
+Node: Digraph89831
+Node: Bell90623
+Node: Clear92502
+Node: Info92705
+Node: Redisplay94567
+Node: Wrap95698
+Node: Reset96449
+Node: Window Size96767
+Node: Character Processing97612
+Node: Copy and Paste100483
+Node: Copy101088
+Node: Line Termination101933
+Node: Scrollback102342
+Node: Copy Mode Keys103079
+Node: Movement103894
+Node: Marking105048
+Node: Repeat count105423
+Node: Searching105737
+Node: Specials105999
+Node: Paste107953
+Node: Registers110625
+Node: Screen-Exchange111631
+Node: History112714
+Node: Subprocess Execution113454
+Node: Exec113818
+Node: Using Exec115564
+Node: Key Binding117403
+Node: Bind118046
+Node: Bind Examples119033
+Node: Command Character119713
+Node: Help121254
+Node: Bindkey121767
+Node: Bindkey Examples123313
+Node: Bindkey Control124202
+Node: Flow Control124799
+Node: Flow Control Summary125375
+Node: Flow128309
+Node: XON/XOFF129083
+Node: Termcap129456
+Node: Window Termcap130313
+Node: Dump Termcap135556
+Node: Termcap Syntax136271
+Node: Termcap Examples138438
+Node: Special Capabilities140479
+Node: Autonuke143042
+Node: Obuflimit143692
+Node: Character Translation144521
+Node: Message Line147134
+Node: Privacy Message148045
+Node: Hardware Status Line148542
+Node: Last Message150213
+Node: Message Wait150640
+Node: Logging151066
+Node: Hardcopy151390
+Node: Log152186
+Node: Startup153802
+Node: echo154209
+Node: sleep154617
+Node: Startup Message154958
+Node: Miscellaneous155231
+Node: At156339
+Node: Break158333
+Node: Debug159980
+Node: License160457
+Node: Nethack160722
+Node: Nonblock161400
+Node: Number161854
+Node: Silence162224
+Node: Time163160
+Node: Verbose163534
+Node: Version163868
+Node: Zombie164077
+Node: Printcmd165131
+Node: Sorendition165837
+Node: String Escapes166489
+Node: Environment167814
+Node: Files168849
+Node: Credits169936
+Node: Bugs171849
+Node: Known Bugs172319
+Node: Reporting Bugs174413
+Node: Availability175179
+Node: Installation175723
+Node: Socket Directory176113
+Node: Compiling Screen176643
+Node: Concept Index178035
+Node: Command Index180092
+Node: Keystroke Index188392
 
 End Tag Table

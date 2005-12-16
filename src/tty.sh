@@ -86,8 +86,16 @@ RCS_ID("$Id$ FAU")
 #include "screen.h"
 #include "extern.h"
 
+#if !defined(TIOCCONS) && defined(sun) && defined(SVR4)
+# include <sys/strredir.h>
+#endif
+
 extern struct display *display, *displays;
 extern int iflag;
+#if !defined(TIOCCONS) && defined(SRIOCSREDIR)
+extern struct win *console_window;
+static void consredir_readev_fn __P((struct event *, char *));
+#endif
 
 static void DoSendBreak __P((int, int, int));
 static sigret_t SigAlrmDummy __P(SIGPROTOARG);
@@ -1005,32 +1013,55 @@ int n, closeopen;
  *  Console grabbing
  */
 
+#if !defined(TIOCCONS) && defined(SRIOCSREDIR)
+
+struct event consredir_ev;
+int consredirfd[2] = {-1, -1};
+
+static void
+consredir_readev_fn(ev, data)
+struct event *ev;
+char *data;
+{
+  char *p, *n, buf[256];
+  int l;
+
+  if (!console_window || (l = read(consredirfd[0], buf, sizeof(buf))) <= 0)
+    {
+      close(consredirfd[0]);
+      close(consredirfd[1]);
+      consredirfd[0] = consredirfd[1] = -1;
+      evdeq(ev);
+      return;
+    }
+  for (p = n = buf; l > 0; n++, l--)
+    if (*n == '\n')
+      {
+        if (n > p)
+	  WriteString(console_window, p, n - p);
+        WriteString(console_window, "\r\n", 2);
+        p = n + 1;
+      }
+  if (n > p)
+    WriteString(console_window, p, n - p);
+}
+
+#endif
+
 /*ARGSUSED*/
 int
 TtyGrabConsole(fd, on, rc_name)
 int fd, on;
 char *rc_name;
 {
-#if defined(TIOCCONS) || defined(SRIOCSREDIR)
-  char *slave;
-  int sfd = -1, ret = 0;
+#ifdef TIOCCONS
   struct display *d;
+  int ret = 0;
+  int sfd = -1;
 
-  if (!on)
-    {
-      if ((fd = OpenPTY(&slave)) < 0)
-	{
-	  Msg(errno, "%s: could not open detach pty master", rc_name);
-	  return -1;
-	}
-      if ((sfd = open(slave, O_RDWR)) < 0)
-	{
-	  Msg(errno, "%s: could not open detach pty slave", rc_name);
-	  close(fd);
-	  return -1;
-	}
-    }
-  else
+  if (on < 0)
+    return;		/* pty close will ungrab */
+  if (on)
     {
       if (displays == 0)
 	{
@@ -1047,29 +1078,96 @@ char *rc_name;
 	}
     }
 
-# ifdef TIOCCONS
+  if (!on)
+    {
+      char *slave;
+      if ((fd = OpenPTY(&slave)) < 0)
+	{
+	  Msg(errno, "%s: could not open detach pty master", rc_name);
+	  return -1;
+	}
+      if ((sfd = open(slave, O_RDWR)) < 0)
+	{
+	  Msg(errno, "%s: could not open detach pty slave", rc_name);
+	  close(fd);
+	  return -1;
+	}
+    }
   if (UserContext() == 1)
     UserReturn(ioctl(fd, TIOCCONS, (char *)&on));
   ret = UserStatus();
   if (ret)
     Msg(errno, "%s: ioctl TIOCCONS failed", rc_name);
-# else
-  if (UserContext() == 1)
-    UserReturn(ioctl(fd, SRIOCSREDIR, (char *)&on));
-  ret = UserStatus();
-  if (ret)
-    Msg(errno, "%s: ioctl SRIOCSREDIR failed", rc_name);
-# endif
-
   if (!on)
     {
       close(sfd);
       close(fd);
     }
   return ret;
+
 #else
-  Msg(0, "%s: don't know how to grab the console", rc_name);
+# ifdef SRIOCSREDIR
+  struct display *d;
+  int cfd;
+
+  if (on > 0)
+    {
+      if (displays == 0)
+	{
+	  Msg(0, "I need a display");
+	  return -1;
+	}
+      for (d = displays; d; d = d->d_next)
+	if (strcmp(d->d_usertty, "/dev/console") == 0)
+	  break;
+      if (d)
+	{
+	  Msg(0, "too dangerous - screen is running on /dev/console");
+	  return -1;
+	}
+    }
+  if (consredirfd[0] >= 0)
+    {
+      evdeq(&consredir_ev);
+      close(consredirfd[0]);
+      close(consredirfd[1]);
+      consredirfd[0] = consredirfd[1] = -1;
+    }
+  if (on <= 0)
+    return 0;
+  if ((cfd = secopen("/dev/console", O_RDWR|O_NOCTTY, 0)) == -1)
+    {
+      Msg(errno, "/dev/console");
+      return -1;
+    }
+  if (pipe(consredirfd))
+    {
+      Msg(errno, "pipe");
+      close(cfd);
+      consredirfd[0] = consredirfd[1] = -1;
+      return -1;
+    }
+  if (ioctl(cfd, SRIOCSREDIR, consredirfd[1]))
+    {
+      Msg(errno, "SRIOCSREDIR ioctl");
+      close(cfd);
+      close(consredirfd[0]);
+      close(consredirfd[1]);
+      consredirfd[0] = consredirfd[1] = -1;
+      return -1;
+    }
+  
+  consredir_ev.fd = consredirfd[0];
+  consredir_ev.type = EV_READ;
+  consredir_ev.handler = consredir_readev_fn;
+  evenq(&consredir_ev);
+  close(cfd);
+  return 0;
+# else
+  if (on > 0)
+    Msg(0, "%s: don't know how to grab the console", rc_name);
   return -1;
+# endif
 #endif
 }
 

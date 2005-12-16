@@ -59,6 +59,7 @@
     If escapes like the current time are used as hardstatus/caption
     string screen will update them so that you can always have
     the current time onscreen.
+    *CHANGE* ~ is no longer used as bell character, use ^G instead!
 
 * logfile timestamps and flush timeout
     New commands:

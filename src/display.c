@@ -543,7 +543,7 @@ RethinkDisplayViewports()
 	{
 	  vp->v_canvas = 0;
 	  vpn = vp->v_next;
-          bzero(vp, sizeof(*vp));
+          bzero((char *)vp, sizeof(*vp));
           free(vp);
 	}
       cv->c_vplist = 0;
@@ -790,8 +790,10 @@ int c;
       if (D_mbcs == 0)
 	{
 	  D_mbcs = c;
+	  D_x++;
 	  return;
 	}
+      D_x--;
       if (D_x == D_width - 1)
 	D_x += D_AM ? 1 : -1;
       c = D_mbcs;
@@ -1086,6 +1088,8 @@ int x2, y2;
   dy = y2 - y1;
   if (dy == 0 && dx == 0)
     return;
+  debug2("GotoPos (%d,%d)", x1, y1);
+  debug2(" -> (%d,%d)\n", x2, y2);
   if (!D_MS)		/* Safe to move ? */
     SetRendition(&mchar_null);
   if (y1 < 0			/* don't know the y position */
@@ -2225,6 +2229,15 @@ int from, to, y;
       else
 	to--;
     }
+#ifdef KANJI
+  if (D_mbcs)
+    {
+      /* finish kanji (can happen after a wrap) */
+      SetRenditionMline(ml, from);
+      PUTCHAR(ml->image[from]);
+      from++;
+    }
+#endif
   for (x = from; x <= to; x++)
     {
 #if 0	/* no longer needed */
@@ -2240,8 +2253,11 @@ int from, to, y;
       if (badkanji(ml->font, x))
 	{
 	  x--;
+	  debug1("DisplayLine badkanji - x now %d\n", x);
 	  GotoPos(x, y);
 	}
+      if (ml->font[x] == KANJI && x == to)
+	break;	/* don't start new kanji */
 #endif
       SetRenditionMline(ml, x);
       PUTCHAR(ml->image[x]);
@@ -2346,8 +2362,7 @@ int ins;
 	  return;
 	}
       SetRendition(c);
-      AddChar(c->image);
-      D_x++;
+      RAW_PUTCHAR(c->image);
       return;
     }
   if (y == ye)		/* we have to scroll */
@@ -2387,9 +2402,9 @@ int ins;
       return;
     }
   SetRendition(c);
-  AddChar(c->image);
   D_y = y;
-  D_x = 1;
+  D_x = 0;
+  RAW_PUTCHAR(c->image);
   debug2(" -> done (%d,%d)\n", D_x, D_y);
 }
 

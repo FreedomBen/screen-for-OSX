@@ -1676,18 +1676,18 @@ int mode;
 	      p->w_slot = (slot_t) 0;
 	    }
 	}
-      if (console_window)
-	{
-	  if (TtyGrabConsole(console_window->w_ptyfd, 0, "detach"))
-	    {
-	      debug("could not release console - killing window\n");
-	      KillWindow(console_window);
-	      display = displays;		/* restore display */
-	    }
-	}
     }
   RestoreLoginSlot();
 #endif
+  if (displays->d_next == 0 && console_window)
+    {
+      if (TtyGrabConsole(console_window->w_ptyfd, 0, "detach"))
+	{
+	  debug("could not release console - killing window\n");
+	  KillWindow(console_window);
+	  display = displays;		/* restore display */
+	}
+    }
   if (D_fore)
     {
 #ifdef MULTIUSER
@@ -1788,7 +1788,10 @@ VA_DECL
   if (err)
     {
       p += strlen(p);
-      sprintf(p, ": %s", strerror(err));
+      *p++ = ':';
+      *p++ = ' ';
+      strncpy(p, strerror(err), buf + sizeof(buf) - p - 1);
+      buf[sizeof(buf) - 1] = 0;
     }
   debug2("Msg('%s') (%#x);\n", buf, (unsigned int)display);
 
@@ -1839,12 +1842,15 @@ VA_DECL
   if (err)
     {
       p += strlen(p);
-      sprintf(p, ": %s", strerror(err));
+      *p++ = ':';
+      *p++ = ' ';
+      strncpy(p, strerror(err), buf + sizeof(buf) - p - 1);
+      buf[sizeof(buf) - 1] = 0;
     }
-  debug1("Panic('%s');\n", buf);
+  debug3("Panic('%s'); display=%x displays=%x\n", buf, display, displays);
   if (displays == 0 && display == 0)
     printf("%s\r\n", buf);
-  else if (display)
+  else if (displays == 0)
     {
       /* no displays but a display - must have forked.
        * send message to backend!
@@ -2097,7 +2103,7 @@ struct event *ev;
 		oldfore = D_fore;
 		D_fore = win;
 	      }
-	    AddWindows(p, l - 1, *s == 'w' ? 2 : 3);
+	    AddWindows(p, l - 1, *s == 'w' ? 2 : 3, -1);
 	    if (display)
 	      D_fore = oldfore;
 	  }
