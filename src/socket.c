@@ -106,7 +106,11 @@ char SockPath[MAXPATH];
 char *SockNamePtr, *SockName;
 
 char *strdup(str)
+#ifdef hpux
+char *str;
+#else
 const char *str;
+#endif
 {
   char *ret;
 
@@ -137,6 +141,8 @@ int RecoverSocket()
 	  return 0;
 	}
     }
+  if (Detached)
+    (void) chmod(SockPath, /* S_IFSOCK | */ 0600); /* Flag detached-ness */
   return 1;
 }
 
@@ -151,7 +157,7 @@ int how;
 int *fdp;
 {
   register int s, lasts = 0, found = 0, deadcount = 0, wipecount = 0;
-  register int l = 0;
+  register int l;
   register DIR *dirp;
   register struct dirent *dp;
   register char *Name;
@@ -241,23 +247,12 @@ int *fdp;
       debug2("FindSocket: %s has mode %04o...\n", Name, s);
       if (s == 0700 || s == 0600)
 	{
-	  int sockmpid = 0;
-	  char *nam = Name;
-
-	  while (*nam)
-	    {
-	      if (*nam > '9' || *nam < '0')
-		break;
-	      sockmpid = 10 * sockmpid + *nam - '0';
-	      nam++;
-	    }
 	  /*
 	   * We try to connect through the socket. If successfull, 
 	   * thats o.k. Otherwise we record that mode as -1.
 	   * MakeClientSocket() must be careful not to block forever.
 	   */
-	  if ( ((sockmpid > 2) && kill(sockmpid, 0) == -1 && errno == ESRCH) ||
-	      (s = MakeClientSocket(0, Name)) == -1)
+	  if ((s = MakeClientSocket(0, Name)) == -1)
 	    { 
 	      foundsock[foundsockcount].mode = -1;
 	      deadcount++;
@@ -454,9 +449,9 @@ MakeServerSocket()
   if (UserContext() > 0)
     {
 #if defined(_POSIX_SOURCE) && defined(ISC)
-      if (mknod(SockPath, Detached ? 0010600 : 0010700, 0))
+      if (mknod(SockPath, 0010700, 0))
 #else
-      if (mknod(SockPath, S_IFIFO | S_IWRITE | S_IREAD | (Detached ? 0 : S_IEXEC), 0))
+      if (mknod(SockPath, S_IFIFO | S_IEXEC | S_IWRITE | S_IREAD, 0))
 #endif
 	UserReturn(0);
       UserReturn(1);
@@ -561,7 +556,7 @@ MakeServerSocket()
 #endif
   if (bind(s, (struct sockaddr *) & a, strlen(SockPath) + 2) == -1)
     Msg(errno, "bind");
-  (void) chmod(SockPath, /* S_IFSOCK | */ (Detached ? 0600 : 0700));
+  (void) chmod(SockPath, /* S_IFSOCK | */ 0700);
 #ifdef NOREUID
   chown(SockPath, real_uid, real_gid);
 #else
@@ -679,20 +674,20 @@ void
 /*VARARGS1*/
 # if defined(__STDC__)
 SendErrorMsg(char *fmt, ...)
-# else /* __STDC__ */
+# else
 SendErrorMsg(fmt, va_alist)
 char *fmt;
 va_dcl
-# endif /* __STDC__ */
+#endif
 { /* } */
-  static va_list ap;
-#else /* USEVARARGS */
+  static va_list ap = 0;
+#else
 /*VARARGS1*/
 SendErrorMsg(fmt, p1, p2, p3, p4, p5, p6)
 char *fmt;
 unsigned long p1, p2, p3, p4, p5, p6;
 {
-#endif /* USEVARARGS */
+#endif
   register int s;
   struct msg m;
 
@@ -702,14 +697,14 @@ unsigned long p1, p2, p3, p4, p5, p6;
 #ifdef USEVARARGS
 # if defined(__STDC__)
   va_start(ap, fmt);
-# else /* __STDC__ */
+# else
   va_start(ap);
-# endif /* __STDC__ */
+# endif
   (void) vsprintf(m.m.message, fmt, ap);
   va_end(ap);
-#else /* USEVARARGS */
+#else
   sprintf(m.m.message, fmt, p1, p2, p3, p4, p5, p6);
-#endif /* USEVARARGS */
+#endif
   debug1("SendErrorMsg writing '%s'\n", m.m.message);
   (void) write(s, (char *) &m, sizeof m);
   close(s);
@@ -727,11 +722,11 @@ char *pwd, *tty;
     {
       if (*pwd)
 	{
-# ifdef NETHACK
+#ifdef NETHACK
           if (nethackflag)
 	    Msg(0, "'%s' tries to explode in the sky, but fails. (%s)", tty, pwd);
           else
-# endif /* NETHACK */
+#endif
 	  Msg(0, "Illegal reattach attempt from terminal %s, \"%s\"", tty, pwd);
 	}
       debug1("CheckPass() wrong password kill(%d, SIG_PW_FAIL)\n", pid);
@@ -899,7 +894,11 @@ int s;
 	  Msg(0, "Attach msg ignored: We are not detached.");
 	  break;
 	}
+#ifdef notdef
       if ((i = secopen(m.m.attach.tty, O_RDWR | O_NDELAY, 0)) < 0)
+#else
+      if ((i = secopen(m.m.attach.tty, O_RDWR, 0)) < 0)
+#endif
 	{
 	  debug1("ALERT: Cannot open %s!\n", m.m.attach.tty);
 #ifdef NETHACK
@@ -942,7 +941,11 @@ int s;
 #endif
 
 	close(0);	/* reopen tty, now we should get it as our tty */
+#ifdef notdef
 	(void)secopen(m.m.attach.tty, O_RDWR | O_NDELAY, 0);	/* */
+#else
+	(void)secopen(m.m.attach.tty, O_RDWR, 0);       /* */
+#endif
 
 #ifdef hpux
 	setpgrp2(0, pgrp);
@@ -955,7 +958,6 @@ int s;
 
       (void) dup(0);
       (void) dup(0);
-      debug("Getting mode of 0\n");
       GetTTY(0, &OldMode);
 #if defined(BSDJOBS) && !(defined(POSIX) || defined(SYSV))
       if ((DevTty = open("/dev/tty", O_RDWR | O_NDELAY)) == -1)

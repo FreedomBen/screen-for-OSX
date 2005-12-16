@@ -37,7 +37,7 @@
 
 #include <sys/types.h>
 
-#ifdef BSDI
+#ifdef BSD
 # include <sys/signal.h>
 #endif /* BSDI */
 

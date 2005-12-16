@@ -117,23 +117,6 @@ extern int errno;
 #  define LOGINDEFAULT 0
 #endif
 
-#if defined(LOADAV_3DOUBLES) || defined(LOADAV_3LONGS) ||\
-    defined(LOADAV_4LONGS) || defined(LOADAV_NEXT)
-#  define LOADAV
-#endif
-
-#ifndef FSCALE
-# if defined(MIPS) || defined(SVR4)
-#  define FSCALE 256            /* MIPS doesn't, and... */
-# else
-#  ifdef sgi
-#   define FSCALE 1024.0
-#  else
-#   define FSCALE 1000.0 	/* Sequent doesn't define FSCALE...grrrr */
-#  endif
-# endif	
-#endif
-
 #ifndef F_OK
 #define F_OK 0
 #endif
@@ -163,7 +146,7 @@ extern int errno;
 # endif
 #endif /* SIG_T_DEFINED */
 
-#if defined(SVR4) || (defined(SYSV) && defined(ISC)) || defined(_AIX)
+#if defined(SVR4) || (defined(SYSV) && defined(ISC))
 # define SIGPROTOARG   (int)
 # define SIGDEFARG     int sigsig
 # define SIGARG        0
@@ -266,7 +249,6 @@ enum string_t
  */
 #define MAXHISTHEIGHT 3000
 #define DEFAULTHISTHEIGHT 100
-#define DEFAULT_BUFFERFILE "/tmp/screen-exchange"
 
 struct win 
 {
@@ -405,24 +387,25 @@ struct msg
 #define SIG_PW_OK	SIGUSR1
 #define SIG_PW_FAIL	SIG_BYE
 
+
 struct mode
 {
 #ifdef POSIX
   struct termios tio;
 # ifdef hpux
   struct ltchars m_ltchars;
-# endif /* hpux */
-#else /* POSIX */
+# endif
+#else
 # ifdef TERMIO
   struct termio tio;
-# else /* TERMIO */
+# else
   struct sgttyb m_ttyb;
   struct tchars m_tchars;
   struct ltchars m_ltchars;
   int m_ldisc;
   int m_lmode;
-# endif	/* TERMIO */
-#endif /* POSIX */
+# endif				/* TERMIO */
+#endif				/* POSIX */
 };
 
 #define BELL		7
@@ -451,7 +434,7 @@ struct mode
 #endif
 
 /* the key definitions are used in screen.c and help.c */
-/* keep this list synchronous with the names given in fileio.c */
+/* keep this list synchronus with the names given in fileio.c */
 enum keytype
 {
   KEY_IGNORE, /* Keep these first 2 at the start */
@@ -506,7 +489,7 @@ enum keytype
   KEY_EXTEND,
   KEY_X_WINDOWS,
   KEY_BONUSWINDOW,
-  KEY_CREATE
+  KEY_CREATE,
 };
 
 struct key 
@@ -578,19 +561,6 @@ struct key
 # endif
 #endif
 
-#if !defined(SYSV) || defined(sun) || defined(RENO) || defined(xelos)
+#if (!defined(SYSV) || defined(sun) || defined(RENO) || defined(xelos)) && !defined(_AIX)
 # define BSDWAIT
 #endif
-
-#if defined(sgi) && !defined(IRIX_4_0)
-# undef TIOCPKT
-#endif
-
-#if ( defined(TERMIO) || defined(POSIX) ) && !defined(VDISABLE)
-# ifdef _POSIX_VDISABLE
-#  define VDISABLE _POSIX_VDISABLE
-# else
-#  define VDISABLE 0377
-# endif /* _POSIX_VDISABLE */
-#endif /* (TERMIO || POSIX) && !VDISABLE */
-

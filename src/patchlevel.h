@@ -65,14 +65,11 @@
  *                     SockName. sysvish 14 character restriction considered.
  * 31.01.92 -- 3.02.00 Ultrix port, Irix 3.3 SGI port, shadow pw support,
  *                     data loss on stdin overflow fixed. "refresh off".
- * 12.02.92 -- 3.02.01 stripdev() moved, -S introduced, bufferfile improved,
- *                     ShellProg coredump cleared. SVR4 bugfixes.
- *                     I/O code speedup added.
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 2
-#define PATCHLEVEL 1
-#define DATE "06-APR-92"
-#define STATE "beta"
+#define PATCHLEVEL 0
+#define DATE "10/22/92"
+#define STATE "a"

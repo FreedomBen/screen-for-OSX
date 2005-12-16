@@ -72,6 +72,9 @@
 #endif /* sun */
 
 #include <signal.h>
+#if defined(SVR4) && !defined(NSIG)
+#define NSIG 32
+#endif
 
 #include "config.h"
 
@@ -129,7 +132,7 @@ extern char *copybuffer;	/* def in mark.c jw. */
 extern copylen;
 #endif /* COPY_PASTE */
 
-extern char *blank, *null, Term[], screenterm[], **environ, Termcap[];
+extern char *blank, *null, Term[], screenterm[], **environ, *Termcap;
 int force_vt = 1, assume_LP = 0;
 extern int in_ovl;
 extern int ovl_blockfore;
@@ -154,7 +157,6 @@ extern int errno;
 extern sys_nerr;
 extern char *sys_errlist[];
 extern char mark_key_tab[];
-extern char version[];
 
 #if defined(TIOCSWINSZ) || defined(TIOCGWINSZ)
 extern struct winsize glwz;
@@ -259,13 +261,7 @@ char *PowDetachString;
 int auto_detach = 1;
 int iflag, rflag, dflag, lsflag, quietflag, wipeflag;
 int adaptflag, loginflag = -1, allflag;
-int intrc, origintrc =
-#ifdef VDISABLE
-  VDISABLE;
-#else
-  -1;
-#endif /* VDISABLE */
-static startc, stopc;
+static intrc, startc, stopc;
 char HostName[MAXSTR];
 int Detached, Suspended;
 int DeadlyMsg = 1;
@@ -284,7 +280,7 @@ int DevTty = -1;
 int nethackflag = 0;
 #endif
 
-struct mode NewMode, OldMode;
+struct mode OldMode, NewMode;
 
 struct win *fore = NULL;
 int WinList = -1;
@@ -359,7 +355,7 @@ brktty()
   setpgrp();		/* will break terminal affiliation */
 # else
 #  ifdef BSDJOBS
-  if (DevTty >= 0)
+  if (DevTty)
     if (ioctl(DevTty, TIOCNOTTY, (char *) 0) != 0)
       debug2("brktty: ioctl(DevTty=%d, TIOCNOTTY, 0) = %d\n", DevTty, errno);
 #  endif
@@ -436,6 +432,9 @@ void (*func) ();
 #endif	/* hpux */
 
 #ifndef USEBCOPY
+#ifdef bcopy
+#undef bcopy
+#endif
 void bcopy(s1, s2, len)
 register char *s1, *s2;
 register int len;
@@ -465,7 +464,6 @@ closeallfiles()
 {
   int f;
 #ifdef SVR4
-  int getrlimit __P((int, struct rlimit *));
   struct rlimit rl;
   
   if ((getrlimit(RLIMIT_NOFILE, &rl) == 0) && rl.rlim_max != RLIM_INFINITY)
@@ -549,9 +547,6 @@ char **av;
 #ifdef UTMPOK
   debug("UTMPOK\n");
 #endif
-#ifdef LOADAV
-  debug("LOADAV\n");
-#endif
 #ifdef NETHACK
   debug("NETHACK\n");
 #endif
@@ -565,8 +560,7 @@ char **av;
   BellString = SaveStr("Bell in window %");
   VisualBellString = SaveStr("   Wuff,  Wuff!!  ");
   ActivityString = SaveStr("Activity in window %");
-  BufferFile = SaveStr(DEFAULT_BUFFERFILE);
-  ShellProg = NULL;
+  BufferFile = SaveStr("/tmp/screen-exchange");
   PowDetachString = 0;
   default_histheight = DEFAULTHISTHEIGHT;
   default_startup = (ac > 1) ? 0 : 1;
@@ -576,12 +570,7 @@ char **av;
   MsgWait = MSGWAIT;
   MsgMinWait = MSGMINWAIT;
   CompileKeys((char *)NULL, mark_key_tab);
-  sprintf(version, "%d.%.2d.%.2d%s (%s) %s", REV, VERS,
-	  PATCHLEVEL, STATE, ORIGIN, DATE);
-  InitTTY(&OldMode);
-#ifdef DEBUG
-  DebugTTY(&OldMode);
-#endif
+
   av0 = *av;
   while (ac > 0)
     {
@@ -678,11 +667,6 @@ char **av;
 		case 's':
 		case 'i':
 		  lsflag = 1;
-		  if (ac)
-		    {
-		      SockName = *++av;
-		      ac--;
-		    }
 		  break;
 		default:
 		  exit_with_usage(myname);
@@ -754,36 +738,14 @@ char **av;
 #endif
 	    case 's':
 	      if (ap[2])
-		{
-		  if (ShellProg)
-		    Free(ShellProg);
-		  ShellProg = SaveStr(ap + 2);
-		}
+		ShellProg = ap + 2;
 	      else
 		{
 		  if (--ac == 0)
 		    exit_with_usage(myname);
-		  if (ShellProg)
-		    Free(ShellProg);
-		  ShellProg = SaveStr(*++av);
-		}
-	      debug1("ShellProg: '%s'\n", ShellProg);
-	      break;
-	    case 'S':
-	      if (ap[2])
-		SockName = ap + 2;
-	      else
-		{
-		  if (--ac == 0)
-		    exit_with_usage(myname);
-		  SockName = *++av;
-		  if (!*SockName)
-		    exit_with_usage(myname);
+		  ShellProg = *++av;
 		}
 	      break;
-	    case 'v':
-	      Msg(0, "Screen version %s", version);
-	      /* NOTREACHED */
 	    default:
 	      exit_with_usage(myname);
 	    }
@@ -791,8 +753,6 @@ char **av;
       else
 	break;
     }
-  if (dflag && mflag && SockName && !rflag)
-    Detached = 1;
   real_uid = getuid();
   real_gid = getgid();
   eff_uid = geteuid();
@@ -806,13 +766,8 @@ char **av;
       signal(SIGBUS, CoreDump);
       signal(SIGSEGV, CoreDump);
     }
-  if (!ShellProg)
-    {
-      register char *s;
-
-      s = getenv("SHELL");
-      ShellProg = SaveStr(s ? s : DefaultShell);
-    }
+  if (!ShellProg && (ShellProg = getenv("SHELL")) == 0)
+    ShellProg = DefaultShell;
   ShellArgs[0] = ShellProg;
 #ifdef NETHACK
   nethackflag = (getenv("NETHACKOPTIONS") != NULL);
@@ -848,27 +803,24 @@ char **av;
   strcpy(Password, ppp->pw_passwd);
 #endif
 
-  if (!Detached && !lsflag)
+  /* ttyname implies isatty */
+  if (!(attach_tty = ttyname(0)))
     {
-      /* ttyname implies isatty */
-      if (!(attach_tty = ttyname(0)))
-	{
 #ifdef NETHACK
-	  if (nethackflag)
-	    Msg(0, "You must play from a terminal.");
-	  else
+      if (nethackflag)
+	Msg(0, "You must play from a terminal.");
+      else
 #endif
-	  Msg(0, "Must be connected to a terminal.");
-	  exit(1);
-	}
-      if (strlen(attach_tty) >= MAXPATH)
-	Msg(0, "TtyName too long - sorry.");
-      if ((n = secopen(attach_tty, O_RDWR, 0)) < 0)
-	Msg(0, "Cannot open '%s' - please check.", attach_tty);
-      close(n);
-	
-      debug1("attach_tty is %s\n", attach_tty);
+      Msg(0, "Must be connected to a terminal.");
+      exit(1);
     }
+  if (strlen(attach_tty) >= MAXPATH)
+    Msg(0, "TtyName too long - sorry.");
+  if ((n = secopen(attach_tty, O_RDWR, 0)) < 0)
+    Msg(0, "Cannot open '%s' - please check.", attach_tty);
+  close(n);
+    
+  debug1("attach_tty is %s\n", attach_tty);
   
 #ifdef _MODE_T
   oumask = umask(0);		/* well, unsigned never fails? jw. */
@@ -962,21 +914,15 @@ char **av;
   HostName[MAXSTR - 1] = '\0';
   if ((ap = index(HostName, '.')) != NULL)
     *ap = '\0';
-  if (!Detached)
-    {
-      GetTTY(0, &OldMode);
-#ifdef DEBUG
-      DebugTTY(&OldMode);
-#endif
+  GetTTY(0, &OldMode);
 #ifdef POSIX
-      ospeed = (short) cfgetospeed(&OldMode.tio);
+  ospeed = (short) cfgetospeed(&OldMode.tio);
 #else
 # ifndef TERMIO
-      ospeed = (short) OldMode.m_ttyb.sg_ospeed;
+  ospeed = (short) OldMode.m_ttyb.sg_ospeed;
 # endif
 #endif
-      debug1("...setting extern short ospeed = %d\n", ospeed);
-    }
+  debug1("...setting extern short ospeed = %d\n", ospeed);
 
   if (lsflag)
     {
@@ -1010,7 +956,7 @@ char **av;
 	}
       debug("screen -r: backend not responding -- still crying\n");
     }
-  else if (dflag && !mflag)
+  else if (dflag)
     {
       (void) Attach(MSG_DETACH);
       DeadlyMsg = 0;
@@ -1018,33 +964,23 @@ char **av;
       eexit(0);
       /* NOTREACHED */
     }
-  if (!SockName && !mflag)
+  if (!mflag && (SockName = getenv("STY")) != 0 && *SockName != '\0')
     {
-      register char *sty;
-
-      if ((sty = getenv("STY")) != 0 && *sty != '\0')
+      setuid(real_uid);
+      setgid(real_gid);
+      s = MakeClientSocket(1, SockName);
+      if (ac == 0)
 	{
-	  setuid(real_uid);
-	  setgid(real_gid);
-	  s = MakeClientSocket(1, sty);
-	  if (ac == 0)
-	    {
-	      ac = 1;
-	      av = ShellArgs;
-	    }
-	  av[ac] = aka;
-	  SendCreateMsg(s, ac, av, allflag, default_flow, loginflag, default_histheight,
-			screenterm);
-	  close(s);
-	  exit(0);
-	  /* NOTREACHED */
+	  ac = 1;
+	  av = ShellArgs;
 	}
+      av[ac] = aka;
+      SendCreateMsg(s, ac, av, allflag, default_flow, loginflag, default_histheight,
+		    screenterm);
+      close(s);
+      exit(0);
     }
-  if (SockName && !*SockName)
-    SockName = NULL;
-  debug("/dev/tty...\n");
 #if defined(BSDJOBS) && !(defined(POSIX) || defined(SYSV))
-  debug("opening /dev/tty\n");
   if ((DevTty = open("/dev/tty", O_RDWR | O_NDELAY)) == -1)
     Msg(errno, "/dev/tty");
 #endif
@@ -1056,18 +992,8 @@ char **av;
     case 0:
       break;
     default:
-      if (Detached)
-        exit(0);
-      if (SockName)
-	{
-	  /* user started us with -S option */
-	  sprintf(socknamebuf, "%d.%s", MasterPid, SockName);
-	}
-      else
-	{
-	  sprintf(socknamebuf, "%d.%s.%s", MasterPid, stripdev(attach_tty),
-		  HostName);
-	}
+      sprintf(socknamebuf, "%d.%s.%s", MasterPid, stripdev(attach_tty),
+	      HostName);
       for (ap = socknamebuf; *ap; ap++)
 	if (*ap == '/')
 	  *ap = '-';
@@ -1101,16 +1027,7 @@ char **av;
     *av0 = 'S';
 
   AttacherPid = getppid();
-  if (SockName)
-    {
-      /* user started us with -S option */
-      sprintf(socknamebuf, "%d.%s", getpid(), SockName);
-    }
-  else
-    {
-      sprintf(socknamebuf, "%d.%s.%s", getpid(), stripdev(attach_tty),
-	      HostName);
-    }
+  sprintf(socknamebuf, "%d.%s.%s", getpid(), stripdev(attach_tty), HostName);
   for (ap = socknamebuf; *ap; ap++)
     if (*ap == '/')
       *ap = '-';
@@ -1123,33 +1040,17 @@ char **av;
     StartRc(ap);
 #endif
   StartRc(RcFileName);
-  if (!Detached)
-    {
-      InitTermcap();
-      InitTerm(0);
-      strcpy(display_tty, attach_tty);
+  InitTermcap();
+  InitTerm(0);
+  MakeNewEnv();
+  strcpy(display_tty, attach_tty);
 #ifdef UTMPOK
 # ifdef apollo
-      ReInitUtmp();
+  ReInitUtmp();
 # else
-      InitUtmp();
+  InitUtmp();
 # endif /* apollo */
-#endif
-    }
-  else
-    {
-      default_width = 80;
-      default_height = 24;
-      MakeTermcap(1);
-    }
-#ifdef LOADAV
-# ifdef NeXT
-  InitNeXTLoadAvg(); /* NeXT load average */
-# else
-  InitKmem();
-# endif /* !NeXT */
-#endif /* LOADAV */
-  MakeNewEnv();
+#endif /* UTMPOK */
   signal(SIGHUP, SigHup);
   signal(SIGINT, Finit);
   signal(SIGQUIT, Finit);
@@ -1159,13 +1060,6 @@ char **av;
   signal(SIGTTOU, SIG_IGN);
 #endif
   InitKeytab();
-  if (!Detached)
-    {
-      /* Note: SetMode must be called _before_ FinishRc.
-       */
-      SetMode(&OldMode, &NewMode);
-      SetTTY(0, &NewMode);
-    }
 #ifdef ETCSCREENRC
   if ((ap = getenv("SYSSCREENRC")) == NULL)
     FinishRc(ETCSCREENRC);
@@ -1174,8 +1068,10 @@ char **av;
 #endif
   FinishRc(RcFileName);
 
-  if (!Detached)
-    brktty();
+  /* Note: SetMode must be called _after_ FinishRc (flow is set there).
+   */
+  SetMode(&OldMode, &NewMode);
+  SetTTY(0, &NewMode);
   if (loginflag == -1)
       loginflag = LOGINDEFAULT;
   if (ac == 0)
@@ -1194,8 +1090,6 @@ char **av;
 	  /* NOTREACHED */
 	}
     }
-  if (Detached)
-    freetty();
   if (default_startup)
     display_copyright();
 #ifdef SYSV
@@ -1215,6 +1109,7 @@ char **av;
       Msg(0, "New screen...");
       rflag = 0;
     }
+  brktty();
   for (;;)
     {
       /*
@@ -1452,14 +1347,10 @@ char **av;
 		{
 #ifdef EWOULDBLOCK
 		  if (errno == EWOULDBLOCK)
-		    continue;
+		    len = 0;
 #endif
- 		  debug2("Window %d: errno %d\n", n, errno);
- 		  continue;
 		}
-#ifdef TIOCPKT
-	      if (len == 0)
-		continue;
+#if defined(TIOCPKT) && !defined(sgi)
 	      if (buf[0])
 		{
 		  debug1("PAKET %x\n", buf[0]);
@@ -1474,10 +1365,10 @@ char **av;
 		}
 	      if (len > 1)
 		WriteString(p, buf + 1, len - 1);
-#else /* TIOCPKT */
+#else /* TIOCPKT && !sgi */
 	      if (len > 0)
 		WriteString(p, buf, len);
-#endif /* TIOCPKT */
+#endif /* TIOCPKT && !sgi */
 	    }
 	  if (p->bell == BELL_ON)
 	    {
@@ -1577,8 +1468,8 @@ sig_t SigHup(SIGDEFARG)
 static sig_t 
 AttacherSigInt(SIGDEFARG)
 {
-  signal(SIGINT, AttacherSigInt);
   Kill(MasterPid, SIGINT);
+  signal(SIGINT, AttacherSigInt);
 # ifndef SIGVOID
   return (sig_t) 0;
 # endif
@@ -1601,11 +1492,9 @@ static sig_t SigInt(SIGDEFARG)
   if (fore && !in_ovl)
     write(fore->ptyfd, buf, 1);
 #else
-# ifdef SYSV
-  signal(SIGINT, SigInt);
-# endif /* SVR4 */
   debug("SigInt() careful\n");
   InterruptPlease = 1;
+  signal(SIGINT, SigInt);
 #endif
 #ifndef SIGVOID
   return((sig_t) 0);
@@ -1615,9 +1504,6 @@ static sig_t SigInt(SIGDEFARG)
 static sig_t CoreDump(sig)
 int sig;
 {
-#ifdef SYSV
-  signal(sig, SIG_IGN);
-#endif /* SYSV */
   setgid(getgid());
   setuid(getuid());
   unlink("core");
@@ -1683,11 +1569,8 @@ static void DoWait()
 	      else
 #endif
 		KillWindow(n);
-	      break;
 	    }
 	}
-      if (n == -1)
-	debug1("pid %d not found - hope that's ok\n", pid);
     }
 }
 
@@ -1960,7 +1843,8 @@ register int *pilen, *polen, obuf_size;
 		    ShowWindows();
 		    break;
 		  case KEY_VERSION:
-		    Msg(0, "screen %s", version);
+		    Msg(0, "screen %d.%.2d.%.2d%s (%s) %s", REV, VERS,
+		        PATCHLEVEL, STATE, ORIGIN, DATE);
 		    break;
 		  case KEY_TIME:
 		    ShowTime();
@@ -2366,21 +2250,17 @@ char *term; /* if term is nonzero we assume it "vt100" or the like.. */
 #endif
 #ifdef TIOCPKT
     {
+# ifdef sgi
       /*
-       * # if defined(sgi) && !defined(IRIX_4_0)
-      *
        * on IRIX 3.3, regardless of stream head's read mode (RNORM/RMSGN/RMSGD)
        * we loose data in TIOCPKT mode if our buffer is too small (IOSIZE)
        * to hold the whole packet at first read().
        * (Marc Boucher)
-       *
-       * int flag = 0;
-       * # else / * sgi && !IRIX_4_0 * /
-       *
-       * This no longer applies, as TIOCPKT is undef'ed for non-IRIX_4_0 sgi
-       * jw.
        */
+      int flag = 0;
+# else /* sgi */
       int flag = 1;
+# endif /* sgi */
 
       if (ioctl(f, TIOCPKT, &flag))
 	{
@@ -2500,8 +2380,7 @@ char *term; /* if term is nonzero we assume it "vt100" or the like.. */
       NewEnv[4] = libuf;
       NewEnv[5] = cobuf;
 #endif
-      if (!Detached)		/* XXX */
-        SetTTY(0, &OldMode);
+      SetTTY(0, &OldMode);
       if (aflag)
         NewEnv[2] = MakeTermcap(1);
       else
@@ -2777,61 +2656,31 @@ static void ShowWindows()
   Msg(0, "%s", buf);
 }
 
-#ifdef LOADAV_3LONGS
-extern long loadav[3];
-#else
-# ifdef LOADAV_4LONGS
-extern long loadav[4];
-# else
-#  ifdef LOADAV_NEXT
-extern float loadav;
-#  else
-extern double loadav[3];
-#  endif
-# endif
-#endif
-extern avenrun;
-
 static void ShowTime()
 {
   char buf[512];
-#ifdef LOADAV
-  char *p;
-#endif
   struct tm *tp;
   time_t now;
 
   (void) time(&now);
   tp = localtime(&now);
-  sprintf(buf, "%2d:%02d:%02d %s", tp->tm_hour, tp->tm_min, tp->tm_sec,
+  sprintf(buf, "%2d:%02.2d:%02.2d %s", tp->tm_hour, tp->tm_min, tp->tm_sec,
 	  HostName);
-#ifdef LOADAV
-  if (avenrun && GetAvenrun())
-    {
-      p = buf + strlen(buf);
-# ifdef LOADAV_3LONGS
-      sprintf(p, " %2.2f %2.2f %2.2f", (double) loadav[0] / FSCALE,
-	      (double) loadav[1] / FSCALE, (double) loadav[2] / FSCALE);
-# else
-#  ifdef LOADAV_4LONGS
-      sprintf(p, " %2.2f %2.2f %2.2f %2.2f", (double) loadav[0] / 100,
-	      (double) loadav[1] / 100, (double) loadav[2] / 100,
-	      (double) loadav[3] / 100);
-#  else
-#   ifdef LOADAV_NEXT
-      sprintf(p, " %2.2f", loadav);
-#   else
-#    ifdef apollo
-      sprintf(p, " %2.2f %2.2f %2.2f", loadav[0]/65536.0, loadav[1]/65536.0,
-	      loadav[2]/65536.0);
-#    else
-      sprintf(p, " %2.2f %2.2f %2.2f", loadav[0], loadav[1], loadav[2]);
-#    endif /* apollo */
-#   endif /* LOADAV_NEXT */
-#  endif /* LOADAV_4LONGS */
-# endif /* LOADAV_3LONGS */
-    }
-#endif /* LOADAV */
+  {
+    static int loads = 0;
+    double loadav[3];
+    int n;
+
+    if (loads >= 0)		/* If it failed, don't try again.  */
+      {
+	loads = getloadavg(loadav, 3);
+	for (n = 0; n < loads; n++)
+	  {
+	    char *p = buf + strlen(buf);
+	    sprintf(p, " %2.2f", loadav[n]);
+	  }
+      }
+  }
   Msg(0, "%s", buf);
 }
 
@@ -2871,7 +2720,6 @@ static int OpenPTY()
   register int f;
 # ifdef SVR4
   char *ptsname();
-  int unlockpt __P((int)), grantpt __P((int));
   sig_t (*sigcld)();
 
   if ((f = open("/dev/ptmx", O_RDWR)) == -1)
@@ -2921,9 +2769,9 @@ static int OpenPTY()
   strcpy(PtyName, PtyProto);
   for (p = PtyName; *p != 'X'; ++p)
     ;
-  for (l = "zyxwvutsrqp"; *p = *l; ++l)
+  for (l = PTY_FIRST_CHARS; *p = *l; ++l)
     {
-      for (d = "0123456789abcdef"; p[1] = *d; ++d)
+      for (d = PTY_SECOND_CHARS; p[1] = *d; ++d)
 	{
 	  if ((f = open(PtyName, O_RDWR)) != -1)
 	    {
@@ -2947,22 +2795,6 @@ static int OpenPTY()
 
 # else  /* MIPS */
 #  ifdef sgi
-#   ifdef IRIX_4_0
-
-static int OpenPTY()
-{
-  int fd;
-  char *name, *_getpty(int *, int, mode_t, int); /* 1000 pty fix */
-
-  name = _getpty(&fd, O_RDWR | O_NDELAY, 0600, 0);
-  if (name == NULL)
-    return -1;
-  strcpy(PtyName, "/dev/ptc");
-  strcpy(TtyName, name);
-  return fd;
-}
-
-#   else /* IRIX_4_0 */
 
 static int OpenPTY()
 {
@@ -2971,7 +2803,7 @@ static int OpenPTY()
   struct stat buf;
    
   strcpy(PtyName, "/dev/ptc");
-  f = open(PtyName, O_RDWR | O_NDELAY);
+  f = open(PtyName, O_RDWR|O_NDELAY);
   if (f >= 0)
     {
       if (fstat(f, &buf) < 0)
@@ -2985,7 +2817,6 @@ static int OpenPTY()
   return f;
 }
 
-#   endif /* IRIX_4_0 */
 #  else /* sgi */
 #   ifdef _AIX /* RS6000 */
 
@@ -2993,22 +2824,22 @@ static int OpenPTY()
 {
   register int i, f, tf;
 
-  for (i = 0; i < 256; i++)
+  strcpy (PtyName, "/dev/ptc");
+  if ((f = open (PtyName, O_RDWR)) != -1)
     {
-      sprintf(PtyName, "/dev/ptc/%d", i);
-      if ((f = open(PtyName, O_RDWR | O_NSHARE)) != -1)
-	{
-	  sprintf(TtyName, "/dev/pts/%d", i);
-	  if ((tf = open(TtyName, O_RDWR | O_NOCTTY | O_NSHARE)) != -1)
-	    {
-	      close(tf);
+      strcpy (TtyName, ttyname (f));
+      strcpy (PtyName, TtyName);
+      PtyName [7] = 'c';
 #ifdef LOCKPTY
-	      (void) ioctl(f, TIOCEXCL, (char *) 0);
+      if (ioctl (f, TIOCEXCL, (char *) 0) == -1)
+	return -1;
 #endif
-	      return f;
-	    }
-	  close(f);
+      if ((tf = open (TtyName, O_RDWR)) != -1)
+	{
+	  close (tf);
+	  return f;
 	}
+      close (f);
     }
   return -1;
 }
@@ -3020,10 +2851,9 @@ static int OpenPTY()
   register char *p, *q, *l, *d;
   register int f, tf;
 
-#    if !defined(hpux) && !defined(sun) && !defined(sysV68)
+#    if !defined(hpux)
   debug("Hello, You are none of: sequent, _SEQUENT_, SVR4, MIPS, sgi, AIX\n");
-  debug("       This OpenPTY() is for hpux, sysV68 and sun ...\n");
-  debug("       ... and for you?\n");
+  debug("       This OpenPTY() is for hpux, ... and for you?\n");
 #    endif
   strcpy(PtyName, PtyProto);
   strcpy(TtyName, TtyProto);
@@ -3031,47 +2861,15 @@ static int OpenPTY()
     ;
   for (q = TtyName; *q != 'X'; ++q)
     ;
-#ifdef sequent
-  /* why ask for sequent in #else (not sequent) section? jw. */
-  for (l = "p"; (*p = *l) != '\0'; ++l)
-    {				/* } */
-      for (d = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"; (p[1] = *d) != '\0'; ++d)
-	{			/* } */
-#else
-# ifdef hpux
-  for (l = "pqrstuvw"; (*p = *l) != '\0'; ++l)
-# else
-  for (l = "qpr"; (*p = *l) != '\0'; ++l)
-#endif
+  for (l = PTY_FIRST_CHARS; (*p = *l) != '\0'; ++l)
     {
-      for (d = "0123456789abcdef"; (p[1] = *d) != '\0'; ++d)
+      for (d = PTY_SECOND_CHARS; (p[1] = *d) != '\0'; ++d)
 	{
-#endif
-	  debug1("OpenPTY tries '%s'\n", PtyName);
 	  if ((f = open(PtyName, O_RDWR)) != -1)
 	    {
 	      q[0] = *l;
 	      q[1] = *d;
-#ifdef sun
-	      /* Hack to ensure that the slave side of the pty is
-	       * unused. May not work in anything other than SunOS4.1
-	       */
-		{
-		  int pgrp;
-
-		  /* tcgetpgrp does not work (uses TIOCGETPGRP)! */
-		  if (ioctl(f, TIOCGPGRP, &pgrp) != -1 || errno != EIO)
-		    {
-		      close(f);
-		      continue;
-		    }
-		}
-#endif
-#ifdef O_NOCTTY
-	      if ((tf = open(TtyName, O_RDWR | O_NOCTTY)) != -1)
-#else
 	      if ((tf = open(TtyName, O_RDWR)) != -1)
-#endif
 		{
 		  /* close tf, thus we also get rid of an unwanted
 		   * controlling terminal! 
@@ -3107,14 +2905,14 @@ struct mode *mp;
 # endif
 #else
 # ifdef TERMIO
-  ioctl(fd, TCSETAW, &mp->tio);
+  ioctl(fd, TCSETA, &mp->tio);
 # else
   /* ioctl(fd, TIOCSETP, &mp->m_ttyb); */
   ioctl(fd, TIOCSETC, &mp->m_tchars);
+  ioctl(fd, TIOCSLTC, &mp->m_ltchars);
   ioctl(fd, TIOCLSET, &mp->m_lmode);
   ioctl(fd, TIOCSETD, &mp->m_ldisc);
   ioctl(fd, TIOCSETP, &mp->m_ttyb);
-  ioctl(fd, TIOCSLTC, &mp->m_ltchars); /* moved here for apollo. jw */
 # endif
 #endif
   if (errno)
@@ -3185,46 +2983,40 @@ struct mode *op, *np;
   if (iflag)
     intrc = op->tio.c_cc[VINTR];
   else
-    {
-      origintrc = op->tio.c_cc[VINTR];
-      intrc = np->tio.c_cc[VINTR] = VDISABLE;
-    }
-  np->tio.c_cc[VQUIT] = VDISABLE;
+    intrc = np->tio.c_cc[VINTR] = 0377;
+  np->tio.c_cc[VQUIT] = 0377;
   if (flow == 0)
     {
-      np->tio.c_cc[VINTR] = VDISABLE;
+      np->tio.c_cc[VINTR] = 0377;
 #ifdef VSTART
-      np->tio.c_cc[VSTART] = VDISABLE;
+      np->tio.c_cc[VSTART] = 0377;
 #endif
 #ifdef VSTOP
-      np->tio.c_cc[VSTOP] = VDISABLE;
+      np->tio.c_cc[VSTOP] = 0377;
 #endif
       np->tio.c_iflag &= ~IXON;
     }
 #ifdef VDISCARD
-  np->tio.c_cc[VDISCARD] = VDISABLE;
+  np->tio.c_cc[VDISCARD] = 0377;
 #endif
 #ifdef VSUSP
-  np->tio.c_cc[VSUSP] = VDISABLE;
+  np->tio.c_cc[VSUSP] = 0377;
 #endif
 # ifdef hpux
-  np->m_ltchars.t_suspc = VDISABLE;
-  np->m_ltchars.t_dsuspc = VDISABLE;
-  np->m_ltchars.t_flushc = VDISABLE;
-  np->m_ltchars.t_lnextc = VDISABLE;
+  np->m_ltchars.t_suspc = 0377;
+  np->m_ltchars.t_dsuspc = 0377;
+  np->m_ltchars.t_flushc = 0377;
+  np->m_ltchars.t_lnextc = 0377;
 # else
 #  ifdef VDSUSP
-  np->tio.c_cc[VDSUSP] = VDISABLE;
+  np->tio.c_cc[VDSUSP] = 0377;
 #  endif
 # endif
 #else
   startc = op->m_tchars.t_startc;
   stopc = op->m_tchars.t_stopc;
   if (iflag)
-    {
-      origintrc = op->m_tchars.t_intrc;
-      intrc = op->m_tchars.t_intrc;
-    }
+    intrc = op->m_tchars.t_intrc;
   else
     intrc = np->m_tchars.t_intrc = -1;
   np->m_ttyb.sg_flags &= ~(CRMOD | ECHO);
@@ -3247,11 +3039,6 @@ void
 SetFlow(on)
 int on;
 {
-  if (Detached)		/* XXX */
-    {
-      debug1("SetFlow(%d) when detached???\n", on);
-      return;
-    }
   if (flow == on)
     return;
 #if defined(TERMIO) || defined(POSIX)
@@ -3268,19 +3055,19 @@ int on;
     }
   else
     {
-      NewMode.tio.c_cc[VINTR] = VDISABLE;
+      NewMode.tio.c_cc[VINTR] = 0377;
 #ifdef VSTART
-      NewMode.tio.c_cc[VSTART] = VDISABLE;
+      NewMode.tio.c_cc[VSTART] = 0377;
 #endif
 #ifdef VSTOP
-      NewMode.tio.c_cc[VSTOP] = VDISABLE;
+      NewMode.tio.c_cc[VSTOP] = 0377;
 #endif
       NewMode.tio.c_iflag &= ~IXON;
     }
 # ifdef POSIX
   if (tcsetattr(0, TCSADRAIN, &NewMode.tio))
 # else
-  if (ioctl(0, TCSETAW, &NewMode.tio) != 0)
+  if (ioctl(0, TCSETA, &NewMode.tio) != 0)
 # endif
     debug1("SetFlow: ioctl errno %d\n", errno);
 #else
@@ -3317,7 +3104,7 @@ int how;
       m.type = how;
       if ((lasts = MakeClientSocket(0, SockName)) >= 0)
 	{
-          write(lasts, (char *)&m, sizeof(m));
+          write(lasts, &m, sizeof(m));
           close(lasts);
 	}
       return 0;
@@ -3453,10 +3240,10 @@ static sig_t trysendok(SIGDEFARG)
 
 static sig_t trysendfail(SIGDEFARG)
 {
+  trysendstat = -1;
 # ifdef SYSV
   signal(SIG_PW_FAIL, trysendfail);
 # endif /* SYSV */
-  trysendstat = -1;
 }
 
 static char screenpw[9];
@@ -3525,7 +3312,7 @@ static sig_t AttacherFinit(SIGDEFARG)
 	  m.type = MSG_HANGUP;
 	  if ((s = MakeClientSocket(0, SockName)) >= 0)
 	    {
-	      write(s, (char *)&m, sizeof(m));
+	      write(s, &m, sizeof(m));
 	      close(s);
 	    }
 	}
@@ -3570,11 +3357,11 @@ static LockPlease;
 
 static sig_t DoLock(SIGDEFARG)
 {
+  debug("DoLock()\n");
+  LockPlease = 1;
 # ifdef SYSV
   signal(SIG_LOCK, DoLock);
 # endif
-  debug("DoLock()\n");
-  LockPlease = 1;
 # ifndef SIGVOID
   return((sig_t) 0);
 # endif
@@ -3689,11 +3476,6 @@ static void LockTerminal()
   int sig, pid;
   sig_t (*sigs[NSIG])__P(SIGPROTOARG);
 
-  if (Detached)		/* XXX */
-    {
-      debug("LockTerminal when Detached ???\n");
-      return;
-    }
   for (sig = 1; sig < NSIG; sig++)
     {
       sigs[sig] = signal(sig, SIG_IGN);
@@ -3812,9 +3594,7 @@ screen_builtin_lck()
     }
 #endif
   pass = ppp->pw_passwd;
-#ifdef SHADOWPW
 realpw:
-#endif /* SHADOWPW */
   for (t = 0; t < 13; t++)
     {
       c = pass[t];
@@ -4067,22 +3847,22 @@ void
 /*VARARGS2*/
 # if defined(__STDC__)
 Msg(int err, char *fmt, ...)
-# else /* __STDC__ */
+# else
 Msg(err, fmt, va_alist)
 int err;
 char *fmt;
 va_dcl
-# endif /* __STDC__ */
+# endif
 {
-  static va_list ap;
-#else /* USEVARARRGS */
+  static va_list ap = 0;
+#else
 /*VARARGS2*/
 Msg(err, fmt, p1, p2, p3, p4, p5, p6)
 int err;
 char *fmt;
 unsigned long p1, p2, p3, p4, p5, p6;
 {
-#endif /* USEVARARRGS */
+#endif
   char buf[MAXPATH*2];
   char *p = buf;
 
@@ -4091,14 +3871,14 @@ unsigned long p1, p2, p3, p4, p5, p6;
 #ifdef USEVARARGS
 # if defined(__STDC__)
   va_start(ap, fmt);
-# else /* __STDC__ */
+# else
   va_start(ap);
-# endif /* __STDC__ */
+# endif
   (void) vsprintf(p, fmt, ap);
   va_end(ap);
-#else /* USEVARARRGS */
+#else
   sprintf(p, fmt, p1, p2, p3, p4, p5, p6);
-#endif /* USEVARARRGS */
+#endif
   if (err)
     {
       p += strlen(p);

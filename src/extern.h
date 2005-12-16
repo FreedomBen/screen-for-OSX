@@ -44,9 +44,6 @@
 # ifndef SYSV
 extern void bzero __P((char *, int));
 # endif
-# ifdef sun
-extern char *memset __P((char *, int, size_t));
-# endif
 # ifndef bcopy
 extern void bcopy __P((char *, char *, int));
 # endif /* bcopy */
@@ -101,8 +98,7 @@ extern void tputs __P((char *, int, void (*)(int)));
 #ifdef notdef
 extern unsigned char     *_flsbuf __P((unsigned char, FILE *));
 #endif
-#if !defined(NeXT) && !defined(apollo)
-/* not all apollo's may have this. grrr */
+#if !defined(NeXT) && !defined(_AIX)
 extern int _flsbuf __P((unsigned char, FILE *));
 #endif
 # ifdef POSIX
@@ -145,7 +141,9 @@ extern char *MakeTermcap __P((int));
 extern char *ProcessInput __P((char *, int *, char *, int *, int));
 extern char *SaveStr __P((char *));
 extern char *findcap __P((char *, char **, int));
+#if !__GNUC__
 extern char *strdup __P((const char *));
+#endif
 extern int ChangeScrollback __P((struct win *, int, int));
 extern int ChangeWindowSize __P((struct win *, int, int));
 extern int CompileKeys __P((char *, char *));
@@ -185,7 +183,6 @@ extern void FinitTerm __P((void));
 extern void FixLP __P((int, int));
 extern void GetTTY __P((int, struct mode *));
 extern void GotoPos __P((int, int));
-extern void InitKmem __P((void));
 extern void InitOverlayPage __P((void (*)(), void (*)(), int (*)(), int));
 extern void InitTerm __P((int));
 extern void InitTermcap __P((void));

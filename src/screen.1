@@ -1,3 +1,4 @@
+.\" -*- nroff -*-
 .if n .ds Q \&"
 .if n .ds U \&"
 .if t .ds Q ``
@@ -183,7 +184,7 @@ Allow the user to enter an a.\|k.\|a (also-known-as). for the current window.
 .IP "\fBC-a c\fP  or  \fBC-a C-c\fP   (shell)"
 Create a new window with a shell and switch to that window.
 .IP "\fBC-a C\fP   (clear)"
-Clear the screen.
+Clear the screen (saves image to scrollback buffer).
 .IP "\fBC-a d\fP  or  \fBC-a C-d\fP   (detach)"
 Detach
 .I screen
@@ -195,7 +196,7 @@ can be resumed by invoking
 with the
 .B \-r
 option. (See also section \*QCOMMAND-LINE OPTIONS\*U.)
-.IP "\fBC-a D D\fP   (pow_detach)"
+.IP "\fBC-a D\fP   (pow_detach)"
 Power detach. Mainly the same as above, but also sends a HANGUP signal to
 the parent process of
 .IR screen .
@@ -228,8 +229,8 @@ the cursor position in the form \*Q(column,row)\*U starting with \*Q(1,1)\*U,
 the terminal width and height plus the size of the scrollback buffer in lines, 
 like in \*U(80,24)+50\*U, various flag settings (flow-control, insert mode,
 origin
-mode, wrap mode, application-keypad mode, output logging, and activity
-monitoring (`+' indicates enabled, `-' not)),
+mode, wrap mode, application-keypad mode, output logging, activity
+monitoring, and redraw (`+' indicates enabled, `-' not)),
 the currently active character set (\fIG0\fP, \fIG1\fP, \fIG2\fP,
 or \fIG3\fP), and in square brackets the terminal character sets that are
 currently designated as \fIG0\fP through \fIG3\fP.
@@ -472,11 +473,9 @@ window's termcap, even if
 must redraw parts of the display in order to implement a function.
 .TP 5
 .B \-A
-Adapt. When attaching to a terminal that can change its size, (e.g. suncmd,
-or some xterms) 
+Adapt the sizes of all windows to the size of the display.  By default,
 .I screen
-will adapt the current terminal size to all its windows as if it were attached 
-to a fixed size terminal. 
+may try to restore its old window sizes.
 .TP 5
 .B "\-c \fIfile\fP"
 override the default configuration file from \*Q$HOME/.screenrc\*U
@@ -530,18 +529,11 @@ Sessions marked `detached' can be resumed with \*Qscreen -r\*U. Those marked
 `attached' are running and have a controlling terminal. Sessions marked as
 `dead' should be thoroughly checked and removed. Ask your system administrator
 if you are not sure. Remove sessions with the \fB-wipe\fP option.
+.IP 5
+.B "\-m"
+disables looking in environment variable $STY for an alternate socket name.
 .TP 5
-.B \-m
-causes 
-.I screen
-to ignore the $STY environment variable. With \*Qscreen -m\*U creation of
-a new session is enforced, regardless whether 
-.I screen
-is called from within another 
-.I screen
-environment or not.
-.TP 5
-.B "\-t \fIname\fP"
+.B "\-t \fIname\fP or \fB\-k\fP \fIname\fP"
 sets the title (a.\|k.\|a.) for the default shell or specified program.
 See also the \*Qshellaka\*U .screenrc command.
 .TP 5
@@ -587,12 +579,6 @@ were not specified.
 sets the default shell to the program specified, instead of the value
 in the environment variable $SHELL (or \*Q/bin/sh\*U if not defined).
 This can also be defined through the \*Qshell\*U .screenrc command.
-.TP 5
-.B \-S \fPsessionname\fI
-When creating a new session, this option can be used to specify a
-meaningfull name for the session. This name identifies the session for
-\*Qscreen -list\*U and \*Qscreen -r\*U actions. It substitutes the 
-default [\fItty.host\fP] suffix.
 .SH CUSTOMIZATION
 The \*Qsocket directory\*U defaults either to $HOME/.screen or preferably
 to /local/screens. If
@@ -772,18 +758,15 @@ that creates an non-login window with a.\|k.\|a. \*Qroot\*U in slot #9, with
 a super-user shell and a scrollbackbuffer of 1000 lines.
 .PP
 .ne 3
-.B "bufferfile \fP[\fIexchange-file\fP]"
+.B "bufferfile \fIexchange-file\fP"
 .sp
 Change the filename used for reading and writing with the copybuffer.
-If the optional argument to the \*Qbufferfile\*U command is omitted, 
-the default setting (\*Q/tmp/screen-exchange\*U) is reactivated.
-The following example will paste the system's password file into 
-the screen window:
+The default is \*Q/tmp/screen-exchange\*U. The following example
+will paste the system's password file into the screen window:
 .PP
 .nf
 	C-a : bufferfile /etc/passwd
 	C-a < C-a ]
-	C-a : bufferfile
 .fi
 .PP
 .ne 3
@@ -819,7 +802,7 @@ Otherwise only `LF' is used.
 The echo command may be used to annoy 
 .I screen
 users with a 'message of the
-day'. Typically installed in a global /usr/local/etc/screenrc. See also
+day'. Typically installed in a global /local/etc/screenrc. See also
 \*Qsleep\*U.
 Echo is also useful for online checking of environment variables.
 .PP
@@ -892,19 +875,14 @@ The mode of each newly allocated pseudo-tty is set to \fImode\fP.
 When no \*Qmode\*U command is given, mode 0622 is used.
 .PP
 .ne 3
-.B "nethack on\fP|\fBoff"
+.B "monitor on\fP|\fBoff\fP"
 .sp
-Changes the kind of error messages used by
-.IR screen .
-When you are familiar with the game \*Qnethack\*U, you may enjoy the
-nethack-style messages which will often blur the facts a little, but are
-much funnier to read. Anyway, standard messages often tend to be unclear as
-well.
-.br
-This option is only 
-available, if screen was compiled with the NETHACK flag defined. The
-default setting is then determined by the presence of the environment 
-variable $NETHACKOPTIONS.
+Toggles activity monitoring of windows.
+When monitoring is turned on and an affected window is switched into the
+background, you will receive the activity notification message in the
+status line at the first sign of output and the window will also be marked
+with an `@' in the window-status display.
+Monitoring is initially off for all windows.
 .PP
 .ne 3
 .B "msgminwait \fIsec\fP"
@@ -919,6 +897,21 @@ delays all activity after a message was dispayled. The default is 1 second.
 Defines the time a message is displayed, if 
 .I screen
 is not disturbed by other activity. The default is 5 seconds.
+.PP
+.ne 3
+.B "nethack on\fP|\fBoff"
+.sp
+Changes the kind of error messages used by
+.IR screen .
+When you are familiar with the game \*Qnethack\*U, you may enjoy the
+nethack-style messages which will often blur the facts a little, but are
+much funnier to read. Anyway, standard messages often tend to be unclear as
+well.
+.br
+This option is only 
+available if screen was compiled with the NETHACK flag defined. The
+default setting is then determined by the presence of the environment 
+variable $NETHACKOPTIONS.
 .PP
 .ne 3
 .B "password \fP[\fIcrypted_pw\fP]"
@@ -954,21 +947,22 @@ Thus, if your \*Q.screenrc\*U contains the lines
 .sp
 .nf
 	# example for .screenrc:
-	screen 0
-	screen -fn -t foobar 1 telnet foobar
+	screen 1
+	screen -fn -t foobar 2 telnet foobar
 .fi
 .sp
 .I screen
-creates a shell window (in window #1), a window with a TELNET connection
+creates a shell window (in window #1) and a window with a TELNET connection
 to the machine foobar (with no flow-control using the a.\|k.\|a. \*Qfoobar\*U
-in window #2). Note, that unlike previous versions of
+in window #2).  If you do not include any
 .I screen
-no default window is created when \Q*screen\U* commands are used.
+commands in your \*Q.screenrc\*U file, then
+.I screen
+defaults to creating a single shell window, number zero.
 When the initialization is completed,
 .I screen
 switches to the last window specified in your .screenrc file or, if none, it
-opens a default window #0 that would be displayed in this
-case.
+opens default window #0.
 .PP
 .ne 3
 .B "scrollback \fP\fInum\fP"
@@ -977,13 +971,6 @@ Set the size of the scrollback buffer for new windows to \fInum\fP lines.
 The default scrollback is 50 lines.
 Use "C-a : set scrollback \fInum\fP" to change the scrollback size of the
 current window and use "C-a i" to view the current setting. 
-.PP
-.ne
-.B "sessionname \fP[\fIname\fP]"
-.sp
-Rename the current session. Note, that for \*Qscreen -list\*U the
-name shows up with the process-id prepended. If the argument \*Qname\*U
-is ommitted, the name of this session is displayed.
 .PP
 .ne 3
 .B "redraw on\fP|\fBoff"
@@ -1027,13 +1014,20 @@ processing of input. Use that, if you have to fear that your underlying system
 chokes on large pastes.
 .PP
 .ne 3
+.B "startup_message on\fP|\fBoff\fP"
+.sp
+Select whether to display the copyright notice when
+.I screen
+starts up.
+.PP
+.ne 3
 .B "term \fIterm\fP"
 .sp
 In each window's environment
 .I screen
-opens, it sets the $TERM variable to \*Qscreen\*U by default. 
-But when no description for \*Qscreen\*U is installed in the local termcap
-or terminfo data base, you can pretend that the terminal emulator is - say -
+opens, it sets the $TERM variable to \*Qscreen\*U by default, unless
+no description for \*Qscreen\*U is installed in the local termcap
+or terminfo data base.  In that case it pretends that the terminal emulator is
 \*Qvt100\*U. This won't do much harm, as 
 .I screen
 is VT100/ANSI compatible.
@@ -1293,7 +1287,7 @@ Adding this line to your .screenrc would start a niced version of the
 	screen 1
 .fi
 .sp
-This file would start two shells (one specified, one default) using
+This file would start a shell using
 the given shellaka.
 The a.\|k.\|a. specified is an auto-aka that would expect the prompt and
 the typed command to look something like the following:
@@ -1703,6 +1697,37 @@ ISO-specific functions, respectively.
 .B "ESC [ 4 i"
 (A)	Stop relay to printer (ANSI Media Copy)
 .fi
+.SH ENVIRONMENT
+.IP COLUMNS
+Number of columns on the terminal (overrides termcap entry).
+.IP HOME
+Directory in which to look for .screenrc.
+.IP ISCREENRC
+Alternate user screenrc file.
+.IP LINES
+Number of lines on the terminal (overrides termcap entry).
+.IP LOCKPRG
+Screen lock program.
+.IP NETHACKOPTIONS
+Turns on nethack option.
+.IP PATH
+Used for locating programs to run.
+.IP SCREENCAP
+For customizing a terminal's TERMCAP value.
+.IP SCREENDIR
+Alternate socket directory.
+.IP SCREENRC
+Alternate user screenrc file.
+.IP SHELL
+Default shell program for opening windows (default \*Q/bin/sh\*U).
+.IP STY
+Alternate socket name.
+.IP SYSSCREENRC
+Alternate system screenrc file.
+.IP TERM
+Terminal name.
+.IP TERMCAP
+Terminal description.
 .SH FILES
 .nf
 .ta 2i
@@ -1716,7 +1741,7 @@ $SCREENRC
 .br
 $HOME/.iscreenrc
 .br
-$HOME/.screenrc	  Read in after /usr/local/etc/screenrc
+$HOME/.screenrc	  Read in after /local/etc/screenrc
 .br
 $ISCREENDIR/S-<login>
 .br
