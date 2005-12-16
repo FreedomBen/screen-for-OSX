@@ -28,7 +28,7 @@ pow_detach_msg "Screen session of \$LOGNAME \$:cr:\$:nl:ended."
 # shellaka '$ |sh'
 
 # set every new windows hardstatus line to somenthing descriptive
-# defhstatus "screen: ^E (^Et)"
+# defhstatus "screen: ^En (^Et)"
 
 defscrollback 1000
 
@@ -71,6 +71,12 @@ termcapinfo xterm 'vi=\E[?25l:ve=\E[34h\E[?25h:vs=\E[34l'
 
 # emulate part of the 'K' charset
 termcapinfo   xterm 'XC=K%,%\E(B,[\304,\\\\\326,]\334,{\344,|\366,}\374,~\337'
+
+# xterm-52 tweaks:
+# - uses background color for delete operations
+# - maps F1-4 to PF1-4
+# termcapinfo xterm ut
+# termcapinfo xterm 'k1=\EOP:k2=\EOQ:k3=\EOR:k4=\EOS'
 
 ################
 #

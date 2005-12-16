@@ -70,7 +70,10 @@ static char default_c_bit[ACL_BITS_PER_CMD] =
  */
 
 static int GrowBitfield __P((AclBits *, int, int, int));
-
+static int AclSetPermCmd __P((struct user *, char *, struct comm *));
+static int AclSetPermWin __P((struct user *, struct user *, char *, struct win *));
+static int UserAcl __P((struct user *, struct user **, int, char **));
+static int UserAclCopy __P((struct user **, struct user **));
 
 
 static int
@@ -411,6 +414,8 @@ struct user *u;
 	{
 	  while (--j >= 0)
 	    free((char *)w->w_userbits[j]);
+	  free((char *)w->w_mon_notify);
+	  free((char *)w->w_lio_notify);
 	  return -1;
 	}
       for (i = 0; i < maxusercount; i++)
@@ -420,6 +425,19 @@ struct user *u;
     }
   return 0;
 }
+
+void
+FreeWindowAcl(w)
+struct win *w;
+{
+  int i;
+
+  for (i = 0; i < ACL_BITS_PER_WIN; i++)
+    free((char *)w->w_userbits[i]);
+  free((char *)w->w_mon_notify);
+  free((char *)w->w_lio_notify);
+}
+
 
 /* if mode starts with '-' we remove the users exec bit for cmd */
 /*

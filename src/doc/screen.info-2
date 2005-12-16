@@ -866,9 +866,9 @@ Scrollback
 
  - Command: scrollback NUM
      (none)
-     Set the size of the scrollback buffer for new windows to NUM
-     lines.  The default scrollback is 100 lines.  Use `C-a i' to view
-     the current setting.
+     Set the size of the scrollback buffer for the current window to
+     NUM lines.  The default scrollback is 100 lines.  Use `C-a i' to
+     view the current setting.
 
 
 File: screen.info,  Node: Copy Mode Keys,  Next: Movement,  Prev: Scrollback,  Up: Copy

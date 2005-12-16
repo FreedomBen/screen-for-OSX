@@ -5,7 +5,7 @@
 @finalout
 @setchapternewpage odd
 @c %**end of header
-@set version 3.7.0
+@set version 3.7.6
 
 @c For examples, use a literal escape in info.
 @ifinfo
@@ -2221,9 +2221,9 @@ for new windows is changed.  Defaults to 100.
 
 @deffn Command scrollback num
 (none)@*
-Set the size of the scrollback buffer for new windows to @var{num}
-lines.  The default scrollback is 100 lines.  Use @kbd{C-a i} to view
-the current setting.
+Set the size of the scrollback buffer for the current window to
+@var{num} lines.  The default scrollback is 100 lines.  Use @kbd{C-a i}
+to view the current setting.
 @end deffn
 
 @node Copy Mode Keys, Movement, Scrollback, Copy
@@ -3262,6 +3262,10 @@ Does understand ANSI set default fg/bg color (@samp{\E[39m / \E[49m}).
 (str)@*
 Describe a translation of characters to strings depending on the
 current font.  (@pxref{Character Translation}).
+
+@item TF
+(bool)@*
+Add missing capabilities to the termcap/info entry. (Set by default).
 @end table
 
 @node Autonuke, Obuflimit, Special Capabilities, Termcap

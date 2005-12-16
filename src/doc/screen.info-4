@@ -20,6 +20,46 @@ versions, except that this permission notice may be stated in a
 translation approved by the Foundation.
 
 
+File: screen.info,  Node: Known Bugs,  Next: Reporting Bugs,  Up: Bugs
+
+Known Bugs
+==========
+
+   * `dm' (delete mode) and `xs' are not handled correctly (they are
+     ignored).  `xn' is treated as a magic-margin indicator.
+
+   * `screen' has no clue about double-high or double-wide characters.
+     But this is the only area where `vttest' is allowed to fail.
+
+   * It is not possible to change the environment variable `$TERMCAP'
+     when reattaching under a different terminal type.
+
+   * The support of terminfo based systems is very limited. Adding extra
+     capabilities to `$TERMCAP' may not have any effects.
+
+   * `screen' does not make use of hardware tabs.
+
+   * `screen' must be installed setuid root in order to be able to
+     correctly change the owner of the tty device file for each window.
+     Special permission may also be required to write the file
+     `/etc/utmp'.
+
+   * Entries in `/etc/utmp' are not removed when `screen' is killed
+     with SIGKILL.  This will cause some programs (like "w" or "rwho")
+     to advertise that a user is logged on who really isn't.
+
+   * `screen' may give a strange warning when your tty has no utmp
+     entry.
+
+   * When the modem line was hung up, `screen' may not automatically
+     detach (or quit) unless the device driver sends a HANGUP signal.
+     To detach such a `screen' session use the -D or -d command line
+     option.
+
+   * A weird imagination is most useful to gain full advantage of all
+     the features.
+
+
 File: screen.info,  Node: Reporting Bugs,  Next: Availability,  Prev: Known Bugs,  Up: Bugs
 
 Reporting Bugs

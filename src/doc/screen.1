@@ -1,5 +1,5 @@
 .\" vi:set wm=5
-.TH SCREEN 1 "15 Oct 1995"
+.TH SCREEN 1 "21 Aug 1998"
 .if n .ds Q \&"
 .if n .ds U \&"
 .if t .ds Q ``
@@ -3102,6 +3102,9 @@ Does understand ANSI set default fg/bg color (\eE[39m / \eE[49m).
 .BI XC "	(str)"
 Describe a translation of characters to strings depending on the
 current font. More details follow in the next section.
+.TP 13
+.BI TF "	(bool)"
+Add missing capabilities to the termcap/info entry. (Set by default).
 
 .SH CHARACTER TRANSLATION
 \fIScreen\fP has a powerful mechanism to translate characters to arbitrary
@@ -3136,7 +3139,7 @@ Here is an example:
 
     termcap hp700 'XC=B\eE(K%\eE(B,\e304[,\e326\e\e\e\e,\e334]'
 
-This tells \fIscreen\fP, how to translate ISOlatin1 (charset 'B')
+This tells \fIscreen\fP how to translate ISOlatin1 (charset 'B')
 upper case umlaut characters on a hp700 terminal that has a
 german charset. '\e304' gets translated to '\eE(K[\eE(B' and so on.
 Note that this line gets parsed *three* times before the internal
@@ -3292,7 +3295,7 @@ Gregory Neil Shapiro (gshapiro@wpi.WPI.EDU).
 
 
 .SH VERSION
-This is version 3.7.0. Its roots are a merge of a custom version
+This is version 3.7.6. Its roots are a merge of a custom version
 2.3PR7 by Wayne Davison
 and several enhancements to Oliver Laumann's version 2.0. Note that all versions
 numbered 2.x are copyright by Oliver Laumann.

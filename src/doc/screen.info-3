@@ -648,6 +648,11 @@ often not possible to place these capabilities in the terminfo database.
      Describe a translation of characters to strings depending on the
      current font.  (*note Character Translation::.).
 
+`TF'
+     (bool)
+     Add missing capabilities to the termcap/info entry. (Set by
+     default).
+
 
 File: screen.info,  Node: Autonuke,  Next: Obuflimit,  Prev: Special Capabilities,  Up: Termcap
 
@@ -1316,7 +1321,7 @@ Contributors
 Version
 =======
 
-   This manual describes version 3.7.0 of the `screen' program. Its
+   This manual describes version 3.7.6 of the `screen' program. Its
 roots are a merge of a custom version 2.3PR7 by Wayne Davison and
 several enhancements to Oliver Laumann's version 2.0.  Note that all
 versions numbered 2.x are copyright by Oliver Laumann.
@@ -1338,44 +1343,4 @@ found a bug not mentioned here.
 * Known Bugs::                  Problems we know about.
 * Reporting Bugs::              How to contact the maintainers.
 * Availability::                Where to find the lastest screen version.
-
-
-File: screen.info,  Node: Known Bugs,  Next: Reporting Bugs,  Up: Bugs
-
-Known Bugs
-==========
-
-   * `dm' (delete mode) and `xs' are not handled correctly (they are
-     ignored).  `xn' is treated as a magic-margin indicator.
-
-   * `screen' has no clue about double-high or double-wide characters.
-     But this is the only area where `vttest' is allowed to fail.
-
-   * It is not possible to change the environment variable `$TERMCAP'
-     when reattaching under a different terminal type.
-
-   * The support of terminfo based systems is very limited. Adding extra
-     capabilities to `$TERMCAP' may not have any effects.
-
-   * `screen' does not make use of hardware tabs.
-
-   * `screen' must be installed setuid root in order to be able to
-     correctly change the owner of the tty device file for each window.
-     Special permission may also be required to write the file
-     `/etc/utmp'.
-
-   * Entries in `/etc/utmp' are not removed when `screen' is killed
-     with SIGKILL.  This will cause some programs (like "w" or "rwho")
-     to advertise that a user is logged on who really isn't.
-
-   * `screen' may give a strange warning when your tty has no utmp
-     entry.
-
-   * When the modem line was hung up, `screen' may not automatically
-     detach (or quit) unless the device driver sends a HANGUP signal.
-     To detach such a `screen' session use the -D or -d command line
-     option.
-
-   * A weird imagination is most useful to gain full advantage of all
-     the features.
 

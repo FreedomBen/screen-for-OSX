@@ -328,6 +328,22 @@ test -n "$silent" || echo "this is screen version $VERSION"
 
 if test -z "$prefix"
 then
+  test -n "$silent" || echo "checking for screen to derive installation directory prefix"
+  IFS="${IFS= 	}"; ac_save_ifs="$IFS"; IFS="$IFS:"
+  for ac_dir in $PATH; do
+    test -z "$ac_dir" && ac_dir=.
+    if test $ac_dir != . && test -f $ac_dir/screen; then
+      # Not all systems have dirname.
+      prefix=`echo $ac_dir|sed 's%/[^/][^/]*$%%'`
+      break
+    fi
+  done
+  IFS="$ac_save_ifs"
+  test -n "$verbose" && echo "	chose installation directory prefix ${prefix}"
+fi
+
+if test -z "$prefix"
+then
   test -n "$silent" || echo "checking for gzip to derive installation directory prefix"
   IFS="${IFS= 	}"; ac_save_ifs="$IFS"; IFS="$IFS:"
   for ac_dir in $PATH; do
@@ -626,9 +642,18 @@ ac_sed_defs="${ac_sed_defs}\${ac_dA}sysV68\${ac_dB}sysV68\${ac_dC}1\${ac_dD}
 
 fi
 
+oldlibs="$LIBS"
+LIBS="$LIBS -lmld"
 test -n "$silent" || echo "checking for MIPS"
-if test -f /lib/libmld.a || test -f /usr/lib/libmld.a || test -f /usr/lib/cmplrs/cc/libmld.a; then
-test -f /bin/mx || LIBS="$LIBS -lmld" # for nlist. But not on alpha.
+cat > conftest.${ac_ext} <<EOF
+#include "confdefs.h"
+
+int main() { return 0; }
+int t() { ; return 0; }
+EOF
+if eval $ac_compile; then
+  rm -rf conftest*
+  test -f /bin/mx && LIBS="$oldlibs"	# not on alpha
 if test -r /dev/ptc; then
 
 {
@@ -683,7 +708,14 @@ fi
 rm -f conftest*
 
 fi
+
+
+else
+  rm -rf conftest*
+  LIBS="$oldlibs"
 fi
+rm -f conftest*
+
 
 test -n "$silent" || echo "checking for Ultrix"
 cat > conftest.${ac_ext} <<EOF
@@ -930,6 +962,22 @@ else
 fi
 rm -f conftest*
 
+
+test -n "$silent" || echo "checking for Solaris"
+cat > conftest.${ac_ext} <<EOF
+#include "confdefs.h"
+#if defined(sun) && defined(SVR4)
+  yes
+#endif
+
+EOF
+eval "$ac_cpp conftest.${ac_ext} > conftest.out 2>&1"
+if egrep "yes" conftest.out >/dev/null 2>&1; then
+  rm -rf conftest*
+  LIBS="$LIBS -lkstat"
+
+fi
+rm -f conftest*
 
 
 
@@ -1527,7 +1575,22 @@ if eval $ac_compile; then
   :
 else
   rm -rf conftest*
+  LIBS="-lncurses $olibs"
+test -n "$silent" || echo "checking for libncurses"
+cat > conftest.${ac_ext} <<EOF
+#include "confdefs.h"
+
+int main() { return 0; }
+int t() { tgetent((char *)0, (char *)0);; return 0; }
+EOF
+if eval $ac_compile; then
+  :
+else
+  rm -rf conftest*
   echo "configure: !!! no tgetent - no screen" >&2; exit 1
+fi
+rm -f conftest*
+
 fi
 rm -f conftest*
 
@@ -1614,7 +1677,11 @@ pdir='/dev/ptym'
 else
 pdir='/dev'
 fi
+if test -c /dev/ptyp19; then
+ptys=`echo /dev/ptyp??`
+else
 ptys=`echo $pdir/pty??`
+fi
 if test "$ptys" != "$pdir/pty??" ; then
 p0=`echo $ptys | tr ' ' '\012' | sed -e 's/^.*\(.\).$/\1/g' | sort -u | tr -d '\012'`
 p1=`echo $ptys | tr ' ' '\012' | sed -e 's/^.*\(.\)$/\1/g'  | sort -u | tr -d '\012'`
@@ -2036,7 +2103,7 @@ rm -f conftest*
 #endif
 
 #ifdef __sgi
-# if _MIPS_SZLONG == 64
+# if _MIPS_SZLONG == 64 || (defined(_MIPS_ISA) && _MIPS_ISA > 2)
 #  define nlist nlist64
 # endif
 #endif
@@ -2096,7 +2163,7 @@ cat > conftest.c <<EOF
 
 _CUT_HERE_
 
-#if ((defined(hp300) && !defined(__hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news) || defined(__alpha) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
+#if ((defined(hp300) && !defined(__hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news) || (!defined(__osf__) && defined(__alpha)) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
 loadtype=long
 # if defined(apollo) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX)
 loadscale=65536
@@ -2330,6 +2397,22 @@ test -f /lib/libcrypt_d.a || test -f /usr/lib/libcrypt_d.a && LIBS="$LIBS -lcryp
 test -f /lib/libcrypt.a || test -f /usr/lib/libcrypt.a && LIBS="$LIBS -lcrypt"
 test -f /lib/libsec.a || test -f /usr/lib/libsec.a && LIBS="$LIBS -lsec"
 test -f /lib/libshadow.a || test -f /usr/lib/libshadow.a && LIBS="$LIBS -lshadow"
+
+cat > conftest.${ac_ext} <<EOF
+#include "confdefs.h"
+#ifdef M_UNIX
+  yes
+#endif
+
+EOF
+eval "$ac_cpp conftest.${ac_ext} > conftest.out 2>&1"
+if egrep "yes" conftest.out >/dev/null 2>&1; then
+  rm -rf conftest*
+  LIBS="$LIBS -lsocket -lcrypt_i -lc -lx"
+
+fi
+rm -f conftest*
+
 
 oldlibs="$LIBS"
 LIBS="$LIBS -lsun"
@@ -2623,7 +2706,6 @@ test -n "$silent" || echo "checking for vsprintf"
 cat > conftest.${ac_ext} <<EOF
 #include "confdefs.h"
 
-#include <stdio.h>
 int main() { return 0; }
 int t() { vsprintf(0,0,0);; return 0; }
 EOF
