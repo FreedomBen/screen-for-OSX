@@ -149,7 +149,8 @@ AC_PROGRAM_EGREP(yes,
 
 oldlibs="$LIBS"
 LIBS="$LIBS -lelf"
-AC_COMPILE_CHECK(SVR4,,,
+AC_COMPILE_CHECK(SVR4,[#include <utmpx.h>
+],,
 AC_HEADER_CHECK(dwarf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN),
 AC_HEADER_CHECK(elf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN)))
 ,LIBS="$oldlibs")
@@ -540,7 +541,13 @@ dnl
 AC_CHECKING(for tgetent)
 olibs="$LIBS"
 LIBS="-lcurses $olibs"
-AC_COMPILE_CHECK(libcurses,,tgetent((char *)0, (char *)0);,,
+AC_COMPILE_CHECK(libcurses,,[
+#ifdef __hpux
+__sorry_hpux_libcurses_is_totally_broken_in_10_10();
+#else
+tgetent((char *)0, (char *)0);
+#endif
+],,
 LIBS="-ltermcap $olibs"
 AC_COMPILE_CHECK(libtermcap,,tgetent((char *)0, (char *)0);,,
 LIBS="-ltermlib $olibs"
@@ -694,12 +701,12 @@ AC_PROGRAM_EGREP(yes,
 fi
 if test -z "$load" ; then
 AC_CHECKING(for kernelfile)
-for core in /unix /vmunix /dynix /hp-ux /xelos /386bsd /kernel/unix /unicos /mach /stand/vmunix; do
-  if test -f $core ; then
+for core in /unix /vmunix /dynix /hp-ux /xelos /dev/ksyms /kernel/unix /kernel/genunix /unicos /mach /netbsd /386bsd /dgux /bsd /stand/vmunix; do
+  if test -f $core || test -c $core; then
     break
   fi
 done
-if test ! -f $core ; then
+if test ! -f $core && test ! -c $core ; then
   AC_NOTE(- no kernelfile found)
 else
   AC_NOTE(- using kernelfile '$core')

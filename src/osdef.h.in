@@ -61,8 +61,8 @@ extern void  bcopy __P((char *, char *, int));
 #endif
 
 #ifdef BSDWAIT
-struct rusage;
-union wait;
+struct rusage;		/* for wait3 __P */
+union wait;		/* for wait3 __P */
 extern int   wait3 __P((union wait *, int, struct rusage *));
 #else
 extern int   waitpid __P((int, int *, int));
@@ -107,7 +107,7 @@ extern int   getuid __P((void));
 extern int   geteuid __P((void));
 extern int   getgid __P((void)); 
 extern int   getegid __P((void));
-struct passwd;
+struct passwd;	/* for getpwuid __P */
 extern struct passwd *getpwuid __P((int));
 extern struct passwd *getpwnam __P((char *));
 extern int   isatty __P((int)); 
@@ -137,7 +137,7 @@ extern void  free __P((char *));
 #ifdef NAMEDPIPE
 extern int   mknod __P((char *, int, int));
 #else
-struct sockaddr;
+struct sockaddr;	/* for connect __P */
 extern int   socket __P((int, int, int));
 extern int   connect __P((int, struct sockaddr *, int));
 extern int   bind __P((int, struct sockaddr *, int));
@@ -159,19 +159,19 @@ extern int   fvhangup __P((char *));
 #ifdef USEVARARGS
 extern int   vsprintf __P((char *, char *, va_list));
 #endif
-struct timeval;
+struct timeval;		/* for select __P */
 extern int   select __P((int, fd_set *, fd_set *, fd_set *, struct timeval *));
 
 extern void  unsetenv __P((char *));
 
 # if defined(GETTTYENT) && !defined(GETUTENT) && !defined(UTNOKEEP)
-struct ttyent;
+struct ttyent;		/* for getttyent __P */
 extern void  setttyent __P((void));
 extern struct ttyent *getttyent __P((void));
 # endif
 
 #ifdef SVR4
-struct rlimit;
+struct rlimit;		/* for getrlimit __P */
 extern int getrlimit __P((int, struct rlimit *));
 #endif
 

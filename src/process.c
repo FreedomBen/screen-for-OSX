@@ -997,13 +997,16 @@ int key;
 		     * set up loops inside of loops, but often allows to do 
 		     * what you mean, even when you adress your context wrong.
 		     */
-		    i++;
+		    i = 0;
 		    if (fore->w_display)
 		      display = fore->w_display;
 		    DoCommand(args + 1);	/* may destroy our display */
-		    if ((display = fore->w_display))
-		      Msg(0, "command from %s: %s %s", 
-			  s, args[1], args[2] ? args[2] : "");
+		    if ((fore->w_display))
+		      {
+		        display = fore->w_display;
+		        Msg(0, "command from %s: %s %s", 
+			    s, args[1], args[2] ? args[2] : "");
+		      }
 		  }
 		display = NULL;
 		fore = NULL;
@@ -1323,8 +1326,8 @@ int key;
 	WriteString(fore, "\033[H\033[J", 6);
       break;
     case RC_RESET:
-      if (fore->w_state == LIT)
-	WriteString(fore, "\033c", 2);
+      fore->w_state = LIT;
+      WriteString(fore, "\033c", 2);
       break;
     case RC_MONITOR:
       n = fore->w_monitor == MON_ON;
@@ -1571,7 +1574,9 @@ int key;
 	  Msg(0, "%s: two characters required after defescape.", rc_name);
 	  break;
 	}
+#ifdef MAPKEYS
       CheckEscape();
+#endif
       break;
     case RC_CHDIR:
       s = *args ? *args : home;
@@ -3685,7 +3690,7 @@ int len;
     }
   for (st = 0; st < 2; st++)
     salt[st] = 'A' + (int)((time(0) >> 6 * st) % 26);
-  strncpy(Password, crypt(Password, salt), sizeof(Password));
+  strncpy(Password, crypt(Password, salt), sizeof(Password) - 1);
   if (CheckPassword)
     {
 #ifdef COPY_PASTE

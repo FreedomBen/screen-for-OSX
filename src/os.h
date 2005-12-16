@@ -27,7 +27,7 @@
 #include <sys/param.h>
 
 
-#if defined(BSDI) || defined(__386BSD__) || defined(_CX_UX)
+#if defined(BSDI) || defined(__386BSD__) || defined(_CX_UX) || defined(hpux)
 # include <signal.h>
 #endif /* BSDI || __386BSD__ || _CX_UX */
 
@@ -183,15 +183,14 @@ extern int errno;
  * TIOCPKT mode causes data loss if our buffer is too small (IOSIZE)
  * to hold the whole packet at first read().
  * (Marc Boucher)
- */
-#ifdef sgi 
-# undef TIOCPKT
-#endif
-
-/* matthew green:
+ *
+ * matthew green:
  * TIOCPKT is broken on dgux 5.4.1 generic AViiON mc88100
+ *
+ * Joe Traister: On AIX4, programs like irc won't work if screen
+ * uses TIOCPKT (select fails to return on pty read).
  */
-#ifdef DGUX
+#if defined(sgi) || defined(DGUX) || defined(_IBMR2)
 # undef TIOCPKT
 #endif
 

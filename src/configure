@@ -839,6 +839,7 @@ LIBS="$LIBS -lelf"
 test -n "$silent" || echo "checking for SVR4"
 cat > conftest.${ac_ext} <<EOF
 #include "confdefs.h"
+#include <utmpx.h>
 
 int main() { return 0; }
 int t() { ; return 0; }
@@ -1490,7 +1491,13 @@ cat > conftest.${ac_ext} <<EOF
 #include "confdefs.h"
 
 int main() { return 0; }
-int t() { tgetent((char *)0, (char *)0);; return 0; }
+int t() { 
+#ifdef __hpux
+__sorry_hpux_libcurses_is_totally_broken_in_10_10();
+#else
+tgetent((char *)0, (char *)0);
+#endif
+; return 0; }
 EOF
 if eval $ac_compile; then
   :
@@ -1912,12 +1919,12 @@ rm -f conftest*
 fi
 if test -z "$load" ; then
 test -n "$silent" || echo "checking for kernelfile"
-for core in /unix /vmunix /dynix /hp-ux /xelos /386bsd /kernel/unix /unicos /mach /stand/vmunix; do
-  if test -f $core ; then
+for core in /unix /vmunix /dynix /hp-ux /xelos /dev/ksyms /kernel/unix /kernel/genunix /unicos /mach /netbsd /386bsd /dgux /bsd /stand/vmunix; do
+  if test -f $core || test -c $core; then
     break
   fi
 done
-if test ! -f $core ; then
+if test ! -f $core && test ! -c $core ; then
   test -n "$silent" || echo "- no kernelfile found"
 else
   test -n "$silent" || echo "- using kernelfile '$core'"

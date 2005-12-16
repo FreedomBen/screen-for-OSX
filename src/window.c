@@ -424,6 +424,23 @@ char **namep;
 #endif /* TIOCPKT */
     }
   (void) fcntl(f, F_SETFL, FNBLOCK);
+#ifdef linux
+  /*
+   * Tenebreux (zeus@ns.acadiacom.net) has Linux 1.3.70 where select gets
+   * confused in the following condition:
+   * Open a pty-master side, request a flush on it, then set packet mode.
+   * and call select(). Select will return a possible read, where the 
+   * one byte response to the flush can be found. Select will thereafter
+   * return a possible read, which yields I/O error.
+   *
+   * If we request another flush *after* switching into packet mode, this
+   * I/O error does not occur. We receive a single response byte although we 
+   * send two flush requests now. Maybe we should not flush at all.
+   *
+   * 10.5.96 jw.
+   */
+  tcflush(f, TCIOFLUSH);
+#endif
 #ifdef PTYGROUP
   (void) chown(*namep, real_uid, PTYGROUP);
 #else
@@ -700,10 +717,12 @@ struct win *win;
 
       if (*proc == '-')
 	proc++;
+      if (!*proc)
+	proc = DefaultShell;
       debug1("calling execvpe %s\n", proc);
       execvpe(proc, args, NewEnv);
       debug1("exec error: %d\n", errno);
-      SendErrorMsg("Cannot exec %s: %s", proc, strerror(errno));
+      SendErrorMsg("Cannot exec '%s': %s", proc, strerror(errno));
       exit(1);
     default:
       break;
@@ -1017,7 +1036,7 @@ char **av;
       debug("\n");
 #endif
       execvpe(*av, av, environ);
-      SendErrorMsg("Cannot exec %s: %s", *av, strerror(errno));
+      SendErrorMsg("Cannot exec '%s': %s", *av, strerror(errno));
       exit(1);
     default:
       break;

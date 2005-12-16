@@ -35,4 +35,10 @@ case "$reply" in
 		;;
 	*)	;;
 esac
+
+if [ "$retval" != 0 ]; then
+  echo " ***********************************************************"
+  echo " Please fix the above problem before reporting a screen bug!"
+  echo " ***********************************************************"
+fi
 exit $retval

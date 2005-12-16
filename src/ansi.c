@@ -561,6 +561,8 @@ register int len;
 #ifdef COLOR
 	  register char *cop, co;
 #endif
+	  register char **xtable = 0;
+          register char *c0tab = 0;
 
 	  if (c == '\177')
 	    continue;
@@ -591,15 +593,21 @@ register int len;
 		SetFont(fo);
 	      if (D_insert)
 		InsertMode(0);
+	      if (D_xtable)
+		xtable =  D_xtable[(int)(unsigned char)D_rend.font];
+	      if (D_rend.font == '0')
+		c0tab = D_c0_tab;
 	    }
 	  while (currx < cols - 1)
 	    {
 	      if (display)
 		{
-		  if (D_xtable && D_xtable[(int)(unsigned char)D_rend.font] && D_xtable[(int)(unsigned char)D_rend.font][c])
-		    AddStr(D_xtable[(int)(unsigned char)D_rend.font][c]);
+		  if (xtable && xtable[c])
+		    AddStr(xtable[c]);
+		  else if (c0tab)
+		    AddChar(c0tab[c]);
 		  else
-		    AddChar(D_rend.font != '0' ? c : D_c0_tab[c]);
+		    AddChar(c);
 	        }
 	      *imp++ = c;
 	      *atp++ = at;
@@ -805,11 +813,6 @@ skip:	      if (--len == 0)
 	    case 'k':
 	      StartString(AKA);
 	      break;
-	    case '\014':
-	      curr->w_state = TEK;
-	      RAW_PUTCHAR('\033');
-	      RAW_PUTCHAR(c);
-	      break;
 	    default:
 	      if (Special(c))
 	        {
@@ -873,27 +876,6 @@ skip:	      if (--len == 0)
 		  goto tryagain;
 		}
 	    }
-	  break;
-	case TEK:
-	  switch (c)
-	    {
-	    case '@':
-	      if ((unsigned char)*(buf - 2) == ' ') /* XXX: Yucc! */
-		curr->w_state = TEKESC;
-	      /* FALLTHROUGH */
-	    default:
-	      RAW_PUTCHAR(c);
-	      break;
-	    }
-	  break;
-	case TEKESC:
-	  curr->w_state = (c == '\037') ? TEKEND : TEK;
-	  RAW_PUTCHAR(c);
-	  break;
-	case TEKEND:
-	  if (c == '\030')
-	    curr->w_state = LIT;
-	  RAW_PUTCHAR(c);
 	  break;
 	case LIT:
 	default:

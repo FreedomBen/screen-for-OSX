@@ -1161,6 +1161,24 @@ register int new;
 
   if (!display || (old = D_rend.attr) == new)
     return;
+#if defined(TERMINFO) && defined(USE_SGR)
+  debug1("USE_SGR defined, sa is %s\n", D_SA ? D_SA : "undefined");
+  if (D_SA)
+    {
+      char *tparm();
+      SetFont(ASCII);
+      tputs(tparm(D_SA, new & A_SO, new & A_US, new & A_RV, new & A_BL,
+			new & A_DI, new & A_BD, 0         , 0         ,
+			0), 1, PutChar);
+      D_rend.attr = new;
+      D_atyp = 0;
+# ifdef COLOR
+      if (D_CAF || D_CAB)
+	D_rend.color = 0;
+# endif
+      return;
+    }
+#endif
   typ = D_atyp;
   if ((new & old) != old)
     {

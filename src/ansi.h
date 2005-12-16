@@ -56,10 +56,7 @@ enum state_t
   PRIN,				/* Printer mode */
   PRINESC,			/* ESC seen in printer mode */
   PRINCSI,			/* CSI seen in printer mode */
-  PRIN4,			/* CSI 4 seen in printer mode */
-  TEK,				/* Tektronix mode */
-  TEKESC,			/* Tektronix escape */
-  TEKEND			/* Tektronix ending sequence */
+  PRIN4				/* CSI 4 seen in printer mode */
 };
 
 enum string_t 

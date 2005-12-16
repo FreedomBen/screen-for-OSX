@@ -1694,7 +1694,7 @@ Default is `none', this disables password checking.
 .sp
 .ne 3
 .BR paste
-.RI [ registers [ dest_reg ]]
+.RI [ registers " [" dest_reg ]]
 .PP
 Write the (concatenated) contents of the specified registers to the stdin queue
 of the current window. The register '.' is treated as the
@@ -2078,6 +2078,7 @@ Note that we assume `LP' for all terminal names that start with \*Qvt\*U,
 but only if you don't specify a termcap command for that terminal.
 .IP
 termcap vt*  LP
+.br
 termcap vt102|vt220  Z0=\eE[?3h:Z1=\eE[?3l
 .PP
 Specifies the firm-margined `LP' capability for all terminals that begin with

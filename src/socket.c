@@ -694,9 +694,8 @@ CheckPasswd(pwd, pid, utty)
 int pid;
 char *pwd, *utty;
 {
-  if (CheckPassword && 
-      strcmp(crypt(pwd, (strlen(Password) > 1) ? Password : "JW"),
-	     Password))
+  if (CheckPassword && *Password &&
+      strncmp(crypt(pwd, (strlen(Password) > 1) ? Password : "JW"), Password, strlen(Password)))
     {
       if (*pwd)
 	{
@@ -1156,6 +1155,13 @@ chsock()
         return UserStatus();
     }
   r = chmod(SockPath, SOCKMODE);
+  /* 
+   * Sockets usually reside in the /tmp/ area, where sysadmin scripts
+   * may be happy to remove old files. We manually prevent the socket
+   * from becoming old. (chmod does not touch mtime).
+   */
+  (void)utime(SockPath, NULL);
+
   if (euid != real_uid)
     UserReturn(r);
   return r;

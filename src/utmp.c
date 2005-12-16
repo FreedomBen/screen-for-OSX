@@ -299,6 +299,9 @@ RemoveLoginSlot()
   bcopy((char *)&D_utmp_logintty, (char *)&u, sizeof(u));
   bzero(u.ut_name, sizeof(u.ut_name));
   bzero(u.ut_host, sizeof(u.ut_host));
+#  ifdef linux
+  u.ut_type = DEAD_PROCESS;
+#  endif
 # endif /* UT_UNSORTED */
   (void) lseek(utmpfd, (off_t) (D_loginslot * sizeof(u)), 0);
   if (write(utmpfd, (char *) &u, sizeof(u)) != sizeof(u))
@@ -622,6 +625,9 @@ struct win *wi;
   bcopy((char *)&wi->w_savut, (char *)&u, sizeof(u));
   bzero(u.ut_name, sizeof(u.ut_name));
   bzero(u.ut_host, sizeof(u.ut_host));
+#  ifdef linux
+  u.ut_type = DEAD_PROCESS;
+#  endif
 # endif /* UT_UNSORTED */
   (void) lseek(utmpfd, (off_t) (slot * sizeof(u)), 0);
   if (write(utmpfd, (char *) &u, sizeof(u)) != sizeof(u))

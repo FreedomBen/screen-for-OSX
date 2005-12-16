@@ -745,7 +745,7 @@ screen_builtin_lck()
     }
 #endif
   pass = ppp->pw_passwd;
-  if (pass == 0)
+  if (pass == 0 || *pass == 0)
     {
       if ((pass = getpass("Key:   ")))
         {
@@ -799,7 +799,7 @@ screen_builtin_lck()
       debug3("getpass(%d): %x == %s\n", errno, (unsigned int)cp1, cp1);
       if (pass)
         {
-          if (!strcmp(crypt(cp1, pass), pass))
+          if (!strncmp(crypt(cp1, pass), pass, strlen(pass)))
             break;
         }
       else

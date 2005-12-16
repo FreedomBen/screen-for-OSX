@@ -110,6 +110,7 @@ struct term term[T_N] =
   { "ms", T_FLG  },
   { "sg", T_NUM  },
   { "ug", T_NUM  },
+  { "sa", T_STR  },
 
 /* color */
   { "AF", T_STR  },

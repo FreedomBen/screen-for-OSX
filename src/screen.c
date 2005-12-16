@@ -345,6 +345,9 @@ char **av;
 #ifdef MULTIUSER
   char *sockp;
 #endif
+#ifdef MAPKEYS
+  int kmaptimeout;
+#endif
 
 #if (defined(AUX) || defined(_AUX_SOURCE)) && defined(POSIX)
   setcompat(COMPAT_POSIX|COMPAT_BSDPROT); /* turn on seteuid support */
@@ -822,8 +825,10 @@ pw_try_again:
 #endif
   if (n < 13)
     ppp->pw_passwd = 0;
-  if (ppp->pw_passwd && strlen(ppp->pw_passwd) > 13)
+#ifdef linux
+  if (ppp->pw_passwd && strlen(ppp->pw_passwd) == 13 + 11)
     ppp->pw_passwd[13] = 0;	/* beware of linux's long passwords */
+#endif
 
   home = getenv("HOME");
 #if !defined(SOCKDIR) && defined(MULTIUSER)
@@ -1328,6 +1333,7 @@ pw_try_again:
        * check to see if a mapping timeout should happen
        */
 #ifdef MAPKEYS
+      kmaptimeout = 0;
       tv.tv_usec = 0;
       for (display = displays; display; display = display->d_next)
 	if (D_seql)
@@ -1346,6 +1352,7 @@ pw_try_again:
 	      continue;
             tv.tv_sec = 0;
 	    tv.tv_usec = maptimeout;
+	    kmaptimeout = 1;
 	    break;
 	  }
 #endif
@@ -1402,7 +1409,7 @@ pw_try_again:
 	  {
 	    if (D_seql == 0)
 	      continue;
-	    if ((nsel == 0 && tv.tv_sec == 0 && tv.tv_usec) || D_seqruns++ * 50000 > maptimeout)
+	    if ((nsel == 0 && kmaptimeout) || D_seqruns++ * 50000 > maptimeout)
 	      {
 		debug1("Flushing map sequence (%d runs)\n", D_seqruns);
 		fore = D_fore;
@@ -1828,6 +1835,8 @@ struct win *p;
       (void) chown(p->w_tty, 0, 0);
       close(p->w_ptyfd);
       p->w_ptyfd = -1;
+      /* zap saved utmp as the slot may change */
+      bzero((char *)&p->w_savut, sizeof(p->w_savut));
       p->w_pid = 0;
       ResetWindow(p);
       p->w_y = p->w_bot;

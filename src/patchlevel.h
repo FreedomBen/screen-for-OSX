@@ -212,13 +212,26 @@
  *                     stripdev changed to translate 
  *                     /dev/pts<n> to /dev/pts/<n> (unixware)
  *                     -lgen added to GETUTENT configure test.
- * 20.11.95 -- 3.07.01 corrected vbell null ptr reference
+ * 20.11.95 -- 3.07.01 corrected vbell null ptr reference.
+ *                     -- DISTRIBUTED
+ *  1.09.96 -- 3.07.02 added #ifdef MAPKEYS for CheckEscape.
+ *                     etc/toolcheck is now shouting louder.
+ *                     Touching socket when detach/attach.
+ *                     Linux tcflush hack. Linux md5 password suport.
+ *                     USE_SGR support for dumb (wyse) terminals.
+ *                     "at" and "reset" commands improved.
+ *                     Now sensitive to broken AIX4 TIOCPKT.
+ *                     tek patch unapplied.
+ *                     linux utmp patch: set slot to DEAD_PROCESS.
+ *                     include signal.h for killpg if hpux10.10.
+ *                     linux: elf, but no SVR4, check for utmpx.
+ *                     hpux10.10 libcurses breaks select()!
  *                     -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 7
-#define PATCHLEVEL 1
-#define DATE "20-Nov-95"
+#define PATCHLEVEL 2
+#define DATE "1-Sep-96"
 #define STATE ""
