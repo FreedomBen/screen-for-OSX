@@ -227,6 +227,7 @@ struct term term[T_N] =
   { "kN", T_STR  }, KMAPDEF("\033[6~") KMAPMDEF("\006")
   { "kP", T_STR  }, KMAPDEF("\033[5~") KMAPMDEF("\002")
   { "kI", T_STR  }, KMAPDEF("\033[2~")
+/* define T_NAVIGATE_DELETE */
   { "kD", T_STR  }, KMAPDEF("\033[3~")
 
 /* keys that can have two bindings */

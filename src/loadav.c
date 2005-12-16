@@ -250,10 +250,8 @@ GetLoadav()
 extern int nlist __P((char *, struct nlist *));
 # endif
 
-#ifdef __sgi
-# if _MIPS_SZLONG == 64 || (defined(_MIPS_ISA) && _MIPS_ISA > 2)
-#  define nlist nlist64
-# endif
+#ifdef LOADAV_USE_NLIST64
+# define nlist nlist64
 #endif
 
 static struct nlist nl[2];

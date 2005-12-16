@@ -338,6 +338,11 @@ default [\fItty.host\fP] suffix.
 sets the title (a.\|k.\|a.) for the default shell or specified program.
 See also the \*Qshelltitle\*U .screenrc command.
 .TP 5
+.B \-U
+Run screen in UTF-8 mode. This option tells screen that your terminal
+sends and understands UTF-8 encoded characters. It also sets the default
+encoding for new windows to `utf8'.
+.TP 5
 .B \-v
 Print version number.
 .TP 5
@@ -352,6 +357,12 @@ See the \fB-r\fP flag for a description how to construct matches.
 Attach to a not detached
 .I screen
 session. (Multi display mode).
+.TP 5
+.B \-X
+Send the specified command to a running screen session. You can use
+the \fB-d\fP or \fB-r\fP option to tell screen to look only for
+attached or detached screen sessions. Note that this command doesn't
+work if the session is password protected.
 
 
 .SH "DEFAULT KEY BINDINGS"
@@ -773,6 +784,32 @@ a display is associated with the target windows.  These commands may not work
 correctly under \*Qat\*U looping over windows.
 .sp
 .ne 3
+.BI "attrcolor " attrib
+.RI [ "attribute/color-modifier" ]
+.PP
+This command can be used to highlight attributes by changing the color of
+the text. If the attribute
+.I attrib
+is in use, the specified attribute/color modifier is also applied. If no
+modifier is given, the current one is deleted. See the \*QSTRING ESCAPES\*U
+chapter for the syntax of the modifier.
+.sp
+Examples:
+.IP
+attrcolor b "R"
+.PP
+Change the color to bright red if bold text is to be printed
+.IP
+attrcolor u "-u b"
+.PP
+Use blue text instead of underline
+.IP
+attrcolor b "I"
+.PP
+Use bright colors for bold text. Most terminal emulators do this
+already.
+.sp
+.ne 3
 .BR "autodetach on" | off
 .PP
 Sets whether 
@@ -784,14 +821,6 @@ command.
 When turned off, a hangup signal will terminate 
 .I screen
 and all the processes it contains. Autodetach is on by default.
-.sp
-.ne 3
-.BR "autofixterm on" | off
-.PP
-Sets whether
-.I screen
-will add missing capabilities to the termcap/info entry. It is on
-by default.
 .sp
 .ne 3
 .BR "autonuke on" | off
@@ -1435,6 +1464,13 @@ Same as the \fBslowpaste\fP command except that the default setting for new
 windows is changed. Initial setting is 0 milliseconds, meaning `off'.
 .sp
 .ne 3
+.BR "defutf8 on" | off
+.PP
+Same as the \fButf8\fP command except that the default setting for new
+windows is changed. Initial setting is `on' if screen was started with
+\*Q-U\*U, otherwise `off'.
+.sp
+.ne 3
 .BR "defwrap on" | off
 .PP
 Same as the \fBwrap\fP command except that the default setting for new 
@@ -1468,6 +1504,12 @@ can be resumed by invoking
 with the
 .B \-r
 option. (See also section \*QCOMMAND-LINE OPTIONS\*U.)
+.sp
+.ne 3
+.B dinfo
+.PP
+Show what screen thinks about your terminal. Useful if you want to know
+why features like color or the alternate charset don't work.
 .sp
 .ne 3
 .B displays
@@ -1726,12 +1768,12 @@ If you prepend the word \*Qalways\*U to the type,
 .I screen 
 will use the type even if the terminal supports a hardstatus.
 .P
-The third form specifies the contents of the hardstatus line.
-'%h' is used as default string, i.e. the stored hardstatus of the
-current window (settable via \\E]0;^G or \\E_\\\\) is displayed.
-You can customize this to any string you like including
-the escapes from the \*QSTRING ESCAPES\*U chapter. If you leave
-out the argument
+The third form specifies the contents of the hardstatus line.  '%h' is
+used as default string, i.e. the stored hardstatus of the current
+window (settable via \*QESC]0;<string>^G\*U or \*QESC_<string>ESC\e\*U)
+is displayed.  You can customize this to any string you like including
+the escapes from the \*QSTRING ESCAPES\*U chapter. If you leave out
+the argument
 .IR string ,
 the current string is displayed.
 .P
@@ -1739,10 +1781,19 @@ You can mix the second and third form by providing the string as
 additional argument.
 .sp
 .ne 3
-.BR "height " [ \fIlines\fP ]
+.B height
+.RB [ -w | -d ]
+.RI [ lines " [" cols ]]
 .PP
 Set the display height to a specified number of lines. When no argument
-is given it toggles between 24 and 42 lines display.
+is given it toggles between 24 and 42 lines display. You can also
+specify a width if you want to change both values.
+The
+.B -w
+option tells screen to leave the display size unchanged and just set
+the window size,
+.B -d
+vice versa.
 .sp
 .ne 3
 .B help
@@ -1805,7 +1856,8 @@ activity monitoring or partial redraw enabled.
 
 The currently active character set (\fIG0\fP, \fIG1\fP, \fIG2\fP,
 or \fIG3\fP) and in square brackets the terminal character sets that are
-currently designated as \fIG0\fP through \fIG3\fP is shown.
+currently designated as \fIG0\fP through \fIG3\fP is shown. If the window
+is in UTF-8 mode, the string \*QUTF-8\*U is shown instead.
 
 Additional modes depending on the type of the window are displayed at the end of the status line (See also chapter \*QWINDOW TYPES\*U).
 .br
@@ -2231,8 +2283,10 @@ Use the empty bind command (as in \*Qbind '^\e'\*U) to remove a key binding.
 .sp
 .ne 3
 .B readbuf
+.RI [ filename ]
 .PP
-Reads the contents of the current screen-exchange file into the paste buffer. 
+Reads the contents of the specified file into the paste buffer.
+If no file is specified, the screen-exchange filename is used.
 See also \*Qbufferfile\*U command.
 .sp
 .ne 3
@@ -2442,17 +2496,8 @@ text.
 Change the way 
 .I screen 
 does highlighting for text marking and printing messages.
-.I Attr
-is a hexadecimal number and describes the attributes (inverse,
-underline, ...) the text will get.
-.I Color
-is a 2 digit number and changes the 
-foreground/background of the highlighted text.
-Some knowledge of 
-.IR screen 's
-internal character representation is
-needed to make the characters appear in the desired way. The default
-is currently 10 99 (standout, default colors).
+See the \*QSTRING ESCAPES\*U chapter for the syntax of the modifiers.
+The default is currently \*Q=s dd\*U (standout, default colors).
 .sp
 .ne 3
 .B split
@@ -2645,6 +2690,19 @@ releases.
 Unset an environment variable.
 .sp
 .ne 3
+.B utf8
+.RB [ on | off
+.RB [ on | off ]]
+.PP
+Change the encoding used in the current window. If utf8 is enabled, the
+strings sent to the window will be UTF-8 encoded and vice versa. Omitting the
+parameter toggles the setting. If a second parameter is given, the display's
+encoding is also changed (this should rather be done with screen's \*Q-U\*U
+option).
+See also \*Qdefutf8\*U, which changes the default setting of a new
+window.
+.sp
+.ne 3
 .B vbell 
 .RB [ on | off ]
 .PP
@@ -2695,12 +2753,21 @@ Write a message to all displays. The message will appear in the terminal's
 status line.
 .sp
 .ne 3
-.BR "width " [ \fInum ]
+.B width
+.RB [ -w | -d ]
+.RI [ cols " [" lines ]]
 .PP
-Toggle the window width between 80 and 132 columns or set it to \fInum\fP 
+Toggle the window width between 80 and 132 columns or set it to \fIcols\fP 
 columns if an argument is specified. 
 This requires a capable terminal and the termcap entries \*QZ0\*U and \*QZ1\*U.
-See the \*Qtermcap\*U command for more information.
+See the \*Qtermcap\*U command for more information. You can also specify
+a new height if you want to change both values.
+The
+.B -w
+option tells screen to leave the display size unchanged and just set
+the window size,
+.B -d
+vice versa.
 .sp
 .ne 3
 .B windows
@@ -2732,9 +2799,10 @@ Default is `on'.
 .sp
 .ne 3
 .B writebuf
+.RI [ filename ]
 .PP
-Writes the contents of the paste buffer to a public accessible screen-exchange
-file. This is thought of as a primitive means of communication between
+Writes the contents of the paste buffer to the specified file, or the public accessible screen-exchange
+file if no filename is given. This is thought of as a primitive means of communication between
 .I screen
 users on the same host. The filename can be set with the \fIbufferfile\fP
 command and defaults to \*Q/tmp/screen-exchange\*U.
@@ -2968,11 +3036,87 @@ the part to the next '%?' is displayed only if an escape expands to an
 nonempty string
 .IP :
 else part of '%?'
+.IP {
+attribute/color modifier string terminated by the next \*Q}\*U
 .P
 The 'c' and 'C' escape may be qualified with a '0' to make 
 .I screen 
 use zero instead of space as fill character. The 'n' escape understands
 a length qualifier (e.g. '%3n').
+.PP
+An attribute/color modifier is is used to change the attributes or the
+color settings. Its format
+is \*Q[attribute modifier] [color description]\*U. The attribute modifier
+must be prefixed by a change type indicator if it can be confused with
+a color desciption. The following change types are known:
+.IP +
+add the specified set to the current attributes
+.IP -
+remove the set from the current attributes
+.IP !
+invert the set in the current attributes
+.IP =
+change the current attributes to the specified set
+.PP
+The attribute set can either be specified as a hexadecimal number or
+a combination of the following letters:
+.IP u
+underline
+.PD 0
+.IP b
+bold
+.IP r
+reverse
+.IP s
+standout
+.IP B
+blinking
+.PD
+.PP
+Colors are coded either as a hexadecimal number or two letters specifying
+the desired background and foreground color (in that order). The following
+colors are known:
+.IP k
+black
+.PD 0
+.IP r
+red
+.IP g
+green
+.IP y
+yellow
+.IP b
+blue
+.IP m
+magenta
+.IP c
+cyan
+.IP w
+white
+.IP d
+default color
+.IP .
+leave color unchanged
+.PD
+.PP
+The capitalized versions of the letter specify bright colors. You can also
+use the pseudo-color 'i' to set just the brightness and leave the color
+unchanged.
+.br
+A one digit/letter color description is treated as foreground or
+background color dependant on the current attributes: if reverse mode is
+set, the background color is changed instead of the foreground color.
+If you don't like this, prefix the color with a \*Q.\*U. If you want
+the same behaviour for two-letter color descriptions, also prefix them
+with a \*Q.\*U.
+.PP
+Examples:
+.IP "\*QG\*U"
+set color to bright green
+.IP "\*Q+b r\*U"
+use bold red
+.IP "\*Q= yd\*U"
+clear all attributes, write in default color on yellow background.
 
 .SH "FLOW-CONTROL"
 Each window has a flow-control setting that determines how
@@ -3000,8 +3144,8 @@ Each window has an initial flow-control value set with either the
 .B \-f
 option or the \*Qdefflow\*U .screenrc command. Per default the windows
 are set to automatic flow-switching.
-It can then be toggled between the three states 'fixed on', 'fixed off' and
-'automatic' interactively with the \*Qflow\*U command bound to "C-a f".
+It can then be toggled between the three states 'fixed on', 'fixed off'
+and 'automatic' interactively with the \*Qflow\*U command bound to "C-a f".
 .PP
 The automatic flow-switching mode deals with
 flow control using the TIOCPKT mode (like \*Qrlogin\*U does). If
@@ -3389,8 +3533,14 @@ terminal without interpretation.
 .BR "ESC _" "	(A)"
 Application Program Command (Hardstatus)
 .TP 27
-.BR "ESC ]" "	(A)"
+.BR "ESC ] 0 ; string ^G" "	(A)"
 Operating System Command (Hardstatus, xterm title hack)
+.TP 27
+.BR "ESC ] 83 ; cmd ^G" "	(A)"
+Execute screen command. This only works if multi-user support is
+compiled into screen. The pseudo-user \*Q:window:\*U is used to
+check the access control list. Use \*Qaddacl :window: -rwx #?\*U to
+create a user with no rights and allow only the needed commands.
 .TP 27
 .BR "Control-N" "	(A)"
 Lock Shift G1 (SO)
@@ -3871,8 +4021,8 @@ Here is an example:
 
     termcap hp700 'XC=B\eE(K%\eE(B,\e304[,\e326\e\e\e\e,\e334]'
 
-This tells .I
-screen
+This tells
+.I screen
 how to translate ISOlatin1 (charset 'B')
 upper case umlaut characters on a hp700 terminal that has a
 german charset. '\e304' gets translated to '\eE(K[\eE(B' and so on.
@@ -3983,7 +4133,7 @@ produced by Wayne Davison, Juergen Weigert and Michael Schroeder.
 
 .SH COPYLEFT
 .nf
-Copyright (C) 1999
+Copyright (C) 1993-2001
 	Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
 	Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
 Copyright (C) 1987 Oliver Laumann
@@ -4035,7 +4185,7 @@ Gregory Neil Shapiro (gshapiro@wpi.WPI.EDU).
 
 
 .SH VERSION
-This is version 3.9.6. Its roots are a merge of a custom version
+This is version 3.9.9. Its roots are a merge of a custom version
 2.3PR7 by Wayne Davison
 and several enhancements to Oliver Laumann's version 2.0. Note that all versions
 numbered 2.x are copyright by Oliver Laumann. 
@@ -4043,11 +4193,11 @@ numbered 2.x are copyright by Oliver Laumann.
 .SH AVAILABILITY
 The latest official release of 
 .I screen
-available via anonymous ftp from prep.ai.mit.edu, nic.funet.fi or any other 
+available via anonymous ftp from gnudist.gnu.org, nic.funet.fi or any other 
 .I GNU 
 distribution site. The home site of
 .I screen
-is ftp.uni-erlangen.de (131.188.3.71), in the directory
+is ftp.uni-erlangen.de, in the directory
 pub/utilities/screen. The subdirectory `private' contains the latest beta
 testing release. If you want to help, send a note to
 screen@uni-erlangen.de.

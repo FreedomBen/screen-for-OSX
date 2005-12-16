@@ -1,8 +1,5 @@
-- 16 color support
 - display size adaption (Activate)
 - better kanji
-- message protocol (send screen command)
-- esc-sequence for screen commands
 - process.c cleanup via comm splitting
 - writelocks?
 - partial?

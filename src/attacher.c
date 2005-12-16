@@ -58,6 +58,7 @@ extern struct passwd *ppp;
 extern char *attach_tty, *attach_term, *LoginName, *preselect;
 extern int xflag, dflag, rflag, quietflag, adaptflag;
 extern struct mode attach_Mode;
+extern struct NewWindow nwin_options;
 extern int MasterPid;
 
 #ifdef MULTIUSER
@@ -141,8 +142,8 @@ int how;
 	  if (ret == SIG_POWER_BYE)
 	    {
 	      int ppid;
-	      setuid(real_uid);
 	      setgid(real_gid);
+	      setuid(real_uid);
 	      if ((ppid = getppid()) > 1)
 		Kill(ppid, SIGHUP);
 	      exit(0);
@@ -314,6 +315,7 @@ int how;
     m.m.attach.lines = atoi(s);
   if ((s = getenv("COLUMNS")))
     m.m.attach.columns = atoi(s);
+  m.m.attach.utf8 = nwin_options.utf8 == 1;
 
 #ifdef MULTIUSER
   /* setup CONT signal handler to repair the terminal mode */
@@ -350,14 +352,14 @@ int how;
 
 
 #if defined(DEBUG) || !defined(DO_NOT_POLL_MASTER)
-static int AttacherPanic;
+static int AttacherPanic = 0;
 #endif
 
 #ifdef DEBUG
 static sigret_t
 AttacherChld SIGDEFARG
 {
-  AttacherPanic=1;
+  AttacherPanic = 1;
   SIGRETURN;
 }
 #endif
@@ -437,12 +439,12 @@ AttacherFinitBye SIGDEFARG
   if (multiattach)
     exit(SIG_POWER_BYE);
 #endif
+  setgid(real_gid);
 #ifdef MULTIUSER
   setuid(own_uid);
 #else
   setuid(real_uid);
 #endif
-  setgid(real_gid);
   /* we don't want to disturb init (even if we were root), eh? jw */
   if ((ppid = getppid()) > 1)
     Kill(ppid, SIGHUP);		/* carefully say good bye. jw. */
@@ -618,12 +620,12 @@ static sigret_t
 LockHup SIGDEFARG
 {
   int ppid = getppid();
+  setgid(real_gid);
 #ifdef MULTIUSER
   setuid(own_uid);
 #else
   setuid(real_uid);
 #endif
-  setgid(real_gid);
   if (ppid > 1)
     Kill(ppid, SIGHUP);
   exit(0);
@@ -649,12 +651,12 @@ LockTerminal()
       if ((pid = fork()) == 0)
         {
           /* Child */
+          setgid(real_gid);
 #ifdef MULTIUSER
           setuid(own_uid);
 #else
           setuid(real_uid);	/* this should be done already */
 #endif
-          setgid(real_gid);
           closeallfiles(0);	/* important: /etc/shadow may be open */
           execl(prg, "SCREEN-LOCK", NULL);
           exit(errno);

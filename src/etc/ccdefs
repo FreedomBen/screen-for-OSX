@@ -3,7 +3,8 @@ cd /tmp
 umask 022
 
 CC=cc
-CPP=/lib/cpp
+CPP=cpp
+PATH="$PATH:/lib"
 
 TEMP=def$$
 trap 'rm -f ${TEMP}*; trap 0; exit' 0 1 2 3 15

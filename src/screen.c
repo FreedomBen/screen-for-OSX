@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2001
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -75,6 +75,10 @@ RCS_ID("$Id$ FAU")
 #if (defined(AUX) || defined(_AUX_SOURCE)) && defined(POSIX)
 # include <compat.h>
 #endif
+#if defined(HAVE_NL_LANGINFO) && defined(UTF8)
+# include <locale.h>
+# include <langinfo.h>
+#endif
 
 #include "screen.h"
 #ifdef HAVE_BRAILLE
@@ -108,7 +112,7 @@ extern char *blank, *null, Term[], screenterm[], **environ, Termcap[];
 int force_vt = 1;
 int VBellWait, MsgWait, MsgMinWait, SilenceWait;
 
-extern struct user *users;
+extern struct acluser *users;
 extern struct display *displays, *display; 
 
 /* tty.c */
@@ -184,6 +188,7 @@ char *hstatusstring;
 char *captionstring;
 int auto_detach = 1;
 int iflag, rflag, dflag, lsflag, quietflag, wipeflag, xflag;
+int cmdflag;
 int adaptflag;
 
 #ifdef MULTIUSER
@@ -255,7 +260,7 @@ struct logfile *l;
 /********************************************************************/
 
 
-struct passwd *
+static struct passwd *
 getpwbyname(name, ppp)
 char *name;
 struct passwd *ppp;
@@ -381,7 +386,7 @@ char **av;
   debug("NAMEDPIPE\n");
 #endif
 #if defined(SIGWINCH) && defined(TIOCGWINSZ)
-  debug("Window changing enabled\n");
+  debug("Window size changing enabled\n");
 #endif
 #ifdef HAVE_SETREUID
   debug("SETREUID\n");
@@ -470,6 +475,10 @@ char **av;
 	      ac--;
 	      break;
 	    }
+	  if (ap[1] == '-' && !strcmp(ap, "--version"))
+	    Panic(0, "Screen version %s", version);
+	  if (ap[1] == '-' && !strcmp(ap, "--help"))
+	    exit_with_usage(myname, NULL, NULL);
 	  while (ap && *ap && *++ap)
 	    {
 	      switch (*ap)
@@ -669,9 +678,17 @@ char **av;
 		  if (!*SockMatch)
 		    exit_with_usage(myname, "Empty session-name?", NULL);
 		  break;
+		case 'X':
+		  cmdflag = 1;
+		  break;
 		case 'v':
 		  Panic(0, "Screen version %s", version);
 		  /* NOTREACHED */
+#ifdef UTF8
+		case 'U':
+		  nwin_options.utf8 = nwin_options.utf8 == -1 ? 1 : 0;
+		  break;
+#endif
 		default:
 		  exit_with_usage(myname, "Unknown option %s", --ap);
 		}
@@ -680,9 +697,31 @@ char **av;
       else
 	break;
     }
+#ifdef UTF8
+  if (nwin_options.utf8 == -1)
+    {
+      /* ask locale if we should start in UTF-8 mode */
+# ifdef HAVE_NL_LANGINFO
+      debug("asking locale for CODESET\n");
+      setlocale(LC_CTYPE, "");
+      if (strcmp(nl_langinfo(CODESET), "UTF-8") == 0)
+        nwin_options.utf8 = 1;
+      debug1("utf8 = %d\n", nwin_options.utf8);
+# else
+      char *s;
+      debug("asking environment for LC_CTYPE\n");
+      if (((s = getenv("LC_ALL")) || (s = getenv("LC_CTYPE")) ||
+          (s = getenv("LANG"))) && InStr(s, "UTF-8"))
+        nwin_options.utf8 = 1;
+      debug1("utf=%d\n", nwin_options.utf8);
+#endif
+    }
+#endif
   if (SockMatch && strlen(SockMatch) >= MAXSTR)
     Panic(0, "Ridiculously long socketname - try again.");
-  if (dflag && mflag && !(rflag || xflag))
+  if (cmdflag && !rflag && !dflag && !xflag)
+    xflag = 1;
+  if (!cmdflag && dflag && mflag && !(rflag || xflag))
     detached = 1;
   nwin = nwin_options;
   if (ac)
@@ -814,7 +853,7 @@ char **av;
     Panic(0, "$HOME too long - sorry.");
 
   attach_tty = "";
-  if (!detached && !lsflag && !(dflag && !mflag && !rflag && !xflag))
+  if (!detached && !lsflag && !cmdflag && !(dflag && !mflag && !rflag && !xflag))
     {
       /* ttyname implies isatty */
       if (!(attach_tty = ttyname(0)))
@@ -839,7 +878,7 @@ char **av;
       DebugTTY(&attach_Mode);
 #endif /* DEBUG */
     }
-  
+
 #ifdef _MODE_T
   oumask = umask(0);		/* well, unsigned never fails? jw. */
 #else
@@ -977,8 +1016,8 @@ char **av;
       if (multi)
 	real_uid = multi_uid;
 #endif
-      setuid(real_uid);
       setgid(real_gid);
+      setuid(real_uid);
       eff_uid = real_uid;
       eff_gid = real_gid;
       i = FindSocket((int *)NULL, &fo, &oth, SockMatch);
@@ -990,7 +1029,31 @@ char **av;
       /* NOTREACHED */
     }
   signal(SIG_BYE, AttacherFinit);	/* prevent races */
-  if (rflag || xflag)
+  if (cmdflag)
+    {
+      char *sty = 0;
+
+      /* attach_tty is not mandatory */
+      if ((attach_tty = ttyname(0)) == 0)
+        attach_tty = "";
+      if (strlen(attach_tty) >= MAXPATHLEN)
+	Panic(0, "TtyName too long - sorry.");
+      if (!*av)
+	Panic(0, "Please specify a command.");
+      setgid(real_gid);
+      setuid(real_uid);
+      eff_uid = real_uid;
+      eff_gid = real_gid;
+      if (!mflag && !SockMatch)
+	{
+	  sty = getenv("STY");
+	  if (sty && *sty == 0)
+	    sty = 0;
+	}
+      SendCmdMessage(sty, SockMatch, av);
+      exit(0);
+    }
+  else if (rflag || xflag)
     {
       debug("screen -r: - is there anybody out there?\n");
       if (Attach(MSG_ATTACH))
@@ -1013,8 +1076,8 @@ char **av;
 
       if ((sty = getenv("STY")) != 0 && *sty != '\0')
 	{
-	  setuid(real_uid);
 	  setgid(real_gid);
+	  setuid(real_uid);
 	  eff_uid = real_uid;
 	  eff_gid = real_gid;
 	  nwin_options.args = av;
@@ -1052,8 +1115,8 @@ char **av;
         socknamebuf[NAME_MAX] = 0;
 #endif
       sprintf(SockPath + strlen(SockPath), "/%s", socknamebuf);
-      setuid(real_uid);
       setgid(real_gid);
+      setuid(real_uid);
       eff_uid = real_uid;
       eff_gid = real_gid;
       Attacher();
@@ -1113,12 +1176,15 @@ char **av;
    * start detached. From now on we should not refer to 'LoginName'
    * any more, use users->u_name instead.
    */
-  if (UserAdd(LoginName, (char *)0, (struct user **)0) < 0)
+  if (UserAdd(LoginName, (char *)0, (struct acluser **)0) < 0)
     Panic(0, "Could not create user info");
   if (!detached)
     {
       if (MakeDisplay(LoginName, attach_tty, attach_term, n, getppid(), &attach_Mode) == 0)
 	Panic(0, "Could not alloc display");
+#ifdef UTF8
+      D_utf8 = nwin_options.utf8 == 1;
+#endif
     }
 
   if (SockMatch)
@@ -1569,8 +1635,8 @@ int e;
   if (ServerSocket != -1)
     {
       debug1("we unlink(%s)\n", SockPath);
-      setuid(real_uid);
       setgid(real_gid);
+      setuid(real_uid);
       (void) unlink(SockPath);
     }
   exit(e);
@@ -1900,6 +1966,12 @@ VA_DECL
 static const char days[]   = "SunMonTueWedThuFriSat";
 static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
 
+static char winmsg_buf[MAXSTR];
+#define MAX_WINMSG_REND 16	/* rendition changes */
+static int winmsg_rend[MAX_WINMSG_REND];
+static int winmsg_rendpos[MAX_WINMSG_REND];
+static int winmsg_numrend;
+
 char *
 MakeWinMsgEv(str, win, esc, ev)
 char *str;
@@ -1907,24 +1979,28 @@ struct win *win;
 int esc;
 struct event *ev;
 {
-  static char buf[MAXSTR];
   static int tick;
   char *s = str;
-  register char *p = buf;
+  register char *p = winmsg_buf;
   register int ctrl;
   struct timeval now;
   struct tm *tm;
-  int l;
+  int l, i, r;
   int num;
   int zeroflg;
   int qmflag = 0, omflag = 0;
   char *qmpos = 0;
  
+  if (winmsg_numrend >= 0)
+    winmsg_numrend = 0;
+  else
+    winmsg_numrend = -winmsg_numrend;
+    
   tick = 0;
   tm = 0;
   ctrl = 0;
   gettimeofday(&now, NULL);
-  for (; *s && (l = buf + MAXSTR - 1 - p) > 0; s++, p++)
+  for (; *s && (l = winmsg_buf + MAXSTR - 1 - p) > 0; s++, p++)
     {
       *p = *s;
       if (ctrl)
@@ -2075,16 +2151,20 @@ struct event *ev;
 	    p--;
 	  else
 	    {
-	      char savebuf[sizeof(buf)];
+	      char savebuf[sizeof(winmsg_buf)];
 	      int oldtick = tick;
+	      int oldnumrend = winmsg_numrend;
 
 	      *p = 0;
-	      strcpy(savebuf, buf);
+	      strcpy(savebuf, winmsg_buf);
+	      winmsg_numrend = -winmsg_numrend;
 	      MakeWinMsg(win->w_hstatus, win, '\005');
 	      tick |= oldtick;		/* small hack... */
-	      if (strlen(buf) < l)
-		strcat(savebuf, buf);
-	      strcpy(buf, savebuf);
+	      if (strlen(winmsg_buf) < l)
+		strcat(savebuf, winmsg_buf);
+	      strcpy(winmsg_buf, savebuf);
+	      while (oldnumrend < winmsg_numrend)
+		winmsg_rendpos[oldnumrend++] += p - winmsg_buf;
 	      if (*p)
 		qmflag = 1;
 	      p += strlen(p) - 1;
@@ -2125,6 +2205,33 @@ struct event *ev;
 	    }
 	  p += strlen(p) - 1;
 	  break;
+	case '{':
+          {
+	    char rbuf[128];
+	    s++;
+	    for (i = 0; i < 127; i++)
+	      if (s[i] && s[i] != '}')
+		rbuf[i] = s[i];
+	      else
+		break;
+	    if (s[i] == '}' && winmsg_numrend < MAX_WINMSG_REND)
+	      {
+		r = -1;
+		rbuf[i] = 0;
+		debug1("MakeWinMsg attrcolor %s\n", rbuf);
+	        if (i != 1 || rbuf[0] != '-')
+		  r = ParseAttrColor(rbuf, (char *)0, 0);
+	        if (r != -1 || (i == 1 && rbuf[0] == '-'))
+		  {
+		    winmsg_rend[winmsg_numrend] = r;
+		    winmsg_rendpos[winmsg_numrend] = p - winmsg_buf;
+		    winmsg_numrend++;
+		  }
+	      }
+	    s += i;
+	    p--;
+          }
+	  break;
 	case 'n':
 	  s++;
 	  /* FALLTHROUGH */
@@ -2164,7 +2271,7 @@ struct event *ev;
 	now.tv_sec += 3600 - (now.tv_sec % 3600);
       ev->timeout = now;
     }
-  return buf;
+  return winmsg_buf;
 }
 
 char *
@@ -2176,9 +2283,74 @@ int esc;
   return MakeWinMsgEv(s, win, esc, (struct event *)0);
 }
 
+int
+PutWinMsg(s, start, max)
+char *s;
+int start, max;
+{
+  int i, p, l, r, n;
+  struct mchar rend;
+  struct mchar rendstack[MAX_WINMSG_REND];
+  int rendstackn = 0;
+
+  if (s != winmsg_buf)
+    return 0;
+  rend = D_rend;
+  p = 0;
+  l = strlen(s);
+  debug2("PutWinMsg %s start attr %x\n", s, rend.attr);
+  for (i = 0; i < winmsg_numrend && max > 0; i++)
+    {
+      if (p > winmsg_rendpos[i] || winmsg_rendpos[i] > l)
+	break;
+      if (p < winmsg_rendpos[i])
+	{
+	  n = winmsg_rendpos[i] - p;
+	  if (n > max)
+	    n = max;
+	  max -= n;
+	  p += n;
+	  while(n-- > 0)
+	    {
+	      if (start-- > 0)
+		s++;
+	      else
+	        PUTCHARLP(*s++);
+	    }
+	}
+      r = winmsg_rend[i];
+      if (r == -1)
+	{
+	  if (rendstackn > 0)
+	    rend = rendstack[--rendstackn];
+	}
+      else
+	{
+	  rendstack[rendstackn++] = rend;
+	  ApplyAttrColor(r, &rend);
+	}
+      SetRendition(&rend);
+    }
+  if (p < l)
+    {
+      n = l - p;
+      if (n > max)
+	n = max;
+      while(n-- > 0)
+	{
+	  if (start-- > 0)
+	    s++;
+	  else
+	    PUTCHARLP(*s++);
+	}
+    }
+  return 1;
+}
+
 void
-DisplaySleep(n)
+DisplaySleep(n, eat)
 int n;
+int eat;
 {
   char buf;
   fd_set r;
@@ -2197,9 +2369,10 @@ int n;
   if (select(FD_SETSIZE, &r, (fd_set *)0, (fd_set *)0, &t) > 0)
     {
       debug("display activity stopped sleep\n");
-      read(D_userfd, &buf, 1);
+      if (eat)
+        read(D_userfd, &buf, 1);
     }
-  debug1("DisplaySleep(%d) ending\n", n);
+  debug2("DisplaySleep(%d) ending, eat was %d\n", n, eat);
 }
 
 

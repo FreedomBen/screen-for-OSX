@@ -196,7 +196,7 @@ char *rcfilename;
 	      Msg(0, "%s: sleep: one numeric argument expected.", rc_name);
 	      continue;
 	    }
-	  DisplaySleep(atoi(args[1]));
+	  DisplaySleep(atoi(args[1]), 1);
 	}
 #ifdef TERMINFO
       else if (!strcmp(args[0], "termcapinfo") || !strcmp(args[0], "terminfo"))
@@ -282,8 +282,8 @@ char *ubuf;
 {
   char *args[MAXARGS], *buf;
 #ifdef MULTIUSER
-  extern struct user *EffectiveAclUser;	/* acl.c */
-  extern struct user *users;		/* acl.c */
+  extern struct acluser *EffectiveAclUser;	/* acl.c */
+  extern struct acluser *users;		/* acl.c */
 #endif
 
   if (display)
@@ -315,8 +315,9 @@ char *ubuf;
  * needs display for copybuffer access and termcap dumping
  */
 void
-WriteFile(user, dump)
-struct user *user;
+WriteFile(user, fn, dump)
+struct acluser *user;
+char *fn;
 int dump;
 {
   /* dump==0:	create .termcap,
@@ -328,7 +329,7 @@ int dump;
   register int i, j, k;
   register char *p;
   register FILE *f;
-  char fn[1024];
+  char fnbuf[1024];
   char *mode = "w";
 #ifdef COPY_PASTE
   int public = 0;
@@ -346,24 +347,36 @@ int dump;
   switch (dump)
     {
     case DUMP_TERMCAP:
-      i = SockName - SockPath;
-      if (i > sizeof(fn) - 9)
-	i = 0;
-      strncpy(fn, SockPath, i);
-      strcpy(fn + i, ".termcap");
+      if (fn == 0)
+	{
+	  i = SockName - SockPath;
+	  if (i > sizeof(fnbuf) - 9)
+	    i = 0;
+	  strncpy(fnbuf, SockPath, i);
+	  strcpy(fnbuf + i, ".termcap");
+	  fn = fnbuf;
+	}
       break;
     case DUMP_HARDCOPY:
-      if (hardcopydir && *hardcopydir && strlen(hardcopydir) < sizeof(fn) - 21)
-	sprintf(fn, "%s/hardcopy.%d", hardcopydir, fore->w_number);
-      else
-        sprintf(fn, "hardcopy.%d", fore->w_number);
+      if (fn == 0)
+	{
+	  if (hardcopydir && *hardcopydir && strlen(hardcopydir) < sizeof(fnbuf) - 21)
+	    sprintf(fnbuf, "%s/hardcopy.%d", hardcopydir, fore->w_number);
+	  else
+	    sprintf(fnbuf, "hardcopy.%d", fore->w_number);
+	  fn = fnbuf;
+	}
       if (hardcopy_append && !access(fn, W_OK))
 	mode = "a";
       break;
 #ifdef COPY_PASTE
     case DUMP_EXCHANGE:
-      strncpy(fn, BufferFile, sizeof(fn) - 1);
-      fn[sizeof(fn) - 1] = 0;
+      if (fn == 0)
+	{
+	  strncpy(fnbuf, BufferFile, sizeof(fnbuf) - 1);
+	  fnbuf[sizeof(fnbuf) - 1] = 0;
+	  fn = fnbuf;
+	}
       public = !strcmp(fn, DEFAULT_BUFFERFILE);
 # ifdef HAVE_LSTAT
       exists = !lstat(fn, &stb);

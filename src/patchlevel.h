@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2001
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -124,7 +124,7 @@
  * 22.07.93 -- 3.05.00 Fixed SVR4, some multiuser bugs, -- DISTRIBUTED
  * 05.08.93 -- 3.05.01 ${srcdir} feature added. Shellprog bug fixed.
  *                     Motorola reattach bug fixed. Writelock bug fixed.
- *                     Copybuffer moved into struct user. Configure.in
+ *                     Copybuffer moved into struct acluser. Configure.in
  *                     uglified for Autoconf1.5. Paste may now have an
  *                     argument. Interactive setenv. Right margin bug
  *                     fixed. IRIX 5 patches. -- DISTRIBUTED
@@ -446,11 +446,29 @@
  *                     don't log user in after hangup.
  *                     hstatus escape update bug fixed.
  *  1.09.00 -- 3.09.08 -- DISTRIBUTED
+ * 25.05.01 -- 3.09.09 use $DESTDIR in Makefiles.
+ *                     renamed struct user to acluser to fix hpux
+ *                     problem for good. utf8 support. 16 color
+ *                     support. New -X option and escape sequence
+ *                     to send screen commands.
+ *                     New commands: attrcolor, defutf8, dinfo, utf8.
+ *                     Extended commands: width, height, readbuf,
+ *                     writebuf. Better nlist64 detection.
+ *                     New config.h option SOCKDIR_IS_LOCAL_TO_HOST.
+ *                     Don't call tputs with an empty string.
+ *                     New string escape %{ for attr/color changes.
+ *                     LRefreshAll bug fixed (0 instead of -1 as bce).
+ *                     New quote handling in Parse(). Workaround for
+ *                     some bad termcap/info entries added. Set BE
+ *                     for all xtermish emulators. Added '0x' and
+ *                     'U+' prefix in digraph command. LOADAV_TYPE
+ *                     detection fixed.
+ *                     -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 9
-#define PATCHLEVEL 8
-#define DATE "1-Sep-00"
+#define PATCHLEVEL 9
+#define DATE "25-May-01"
 #define STATE "" 

@@ -277,6 +277,17 @@ char *pt;
 	  c = *im++;
 #ifdef FONT
 	  cf = *fo++;
+# ifdef UTF8
+	  if (fore->w_utf8)
+	    {
+	      c = (c & 255) | (unsigned char)cf << 8;
+	      c = ToUtf8(pt, c);
+	      l += c;
+	      if (pt)
+	        pt += c;
+	      continue;
+	    }
+# endif
 # ifdef KANJI
 	  if (cf == KANJI)
 	    {
@@ -487,6 +498,9 @@ MarkRoutine()
 
   if (InitOverlayPage(sizeof(*markdata), &MarkLf, 1))
     return;
+#ifdef UTF8
+  flayer->l_utf8 = fore->w_utf8;
+#endif
   markdata = (struct markdata *)flayer->l_data;
   markdata->md_user = D_user;	/* XXX: Correct? */
   markdata->md_window = fore;
@@ -523,7 +537,7 @@ int *inlenp;
   int newcopylen = 0, od;
   int in_mark;
   int rep_cnt;
-  struct user *md_user;
+  struct acluser *md_user;
 
 /*
   char *extrap = 0, extrabuf[100];
@@ -969,7 +983,7 @@ int *inlenp;
 	      else
 		LMsg(0, "Copied %d characters into buffer", md_user->u_copylen);
 	      if (write_buffer)
-		WriteFile(md_user, DUMP_EXCHANGE);
+		WriteFile(md_user, (char *)0, DUMP_EXCHANGE);
 	      in_mark = 0;
 	      break;
 	    }

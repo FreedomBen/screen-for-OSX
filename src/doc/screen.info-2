@@ -1,5 +1,9 @@
-This is Info file screen.info, produced by Makeinfo-1.55 from the input
-file ./screen.texinfo.
+This is screen.info, produced by makeinfo version 4.0 from
+./screen.texinfo.
+
+START-INFO-DIR-ENTRY
+* Screen: (screen).             Full-screen window manager.
+END-INFO-DIR-ENTRY
 
    This file documents the `Screen' virtual terminal manager.
 
@@ -20,12 +24,33 @@ versions, except that this permission notice may be stated in a
 translation approved by the Foundation.
 
 
+File: screen.info,  Node: Session Management,  Next: Regions,  Prev: Selecting,  Up: Top
+
+Session Management Commands
+***************************
+
+   Perhaps the most useful feature of `screen' is the way it allows the
+user to move a session between terminals, by detaching and reattaching.
+This also makes life easier for modem users who have to deal with
+unexpected loss of carrier.
+
+* Menu:
+
+* Detach::                      Disconnect `screen' from your terminal.
+* Power Detach::                Detach and log out.
+* Lock::                        Lock your terminal temporarily.
+* Multiuser Session::		Changing number of allowed users.
+* Session Name::                Rename your session for later reattachment.
+* Suspend::                     Suspend your session.
+* Quit::                        Terminate your session.
+
+
 File: screen.info,  Node: Detach,  Next: Power Detach,  Up: Session Management
 
 Detach
 ======
 
- - Command: autodetach STATE
+ - Command: autodetach state
      (none)
      Sets whether `screen' will automatically detach upon hangup, which
      saves all your running programs until they are resumed with a
@@ -37,9 +62,9 @@ Detach
      (`C-a d', `C-a C-d')
      Detach the `screen' session (disconnect it from the terminal and
      put it into the background).  A detached `screen' can be resumed by
-     invoking `screen' with the `-r' option. (*note Invoking Screen::.)
+     invoking `screen' with the `-r' option. (*note Invoking Screen::)
 
- - Command: password [CRYPTED_PW]
+ - Command: password [crypted_pw]
      (none)
      Present a crypted password in your `.screenrc' file and screen will
      ask for it, whenever someone attempts to resume a detached
@@ -60,10 +85,10 @@ Power Detach
      (`C-a D')
      Mainly the same as `detach', but also sends a HANGUP signal to the
      parent process of `screen'.
-     *Caution*: This will result in a logout if `screen' was started
+     _Caution_: This will result in a logout if `screen' was started
      from your login shell.
 
- - Command: pow_detach_msg [MESSAGE]
+ - Command: pow_detach_msg [message]
      (none)
      The MESSAGE specified here is output whenever a power detach is
      performed. It may be used as a replacement for a logout message or
@@ -298,7 +323,7 @@ Session Name
      Rename the current session. Note that for `screen -list' the name
      shows up with the process-id prepended. If the argument NAME is
      omitted, the name of this session is displayed.
-     *Caution*: The `$STY' environment variable still reflects the old
+     _Caution_: The `$STY' environment variable still reflects the old
      name. This may result in confusion.  The default is constructed
      from the tty and host names.
 
@@ -326,7 +351,7 @@ Quit
      terminals the keys `C-4' and `C-\' are identical.  So be careful
      not to type `C-a C-4' when selecting window no. 4.  Use the empty
      bind command (as in `bind "^\"') to remove a key binding (*note
-     Key Binding::.).
+     Key Binding::).
 
 
 File: screen.info,  Node: Regions,  Next: Window Settings,  Prev: Session Management,  Up: Top
@@ -367,7 +392,7 @@ Focus
 =====
 
  - Command: focus
-     (`C-a Tab')
+     (`C-a <Tab>')
      Move the input focus to the next region. This is done in a cyclic
      way so that the top region is selected after the bottom one. If no
      subcommand is given it defaults to `down'. `up' cycles in the
@@ -423,8 +448,8 @@ File: screen.info,  Node: Caption,  Next: Fit,  Prev: Resize,  Up: Regions
 Caption
 =======
 
- - Command: caption `always'|`splitonly' [STRING]
- - Command: caption `string' [STRING]
+ - Command: caption `always'|`splitonly' [string]
+ - Command: caption `string' [string]
      (none)
      This command controls the display of the window captions. Normally
      a caption is only used if more than one window is shown on the
@@ -433,7 +458,7 @@ Caption
      default is `splitonly'.
 
      The second form changes the text used for the caption. You can use
-     all string escapes (*Note String Escapes::). `Screen' uses a
+     all string escapes (*note String Escapes::). `Screen' uses a
      default of `%3n %t'.
 
      You can mix both forms by providing the string as an additional
@@ -479,19 +504,19 @@ Naming Windows (Titles)
 =======================
 
    You can customize each window's name in the window display (viewed
-with the `windows' command (*note Windows::.) by setting it with one of
+with the `windows' command (*note Windows::) by setting it with one of
 the title commands.  Normally the name displayed is the actual command
 name of the program created in the window.  However, it is sometimes
 useful to distinguish various programs of the same name or to change
 the name on-the-fly to reflect the current state of the window.
 
    The default name for all shell windows can be set with the
-`shelltitle' command (*note Shell::.).  You can specify the name you
+`shelltitle' command (*note Shell::).  You can specify the name you
 want for a window with the `-t' option to the `screen' command when the
-window is created (*note Screen Command::.).  To change the name after
+window is created (*note Screen Command::).  To change the name after
 the window has been created you can use the title-string escape-sequence
-(`ESC k NAME ESC \') and the `title' command (C-a A).  The former can
-be output from an application to control the window's name under
+(`<ESC> k NAME <ESC> \') and the `title' command (C-a A).  The former
+can be output from an application to control the window's name under
 software control, and the latter will prompt for a name when typed.
 You can also bind predefined names to keys with the `title' command to
 set things quickly without prompting.
@@ -509,7 +534,7 @@ File: screen.info,  Node: Title Command,  Next: Dynamic Titles,  Up: Naming Wind
 Title Command
 -------------
 
- - Command: title [WINDOWTITLE]
+ - Command: title [windowtitle]
      (`C-a A')
      Set the name of the current window to WINDOWALIAS. If no name is
      specified, screen prompts for one.
@@ -531,16 +556,16 @@ Otherwise the current command name supersedes the shell name while it
 is running.
 
    Here's how it works: you must modify your shell prompt to output a
-null title-escape-sequence (ESC k ESC \) as a part of your prompt.  The
-last part of your prompt must be the same as the string you specified
-for the SEARCH portion of the title.  Once this is set up, `screen'
-will use the title-escape-sequence to clear the previous command name
-and get ready for the next command.  Then, when a newline is received
-from the shell, a search is made for the end of the prompt.  If found,
-it will grab the first word after the matched string and use it as the
-command name.  If the command name begins with `!', `%', or `^',
-`screen' will use the first word on the following line (if found) in
-preference to the just-found name.  This helps csh users get more
+null title-escape-sequence (<ESC> k <ESC> \) as a part of your prompt.
+The last part of your prompt must be the same as the string you
+specified for the SEARCH portion of the title.  Once this is set up,
+`screen' will use the title-escape-sequence to clear the previous
+command name and get ready for the next command.  Then, when a newline
+is received from the shell, a search is made for the end of the prompt.
+If found, it will grab the first word after the matched string and use
+it as the command name.  If the command name begins with `!', `%', or
+`^', `screen' will use the first word on the following line (if found)
+in preference to the just-found name.  This helps csh users get more
 accurate titles when using job control or history recall commands.
 
 
@@ -632,7 +657,7 @@ Console
  - Command: console [STATE]
      (none)
      Grabs or un-grabs the machines console output to a window. When
-     the argument is omitted the current state is displayed.  *Note*:
+     the argument is omitted the current state is displayed.  _Note_:
      Only the owner of `/dev/console' can grab the console output. This
      command is only available if the host supports the ioctl
      `TIOCCONS'.
@@ -646,17 +671,17 @@ Kill
  - Command: kill
      (`C-a k', `C-a C-k')
      Kill the current window.
-     If there is an `exec' command running (*note Exec::.) then it is
+     If there is an `exec' command running (*note Exec::) then it is
      killed.  Otherwise the process (e.g. shell) running in the window
      receives a `HANGUP' condition, the window structure is removed and
      screen (your display) switches to another window. When the last
      window is destroyed, `screen' exits.  After a kill screen switches
      to the previously displayed window.
-     *Caution*: `emacs' users may find themselves killing their `emacs'
+     _Caution_: `emacs' users may find themselves killing their `emacs'
      session when trying to delete the current line.  For this reason,
      it is probably wise to use a different command character (*note
-     Command Character::.) or rebind `kill' to another key sequence,
-     such as `C-a K' (*note Key Binding::.).
+     Command Character::) or rebind `kill' to another key sequence,
+     such as `C-a K' (*note Key Binding::).
 
 
 File: screen.info,  Node: Login,  Next: Mode,  Prev: Kill,  Up: Window Settings
@@ -664,21 +689,21 @@ File: screen.info,  Node: Login,  Next: Mode,  Prev: Kill,  Up: Window Settings
 Login
 =====
 
- - Command: deflogin STATE
+ - Command: deflogin state
      (none)
      Same as the `login' command except that the default setting for new
      windows is changed.  This defaults to `on' unless otherwise
-     specified at compile time (*note Installation::.). Both commands
+     specified at compile time (*note Installation::). Both commands
      are only present when `screen' has been compiled with utmp support.
 
- - Command: login [STATE]
+ - Command: login [state]
      (`C-a L')
      Adds or removes the entry in `/etc/utmp' for the current window.
      This controls whether or not the window is "logged in".  In
      addition to this toggle, it is convenient to have "log in" and
      "log out" keys.  For instance, `bind I login on' and `bind O login
      off' will map these keys to be `C-a I' and `C-a O' (*note Key
-     Binding::.).
+     Binding::).
 
 
 File: screen.info,  Node: Mode,  Next: Monitor,  Prev: Login,  Up: Window Settings
@@ -686,12 +711,12 @@ File: screen.info,  Node: Mode,  Next: Monitor,  Prev: Login,  Up: Window Settin
 Mode
 ====
 
- - Command: defmode MODE
+ - Command: defmode mode
      (none)
      The mode of each newly allocated pseudo-tty is set to MODE.  MODE
      is an octal number as used by chmod(1).  Defaults to 0622 for
      windows which are logged in, 0600 for others (e.g. when `-ln' was
-     specified for creation. *note Screen Command::.).
+     specified for creation, *note Screen Command::).
 
 
 File: screen.info,  Node: Monitor,  Next: Windows,  Prev: Mode,  Up: Window Settings
@@ -699,7 +724,7 @@ File: screen.info,  Node: Monitor,  Next: Windows,  Prev: Mode,  Up: Window Sett
 Monitoring
 ==========
 
- - Command: activity MESSAGE
+ - Command: activity message
      (none)
      When any activity occurs in a background window that is being
      monitored, `screen' displays a notification in the message line.
@@ -714,19 +739,19 @@ Monitoring
      Note that monitoring is off for all windows by default, but can be
      altered by use of the `monitor' command (`C-a M').
 
- - Command: defmonitor STATE
+ - Command: defmonitor state
      (none)
      Same as the `monitor' command except that the default setting for
      new windows is changed.  Initial setting is `off'.
 
- - Command: monitor [STATE]
+ - Command: monitor [state]
      (`C-a M')
      Toggles monitoring of the current window.  When monitoring is
      turned on and the affected window is switched into the background,
      the activity notification message will be displayed in the status
      line at the first sign of output, and the window will also be
-     marked with an `@' in the window-status display (*note
-     Windows::.).  Monitoring defaults to `off' for all windows.
+     marked with an `@' in the window-status display (*note Windows::).
+     Monitoring defaults to `off' for all windows.
 
 
 File: screen.info,  Node: Windows,  Next: Hardstatus,  Prev: Monitor,  Up: Window Settings
@@ -742,10 +767,10 @@ Windows
 
      The current window is marked with a `*'; the previous window is
      marked with a `-'; all the windows that are logged in are marked
-     with a `$' (*note Login::.); a background window that has received
+     with a `$' (*note Login::); a background window that has received
      a bell is marked with a `!'; a background window that is being
      monitored and has had activity occur is marked with an `@' (*note
-     Monitor::.); a window which has output logging turned on is marked
+     Monitor::); a window which has output logging turned on is marked
      with `(L)'; windows occupied by other users are marked with `&' or
      `&&' if the window is shared by other users; windows in the zombie
      state are marked with `Z'.
@@ -766,7 +791,7 @@ ANSI Application Program Command (APC): `ESC_<string>ESC\'. As a
 convenience for xterm users the sequence `ESC]0..2;<string>^G' is also
 accepted.
 
- - Command: defhstatus [STATUS]
+ - Command: defhstatus [status]
      (none)
      The hardstatus line that all new windows will get is set to STATUS.
      This command is useful to make the hardstatus of every window
@@ -778,7 +803,7 @@ accepted.
      the current default string is displayed.  Per default the
      hardstatus line of new windows is empty.
 
- - Command: hstatus STATUS
+ - Command: hstatus status
      (none)
      Changes the current window's hardstatus line to STATUS.
 
@@ -842,8 +867,14 @@ functions, respectively.
                                      Outputs a string directly to the host
                                      terminal without interpretation.
      ESC _                   (A)     Application Program Command (Hardstatus)
-     ESC ]                   (A)     Operating System Command (Hardstatus, xterm
+     ESC ] 0 ; string ^G     (A)     Operating System Command (Hardstatus, xterm
                                      title hack)
+     ESC ] 83 ; cmd ^G       (A)     Execute screen command. This only works if
+                                     multi-user support is compiled into screen.
+                                     The pseudo-user ":window:" is used to check
+                                     the access control list. Use "addacl :window:
+                                     -rwx #?" to create a user with no rights and
+                                     allow only the needed commands.
      Control-N               (A)     Lock Shift G1 (SO)
      Control-O               (A)     Lock Shift G0 (SI)
      ESC n                   (A)     Lock Shift G2
@@ -864,6 +895,7 @@ functions, respectively.
            Pn = None or 0            From Cursor to End of Line
                 1                    From Beginning of Line to Cursor
                 2                    Entire Line
+     ESC [ Pn X                      Erase character
      ESC [ Pn A                      Cursor Up
      ESC [ Pn B                      Cursor Down
      ESC [ Pn C                      Cursor Right
@@ -945,11 +977,11 @@ on the user's keyboard and insert the VT100 style escape sequence.
 `Screen' has a very flexible way of doing this by making it possible to
 map arbitrary commands on arbitrary sequences of characters. For
 standard VT100 emulation the command will always insert a string in the
-input buffer of the window (see also command `stuff', *note Paste::.).
+input buffer of the window (see also command `stuff', *note Paste::).
 Because the sequences generated by a keypress can change after a
 reattach from a different terminal type, it is possible to bind
 commands to the termcap name of the keys.  `Screen' will insert the
-correct binding after each reattach. *Note Bindkey:: for further
+correct binding after each reattach. See *Note Bindkey:: for further
 details on the syntax and examples.
 
    Here is the table of the default key bindings. (A) means that the
@@ -1028,7 +1060,7 @@ File: screen.info,  Node: Digraph,  Next: Bell,  Prev: Input Translation,  Up: V
 Digraph
 =======
 
- - Command: digraph [PRESET]
+ - Command: digraph [preset]
      (none)
      This command prompts the user for a digraph sequence. The next two
      characters typed are looked up in a builtin table and the
@@ -1047,7 +1079,7 @@ File: screen.info,  Node: Bell,  Next: Clear,  Prev: Digraph,  Up: Virtual Termi
 Bell
 ====
 
- - Command: bell_msg [MESSAGE]
+ - Command: bell_msg [message]
      (none)
      When a bell character is sent to a background window, `screen'
      displays a notification in the message line.  The notification
@@ -1063,7 +1095,7 @@ Bell
      suppress output of a message line (`bell_msg ""').  Without
      parameter, the current message is shown.
 
- - Command: vbell [STATE]
+ - Command: vbell [state]
      (`C-a C-g')
      Sets or toggles the visual bell setting for the current window. If
      `vbell' is switched to `on', but your terminal does not support a
@@ -1075,7 +1107,7 @@ Bell
 
      Per  default, `vbell' is `off', thus the audible bell is used.
 
- - Command: vbell_msg [MESSAGE]
+ - Command: vbell_msg [message]
      (none)
      Sets the visual bell message. MESSAGE is printed to the status
      line if the window receives a bell character (^G), `vbell' is set
@@ -1083,7 +1115,7 @@ Bell
      default message is `Wuff, Wuff!!'.  Without parameter, the current
      message is shown.
 
- - Command: vbellwait SEC
+ - Command: vbellwait sec
      (none)
      Define a delay in seconds after each display of `screen' 's visual
      bell message. The default is 1 second.
@@ -1110,8 +1142,8 @@ Info
      window: the cursor position in the form `(COLUMN,ROW)' starting
      with `(1,1)', the terminal width and height plus the size of the
      scrollback buffer in lines, like in `(80,24)+50', the current
-     state of window XON/XOFF flow control is shown like this (see also
-     *Note Flow Control::):
+     state of window XON/XOFF flow control is shown like this (*note
+     Flow Control::):
             +flow     automatic flow control, currently on.
             -flow     automatic flow control, currently off.
             +(+)flow  flow control enabled. Agrees with automatic control.
@@ -1128,9 +1160,10 @@ Info
 
      The currently active character set (`G0', `G1', `G2', or `G3'),
      and in square brackets the terminal character sets that are
-     currently designated as `G0' through `G3'.  Additional modes
+     currently designated as `G0' through `G3'.  If the window is in
+     UTF-8 mode, the string `UTF-8' is shown instead.  Additional modes
      depending on the type of the window are displayed at the end of
-     the status line (*note Window Types::.).
+     the status line (*note Window Types::).
 
      If the state machine of the terminal emulator is in a non-default
      state, the info line is started with a string identifying the
@@ -1138,13 +1171,18 @@ Info
 
      For system information use `time'.
 
+ - Command: dinfo
+     (none)
+     Show what screen thinks about your terminal. Useful if you want to
+     know why features like color or the alternate charset don't work.
+
 
 File: screen.info,  Node: Redisplay,  Next: Wrap,  Prev: Info,  Up: Virtual Terminal
 
 Redisplay
 =========
 
- - Command: allpartial STATE
+ - Command: allpartial state
      (none)
      If set to on, only the current cursor line is refreshed on window
      change.  This affects all windows and is useful for slow terminal
@@ -1154,7 +1192,7 @@ Redisplay
      `partial' settings. It does not change the default redraw behavior
      of newly created windows.
 
- - Command: partial STATE
+ - Command: partial state
      (none)
      Defines whether the display should be refreshed (as with
      `redisplay') after switching to the current window. This command
@@ -1174,7 +1212,7 @@ File: screen.info,  Node: Wrap,  Next: Reset,  Prev: Redisplay,  Up: Virtual Ter
 Wrap
 ====
 
- - Command: wrap STATE
+ - Command: wrap state
      (`C-a r', `C-a C-r')
      Sets the line-wrap setting for the current window.  When line-wrap
      is on, the second consecutive printable character output at the
@@ -1182,7 +1220,7 @@ Wrap
      line.  As an added feature, backspace (^H) will also wrap through
      the left margin to the previous line.  Default is `on'.
 
- - Command: defwrap STATE
+ - Command: defwrap state
      (none)
      Same as the `wrap' command except that the default setting for new
      windows is changed. Initially line-wrap is on and can be toggled
@@ -1200,22 +1238,4 @@ Reset
      Reset the virtual terminal to its "power-on" values. Useful when
      strange settings (like scroll regions or graphics character set)
      are left over from an application.
-
-
-File: screen.info,  Node: Window Size,  Next: Character Processing,  Prev: Reset,  Up: Virtual Terminal
-
-Window Size
-===========
-
- - Command: width [NUM]
-     (`C-a W')
-     Toggle the window width between 80 and 132 columns, or set it to
-     NUM columns if an argument is specified.  This requires a capable
-     terminal and the termcap entries `Z0' and `Z1'.  See the `termcap'
-     command (*note Termcap::.), for more information.
-
- - Command: height [LINES]
-     (none)
-     Set the display height to a specified number of lines. When no
-     argument is given it toggles between 24 and 42 lines display.
 

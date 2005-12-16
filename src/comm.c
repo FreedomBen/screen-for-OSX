@@ -56,6 +56,9 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "allpartial",	NEED_DISPLAY|ARGS_1 },
   { "at",		NEED_DISPLAY|ARGS_2|ARGS_ORMORE },
+#ifdef COLOR
+  { "attrcolor",	ARGS_12 },
+#endif
   { "autodetach",	ARGS_1 },
 #ifdef AUTO_NUKE
   { "autonuke",		NEED_DISPLAY|ARGS_1 },
@@ -146,12 +149,16 @@ struct comm comms[RC_LAST + 1] =
   { "defshell",		ARGS_1 },
   { "defsilence",	ARGS_1 },
   { "defslowpaste",	ARGS_1 },
+#ifdef UTF8
+  { "defutf8",		ARGS_1 },
+#endif
   { "defwrap",		ARGS_1 },
   { "defwritelock",	ARGS_1 },
 #ifdef DETACH
   { "detach",		NEED_DISPLAY|ARGS_0 },
 #endif
   { "digraph",		NEED_LAYER|ARGS_01 },
+  { "dinfo",		NEED_DISPLAY|ARGS_0 },
   { "displays",		NEED_LAYER|ARGS_0 },
   { "dumptermcap",	NEED_FORE|ARGS_0 },
   { "echo",		ARGS_12 },
@@ -167,7 +174,7 @@ struct comm comms[RC_LAST + 1] =
   { "hardcopy_append",	ARGS_1 },
   { "hardcopydir",	ARGS_01 },
   { "hardstatus",	ARGS_012 },
-  { "height",		NEED_DISPLAY|ARGS_01 },
+  { "height",		ARGS_0123 },
   { "help",		NEED_LAYER|ARGS_0 },
 #ifdef COPY_PASTE
   { "history",		NEED_DISPLAY|NEED_FORE|ARGS_0 },
@@ -233,7 +240,7 @@ struct comm comms[RC_LAST + 1] =
   { "process",		NEED_DISPLAY|ARGS_01 },
   { "quit",		ARGS_0 },
 #ifdef COPY_PASTE
-  { "readbuf",		ARGS_0 },
+  { "readbuf",		ARGS_01 },
 #endif
   { "readreg",          ARGS_012 },
   { "redisplay",	NEED_DISPLAY|ARGS_0 },
@@ -275,17 +282,20 @@ struct comm comms[RC_LAST + 1] =
   { "title",		NEED_FORE|ARGS_01 },
   { "umask",		ARGS_1|ARGS_ORMORE },
   { "unsetenv",		ARGS_1 },
+#ifdef UTF8
+  { "utf8",		NEED_FORE|ARGS_012 },
+#endif
   { "vbell",		ARGS_01 },
   { "vbell_msg",	ARGS_01 },
   { "vbellwait",	ARGS_1 },
   { "verbose",		ARGS_01 },
   { "version",		ARGS_0 },
   { "wall",		NEED_DISPLAY|ARGS_1},
-  { "width",		ARGS_01 },
+  { "width",		ARGS_0123 },
   { "windows",		NEED_DISPLAY|ARGS_0 },
   { "wrap",		NEED_FORE|ARGS_01 },
 #ifdef COPY_PASTE
-  { "writebuf",		ARGS_0 },
+  { "writebuf",		ARGS_01 },
 #endif
   { "writelock",	NEED_FORE|ARGS_01 },
   { "xoff",		NEED_LAYER|ARGS_0 },

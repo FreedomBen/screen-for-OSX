@@ -72,7 +72,7 @@ static struct mline mline_zero = {
 
 /*
  * ChangeFlag:   0: try to modify no window
- *               1: modify fore (and try to modify no D_other) + redisplay
+ *               1: modify fore (and try to modify no other) + redisplay
  *               2: modify all windows
  *
  * Note: Activate() is only called if change_flag == 1

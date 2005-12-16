@@ -40,11 +40,12 @@ extern void  Panic __P((int, char *, ...)) __attribute__((format(printf, 2, 3)))
 extern void  Msg __P(());
 extern void  Panic __P(());
 #endif
-extern void  DisplaySleep __P((int));
+extern void  DisplaySleep __P((int, int));
 extern void  Finit __P((int));
 extern void  MakeNewEnv __P((void));
 extern char *MakeWinMsg __P((char *, struct win *, int));
 extern char *MakeWinMsgEv __P((char *, struct win *, int, struct event *));
+extern int   PutWinMsg __P((char *, int, int));
 extern void  WindowDied __P((struct win *));
 
 /* ansi.c */
@@ -68,7 +69,7 @@ extern void  FinishRc __P((char *));
 extern void  RcLine __P((char *));
 extern FILE *secfopen __P((char *, char *));
 extern int   secopen __P((char *, int, int));
-extern void  WriteFile __P((struct user *, int));
+extern void  WriteFile __P((struct acluser *, char *, int));
 extern char *ReadFile __P((char *, int *));
 extern void  KillBuffers __P((void));
 extern int   printpipe __P((struct win *, char *));
@@ -176,7 +177,7 @@ extern void  Activate __P((int));
 extern void  KillWindow __P((struct win *));
 extern void  SetForeWindow __P((struct win *));
 extern int   Parse __P((char *, char **));
-extern int   ParseEscape __P((struct user *, char *));
+extern int   ParseEscape __P((struct acluser *, char *));
 extern void  DoScreen __P((char *, char **));
 extern int   IsNumColon __P((char *, int, char *, int));
 extern void  ShowWindows __P((int));
@@ -193,6 +194,8 @@ extern void  RefreshXtermOSC __P((void));
 extern int   ParseSaveStr __P((struct action *act, char **));
 extern int   ParseNum __P((struct action *act, int *));
 extern int   ParseSwitch __P((struct action *, int *));
+extern int   ParseAttrColor __P((char *, char *, int));
+extern void  ApplyAttrColor __P((int, struct mchar *));
 
 /* termcap.c */
 extern int   InitTermcap __P((int, int));
@@ -219,8 +222,8 @@ extern void  DefClearLine __P((int, int, int, int));
 extern int   DefRewrite __P((int, int, int, struct mchar *, int));
 extern int   DefResize __P((int, int));
 extern void  DefRestore __P((void));
-extern void  PutStr __P((char *));
-extern void  CPutStr __P((char *, int));
+extern void  AddCStr __P((char *));
+extern void  AddCStr2 __P((char *, int));
 extern void  InitTerm __P((int));
 extern void  FinitTerm __P((void));
 extern void  PUTCHAR __P((int));
@@ -305,6 +308,7 @@ extern int   chsock __P((void));
 extern void  ReceiveMsg __P((void));
 extern void  SendCreateMsg __P((char *, struct NewWindow *));
 extern int   SendErrorMsg __P((char *, char *));
+extern void  SendCmdMessage __P((char *, char *, char **));
 
 /* misc.c */
 extern char *SaveStr __P((const char *));
@@ -353,21 +357,21 @@ extern int   xsnprintf __P(());
 
 /* acl.c */
 #ifdef MULTIUSER
-extern int   AclCheckPermWin __P((struct user *, int, struct win *));
-extern int   AclCheckPermCmd __P((struct user *, int, struct comm *));
-extern int   AclSetPerm __P((struct user *, struct user *, char *, char *));
-extern int   AclUmask __P((struct user *, char *, char **));
-extern int   UsersAcl __P((struct user *, int, char **));
+extern int   AclCheckPermWin __P((struct acluser *, int, struct win *));
+extern int   AclCheckPermCmd __P((struct acluser *, int, struct comm *));
+extern int   AclSetPerm __P((struct acluser *, struct acluser *, char *, char *));
+extern int   AclUmask __P((struct acluser *, char *, char **));
+extern int   UsersAcl __P((struct acluser *, int, char **));
 extern void  AclWinSwap __P((int, int));
-extern int   NewWindowAcl __P((struct win *, struct user *));
+extern int   NewWindowAcl __P((struct win *, struct acluser *));
 extern void  FreeWindowAcl __P((struct win *));
-extern char *DoSu __P((struct user **, char *, char *, char *));
+extern char *DoSu __P((struct acluser **, char *, char *, char *));
 extern int   AclLinkUser __P((char *, char *));
 #endif /* MULTIUSER */
-extern int   UserFreeCopyBuffer __P((struct user *));
-extern struct user **FindUserPtr __P((char *));
-extern int   UserAdd __P((char *, char *, struct user **));
-extern int   UserDel __P((char *, struct user **));
+extern int   UserFreeCopyBuffer __P((struct acluser *));
+extern struct acluser **FindUserPtr __P((char *));
+extern int   UserAdd __P((char *, char *, struct acluser **));
+extern int   UserDel __P((char *, struct acluser **));
 
 
 /* braile.c */
@@ -427,3 +431,14 @@ extern void  TelStatus __P((struct win *, char *, int));
 
 /* nethack.c */
 extern char *DoNLS __P((char *));
+
+/* utf8.c */
+#ifdef UTF8
+extern int   recode_char __P((int, int, int));
+extern struct mchar *recode_mchar __P((struct mchar *, int, int));
+extern struct mline *recode_mline __P((struct mline *, int, int, int));
+extern int   FromUtf8 __P((int, int *));
+extern void  AddUtf8 __P((int));
+extern int   ToUtf8 __P((char *, int));
+extern void  WinSwitchUtf8 __P((struct win *, int));
+#endif

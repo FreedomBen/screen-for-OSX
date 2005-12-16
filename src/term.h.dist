@@ -230,6 +230,7 @@ union tcu
 #define D_CXC (D_tcs[103].str)
 #define T_CAPS 104
 #define T_NAVIGATE 143
+#define T_NAVIGATE_DELETE 150
 #define T_CURSOR 151
 #define T_KEYPAD 155
 #define T_OCAPS 173

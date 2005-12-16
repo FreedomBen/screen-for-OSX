@@ -152,6 +152,7 @@ char **ttyn;
   initmaster(f);
   *ttyn = TtyName;
   return f;
+}
 #endif
 
 /***************************************************************/

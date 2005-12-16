@@ -380,10 +380,10 @@ bd_signal()
     return;
   display = bd.bd_dpy;
   if (D_obufp != D_obuf)
-    PutStr(D_BL);
+    AddCStr(D_BL);
   else
     {
-      PutStr(D_BL);
+      AddCStr(D_BL);
       Flush();
     }
 }

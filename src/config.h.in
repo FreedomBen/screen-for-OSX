@@ -49,8 +49,12 @@
  *
  * Screen will name the subdirectories "S-$USER" (e.g /tmp/S-davison).
  */
-
 #undef SOCKDIR
+
+/*
+ * Define this if the SOCKDIR is not shared between hosts.
+ */
+#define SOCKDIR_IS_LOCAL_TO_HOST
 
 /*
  * Screen sources two startup files. First a global file with a path
@@ -129,6 +133,10 @@
  *        a bug in x11r6-color-xterm.
  * define KANJI to include support for japanese character sets.
  *        Needs FONT to work.
+ * define UTF8 if you want support for UTF-8 encoding.
+ *        Needs FONT to work.
+ * define COLORS16 if you want 16 colors.
+ *        Needs COLOR to work.
  * define BUILTIN_TELNET to add telnet support to screen.
  *        Syntax: screen //telnet host [port]
  * define RXVT_OSC if you want support for rxvts special
@@ -149,6 +157,8 @@
 # define COLOR
 # define FONT
 # define KANJI
+# define UTF8
+# define COLORS16
 #endif /* SIMPLESCREEN */
 
 #undef BUILTIN_TELNET
@@ -428,6 +438,7 @@
 #undef LOADAV_GETLOADAVG
 #undef LOADAV_UNIX
 #undef LOADAV_AVENRUN
+#undef LOADAV_USE_NLIST64
 
 #undef NLIST_DECLARED
 #undef NLIST_STRUCT
@@ -552,6 +563,12 @@
  * define HAVE_GETCWD if your system has the getcwd() call.
  */
 #undef HAVE_GETCWD
+
+/*
+ * define HAVE_NL_LANGINFO if your system has the nl_langinfo() call
+ * and <langinfo.h> defines CODESET.
+ */
+#undef HAVE_NL_LANGINFO
 
 /*
  * define HAVE_DEV_PTC if you have a /dev/ptc character special

@@ -117,6 +117,7 @@ struct NewWindow nwin_undef   =
   -1, 		/* c1 */
   -1, 		/* bce */
   -1, 		/* kanji */
+  -1, 		/* utf8 */
   (char *)0,	/* hstatus */
   (char *)0	/* charset */
 };
@@ -142,6 +143,7 @@ struct NewWindow nwin_default =
   1,		/* c1 */
   0,		/* bce */
   0,		/* kanji */
+  0, 		/* utf8 */
   (char *)0,	/* hstatus */
   (char *)0	/* charset */
 };
@@ -175,6 +177,7 @@ struct NewWindow *def, *new, *res;
   COMPOSE(c1);
   COMPOSE(bce);
   COMPOSE(kanji);
+  COMPOSE(utf8);
   COMPOSE(hstatus);
   COMPOSE(charset);
 #undef COMPOSE
@@ -520,7 +523,7 @@ struct NewWindow *newwin;
   int type;
   char *TtyName;
 #ifdef MULTIUSER
-  extern struct user *users;
+  extern struct acluser *users;
 #endif
 
   debug1("NewWindow: StartAt %d\n", newwin->StartAt);
@@ -686,7 +689,11 @@ struct NewWindow *newwin;
 #ifdef KANJI
   p->w_kanji = nwin.kanji;
 #endif
+#ifdef UTF8
+  p->w_utf8 = nwin.utf8;
+#endif
   ResetWindow(p);	/* sets w_wrap, w_c1, w_gr, w_bce */
+
 #ifdef FONT
   if (nwin.charset)
     SetCharsets(p, nwin.charset);

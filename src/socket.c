@@ -50,6 +50,7 @@ RCS_ID("$Id$ FAU")
 
 static int   CheckPid __P((int));
 static void  ExecCreate __P((struct msg *));
+static void  DoCommandMsg __P((struct msg *));
 #if defined(_SEQUENT_) && !defined(NAMEDPIPE)
 # define connect sconnect	/* _SEQUENT_ has braindamaged connect */
 static int   sconnect __P((int, struct sockaddr *, int));
@@ -242,26 +243,29 @@ char *match;
 	  debug2("  MakeClientSocket failed, unreachable? %d %d\n",
 	         matchlen, wipeflag);
 	  sent->mode = -3;
+#ifndef SOCKDIR_IS_LOCAL_TO_HOST
 	  /* Unreachable - it is dead if we detect that it's local
            * or we specified a match
            */
 	  n = name + strlen(name) - 1;
 	  while (n != name && *n != '.')
 	    n--;
-	  if (matchlen || (*n == '.' && n[1] && strncmp(HostName, n + 1, strlen(n + 1)) == 0))
-		{
-		  ndead++;
-		  sent->mode = -1;
-		  if (wipeflag)
-		    {
-		      if (unlink(SockPath) == 0)
-			{
-			  sent->mode = -2;
-			  nwipe++;
-			}
-		    }
+	  if (matchlen == 0  && !(*n == '.' && n[1] && strncmp(HostName, n + 1, strlen(n + 1)) == 0))
+	    {
+	      npriv++;		/* a good socket that was not for us */
+	      continue;
 	    }
-	  npriv++;		/* a good socket that was not for us */
+#endif
+	  ndead++;
+	  sent->mode = -1;
+	  if (wipeflag)
+	    {
+	      if (unlink(SockPath) == 0)
+		{
+		  sent->mode = -2;
+		  nwipe++;
+		}
+	    }
 	  continue;
 	}
 
@@ -959,6 +963,9 @@ ReceiveMsg()
 	  Kill(m.m.attach.apid, SIG_BYE);
 	  break;
         }
+#ifdef UTF8
+      D_utf8 = m.m.attach.utf8;
+#endif
       /* turn off iflag on a multi-attach... */
       if (iflag && olddisplays)
 	{
@@ -1008,6 +1015,9 @@ ReceiveMsg()
 	}
       break;
 #endif
+    case MSG_COMMAND:
+      DoCommandMsg(&m);
+      break;
     default:
       Msg(0, "Invalid message (type %d).", m.type);
     }
@@ -1204,7 +1214,7 @@ static void PasswordProcessInput __P((char *, int));
 
 struct pwdata {
   int l;
-  char buf[8];
+  char buf[20 + 1];
   struct msg m;
 };
 
@@ -1257,6 +1267,7 @@ int ilen;
 	    }
 	  /* great, pw matched, all is fine */
 	  bzero(pwdata->buf, sizeof(pwdata->buf));
+	  AddStr("\r\n");
 	  D_processinputdata = 0;
 	  D_processinput = ProcessInput;
 	  FinishAttach(&pwdata->m);
@@ -1281,9 +1292,124 @@ int ilen;
 	  l = 0;
 	  continue;
 	}
-      if (l < 8)
+      if (l < sizeof(pwdata->buf) - 1)
 	pwdata->buf[l++] = c;
     }
   pwdata->l = l;
 }
 #endif
+
+void
+SendCmdMessage(sty, match, av)
+char *sty;
+char *match;
+char **av;
+{
+  int i, s;
+  struct msg m;
+  char *p;
+  int len, n;
+
+  if (sty == 0)
+    {
+      i = FindSocket(&s, (int *)0, (int *)0, match);
+      if (i == 0)
+	Panic(0, "No screen session found.");
+      if (i != 1)
+	Panic(0, "Use -S to specify a session.");
+    }
+  else
+    {
+#ifdef NAME_MAX
+      if (strlen(sty) > NAME_MAX)
+	sty[NAME_MAX] = 0;
+#endif
+      if (strlen(sty) > 2 * MAXSTR - 1)
+	sty[2 * MAXSTR - 1] = 0;
+      sprintf(SockPath + strlen(SockPath), "/%s", sty);
+      if ((s = MakeClientSocket(1)) == -1)
+	exit(1);
+    }
+  bzero((char *)&m, sizeof(m));
+  m.type = MSG_COMMAND;
+  if (attach_tty)
+    {
+      strncpy(m.m_tty, attach_tty, sizeof(m.m_tty) - 1);
+      m.m_tty[sizeof(m.m_tty) - 1] = 0;
+    }
+  p = m.m.command.cmd;
+  n = 0;
+  for (; *av && n < MAXARGS - 1; ++av, ++n)
+    {
+      len = strlen(*av) + 1;
+      if (p + len >= m.m.command.cmd + sizeof(m.m.command.cmd) - 1)
+	break;
+      strcpy(p, *av);
+      p += len;
+    }
+  *p = 0;
+  m.m.command.nargs = n;
+  strncpy(m.m.attach.auser, LoginName, sizeof(m.m.attach.auser) - 1);
+  m.m.command.auser[sizeof(m.m.command.auser) - 1] = 0;
+  m.protocol_revision = MSG_REVISION;
+  debug1("SendCommandMsg writing '%s'\n", m.m.command.cmd);
+  if (write(s, (char *) &m, sizeof m) != sizeof m)
+    Msg(errno, "write");
+  close(s);
+}
+
+static void
+DoCommandMsg(mp)
+struct msg *mp;
+{
+  char *args[MAXARGS];
+  int n;
+  register char **pp = args, *p = mp->m.command.cmd;
+  struct acluser *user;
+#ifdef MULTIUSER
+  extern struct acluser *EffectiveAclUser;	/* acls.c */
+#else
+  extern struct acluser *users;			/* acls.c */
+#endif
+
+  n = mp->m.command.nargs;
+  if (n > MAXARGS - 1)
+    n = MAXARGS - 1;
+  for (; n > 0; n--)
+    {
+      *pp++ = p;
+      p += strlen(p) + 1;
+    }
+  *pp = 0;
+#ifdef MULTIUSER
+  user = *FindUserPtr(mp->m.attach.auser);
+  if (user == 0)
+    {
+      Msg(0, "Unknown user %s tried to send a command!", mp->m.attach.auser);
+      return;
+    }
+#else
+  user = users;
+#endif
+#ifdef PASSWORD
+  if (user->u_password && *user->u_password)
+    {
+      Msg(0, "User %s has a password, cannot use -X option.", mp->m.attach.auser);
+      return;
+    }
+#endif
+  if (!display)
+    for (display = displays; display; display = display->d_next)
+      if (D_user == user)
+	break;
+  if (!display)
+    display = displays;		/* sigh */
+#ifdef MULTIUSER
+  EffectiveAclUser = user;
+#endif
+  if (*args)
+    DoCommand(args);
+#ifdef MULTIUSER
+  EffectiveAclUser = 0;
+#endif
+}

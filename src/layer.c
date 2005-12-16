@@ -34,10 +34,8 @@ RCS_ID("$Id$ FAU")
 
 extern struct display *display, *displays;
 
-extern struct mline mline_blank;
-extern struct mline mline_null;
-extern struct mchar mchar_null;
-extern struct mchar mchar_blank;
+extern struct mline mline_blank, mline_null;
+extern struct mchar mchar_blank, mchar_null;
 
 extern struct layer *flayer;	/* sigh */
 extern struct LayFuncs WinLf;
@@ -74,6 +72,15 @@ int off;
 #endif
   return &mml;
 }
+
+#ifdef UTF8
+# define RECODE_MCHAR(mc) (l->l_utf8 != D_utf8 ? recode_mchar(mc, l->l_utf8, D_utf8) : (mc))
+# define RECODE_MLINE(ml) (l->l_utf8 != D_utf8 ? recode_mline(ml, l->l_width, l->l_utf8, D_utf8) : (ml))
+#else
+# define RECODE_MCHAR(mc) (mc)
+# define RECODE_MLINE(ml) (ml)
+#endif
+
 
 void
 LGotoPos(l, x, y)
@@ -237,6 +244,7 @@ struct mline *ol;
   struct viewport *vp;
   int xs2, xe2, y2, f;
   struct mchar *c2, cc;
+  struct mline *rol;
 
   for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
     for (vp = cv->c_vplist; vp; vp = vp->v_next)
@@ -270,7 +278,8 @@ struct mline *ol;
 	if (xs2 > xe2)
 	  continue;
 	display = cv->c_display;
-	InsChar(c2, xs2, xe2, y2, mloff(ol, -vp->v_xoff));
+        rol = RECODE_MLINE(ol);
+	InsChar(RECODE_MCHAR(c2), xs2, xe2, y2, mloff(rol, -vp->v_xoff));
 	if (f)
 	  RefreshArea(xs2, y2, xs2, y2, 1);
       }
@@ -303,7 +312,7 @@ int x, y;
 	  x2 = x + vp->v_xoff;
 	  if (x2 < vp->v_xs || x2 > vp->v_xe)
 	    continue;
-	  PutChar(c, x2, y2);
+	  PutChar(RECODE_MCHAR(c), x2, y2);
 	  break;
 	}
     }
@@ -349,6 +358,19 @@ int x, y;
 	GotoPos(xs2, y2);
 	SetRendition(r);
 	s2 = s + xs2 - x - vp->v_xoff;
+#ifdef UTF8
+	if (D_utf8 && r->font)
+	  {
+	    struct mchar mc;
+	    mc = *r;
+	    while (xs2 <= xe2)
+	      {
+		mc.image = *s2++;
+	        PutChar(RECODE_MCHAR(&mc), xs2++, y2);
+	      }
+	    continue;
+	  }
+#endif
 	while (xs2++ <= xe2)
 	  PUTCHARLP(*s2++);
       }
@@ -384,7 +406,7 @@ struct mline *ol;
 	if (xs2 > xe2)
 	  continue;
 	display = cv->c_display;
-	ClearLine(ol ? mloff(ol, -vp->v_xoff) : (struct mline *)0, y2, xs2, xe2, bce);
+	ClearLine(ol ? mloff(RECODE_MLINE(ol), -vp->v_xoff) : (struct mline *)0, y2, xs2, xe2, bce);
       }
 }
 
@@ -488,7 +510,7 @@ int isblank;
 	display = cv->c_display;
 	debug3("LCDisplayLine: DisplayLine %d, %d-%d", y2, xs2, xe2);
 	debug1("  mloff = %d\n", -vp->v_xoff);
-	DisplayLine(isblank ? &mline_blank : &mline_null, mloff(ml, -vp->v_xoff), y2, xs2, xe2);
+	DisplayLine(isblank ? &mline_blank : &mline_null, mloff(RECODE_MLINE(ml), -vp->v_xoff), y2, xs2, xe2);
       }
 }
 
@@ -566,7 +588,9 @@ int ins;
 	      cv->c_lnext = cvlnext;
 	    }
 	  else
-	    WrapChar(c, vp->v_xoff + l->l_width, y2, vp->v_xoff, -1, vp->v_xoff + l->l_width - 1, -1, ins);
+	    {
+	      WrapChar(RECODE_MCHAR(c), vp->v_xoff + l->l_width, y2, vp->v_xoff, -1, vp->v_xoff + l->l_width - 1, -1, ins);
+	    }
 	}
     }
   else
@@ -616,7 +640,7 @@ int ins;
 	      bot2 = bot + vp->v_yoff;
 	      if (top2 < vp->v_ys)
 		top2 = vp->v_ys;
-	      WrapChar(c, vp->v_xoff + l->l_width, bot2, vp->v_xoff, top2, vp->v_xoff + l->l_width - 1, bot2, ins);
+	      WrapChar(RECODE_MCHAR(c), vp->v_xoff + l->l_width, bot2, vp->v_xoff, top2, vp->v_xoff + l->l_width - 1, bot2, ins);
 	    }
 	}
     }
@@ -722,7 +746,7 @@ int isblank;
   oldflayer = flayer;
   flayer = l;
   if (!isblank)
-    LClearArea(l, 0, 0, l->l_width - 1, l->l_height - 1, -1, 0);
+    LClearArea(l, 0, 0, l->l_width - 1, l->l_height - 1, 0, 0);
   /* signal full refresh */
   LayRedisplayLine(-1, -1, -1, 1);
   for (y = 0; y < l->l_height; y++)
@@ -849,6 +873,9 @@ int block;
     }
   newlay->l_width = flayer->l_width;
   newlay->l_height = flayer->l_height;
+#ifdef UTF8
+  newlay->l_utf8 = 0;
+#endif
   newlay->l_layfn = lf;
   newlay->l_data = data;
   newlay->l_next = flayer;

@@ -79,6 +79,10 @@ short ospeed;
 
 
 struct display *display, *displays;
+#ifdef COLOR
+int  attr2color[NATTR];
+int  nattr2color;
+#endif
 
 #ifndef MULTI
 struct display TheDisplay;
@@ -190,7 +194,7 @@ char *uname, *utty, *term;
 int fd, pid;
 struct mode *Mode;
 {
-  struct user **u;
+  struct acluser **u;
   struct baud_values *b;
 
   if (!*(u = FindUserPtr(uname)) && UserAdd(uname, (char *)0, u))
@@ -253,8 +257,8 @@ struct mode *Mode;
   D_dospeed = (short)D_OldMode.m_ttyb.sg_ospeed;
 # endif
 #endif
-
   debug1("New displays ospeed = %d\n", D_dospeed);
+
   strncpy(D_usertty, utty, sizeof(D_usertty) - 1);
   D_usertty[sizeof(D_usertty) - 1] = 0;
   strncpy(D_termname, term, sizeof(D_termname) - 1);
@@ -380,7 +384,7 @@ MakeDefaultCanvas()
   return 0;
 }
 
-void
+static void
 FreeCanvas(cv)
 struct canvas *cv;
 {
@@ -650,27 +654,27 @@ int adapt;
   ASSERT(display);
   ASSERT(D_tcinited);
   D_top = D_bot = -1;
-  PutStr(D_TI);
-  PutStr(D_IS);
+  AddCStr(D_TI);
+  AddCStr(D_IS);
   /* Check for toggle */
   if (D_IM && strcmp(D_IM, D_EI))
-    PutStr(D_EI);
+    AddCStr(D_EI);
   D_insert = 0;
 #ifdef MAPKEYS
-  PutStr(D_KS);
-  PutStr(D_CCS);
+  AddCStr(D_KS);
+  AddCStr(D_CCS);
 #else
   /* Check for toggle */
   if (D_KS && strcmp(D_KS, D_KE))
-    PutStr(D_KE);
+    AddCStr(D_KE);
   if (D_CCS && strcmp(D_CCS, D_CCE))
-    PutStr(D_CCE);
+    AddCStr(D_CCE);
 #endif
   D_keypad = 0;
   D_cursorkeys = 0;
-  PutStr(D_ME);
-  PutStr(D_EA);
-  PutStr(D_CE0);
+  AddCStr(D_ME);
+  AddCStr(D_EA);
+  AddCStr(D_CE0);
   D_rend = mchar_null;
   D_atyp = 0;
   if (adapt == 0)
@@ -701,8 +705,8 @@ FinitTerm()
       SetRendition(&mchar_null);
       SetFlow(FLOW_NOW);
 #ifdef MAPKEYS
-      PutStr(D_KE);
-      PutStr(D_CCE);
+      AddCStr(D_KE);
+      AddCStr(D_CCE);
 #endif
       if (D_hstatus)
 	ShowHStatus((char *)0);
@@ -713,7 +717,7 @@ FinitTerm()
       GotoPos(0, D_height - 1);
       AddChar('\r');
       AddChar('\n');
-      PutStr(D_TE);
+      AddCStr(D_TE);
     }
   Flush();
 }
@@ -729,9 +733,9 @@ int c;
       if (D_IC || D_CIC)
 	{
 	  if (D_IC)
-	    PutStr(D_IC);
+	    AddCStr(D_IC);
 	  else
-	    CPutStr(D_CIC, 1);
+	    AddCStr2(D_CIC, 1);
 	  RAW_PUTCHAR(c);
 	  return;
 	}
@@ -802,6 +806,14 @@ int c;
   ASSERT(display);
 
 #ifdef FONT
+# ifdef UTF8
+  if (D_utf8)
+    {
+      c = (c & 255) | (unsigned char)D_rend.font << 8;
+      AddUtf8(c);
+      goto addedutf8;
+    }
+# endif
 # ifdef KANJI
   if (D_rend.font == KANJI)
     {
@@ -850,6 +862,9 @@ int c;
     AddChar(c);
 #endif /* FONT */
 
+#ifdef UTF8
+addedutf8:
+#endif
   if (++D_x >= D_width)
     {
       if (D_AM == 0)
@@ -881,10 +896,10 @@ int c;
 }
 
 void
-PutStr(s)
+AddCStr(s)
 char *s;
 {
-  if (display && s)
+  if (display && s && *s)
     {
       ospeed = D_dospeed;
       tputs(s, 1, DoAddChar);
@@ -892,11 +907,11 @@ char *s;
 }
 
 void
-CPutStr(s, c)
+AddCStr2(s, c)
 char *s;
 int c;
 {
-  if (display && s)
+  if (display && s && *s)
     {
       ospeed = D_dospeed;
       tputs(tgoto(s, 0, c), 1, DoAddChar);
@@ -914,9 +929,9 @@ int on;
     {
       D_insert = on;
       if (on)
-	PutStr(D_IM);
+	AddCStr(D_IM);
       else
-	PutStr(D_EI);
+	AddCStr(D_EI);
     }
 }
 
@@ -934,9 +949,9 @@ int on;
     {
       D_keypad = on;
       if (on)
-	PutStr(D_KS);
+	AddCStr(D_KS);
       else
-	PutStr(D_KE);
+	AddCStr(D_KE);
     }
 #endif
 }
@@ -953,9 +968,9 @@ int on;
     {
       D_cursorkeys = on;
       if (on)
-	PutStr(D_CCS);
+	AddCStr(D_CCS);
       else
-	PutStr(D_CCE);
+	AddCStr(D_CCE);
     }
 #endif
 }
@@ -968,9 +983,9 @@ int on;
     {
       D_revvid = on;
       if (D_revvid)
-	PutStr(D_CVR);
+	AddCStr(D_CVR);
       else
-	PutStr(D_CVN);
+	AddCStr(D_CVN);
     }
 }
 
@@ -981,12 +996,12 @@ int v;
   if (display && D_curvis != v)
     {
       if (D_curvis)
-	PutStr(D_VE);		/* do this always, just to be safe */
+	AddCStr(D_VE);		/* do this always, just to be safe */
       D_curvis = 0;
       if (v == -1 && D_VI)
-	PutStr(D_VI);
+	AddCStr(D_VI);
       else if (v == 1 && D_VS)
-	PutStr(D_VS);
+	AddCStr(D_VS);
       else
 	return;
       D_curvis = v;
@@ -1082,6 +1097,10 @@ int y, xs, xe, doit;
     return EXPENSIVE;	/* line not on layer */
   if (xs - vp->v_xoff < 0 || xe - vp->v_xoff >= cv->c_layer->l_width)
     return EXPENSIVE;	/* line not on layer */
+#ifdef UTF8
+  if (D_utf8)
+    D_rend.font = 0;
+#endif
   oldflayer = flayer;
   flayer = cv->c_layer;
   debug3("Calling Rewrite %d %d %d\n", y - vp->v_yoff, xs - vp->v_xoff, xe - vp->v_xoff);
@@ -1133,9 +1152,9 @@ int x2, y2;
     {
     DoCM:
       if (D_HO && !x2 && !y2)
-        PutStr(D_HO);
+        AddCStr(D_HO);
       else
-        PutStr(tgoto(D_CM, x2, y2));
+        AddCStr(tgoto(D_CM, x2, y2));
       D_x = x2;
       D_y = y2;
       return;
@@ -1243,20 +1262,20 @@ int x2, y2;
     {
     case M_LE:
       while (dx++ < 0)
-	PutStr(D_BC);
+	AddCStr(D_BC);
       break;
     case M_CLE:
-      CPutStr(D_CLE, -dx);
+      AddCStr2(D_CLE, -dx);
       break;
     case M_RI:
       while (dx-- > 0)
-	PutStr(D_ND);
+	AddCStr(D_ND);
       break;
     case M_CRI:
-      CPutStr(D_CRI, dx);
+      AddCStr2(D_CRI, dx);
       break;
     case M_CR:
-      PutStr(D_CR);
+      AddCStr(D_CR);
       D_x = 0;
       x1 = 0;
       /* FALLTHROUGH */
@@ -1272,18 +1291,18 @@ int x2, y2;
     {
     case M_UP:
       while (dy++ < 0)
-	PutStr(D_UP);
+	AddCStr(D_UP);
       break;
     case M_CUP:
-      CPutStr(D_CUP, -dy);
+      AddCStr2(D_CUP, -dy);
       break;
     case M_DO:
       s =  (x2 == 0) ? D_NL : D_DO;
       while (dy-- > 0)
-	PutStr(s);
+	AddCStr(s);
       break;
     case M_CDO:
-      CPutStr(D_CDO, dy);
+      AddCStr2(D_CDO, dy);
       break;
     default:
       break;
@@ -1339,7 +1358,7 @@ int x1, y1, xs, xe, x2, y2, bce, uselayfn;
 #endif
       if (x1 == 0 && y1 == 0 && D_CL)
 	{
-	  PutStr(D_CL);
+	  AddCStr(D_CL);
 	  D_y = D_x = 0;
 	  return;
 	}
@@ -1350,14 +1369,14 @@ int x1, y1, xs, xe, x2, y2, bce, uselayfn;
       if (D_CD && (y1 < y2 || !D_CE))
 	{
 	  GotoPos(x1, y1);
-	  PutStr(D_CD);
+	  AddCStr(D_CD);
 	  return;
 	}
     }
   if (x1 == 0 && xs == 0 && (xe == D_width - 1 || y1 == y2) && y1 == 0 && D_CCD && (!bce || D_BE))
     {
       GotoPos(x1, y1);
-      PutStr(D_CCD);
+      AddCStr(D_CCD);
       return;
     }
   xxe = xe;
@@ -1368,13 +1387,13 @@ int x1, y1, xs, xe, x2, y2, bce, uselayfn;
       if (x1 == 0 && D_CB && (xxe != D_width - 1 || (D_x == xxe && D_y == y)) && (!bce || D_BE))
 	{
 	  GotoPos(xxe, y);
-	  PutStr(D_CB);
+	  AddCStr(D_CB);
 	  continue;
 	}
       if (xxe == D_width - 1 && D_CE && (!bce || D_BE))
 	{
 	  GotoPos(x1, y);
-	  PutStr(D_CE);
+	  AddCStr(D_CE);
 	  continue;
 	}
       if (uselayfn)
@@ -1484,11 +1503,11 @@ struct mline *oml;
       if (n >= xe - xs + 1)
 	n = xe - xs + 1;
       if (D_CDC && !(n == 1 && D_DC))
-	CPutStr(D_CDC, n);
+	AddCStr2(D_CDC, n);
       else if (D_DC)
 	{
 	  for (i = n; i--; )
-	    PutStr(D_DC);
+	    AddCStr(D_DC);
 	}
       else
 	{
@@ -1504,11 +1523,11 @@ struct mline *oml;
       if (!D_insert)
 	{
 	  if (D_CIC && !(n == -1 && D_IC))
-	    CPutStr(D_CIC, -n);
+	    AddCStr2(D_CIC, -n);
 	  else if (D_IC)
 	    {
 	      for (i = -n; i--; )
-		PutStr(D_IC);
+		AddCStr(D_IC);
 	    }
 	  else if (D_IM)
 	    {
@@ -1642,13 +1661,13 @@ int xs, ys, xe, ye, n, bce;
 	{
 	  GotoPos(0, ye);
 	  for(i = n; i-- > 0; )
-	    PutStr(D_NL);		/* was SF, I think NL is faster */
+	    AddCStr(D_NL);		/* was SF, I think NL is faster */
 	}
       else
 	{
 	  GotoPos(0, ys);
 	  for(i = n; i-- > 0; )
-	    PutStr(D_SR);
+	    AddCStr(D_SR);
 	}
     }
   else if (alok && dlok)
@@ -1657,19 +1676,19 @@ int xs, ys, xe, ye, n, bce;
 	{
           GotoPos(0, up ? ys : ye+1-n);
           if (D_CDL && !(n == 1 && D_DL))
-	    CPutStr(D_CDL, n);
+	    AddCStr2(D_CDL, n);
 	  else
 	    for(i = n; i--; )
-	      PutStr(D_DL);
+	      AddCStr(D_DL);
 	}
       if (!up || ye != D_bot)
 	{
           GotoPos(0, up ? ye+1-n : ys);
           if (D_CAL && !(n == 1 && D_AL))
-	    CPutStr(D_CAL, n);
+	    AddCStr2(D_CAL, n);
 	  else
 	    for(i = n; i--; )
-	      PutStr(D_AL);
+	      AddCStr(D_AL);
 	}
     }
   else
@@ -1701,6 +1720,9 @@ register int new;
 
   if (!display || (old = D_rend.attr) == new)
     return;
+#ifdef COLORS16
+  D_col16change = (old ^ new) & 0xc0;
+#endif
 #if defined(TERMINFO) && defined(USE_SGR)
   if (D_SA)
     {
@@ -1713,7 +1735,7 @@ register int new;
       D_rend.attr = new;
       D_atyp = 0;
 # ifdef COLOR
-      if (D_CAF || D_CAB)
+      if (D_hascolor)
 	D_rend.color = 0;
 # endif
       return;
@@ -1723,15 +1745,15 @@ register int new;
   if ((new & old) != old)
     {
       if ((typ & ATYP_U))
-        PutStr(D_UE);
+        AddCStr(D_UE);
       if ((typ & ATYP_S))
-        PutStr(D_SE);
+        AddCStr(D_SE);
       if ((typ & ATYP_M))
 	{
-          PutStr(D_ME);
+          AddCStr(D_ME);
 #ifdef COLOR
 	  /* ansi attrib handling: \E[m resets color, too */
-	  if (D_CAF || D_CAB)
+	  if (D_hascolor)
 	    D_rend.color = 0;
 #endif
 	}
@@ -1746,7 +1768,7 @@ register int new;
       old ^= j;
       if (D_attrtab[i])
 	{
-	  PutStr(D_attrtab[i]);
+	  AddCStr(D_attrtab[i]);
 	  typ |= D_attrtyp[i];
 	}
     }
@@ -1762,6 +1784,10 @@ int new;
   if (!display || D_rend.font == new)
     return;
   D_rend.font = new;
+#ifdef UTF8
+  if (D_utf8)
+    return;
+#endif
 #ifdef KANJI
   if ((new == KANJI || new == KANA) && D_kanji)
     return;	/* all done in RAW_PUTCHAR */
@@ -1769,7 +1795,7 @@ int new;
   if (D_xtable && D_xtable[(int)(unsigned char)new] &&
       D_xtable[(int)(unsigned char)new][256])
     {
-      PutStr(D_xtable[(int)(unsigned char)new][256]);
+      AddCStr(D_xtable[(int)(unsigned char)new][256]);
       return;
     }
 
@@ -1777,7 +1803,7 @@ int new;
     new = ASCII;
 
   if (new == ASCII)
-    PutStr(D_CE0);
+    AddCStr(D_CE0);
 #ifdef KANJI
   else if (new < ' ')
     {
@@ -1786,7 +1812,7 @@ int new;
     }
 #endif
   else
-    CPutStr(D_CS0, new);
+    AddCStr2(D_CS0, new);
 }
 #endif
 
@@ -1797,7 +1823,11 @@ int new;
 {
   int of, ob, f, b;
 
+#ifdef COLORS16
+  if (!display || (D_rend.color == new && !D_col16change))
+#else
   if (!display || D_rend.color == new)
+#endif
     return;
   of = D_rend.color & 0xf;
   ob = (D_rend.color >> 4) & 0xf;
@@ -1806,23 +1836,74 @@ int new;
   ASSERT(f >= 0 && f <= 9);
   ASSERT(b >= 0 && b <= 9);
 
-  if (!D_CAX && (D_CAF || D_CAB) && ((f == 0 && f != of) || (b == 0 && b != ob)))
+  if (!D_CAX && D_hascolor && ((f == 0 && f != of) || (b == 0 && b != ob)))
     {
-      int oattr;
-
-      oattr = D_rend.attr;
-      AddStr("\033[m");
-      D_rend.attr = 0;
-      D_rend.color = 0;
-      of = ob = 0;
-      SetAttr(oattr);
+      if (D_OP)
+	{
+	  AddCStr(D_OP);
+	  D_rend.color = 0;
+	  of = ob = 0;
+	}
+      else
+	{
+	  int oattr;
+	  oattr = D_rend.attr;
+	  AddCStr(D_ME ? D_ME : "\033[m");
+	  D_atyp = 0;
+	  D_rend.attr = 0;
+	  D_rend.color = 0;
+	  of = ob = 0;
+	  SetAttr(oattr);
+	}
     }
-  if (D_CAF || D_CAB)
+  if (D_hascolor)
     {
+      static unsigned char sftrans[10] = {0,4,2,6,1,5,3,7,8,9};
+#ifdef COLORS16
+      if (D_CXT && D_col16change)
+	{
+	  if ((~D_rend.attr & D_col16change & 0x40) != 0)
+	    of = -1;
+	  if ((~D_rend.attr & D_col16change & 0x80) != 0)
+	    ob = -1;
+	}
+#endif
       if (f != of)
-	CPutStr(D_CAF, 9 - f);
+	{
+	  if (D_CAF)
+	    AddCStr2(D_CAF, 9 - f);
+	  else if (D_CSF)
+	    AddCStr2(D_CSF, sftrans[9 - f]);
+	}
       if (b != ob)
-	CPutStr(D_CAB, 9 - b);
+	{
+	  if (D_CAB)
+	    AddCStr2(D_CAB, 9 - b);
+	  else if (D_CSB)
+	    AddCStr2(D_CSB, sftrans[9 - b]);
+	}
+#ifdef COLORS16
+      if (D_CXT)
+	{
+	  if ((D_rend.attr & 0x40) && (f != of || (D_col16change & 0x40)))
+	    {
+# ifdef TERMINFO
+	      AddCStr2("\033[9%p1%dm", 9 - f);
+# else
+	      AddCStr2("\033[9%dm", 9 - f);
+# endif
+	    }
+	  if ((D_rend.attr & 0x80) && (b != ob || (D_col16change & 0x80)))
+	    {
+# ifdef TERMINFO
+	      AddCStr2("\033[10%p1%dm", 9 - b);
+# else
+	      AddCStr2("\033[10%dm", 9 - f);
+# endif
+	    }
+	  D_col16change = 0;
+	}
+#endif
     }
   D_rend.color = new;
 }
@@ -1844,9 +1925,24 @@ struct mchar *mc;
 {
   if (!display)
     return;
+  if (nattr2color && D_hascolor && (mc->attr & nattr2color) != 0)
+    {
+      static struct mchar mmc;
+      int i;
+      mmc = *mc;
+      for (i = 0; i < NATTR; i++)
+	if (attr2color[i] && (mc->attr & (1 << i)) != 0)
+          ApplyAttrColor(attr2color[i], &mmc);
+      mc = &mmc;
+      debug2("SetRendition: mapped to %02x %02x\n", (unsigned char)mc->attr, 0x99 - (unsigned char)mc->color);
+    }
   if (D_rend.attr != mc->attr)
     SetAttr(mc->attr);
 #ifdef COLOR
+# ifdef COLORS16
+  if (D_col16change)
+    SetColor(mc->color);
+# endif
   if (D_rend.color != mc->color)
     SetColor(mc->color);
 #endif
@@ -1863,9 +1959,20 @@ int x;
 {
   if (!display)
     return;
+  if (nattr2color && D_hascolor && (ml->attr[x] & nattr2color) != 0)
+    {
+      struct mchar mc;
+      copy_mline2mchar(&mc, ml, x);
+      SetRendition(&mc);
+      return;
+    }
   if (D_rend.attr != ml->attr[x])
     SetAttr(ml->attr[x]);
 #ifdef COLOR
+# ifdef COLORS16
+  if (D_col16change)
+    SetColor(ml->color[x]);
+# endif
   if (D_rend.color != ml->color[x])
     SetColor(ml->color[x]);
 #endif
@@ -1916,13 +2023,13 @@ char *msg;
 	{
 	  ti = time((time_t *)0) - D_status_time;
 	  if (ti < MsgMinWait)
-	    sleep(MsgMinWait - ti);
+	    DisplaySleep(MsgMinWait - ti, 0);
 	}
       RemoveStatus();
     }
   for (s = t = msg; *s && t - msg < max; ++s)
     if (*s == BELL)
-      PutStr(D_BL);
+      AddCStr(D_BL);
     else if ((unsigned char)*s >= ' ' && *s != 0177)
       *t++ = *s;
   *t = '\0';
@@ -1982,11 +2089,12 @@ char *msg;
       struct layer *oldflayer = flayer;
 
       ASSERT(D_obuffree == D_obuflen);
+      /* this is copied over from RemoveStatus() */
       D_status = 0;
       GotoPos(0, STATLINE);
       RefreshLine(STATLINE, 0, D_status_len - 1, 0);
       GotoPos(D_status_lastx, D_status_lasty);
-      flayer = D_forecv->c_layer;
+      flayer = D_forecv ? D_forecv->c_layer : 0;
       if (flayer)
 	LaySetCursor();
       display = olddisplay;
@@ -2040,7 +2148,7 @@ RemoveStatus()
     }
   else
     RefreshHStatus();
-  flayer = D_forecv->c_layer;
+  flayer = D_forecv ? D_forecv->c_layer : 0;
   if (flayer)
     LaySetCursor();
   display = olddisplay;
@@ -2065,16 +2173,16 @@ char *str;
       SetRendition(&mchar_null);
       InsertMode(0);
       if (D_hstatus)
-	PutStr(D_DS);
+	AddCStr(D_DS);
       D_hstatus = 0;
       if (str == 0 || *str == 0)
 	return;
-      CPutStr(D_TS, 0);
+      AddCStr2(D_TS, 0);
       if (strlen(str) > D_WS)
 	AddStrn(str, D_WS);
       else
 	AddStr(str);
-      PutStr(D_FS);
+      AddCStr(D_FS);
       D_hstatus = 1;
     }
   else if (D_has_hstatus == HSTATUS_LASTLINE)
@@ -2088,8 +2196,9 @@ char *str;
 	l = D_width;
       GotoPos(0, D_height - 1);
       SetRendition(captionalways || D_cvlist == 0 || D_cvlist->c_next ? &mchar_null: &mchar_so);
-      for (i = 0; i < l; i++)
-	PUTCHARLP(str[i]);
+      if (!PutWinMsg(str, 0, l))
+        for (i = 0; i < l; i++)
+	  PUTCHARLP(str[i]);
       if (!captionalways && D_cvlist && !D_cvlist->c_next)
         while (l++ < D_width)
 	  PUTCHARLP(' ');
@@ -2192,7 +2301,7 @@ int y, from, to, isblank;
       GotoPos(from, y);
       if (D_UT || D_BE)
 	SetRendition(&mchar_null);
-      PutStr(D_CE);
+      AddCStr(D_CE);
       isblank = 1;
     }
   while (from <= to)
@@ -2291,10 +2400,15 @@ int y, from, to, isblank;
   xx = strlen(buf);
   GotoPos(from, y);
   SetRendition(&mchar_so);
-  while (from <= to && from < xx)
+  if (PutWinMsg(buf, from, to + 1))
+    from = xx > to + 1 ? to + 1 : xx;
+  else
     {
-      PUTCHARLP(buf[from]);
-      from++;
+      while (from <= to && from < xx)
+	{
+	  PUTCHARLP(buf[from]);
+	  from++;
+	}
     }
   while (from++ <= to)
     PUTCHARLP(' ');
@@ -2353,13 +2467,13 @@ int from, to, y, bce;
   if (from == 0 && D_CB && (to != D_width - 1 || (D_x == to && D_y == y)) && (!bce || D_BE))
     {
       GotoPos(to, y);
-      PutStr(D_CB);
+      AddCStr(D_CB);
       return;
     }
   if (to == D_width - 1 && D_CE && (!bce || D_BE))
     {
       GotoPos(from, y);
-      PutStr(D_CE);
+      AddCStr(D_CE);
       return;
     }
   if (oml == 0)
@@ -2396,7 +2510,11 @@ int from, to, y;
       if (D_lp_missing || !cmp_mline(oml, ml, to))
 	{
 #ifdef KANJI
-	  if ((D_IC || D_IM) && from < to && ml->font[to] != KANJI)
+	  if ((D_IC || D_IM) && from < to && (
+# ifdef UTF8
+               D_utf8 || 
+# endif
+                 ml->font[to] != KANJI))
 #else
 	  if ((D_IC || D_IM) && from < to)
 #endif
@@ -2436,20 +2554,28 @@ int from, to, y;
 	  GotoPos(x, y);
         }
 #ifdef KANJI
-      if (badkanji(ml->font, x))
+# ifdef UTF8
+      if (!D_utf8)
+# endif
 	{
-	  x--;
-	  debug1("DisplayLine badkanji - x now %d\n", x);
-	  GotoPos(x, y);
+	  if (badkanji(ml->font, x))
+	    {
+	      x--;
+	      debug1("DisplayLine badkanji - x now %d\n", x);
+	      GotoPos(x, y);
+	    }
+	  if (ml->font[x] == KANJI && x == to)
+	    break;	/* don't start new kanji */
 	}
-      if (ml->font[x] == KANJI && x == to)
-	break;	/* don't start new kanji */
 #endif
       SetRenditionMline(ml, x);
       PUTCHAR(ml->image[x]);
 #ifdef KANJI
-      if (ml->font[x] == KANJI)
-	PUTCHAR(ml->image[++x]);
+# ifdef UTF8
+      if (!D_utf8)
+# endif
+        if (ml->font[x] == KANJI)
+	  PUTCHAR(ml->image[++x]);
 #endif
     }
 #if 0	/* not needed any longer */
@@ -2471,11 +2597,11 @@ int from, to, y;
       if (D_UT)
 	SetRendition(&mchar_null);
       if (D_DC)
-	PutStr(D_DC);
+	AddCStr(D_DC);
       else if (D_CDC)
-	CPutStr(D_CDC, 1);
+	AddCStr2(D_CDC, 1);
       else if (D_CE)
-	PutStr(D_CE);
+	AddCStr(D_CE);
     }
 }
 
@@ -2529,16 +2655,16 @@ struct mline *oml;
     {
 #ifdef KANJI
       if (c->mbcs && D_IC)
-        PutStr(D_IC);
+        AddCStr(D_IC);
       if (D_IC)
-        PutStr(D_IC);
+        AddCStr(D_IC);
       else
-        CPutStr(D_CIC, c->mbcs ? 2 : 1);
+        AddCStr2(D_CIC, c->mbcs ? 2 : 1);
 #else
       if (D_IC)
-        PutStr(D_IC);
+        AddCStr(D_IC);
       else
-        CPutStr(D_CIC, 1);
+        AddCStr2(D_CIC, 1);
 #endif
     }
   SetRendition(c);
@@ -2646,14 +2772,14 @@ int wi, he;
   if (D_width != wi && (D_height == he || !D_CWS) && D_CZ0 && (wi == Z0width || wi == Z1width))
     {
       debug("ResizeDisplay: using Z0/Z1\n");
-      PutStr(wi == Z0width ? D_CZ0 : D_CZ1);
+      AddCStr(wi == Z0width ? D_CZ0 : D_CZ1);
       ChangeScreenSize(wi, D_height, 0);
       return (he == D_height) ? 0 : -1;
     }
   if (D_CWS)
     {
       debug("ResizeDisplay: using WS\n");
-      PutStr(tgoto(D_CWS, wi, he));
+      AddCStr(tgoto(D_CWS, wi, he));
       ChangeScreenSize(wi, he, 0);
       return 0;
     }
@@ -2679,7 +2805,7 @@ int newtop, newbot;
   if (D_top == newtop && D_bot == newbot)
     return;
   debug2("ChangeScrollRegion: (%d - %d)\n", newtop, newbot);
-  PutStr(tgoto(D_CS, newbot, newtop));
+  AddCStr(tgoto(D_CS, newbot, newtop));
   D_top = newtop;
   D_bot = newbot;
   D_y = D_x = -1;		/* Just in case... */
@@ -2828,6 +2954,12 @@ Resize_obuf()
   if (D_status_obuffree >= 0)
     {
       ASSERT(D_obuffree == -1);
+      if (!D_status_bell)
+	{
+	  int ti = time((time_t *)0) - D_status_time;
+	  if (ti < MsgMinWait)
+	    DisplaySleep(MsgMinWait - ti, 0);
+	}
       RemoveStatus();
       if (--D_obuffree > 0)	/* redo AddChar decrement */
 	return;
@@ -2880,44 +3012,44 @@ NukePending()
   D_obufp = D_obuf;
   D_obuffree += len;
   D_top = D_bot = -1;
-  PutStr(D_TI);
-  PutStr(D_IS);
+  AddCStr(D_TI);
+  AddCStr(D_IS);
   /* Turn off all attributes. (Tim MacKenzie) */
   if (D_ME)
-    PutStr(D_ME);
+    AddCStr(D_ME);
   else
     {
 #ifdef COLOR
-      if (D_CAF)
+      if (D_hascolor)
 	AddStr("\033[m");	/* why is D_ME not set? */
 #endif
-      PutStr(D_SE);
-      PutStr(D_UE);
+      AddCStr(D_SE);
+      AddCStr(D_UE);
     }
   /* Check for toggle */
   if (D_IM && strcmp(D_IM, D_EI))
-    PutStr(D_EI);
+    AddCStr(D_EI);
   D_insert = 0;
   /* Check for toggle */
 #ifdef MAPKEYS
   if (D_KS && strcmp(D_KS, D_KE))
-    PutStr(D_KS);
+    AddCStr(D_KS);
   if (D_CCS && strcmp(D_CCS, D_CCE))
-    PutStr(D_CCS);
+    AddCStr(D_CCS);
 #else
   if (D_KS && strcmp(D_KS, D_KE))
-    PutStr(D_KE);
+    AddCStr(D_KE);
   D_keypad = 0;
   if (D_CCS && strcmp(D_CCS, D_CCE))
-    PutStr(D_CCE);
+    AddCStr(D_CCE);
   D_cursorkeys = 0;
 #endif
-  PutStr(D_CE0);
+  AddCStr(D_CE0);
   D_rend = mchar_null;
   D_atyp = 0;
-  PutStr(D_DS);
+  AddCStr(D_DS);
   D_hstatus = 0;
-  PutStr(D_VE);
+  AddCStr(D_VE);
   D_curvis = 0;
   ChangeScrollRegion(oldtop, oldbot);
   SetRendition(&oldrend);
@@ -2928,12 +3060,12 @@ NukePending()
   if (D_CWS)
     {
       debug("ResizeDisplay: using WS\n");
-      PutStr(tgoto(D_CWS, D_width, D_height));
+      AddCStr(tgoto(D_CWS, D_width, D_height));
     }
   else if (D_CZ0 && (D_width == Z0width || D_width == Z1width))
     {
       debug("ResizeDisplay: using Z0/Z1\n");
-      PutStr(D_width == Z0width ? D_CZ0 : D_CZ1);
+      AddCStr(D_width == Z0width ? D_CZ0 : D_CZ1);
     }
 }
 #endif /* AUTO_NUKE */
@@ -3091,6 +3223,48 @@ char *data;
 	  size -= 5;
 	}
     }
+#ifdef UTF8
+  if (D_utf8 != (D_forecv ? D_forecv->c_layer->l_utf8 : 0))
+    {
+      if (D_utf8)
+	{
+	  int i, j, c;
+	  /* convert to latin1, throw out unknown characters */
+	  /* FIXME: check locale for encoding? */
+	  for (i = j = 0; i < size; i++)
+	    {
+	      c = ((unsigned char *)buf)[i];
+	      c = FromUtf8(c, &D_utf8char);
+	      if (c == -2)
+	        i--;	/* try char again */
+	      if (c < 0 || c >= 0x100)
+		continue;
+	      buf[j++] = c;
+	    }
+	  size = j;
+	}
+      else
+	{
+	  int i, j, c;
+	  char buf2[IOSIZE * 2];
+	  /* convert latin1 to unicode */
+	  /* FIXME: check locale for encoding? */
+	  for (i = j = 0; i < size; i++)
+	    {
+	      c = ((unsigned char *)buf)[i];
+	      if (c < 0x80)
+		buf2[j++] = c;
+	      else
+		{
+		  buf2[j++] = 0xc2 + (c >= 0xc0);
+		  buf2[j++] = c & 0xbf;
+		}
+	    }
+	  (*D_processinput)(buf2, j);
+	  return;
+	}
+    }
+#endif
   (*D_processinput)(buf, size);
 }
 

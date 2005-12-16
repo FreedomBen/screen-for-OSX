@@ -45,6 +45,7 @@ struct NewWindow
   int   c1;
   int   bce;
   int   kanji;
+  int   utf8;
   char	*hstatus;
   char	*charset;
 };
@@ -155,7 +156,7 @@ struct win
 
 #ifdef MULTIUSER
   int    w_wlock;		/* WLOCK_AUTO, WLOCK_OFF, WLOCK_ON */
-  struct user *w_wlockuser;	/* NULL when unlocked or user who writes */
+  struct acluser *w_wlockuser;	/* NULL when unlocked or user who writes */
   AclBits w_userbits[ACL_BITS_PER_WIN];
   AclBits w_lio_notify;		/* whom to tell when lastio+seconds < time() */
   AclBits w_mon_notify;		/* whom to tell monitor statis */
@@ -163,6 +164,9 @@ struct win
 
   enum state_t w_state;		/* parser state */
   enum string_t w_StringType;
+#ifdef UTF8
+  int    w_utf8char;
+#endif
   struct mline *w_mlines;
   struct mchar w_rend;		/* current rendition */
 #ifdef FONT
@@ -255,6 +259,7 @@ struct win
 };
 
 
+#define w_utf8   w_layer.l_utf8
 #define w_width  w_layer.l_width
 #define w_height w_layer.l_height
 #define w_x      w_layer.l_x

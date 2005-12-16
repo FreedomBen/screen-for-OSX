@@ -166,6 +166,7 @@ struct mode
 #define MSG_POW_DETACH	5
 #define MSG_WINCH	6
 #define MSG_HANGUP	7
+#define MSG_COMMAND	8
 
 /*
  * versions of struct msg:
@@ -202,6 +203,7 @@ struct msg
 	  int esc;		/* his new escape character unless -1 */
 	  int meta_esc;		/* his new meta esc character unless -1 */
 	  char envterm[20 + 1];	/* terminal type */
+	  int utf8;		/* display understands utf8 */
 	}
       attach;
       struct 
@@ -210,6 +212,13 @@ struct msg
 	  int dpid;		/* pid of frontend */
 	}
       detach;
+      struct 
+	{
+	  char auser[20 + 1];	/* username */
+	  int nargs;
+	  char cmd[MAXPATHLEN];	/* command */
+	}
+      command;
       char message[MAXPATHLEN * 2];
     } m;
 };

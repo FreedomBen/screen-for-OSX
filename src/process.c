@@ -62,6 +62,10 @@ extern char SockPath[], *SockName;
 extern int TtyMode, auto_detach;
 extern int iflag;
 extern int use_hardstatus, visual_bell;
+#ifdef COLOR
+extern int attr2color[];
+extern int nattr2color;
+#endif
 extern int hardstatusemu;
 extern char *printcmd;
 extern int default_startup;
@@ -86,7 +90,7 @@ extern char *BufferFile;
 extern char *BufferFile, *PowDetachString;
 #endif
 #ifdef MULTIUSER
-extern struct user *EffectiveAclUser;	/* acl.c */
+extern struct acluser *EffectiveAclUser;	/* acl.c */
 #endif
 extern struct term term[];      /* terminal capabilities */
 #ifdef MAPKEYS
@@ -106,6 +110,7 @@ static int  MoreWindows __P((void));
 static void LogToggle __P((int));
 static void ShowTime __P((void));
 static void ShowInfo __P((void));
+static void ShowDInfo __P((void));
 static void SwitchWindow __P((int));
 static char **SaveArgs __P((char **));
 static struct win *WindowByName __P((char *));
@@ -120,7 +125,7 @@ static void InputSelect __P((void));
 static void InputSetenv __P((char *));
 static void InputAKA __P((void));
 #ifdef MULTIUSER
-static int  InputSu __P((struct win *, struct user **, char *));
+static int  InputSu __P((struct win *, struct acluser **, char *));
 static void su_fin __P((char *, int, char *));
 #endif
 static void AKAfin __P((char *, int, char *));
@@ -149,7 +154,7 @@ static void ResizeFin __P((char *, int, char *));
 extern struct layer *flayer;
 extern struct display *display, *displays;
 extern struct win *fore, *console_window, *windows;
-extern struct user *users;
+extern struct acluser *users;
 
 extern char screenterm[], HostName[], version[];
 extern struct NewWindow nwin_undef, nwin_default;
@@ -195,6 +200,7 @@ int kmap_extras_fl[KMAP_EXT];
 
 
 static const unsigned char digraphs[][3] = {
+    {' ', ' ', 160},	/*   */
     {'~', '!', 161},	/* ¡ */
     {'!', '!', 161},	/* ¡ */
     {'c', '|', 162},	/* ¢ */
@@ -855,7 +861,7 @@ int key;
   char *s;
   char ch;
   struct display *odisplay = display;
-  struct user *user;
+  struct acluser *user;
 
   user = display ? D_user : users;
   if (nr == RC_ILLEGAL)
@@ -887,7 +893,7 @@ int key;
       if (AclCheckPermCmd(D_user, ACL_EXEC, &comms[nr]))
         {
 	  Msg(0, "%s: %s: permission denied (user %s)", 
-	      rc_name, comms[nr].name, D_user->u_name);
+	      rc_name, comms[nr].name, (EffectiveAclUser ? EffectiveAclUser : D_user)->u_name);
 	  return;
 	}
     }
@@ -936,10 +942,10 @@ int key;
       D_obuflenmax = D_obuflen - D_obufmax;
       break;
     case RC_DUMPTERMCAP:
-      WriteFile(user, DUMP_TERMCAP);
+      WriteFile(user, (char *)0, DUMP_TERMCAP);
       break;
     case RC_HARDCOPY:
-      WriteFile(user, DUMP_HARDCOPY);
+      WriteFile(user, (char *)0, DUMP_HARDCOPY);
       break;
     case RC_LOG:
       n = fore->w_log ? 1 : 0;
@@ -1097,7 +1103,7 @@ int key;
 	case '*':		/* user */
 	  {
 	    struct display *nd;
-	    struct user *u;
+	    struct acluser *u;
 
 	    if (!n)
 	      u = D_user;
@@ -1277,6 +1283,18 @@ int key;
     case RC_REGISTER:
       if ((s = ParseChar(*args, &ch)) == NULL || *s)
 	Msg(0, "%s: register: character, ^x, or (octal) \\032 expected.", rc_name);
+#ifdef COPY_PASTE
+      else if (ch == '.')
+	{
+	  if (user->u_copybuffer != NULL)
+	    UserFreeCopyBuffer(user);
+	  if (args[1] && args[1][0])
+	    {
+	      user->u_copybuffer = SaveStr(args[1]);
+	      user->u_copylen = strlen(user->u_copybuffer);
+	    }
+	}
+#endif
       else
 	{
 	  struct plop *plp = plop_tab + (int)(unsigned char)ch;
@@ -1344,6 +1362,9 @@ int key;
       break;
     case RC_INFO:
       ShowInfo();
+      break;
+    case RC_DINFO:
+      ShowDInfo();
       break;
     case RC_COMMAND:
       if (!D_ESCseen)
@@ -1424,78 +1445,132 @@ int key;
       break;
 #endif
     case RC_WIDTH:
-      if (*args)
-	{
-	  if (ParseNum(act, &n))
-	    break;
-	}
-      else
-	{
-	  if (display == 0)
-	    break;
-	  if (D_width == Z0width)
-	    n = Z1width;
-	  else if (D_width == Z1width)
-	    n = Z0width;
-	  else if (D_width > (Z0width + Z1width) / 2)
-	    n = Z0width;
-	  else
-	    n = Z1width;
-	}
-      if (n <= 0)
-        {
-	  Msg(0, "Illegal width");
-	  break;
-	}
-      if (display == 0 && fore)
-	{
-	  WChangeSize(fore, n, fore->w_height);
-	  break;
-	}
-      if (n == D_width)
-	break;
-      if (ResizeDisplay(n, D_height) == 0)
-	{
-	  Activate(D_fore ? D_fore->w_norefresh : 0);
-	  /* autofit */
-	  ResizeLayer(D_forecv->c_layer, D_forecv->c_xe - D_forecv->c_xs + 1, D_forecv->c_ye - D_forecv->c_ys + 1, 0);
-	}
-      else
-	Msg(0, "Your termcap does not specify how to change the terminal's width to %d.", n);
-      break;
     case RC_HEIGHT:
-      if (*args)
-	{
-	  if (ParseNum(act, &n))
+      {
+	int w, h;
+	int what = 0;
+	
+        i = 1;
+	if (*args && !strcmp(*args, "-w"))
+	  what = 1;
+	else if (*args && !strcmp(*args, "-d"))
+	  what = 2;
+	if (what)
+	  args++;
+	if (what == 0 && flayer && !display)
+	  what = 1;
+	if (what == 1)
+	  {
+	    if (!flayer)
+	      {
+		Msg(0, "%s: %s: window required", rc_name, comms[nr].name);
+		break;
+	      }
+	    w = flayer->l_width;
+	    h = flayer->l_height;
+	  }
+	else
+	  {
+	    if (!display)
+	      {
+		Msg(0, "%s: %s: display required", rc_name, comms[nr].name);
+		break;
+	      }
+	    w = D_width;
+	    h = D_height;
+	  }
+        if (*args && args[0][0] == '-')
+	  {
+	    Msg(0, "%s: %s: unknown option %s", rc_name, comms[nr].name, *args);
 	    break;
-	}
-      else
-	{
+	  }
+	if (nr == RC_HEIGHT)
+	  {
+	    if (!*args)
+	      {
 #define H0height 42
 #define H1height 24
-	  if (D_height == H0height)
-	    n = H1height;
-	  else if (D_height == H1height)
-	    n = H0height;
-	  else if (D_height > (H0height + H1height) / 2)
-	    n = H0height;
-	  else
-	    n = H1height;
-	}
-      if (n <= 0)
-        {
-	  Msg(0, "Illegal height");
+		if (h == H0height)
+		  h = H1height;
+		else if (h == H1height)
+		  h = H0height;
+		else if (h > (H0height + H1height) / 2)
+		  h = H0height;
+		else
+		  h = H1height;
+	      }
+	    else
+	      {
+		h = atoi(*args);
+		if (args[1])
+		  w = atoi(args[1]);
+	      }
+	  }
+	else
+	  {
+	    if (!*args)
+	      {
+		if (w == Z0width)
+		  w = Z1width;
+		else if (w == Z1width)
+		  w = Z0width;
+		else if (w > (Z0width + Z1width) / 2)
+		  w = Z0width;
+		else
+		  w = Z1width;
+	      }
+	    else
+	      {
+		w = atoi(*args);
+		if (args[1])
+		  h = atoi(args[1]);
+	      }
+	  }
+        if (*args && args[1] && args[2])
+	  {
+	    Msg(0, "%s: %s: too many arguments", rc_name, comms[nr].name);
+	    break;
+	  }
+	if (w <= 0)
+	  {
+	    Msg(0, "Illegal width");
+	    break;
+	  }
+	if (h <= 0)
+	  {
+	    Msg(0, "Illegal height");
+	    break;
+	  }
+	if (what == 1)
+	  {
+	    if (flayer->l_width == w && flayer->l_height == h)
+	      break;
+	    ResizeLayer(flayer, w, h, (struct display *)0);
+	    break;
+	  }
+	if (D_width == w && D_height == h)
 	  break;
-	}
-      if (n == D_height)
-	break;
-      if (ResizeDisplay(D_width, n) == 0)
-	{
-	  /* DoResize(D_width, D_height); */
-	  Activate(D_fore ? D_fore->w_norefresh : 0);
-	}
-      else
-	Msg(0, "Your termcap does not specify how to change the terminal's height to %d.", n);
+	if (what == 2)
+	  {
+	    ChangeScreenSize(w, h, 1);
+	  }
+	else
+	  {
+	    if (ResizeDisplay(w, h) == 0)
+	      {
+		Activate(D_fore ? D_fore->w_norefresh : 0);
+		/* autofit */
+		ResizeLayer(D_forecv->c_layer, D_forecv->c_xe - D_forecv->c_xs + 1, D_forecv->c_ye - D_forecv->c_ys + 1, 0);
+		break;
+	      }
+	    if (h == D_height)
+	      Msg(0, "Your termcap does not specify how to change the terminal's width to %d.", w);
+	    else if (w == D_width)
+	      Msg(0, "Your termcap does not specify how to change the terminal's height to %d.", h);
+	    else
+	      Msg(0, "Your termcap does not specify how to change the terminal's resolution to %dx%d.", w, h);
+	  }
+      }
       break;
     case RC_TITLE:
       if (*args == 0)
@@ -1793,10 +1868,10 @@ int key;
 	  Msg(0, "empty buffer");
 	  break;
 	}
-      WriteFile(user, DUMP_EXCHANGE);
+      WriteFile(user, args[0], DUMP_EXCHANGE);
       break;
     case RC_READBUF:
-      if ((s = ReadFile(BufferFile, &n)))
+      if ((s = ReadFile(args[0] ? args[0] : BufferFile, &n)))
 	{
 	  if (user->u_copybuffer)
 	    UserFreeCopyBuffer(user);
@@ -2031,7 +2106,10 @@ int key;
       break;
     case RC_HARDSTATUS:
       if (display)
-        RemoveStatus();
+	{
+	  Msg(0, "%s", "");	/* wait till mintime (keep gcc quiet) */
+          RemoveStatus();
+	}
       if (args[0] && strcmp(args[0], "on") && strcmp(args[0], "off"))
 	{
           struct display *olddisplay = display;
@@ -2648,8 +2726,8 @@ int key;
 	    }
 	  else				/* remove all groups from user */
 	    {
-	      struct user *u;
-	      struct usergroup *g;
+	      struct acluser *u;
+	      struct aclusergroup *g;
 
 	      if (!(u = *FindUserPtr(args[0])))
 	        break;
@@ -2664,8 +2742,8 @@ int key;
 	{
 	  char buf[256], *p = buf;
 	  int ngroups = 0;
-	  struct user *u;
-	  struct usergroup *g;
+	  struct acluser *u;
+	  struct aclusergroup *g;
 
 	  if (!(u = *FindUserPtr(args[0])))
 	    {
@@ -2753,7 +2831,7 @@ int key;
 	    }
 	  if (i == 0)
 	    fore->w_kanji = n;
-	  else
+	  else if (display)
 	    D_kanji = n;
 	}
       if (fore)
@@ -2772,6 +2850,41 @@ int key;
 	    break;
 	}
       nwin_default.kanji = n;
+      break;
+#endif
+
+#ifdef UTF8
+    case RC_DEFUTF8:
+      if (ParseSwitch(act, &nwin_default.utf8) == 0 && msgok)
+        Msg(0, "Will %suse UTF-8 encoding for new windows", nwin_default.utf8 ? "" : "not ");
+      break;
+    case RC_UTF8:
+      for (i = 0; i < 2; i++)
+	{
+	  if (i && args[i] == 0)
+	    break;
+	  if (args[i] == 0)
+	    n = !fore->w_utf8;
+	  else if (strcmp(args[i], "off") == 0)
+	    n = 0;
+	  else if (strcmp(args[i], "on") == 0)
+	    n = 1;
+	  else
+	    {
+	      Msg(0, "utf8: illegal argument (%s)", args[i]);
+	      break;
+	    }
+	  if (i == 0)
+	    {
+	      WinSwitchUtf8(fore, n);
+	      if (msgok)
+		Msg(0, "Will %suse UTF-8 encoding", n ? "" : "not ");
+	    }
+	  else if (display)
+	    D_utf8 = n;
+	  if (args[i] == 0)
+	    break;
+	}
       break;
 #endif
 
@@ -2866,37 +2979,46 @@ int key;
       nwin_default.charset = SaveStr(*args);
       break;
 #endif
-    case RC_SORENDITION:
-      i = mchar_so.attr;
-      if (*args && **args)
-        {
-	  if (ParseBase(act, *args, &i, 16, "hex"))
-	    break;
-	  if (i < 0 || i >= (1 << NATTR))
-	    {
-	      Msg(0, "sorendition: bad standout attributes");
-	      break;
-	    }
-        }
 #ifdef COLOR
-      n = mchar_so.color;
-      if (*args && args[1])
-	{
-	  if (ParseBase(act, args[1], &n, 16, "hex"))
+    case RC_ATTRCOLOR:
+      if (args[0][0] >= '0' && args[0][0] <= '9')
+        i = args[0][0] - '0';
+      else
+	for (i = 0; i < NATTR; i++)
+	  if (args[0][0] == "dubrsB"[i])
 	    break;
-	  if (n < 0 || n > 0x99 || (n & 15) > 9)
-	    {
-	      Msg(0, "sorendition: bad standout color");
-	      break;
-	    }
-	  n = 0x99 - n;
+      if (args[0][1] || i < 0 || i >= NATTR)
+	{
+	  Msg(0, "%s: attrcolor: unknown attribute '%s'.", rc_name, args[0]);
+	  break;
 	}
-      mchar_so.attr = i;
-      mchar_so.color = n;
-      Msg(0, "Standout attributes 0x%02x  color 0x%02x", (unsigned char)mchar_so.attr, 0x99 - (unsigned char)mchar_so.color);
+      n = 0;
+      if (args[1])
+        n = ParseAttrColor(args[1], args[2], 1);
+      if (n == -1)
+	break;
+      attr2color[i] = n;
+      n = 0;
+      for (i = 0; i < NATTR; i++)
+	if (attr2color[i])
+	  n |= 1 << i;
+      nattr2color = n;
+      break;
+#endif
+    case RC_SORENDITION:
+      i = 0;
+      if (*args)
+	{
+          i = ParseAttrColor(*args, args[1], 1);
+	  if (i == -1)
+	    break;
+	  ApplyAttrColor(i, &mchar_so);
+	}
+      if (msgok)
+#ifdef COLOR
+        Msg(0, "Standout attributes 0x%02x  color 0x%02x", (unsigned char)mchar_so.attr, 0x99 - (unsigned char)mchar_so.color);
 #else
-      mchar_so.attr = i;
-      Msg(0, "Standout attributes 0x%02x", (unsigned char)mchar_so.attr);
+        Msg(0, "Standout attributes 0x%02x ", (unsigned char)mchar_so.attr);
 #endif
       break;
 
@@ -3045,7 +3167,7 @@ int
 Parse(buf, args)
 char *buf, **args;
 {
-  register char *p = buf, **ap = args;
+  register char *p = buf, **ap = args, *pp;
   register int delim, argc;
 
   argc = 0;
@@ -3104,12 +3226,18 @@ char *buf, **args;
 	  return 0;
 	}
       delim = 0;
-      if (*p == '"' || *p == '\'')
-	delim = *p++;
-      *ap++ = p;
-      while (*p && !(delim ? *p == delim : (*p == ' ' || *p == '\t')))
-	++p;
-      if (*p == '\0')
+      *ap++ = pp = p;
+      while (*p && (delim || (*p != ' ' && *p != '\t')))
+        {
+	  if (*p == delim)
+	    delim = 0;
+	  else if (!delim && (*p == '"' || *p == '\''))
+	    delim = *p;
+	  else
+	    *pp++ = *p;
+	  p++;
+        }
+      if (*p == 0)
 	{
 	  if (delim)
 	    {
@@ -3118,13 +3246,14 @@ char *buf, **args;
 	    }
 	}
       else
-        *p++ = '\0';
+	p++;
+      *pp = 0;
     }
 }
 
 int 
 ParseEscape(u, p)
-struct user *u;
+struct acluser *u;
 char *p;
 {
   unsigned char buf[2];
@@ -3951,32 +4080,40 @@ ShowInfo()
 
   p += strlen(p);
 #ifdef FONT
-  if (D_CC0 || (D_CS0 && *D_CS0))
+# ifdef UTF8
+  if (wp->w_utf8)
     {
-      if (wp->w_gr)
-        sprintf(p++, " G%c%c[", wp->w_Charset + '0', wp->w_CharsetR + '0');
-      else
-        sprintf(p, " G%c[", wp->w_Charset + '0');
-      p += 4;
-      for (i = 0; i < 4; i++)
-	{
-	  if (wp->w_charsets[i] == ASCII)
-	    *p++ = 'B';
-	  else if (wp->w_charsets[i] >= ' ')
-	    *p++ = wp->w_charsets[i];
-	  else
-	    {
-	      *p++ = '^';
-	      *p++ = wp->w_charsets[i] ^ 0x40;
-	    }
-	}
-      *p++ = ']';
-      *p = 0;
-#ifdef KANJI
-      strcpy(p, wp->w_kanji == EUC ? " euc" : wp->w_kanji == SJIS ? " sjis" : "");
+      sprintf(p, " UFT-8");
       p += strlen(p);
-#endif
     }
+  else
+# endif
+    if (D_CC0 || (D_CS0 && *D_CS0))
+      {
+	if (wp->w_gr)
+	  sprintf(p++, " G%c%c[", wp->w_Charset + '0', wp->w_CharsetR + '0');
+	else
+	  sprintf(p, " G%c[", wp->w_Charset + '0');
+	p += 4;
+	for (i = 0; i < 4; i++)
+	  {
+	    if (wp->w_charsets[i] == ASCII)
+	      *p++ = 'B';
+	    else if (wp->w_charsets[i] >= ' ')
+	      *p++ = wp->w_charsets[i];
+	    else
+	      {
+		*p++ = '^';
+		*p++ = wp->w_charsets[i] ^ 0x40;
+	      }
+	  }
+	*p++ = ']';
+	*p = 0;
+# ifdef KANJI
+	strcpy(p, wp->w_kanji == EUC ? " euc" : wp->w_kanji == SJIS ? " sjis" : "");
+	p += strlen(p);
+# endif
+      }
 #endif
 
   if (wp->w_type == W_TYPE_PLAIN)
@@ -3993,6 +4130,57 @@ ShowInfo()
     }
 #endif
   Msg(0, "%s %d(%s)", buf, wp->w_number, wp->w_title);
+}
+
+static void
+ShowDInfo()
+{
+  char buf[512], *p;
+  if (display == 0)
+    return;
+  p = buf;
+  sprintf(p, "(%d,%d)", D_width, D_height),
+  p += strlen(p);
+#ifdef UTF8
+  if (D_utf8)
+    {
+      sprintf(p, " UTF-8");
+      p += strlen(p);
+    }
+  else
+#endif
+#ifdef KANJI
+    if (D_kanji)
+      {
+	strcpy(p, D_kanji == EUC ? " euc" : D_kanji == SJIS ? " sjis" : "");
+	p += strlen(p);
+      }
+#endif
+  if (D_CXT)
+    {
+      strcpy(p, " xterm");
+      p += strlen(p);
+    }
+#ifdef COLOR
+  if (D_hascolor)
+    {
+      strcpy(p, " color");
+      p += strlen(p);
+    }
+#endif
+#ifdef FONT
+  if (D_CG0)
+    {
+      strcpy(p, " iso2022");
+      p += strlen(p);
+    }
+  else if (D_CS0 && *D_CS0)
+    {
+      strcpy(p, " altchar");
+      p += strlen(p);
+    }
+#endif
+  Msg(0, "%s", buf);
 }
 
 static void
@@ -4404,7 +4592,7 @@ char *data;	/* dummy */
 #ifdef MULTIUSER
 struct inputsu
 {
-  struct user **up;
+  struct acluser **up;
   char name[24];
   char pw1[130];	/* FreeBSD crypts to 128 bytes */
   char pw2[130];
@@ -4445,7 +4633,7 @@ char *data;
 static int
 InputSu(w, up, name)
 struct win *w;
-struct user **up;
+struct acluser **up;
 char *name;
 {
   struct inputsu *i;
@@ -4470,7 +4658,7 @@ char *buf;
 int len;
 char *data;
 {
-  struct user *u = (struct user *)data;
+  struct acluser *u = (struct acluser *)data;
 
   if (!*buf)
     return;
@@ -4490,7 +4678,7 @@ char *data;
 {
   int st;
   char salt[2];
-  struct user *u = (struct user *)data;
+  struct acluser *u = (struct acluser *)data;
 
   ASSERT(u);
   if (!buf || strcmp(u->u_password, buf))
@@ -4550,6 +4738,19 @@ char *data;	/* dummy */
     {
       if (ch < ' ' || ch == '\177')
 	return;
+      if (len >= 1 && (*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X')))
+	{
+	  if (len == 1)
+	    return;
+	  if ((ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') && (ch < 'A' || ch > 'F'))
+	    {
+	      buf[len] = '\034';	/* ^] is ignored by Input() */
+	      return;
+	    }
+	  if (len == (*buf == 'U' ? 5 : 3))
+	    buf[len] = '\n';
+	  return;
+	}
       if (len && *buf == '0')
 	{
 	  if (ch < '0' || ch > '7')
@@ -4569,7 +4770,22 @@ char *data;	/* dummy */
   len++;
   if (len < 2)
     return;
-  if (buf[0] == '0')
+  if (len >= 1 && (*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X')))
+    {
+      x = 0;
+      for (i = 2; i < len; i++)
+	{
+	  if (buf[i] >= '0' && buf[i] <= '9')
+	    x = x * 16 | (buf[i] - '0');
+	  else if (buf[i] >= 'a' && buf[i] <= 'f')
+	    x = x * 16 | (buf[i] - ('a' - 10));
+	  else if (buf[i] >= 'A' && buf[i] <= 'F')
+	    x = x * 16 | (buf[i] - ('A' - 10));
+	  else
+	    break;
+	}
+    }
+  else if (buf[0] == '0')
     {
       x = 0;
       for (i = 1; i < len; i++)
@@ -4594,6 +4810,10 @@ char *data;	/* dummy */
     }
   i = 1;
   *buf = x;
+#ifdef UTF8
+  if (flayer->l_utf8)
+    i = ToUtf8(buf, x);	/* buf is big enough for all UTF-8 codes */
+#endif
   while(i)
     LayProcess(&buf, &i);
 }
@@ -4892,3 +5112,221 @@ RefreshXtermOSC()
     SetXtermOSC(i, p ? p->w_xtermosc[i] : 0);
 }
 #endif
+
+int
+ParseAttrColor(s1, s2, msgok)
+char *s1, *s2;
+int msgok;
+{
+  int i, n;
+  char *s, *ss;
+  int r = 0;
+
+  s = s1;
+  while (*s == ' ')
+    s++;
+  ss = s;
+  while (*ss && *ss != ' ')
+    ss++;
+  while (*ss == ' ')
+    ss++;
+  if (*s && (s2 || *ss || !((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') || *s == '.')))
+    {
+      int mode = 0, n = 0;
+      if (*s == '+')
+	{
+	  mode = 1;
+	  s++;
+	}
+      else if (*s == '-')
+	{
+	  mode = -1;
+	  s++;
+	}
+      else if (*s == '!')
+	{
+	  mode = 2;
+	  s++;
+	}
+      else if (*s == '=')
+	s++;
+      if (*s >= '0' && *s <= '9')
+	{
+	  n = *s++ - '0';
+	  if (*s >= '0' && *s <= '9')
+	    n = n * 16 + (*s++ - '0');
+	  else if (*s >= 'a' && *s <= 'f')
+	    n = n * 16 + (*s++ - ('a' - 10));
+	  else if (*s >= 'A' && *s <= 'F')
+	    n = n * 16 + (*s++ - ('A' - 10));
+	  else if (*s && *s != ' ')
+	    {
+	      if (msgok)
+		Msg(0, "Illegal attribute hexchar '%c'", *s);
+	      return -1;
+	    }
+	}
+      else
+	{
+	  while (*s && *s != ' ')
+	    {
+	      if (*s == 'd')
+		n |= A_DI;
+	      else if (*s == 'u')
+		n |= A_US;
+	      else if (*s == 'b')
+		n |= A_BD;
+	      else if (*s == 'r')
+		n |= A_RV;
+	      else if (*s == 's')
+		n |= A_SO;
+	      else if (*s == 'B')
+		n |= A_BL;
+	      else
+		{
+		  if (msgok)
+		    Msg(0, "Illegal attribute specifier '%c'", *s);
+		  return -1;
+		}
+	      s++;
+	    }
+	}
+      if (*s && *s != ' ')
+	{
+	  if (msgok)
+	    Msg(0, "junk after attribute description: '%c'", *s);
+	  return -1;
+	}
+      if (mode == -1)
+	r = n << 8 | n;
+      else if (mode == 1)
+	r = n << 8;
+      else if (mode == 2)
+	r = n;
+      else if (mode == 0)
+	r = 0xffff ^ n;
+    }
+  while (*s && *s == ' ')
+    s++;
+
+  if (s2)
+    {
+      if (*s)
+	{
+	  if (msgok)
+	    Msg(0, "junk after description: '%c'", *s);
+	  return -1;
+	}
+      s = s2;
+      while (*s && *s == ' ')
+	s++;
+    }
+
+#ifdef COLOR
+  if (*s)
+    {
+      static char costr[] = "krgybmcw d    i.01234567 9     f               FKRGYBMCW      I ";
+      int numco = 0, j;
+
+      n = 0;
+      if (*s == '.')
+	{
+	  numco++;
+	  n = 0x0f;
+	  s++;
+	}
+      for (j = 0; j < 2 && *s && *s != ' '; j++)
+	{
+	  for (i = 0; costr[i]; i++)
+	    if (*s == costr[i])
+	      break;
+	  if (!costr[i])
+	    {
+	      if (msgok)
+		Msg(0, "illegal color descriptor: '%c'", *s);
+	      return -1;
+	    }
+	  numco++;
+	  n = n << 4 | (i & 15);
+#ifdef COLORS16
+	  if (i >= 48)
+	    n = (n & 0x20ff) | 0x200;
+#endif
+	  s++;
+	}
+      if ((n & 0xf00) == 0xf00)
+        n ^= 0xf00;	/* clear superflous bits */
+#ifdef COLORS16
+      if (n & 0x2000)
+	n ^= 0x2400;	/* shift bit into right position */
+#endif
+      if (numco == 1)
+	n |= 0xf0;	/* don't change bg color */
+      if (numco != 2 && n != 0xff)
+	n |= 0x100;	/* special invert mode */
+      if (*s && *s != ' ')
+	{
+	  if (msgok)
+	    Msg(0, "junk after color description: '%c'", *s);
+	  return -1;
+	}
+      n ^= 0xff;
+      r |= n << 16;
+    }
+#endif
+
+  while (*s && *s == ' ')
+    s++;
+  if (*s)
+    {
+      if (msgok)
+	Msg(0, "junk after description: '%c'", *s);
+      return -1;
+    }
+  debug1("ParseAttrColor %06x\n", r);
+  return r;
+}
+
+/*
+ *  Color coding:
+ *    0-7 normal colors
+ *    9   default color
+ *    e   just set intensity
+ *    f   don't change anything
+ *  Intensity is encoded into bits 17(fg) and 18(bg).
+ */
+void
+ApplyAttrColor(i, mc)
+int i;
+struct mchar *mc;
+{
+  debug1("ApplyAttrColor %06x\n", i);
+  mc->attr |= i >> 8 & 255;
+  mc->attr ^= i & 255;
+#ifdef COLOR
+  i = (i >> 16) ^ 0xff;
+  if ((i & 0x100) != 0)
+    {
+      i &= 0xeff;
+      if (mc->attr & (A_SO|A_RV))
+# ifdef COLORS16
+        i = ((i & 0x0f) << 4) | ((i & 0xf0) >> 4) | ((i & 0x200) << 1) | ((i & 0x400) >> 1);
+# else
+        i = ((i & 0x0f) << 4) | ((i & 0xf0) >> 4);
+# endif
+    }
+# ifdef COLORS16
+  if ((i & 0x0f) != 0x0f)
+    mc->attr = (mc->attr & 0xbf) | ((i >> 3) & 0x40);
+  if ((i & 0xf0) != 0xf0)
+    mc->attr = (mc->attr & 0x7f) | ((i >> 3) & 0x80);
+# endif
+  mc->color = 0x99 - mc->color;
+  if ((i & 0x0e) == 0x0e)
+    i = (i & 0xf0) | (mc->color & 0x0f);
+  if ((i & 0xe0) == 0xe0)
+    i = (i & 0x0f) | (mc->color & 0xf0);
+  mc->color = 0x99 - i;
+  debug2("ApplyAttrColor - %02x %02x\n", mc->attr, i);
+#endif
+}

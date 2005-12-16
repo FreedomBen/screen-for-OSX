@@ -1,5 +1,31 @@
 
                   ------------------------------
+                   What's new in screen-3.9.9 ?
+                  ------------------------------
+
+* new '-X' option to send commands to screen sessions.
+
+    screen -X echo Hi...
+
+* added a possibility to change the attributes/color in caption or
+  hardstatus strings:
+
+    caption always "%3n %{r}%t%{-}%? @%u%?%? %{g}[%h]%{-}%?"
+
+* new 'dinfo' command to show what screen thinks about your terminal.
+
+* new 'attrcolor' command to map attributes to color codes:
+    attrcolor u "-u b"
+    attrcolor b "r"
+
+* support for UTF-8: new commands 'utf8', 'defutf8' to change the
+  encoding of a window, plus a '-U' option to tell screen that
+  your terminal sends/receives UTF-8 codes.
+
+* support for 16 colors.
+
+
+                  ------------------------------
                    What's new in screen-3.9.8 ?
                   ------------------------------
 

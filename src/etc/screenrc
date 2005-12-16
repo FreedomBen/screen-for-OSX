@@ -1,4 +1,3 @@
-
 #
 # Example of a user's .screenrc file
 #
@@ -141,3 +140,6 @@ bind ^] paste [.]
 # bind + resize +1
 # bind - resize -1
 # bind _ resize max
+#
+# attrcolor u "-u b"
+# attrcolor b "R"

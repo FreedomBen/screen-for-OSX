@@ -1,5 +1,9 @@
-This is Info file screen.info, produced by Makeinfo-1.55 from the input
-file ./screen.texinfo.
+This is screen.info, produced by makeinfo version 4.0 from
+./screen.texinfo.
+
+START-INFO-DIR-ENTRY
+* Screen: (screen).             Full-screen window manager.
+END-INFO-DIR-ENTRY
 
    This file documents the `Screen' virtual terminal manager.
 
@@ -26,7 +30,7 @@ Screen
 ******
 
    This file documents the `Screen' virtual terminal manager, version
-3.9.6.
+3.9.9.
 
 * Menu:
 
@@ -96,8 +100,8 @@ window.  The only exception to this is the one keystroke that is used to
 initiate a command to the window manager.  By default, each command
 begins with a control-a (abbreviated `C-a' from now on), and is
 followed by one other keystroke.  The command character (*note Command
-Character::.) and all the key bindings (*note Key Binding::.) can be
-fully customized to be anything you like, though they are always two
+Character::) and all the key bindings (*note Key Binding::) can be fully
+customized to be anything you like, though they are always two
 characters in length.
 
    `Screen' does not understand the prefix `C-' to mean control.
@@ -143,16 +147,16 @@ or just `set term=mytermtype', for example.)
 
    If you're impatient and want to get started without doing a lot more
 reading, you should remember this one command: `C-a ?' (*note Key
-Binding::.).  Typing these two characters will display a list of the
+Binding::).  Typing these two characters will display a list of the
 available `screen' commands and their bindings. Each keystroke is
-discussed in the section on keystrokes (*note Default Key Bindings::.).
-Another section (*note Customization::.) deals with the contents of your
+discussed in the section on keystrokes (*note Default Key Bindings::).
+Another section (*note Customization::) deals with the contents of your
 `.screenrc'.
 
    If your terminal is a "true" auto-margin terminal (it doesn't allow
 the last position on the screen to be updated without scrolling the
 screen) consider to use a version of your terminal's termcap that has
-automatic margins turned *off*.  This will ensure an accurate and
+automatic margins turned _off_.  This will ensure an accurate and
 optimal update of the screen in all circumstances.  Most terminals
 nowadays have "magic" margins (automatic margins plus usable last
 column).  This is the VT100 style type and perfectly suited for
@@ -175,7 +179,7 @@ Invoking `Screen'
    Screen has the following command-line options:
 
 `-a'
-     Include *all* capabilities (with some minor exceptions) in each
+     Include _all_ capabilities (with some minor exceptions) in each
      window's termcap, even if `screen' must redraw parts of the display
      in order to implement a function.
 
@@ -192,7 +196,7 @@ Invoking `Screen'
 `-d [PID.SESSIONNAME]'
 `-D [PID.SESSIONNAME]'
      Do not start `screen', but instead detach a `screen' session
-     running elsewhere (*note Detach::.).  `-d' has the same effect as
+     running elsewhere (*note Detach::).  `-d' has the same effect as
      typing `C-a d' from the controlling terminal for the session.
      `-D' is the equivalent to the power detach key.  If no session can
      be detached, this option is ignored.  In combination with the
@@ -222,7 +226,7 @@ Invoking `Screen'
     `-D -RR'
           Attach here and now. Whatever that  means, just do it.
 
-     *Note*: It is a good idea to check the status of your sessions
+     _Note_: It is a good idea to check the status of your sessions
      with `screen -list' before using this option.
 
 `-e XY'
@@ -235,35 +239,35 @@ Invoking `Screen'
      an already running session, this option only changes the command
      character of the attaching user.  This option is equivalent to the
      commands `defescape' or `escape' respectively.  (*note Command
-     Character::.).
+     Character::).
 
 `-f'
 `-fn'
 `-fa'
      Set flow-control to on, off, or automatic switching mode,
      respectively.  This option is equivalent to the `defflow' command
-     (*note Flow Control::.).
+     (*note Flow Control::).
 
 `-h NUM'
      Set the history scrollback buffer to be NUM lines high.
-     Equivalent to the `defscrollback' command (*note Copy::.).
+     Equivalent to the `defscrollback' command (*note Copy::).
 
 `-i'
      Cause the interrupt key (usually `C-c') to interrupt the display
      immediately when flow control is on.  This option is equivalent to
      the `interrupt' argument to the `defflow' command (*note Flow
-     Control::.). Its use is discouraged.
+     Control::). Its use is discouraged.
 
 `-l'
 `-ln'
      Turn login mode on or off (for `/etc/utmp' updating).  This option
-     is equivalent to the `deflogin' command (*note Login::.).
+     is equivalent to the `deflogin' command (*note Login::).
 
 `-ls [MATCH]'
 `-list [MATCH]'
      Do not start `screen', but instead print a list of session
      identification strings (usually of the form PID.TTY.HOST; *note
-     Session Name::.).  Sessions marked `detached' can be resumed with
+     Session Name::).  Sessions marked `detached' can be resumed with
      `screen -r'.  Those marked `attached' are running and have a
      controlling terminal.  If the session runs in multiuser mode, it
      is marked `multi'.  Sessions marked as `unreachable' either live
@@ -279,7 +283,7 @@ Invoking `Screen'
      Tell `screen' that your auto-margin terminal allows programs to
      write to the last column of the last row of the screen without
      scrolling.  This can also be set in your `.screenrc' by specifying
-     `xn' in a `termcap' command (*note Termcap::.).
+     `xn' in a `termcap' command (*note Termcap::).
 
 `-m'
      Tell `screen' to ignore the `$STY' environment variable.  When
@@ -288,12 +292,12 @@ Invoking `Screen'
      `screen' session or not. This flag has a special meaning in
      connection with the `-d' option:
     `-m -d'
-          Start `screen' in *detached* mode. This creates a new session
+          Start `screen' in _detached_ mode. This creates a new session
           but doesn't attach to it. This is useful for system startup
           scripts.
 
     `-m -D'
-          This also starts `screen' in *detached* mode, but doesn't fork
+          This also starts `screen' in _detached_ mode, but doesn't fork
           a new process. The command exits if the session terminates.
 
 `-q'
@@ -310,7 +314,7 @@ Invoking `Screen'
 `-r SESSIONOWNER/[PID.SESSIONNAME]'
      Resume a detached `screen' session.  No other options (except
      combinations with `-d' or `-D') may be specified, though the
-     session name (*note Session Name::.) may be needed to distinguish
+     session name (*note Session Name::) may be needed to distinguish
      between multiple detached `screen' sessions.  The second form is
      used to connect to another user's screen session which runs in
      multiuser mode. This indicates that screen should look for
@@ -328,19 +332,24 @@ Invoking `Screen'
      Set the default shell to be PROGRAM.  By default, `screen' uses
      the value of the environment variable `$SHELL', or `/bin/sh' if it
      is not defined.  This option is equivalent to the `shell' command
-     (*note Shell::.).
+     (*note Shell::).
 
 `-S SESSIONNAME'
      Set the name of the new session to SESSIONNAME.  This option can
      be used to specify a meaningful name for the session in place of
      the default TTY.HOST suffix.  This name identifies the session for
      the `screen -list' and `screen -r' commands.  This option is
-     equivalent to the `sessionname' command (*note Session Name::.).
+     equivalent to the `sessionname' command (*note Session Name::).
 
 `-t NAME'
      Set the title (name) for the default shell or specified program.
      This option is equivalent to the `shelltitle' command (*note
-     Shell::.).
+     Shell::).
+
+`-U'
+     Run screen in UTF-8 mode. This option tells screen that your
+     terminal sends and understands UTF-8 encoded characters. It also
+     sets the default encoding for new windows to `utf8'.
 
 `-v'
      Print the version number.
@@ -355,6 +364,12 @@ Invoking `Screen'
 `-x'
      Attach to a session which is already attached elsewhere
      (multi-display mode).
+
+`-X'
+     Send the specified command to a running screen session. You can use
+     the `-d' or `-r' option to tell screen to look only for attached
+     or detached screen sessions. Note that this command doesn't work
+     if the session is password protected.
 
 
 File: screen.info,  Node: Customization,  Next: Commands,  Prev: Invoking Screen,  Up: Top
@@ -384,8 +399,8 @@ following ways: For the global screenrc file `screen' searches for the
 environment variable `$SYSSCREENRC' (this override feature may be
 disabled at compile-time).  The user specific screenrc file is searched
 for in `$SCREENRC', then ``$HOME'/.screenrc'.  The command line option
-`-c' specifies which file to use (*note Invoking Screen::..  Commands
-in these files are used to set options, bind commands to keys, and to
+`-c' specifies which file to use (*note Invoking Screen::.  Commands in
+these files are used to set options, bind commands to keys, and to
 automatically establish one or more windows at the beginning of your
 `screen' session.  Commands are listed one per line, with empty lines
 being ignored.  A command's arguments are separated by tabs or spaces,
@@ -418,7 +433,7 @@ Colon
      exists, as of version 3.3.  Change default settings with commands
      starting with `def'.  You might think of this as the `ex' command
      mode of `screen', with `copy' as its `vi' command mode (*note Copy
-     and Paste::.).
+     and Paste::).
 
 
 File: screen.info,  Node: Commands,  Next: New Window,  Prev: Customization,  Up: Top
@@ -428,7 +443,7 @@ Commands
 
    A command in `screen' can either be bound to a key, invoked from a
 screenrc file, or called from the `colon' prompt (*note
-Customization::.).  As of version 3.3, all commands can be bound to
+Customization::).  As of version 3.3, all commands can be bound to
 keys, although some may be less useful than others.  For a number of
 real life working examples of the most important commands see the files
 `etc/screenrc' and `etc/etcscreenrc' of your screen distribution.
@@ -472,7 +487,7 @@ Thus, both `C-a c' and `C-a C-c' can be used to create a window.
      Switch to window number 0...9, or the blank window.  *Note
      Selecting::.
 
-`C-a Tab'
+`C-a <Tab>'
      (focus)
      Switch the input focus to the next region.  *Note Regions::.
 
@@ -572,7 +587,7 @@ Thus, both `C-a c' and `C-a C-c' can be used to create a window.
      (monitor) Toggle monitoring of the current window.  *Note
      Monitor::.
 
-`C-a SPC'
+`C-a <SPC>'
 `C-a n'
 `C-a C-n'
      (next)
@@ -585,7 +600,7 @@ Thus, both `C-a c' and `C-a C-c' can be used to create a window.
 `C-a p'
 `C-a C-p'
 `C-a C-h'
-`C-a BackSpace'
+`C-a <BackSpace>'
      (prev)
      Switch to the previous window (opposite of `C-a n').  *Note
      Selecting::.
@@ -673,7 +688,7 @@ Thus, both `C-a c' and `C-a C-c' can be used to create a window.
 
 `C-a ['
 `C-a C-['
-`C-a ESC'
+`C-a <ESC>'
      (copy)
      Enter copy/scrollback mode.  *Note Copy::.
 
@@ -734,7 +749,7 @@ Command Summary
      Inherit permissions granted to a group leader. *Note Multiuser
      Session::.
 
-`aclumask [USERS]+\-BITS ...'
+`aclumask [USERS]+/-BITS ...'
      Predefine access to new windows. *Note Umask::.
 
 `activity MESSAGE'
@@ -748,6 +763,9 @@ Command Summary
 
 `at [IDENT][`#'|`*'|`%'] COMMAND [ARGS]'
      Execute a command at other displays or windows.  *Note At::.
+
+`attrcolor ATTRIB [ATTRIBUTE/COLOR-MODIFIER]'
+     Map attributes to colors.  *Note Attrcolor::.
 
 `autodetach STATE'
      Automatically detach the session on SIGHUP.  *Note Detach::.
@@ -880,6 +898,9 @@ Command Summary
      Select the default inter-character timeout when pasting.  *Note
      Paste::.
 
+`defutf8 STATE'
+     Select default character encoding.  *Note Character Processing::.
+
 `defwrap STATE'
      Set default line-wrapping behavior.  *Note Wrap::.
 
@@ -894,6 +915,9 @@ Command Summary
 
 `digraph'
      Enter digraph sequence.  *Note Digraph::.
+
+`dinfo'
+     Display terminal information.  *Note Info::.
 
 `displays'
      List currently active user interfaces. *Note Displays::.
@@ -934,7 +958,7 @@ Command Summary
 `hardstatus [STATE]'
      Use the hardware status line.  *Note Hardware Status Line::.
 
-`height [LINES]'
+`height [LINES [COLS]]'
      Set display height.  *Note Window Size::.
 
 `help'
@@ -947,7 +971,7 @@ Command Summary
      Change the window's hardstatus line.  *Note Hardstatus::.
 
 `info'
-     Display terminal settings.  *Note Info::.
+     Display window settings.  *Note Info::.
 
 `ins_reg [KEY]'
      Removed, use `paste' instead.  *Note Registers::.
@@ -1064,7 +1088,7 @@ Command Summary
 `quit'
      Kill all windows and exit.  *Note Quit::.
 
-`readbuf'
+`readbuf [FILENAME]'
      Read the paste buffer from the screen-exchange file.  *Note
      Screen-Exchange::.
 
@@ -1085,6 +1109,9 @@ Command Summary
 
 `reset'
      Reset the terminal settings for the window.  *Note Reset::.
+
+`resize [(+/-)lines]'
+     Grow or shrink a region
 
 `screen [OPTS] [N] [CMD [ARGS]]'
      Create a new window.  *Note Screen Command::.
@@ -1156,11 +1183,15 @@ Command Summary
 `title [WINDOWTITLE]'
      Set the name of the current window.  *Note Title Command::.
 
-`umask [USERS]+\-BITS ...'
+`umask [USERS]+/-BITS ...'
      Synonym to `aclumask'. *Note Umask::.
 
 `unsetenv VAR'
      Unset environment variable for new windows.  *Note Setenv::.
+
+`utf8 [STATE [DSTATE]]'
+     Select character encoding of the current window.  *Note Character
+     Processing::.
 
 `vbell [STATE]'
      Use visual bell.  *Note Bell::.
@@ -1177,7 +1208,7 @@ Command Summary
 `wall MESSAGE'
      Write a message to all displays.  *Note Multiuser Session::.
 
-`width [NUM]'
+`width [COLS [LINES]]'
      Set the width of the window.  *Note Window Size::.
 
 `windows'
@@ -1186,7 +1217,7 @@ Command Summary
 `wrap [STATE]'
      Control line-wrap behavior.  *Note Wrap::.
 
-`writebuf'
+`writebuf [FILENAME]'
      Write paste buffer to screen-exchange file.  *Note
      Screen-Exchange::.
 
@@ -1228,7 +1259,7 @@ File: screen.info,  Node: Chdir,  Next: Screen Command,  Up: New Window
 Chdir
 =====
 
- - Command: chdir [DIRECTORY]
+ - Command: chdir [directory]
      (none)
      Change the current directory of `screen' to the specified directory
      or, if called without an argument, to your home directory (the
@@ -1237,7 +1268,7 @@ Chdir
      or by means of `C-a : screen ...' or `C-a c' use this as their
      default directory.  Without a `chdir' command, this would be the
      directory from which `screen' was invoked.  Hardcopy and log files
-     are always written to the *window's* default directory, *not* the
+     are always written to the _window's_ default directory, _not_ the
      current directory of the process running in the window.  You can
      use this command multiple times in your `.screenrc' to start
      various windows in different default directories, but the last
@@ -1249,7 +1280,7 @@ File: screen.info,  Node: Screen Command,  Next: Setenv,  Prev: Chdir,  Up: New 
 Screen Command
 ==============
 
- - Command: screen [OPTS] [N] [CMD [ARGS]]
+ - Command: screen [opts] [n] [cmd [args]]
      (`C-a c', `C-a C-c')
      Establish a new window.  The flow-control options (`-f', `-fn' and
      `-fa'), title option (`-t'), login options (`-l' and `-ln') ,
@@ -1287,7 +1318,7 @@ File: screen.info,  Node: Setenv,  Next: Shell,  Prev: Screen Command,  Up: New 
 Setenv
 ======
 
- - Command: setenv VAR STRING
+ - Command: setenv var string
      (none)
      Set the environment variable VAR to value STRING.  If only VAR is
      specified, the user will be prompted to enter a value.  If no
@@ -1295,7 +1326,7 @@ Setenv
      variable and value. The environment is inherited by all
      subsequently forked shells.
 
- - Command: unsetenv VAR
+ - Command: unsetenv var
      (none)
      Unset an environment variable.
 
@@ -1305,8 +1336,8 @@ File: screen.info,  Node: Shell,  Next: Term,  Prev: Setenv,  Up: New Window
 Shell
 =====
 
- - Command: shell COMMAND
- - Command: defshell COMMAND
+ - Command: shell command
+ - Command: defshell command
      (none)
      Set the command to be used to create a new shell.  This overrides
      the value of the environment variable `$SHELL'.  This is useful if
@@ -1316,7 +1347,7 @@ Shell
 
      `defshell' is currently a synonym to the `shell' command.
 
- - Command: shelltitle TITLE
+ - Command: shelltitle title
      (none)
      Set the title for all shells created during startup or by the C-a
      C-c command.  *Note Naming Windows::, for details about what
@@ -1328,7 +1359,7 @@ File: screen.info,  Node: Term,  Next: Window Types,  Prev: Shell,  Up: New Wind
 Term
 ====
 
- - Command: term TERM
+ - Command: term term
      (none)
      In each window `screen' opens, it sets the `$TERM' variable to
      `screen' by default, unless no description for `screen' is
@@ -1348,7 +1379,7 @@ Window Types
 ============
 
    Screen provides three different window types. New windows are created
-with `screen''s `screen' command (*note Screen Command::.).  The first
+with `screen''s `screen' command (*note Screen Command::).  The first
 parameter to the `screen' command defines which type of window is
 created. The different window types are all special cases of the normal
 type. They have been added in order to allow `screen' to be used
@@ -1437,11 +1468,12 @@ efficiently as a console with 100 or more windows.
 
     `f'
           LFLOW. The remote host will send flow control information.
-          (Ignored at the moment.) Additional flags for debugging are
+          (Ignored at the moment.)  Additional flags for debugging are
      `x', `t' and `n' (XDISPLOC, TSPEED and NEWENV).
 
      For telnet windows, the command `break' sends the telnet code `IAC
      BREAK' (decimal 243) to the remote host.
+
 
 
 File: screen.info,  Node: Selecting,  Next: Session Management,  Prev: New Window,  Up: Top
@@ -1451,7 +1483,7 @@ Selecting a Window
 
    This section describes the commands for switching between windows in
 an `screen' session.  The windows are numbered from 0 to 9, and are
-created in that order by default (*note New Window::.).
+created in that order by default (*note New Window::).
 
 * Menu:
 
@@ -1466,9 +1498,9 @@ Moving Back and Forth
 =====================
 
  - Command: next
-     (`C-a SPC', `C-a n', `C-a C-n')
+     (`C-a <SPC>', `C-a n', `C-a C-n')
      Switch to the next window.  This command can be used repeatedly to
-     cycle through the list of windows.  (On some terminals, C-SPC
+     cycle through the list of windows.  (On some terminals, C-<SPC>
      generates a NUL character, so you must release the control key
      before pressing space.)
 
@@ -1487,7 +1519,7 @@ Other Window
      Switch to the last window displayed.  Note that this command
      defaults to the command character typed twice, unless overridden.
      For instance, if you use the option `-e]x', this command becomes
-     `]]' (*note Command Character::.).
+     `]]' (*note Command Character::).
 
 
 File: screen.info,  Node: Select,  Prev: Other Window,  Up: Selecting
@@ -1495,7 +1527,7 @@ File: screen.info,  Node: Select,  Prev: Other Window,  Up: Selecting
 Select
 ======
 
- - Command: select [N]
+ - Command: select [n]
      (`C-a N', `C-a '', `C-a "')
      Switch to the window with the number N.  If no window number is
      specified, you get prompted for an identifier. This can be a
@@ -1505,25 +1537,4 @@ Select
      there can be no more than 10 windows present simultaneously
      (unless screen is compiled with a higher MAXWIN setting).  The
      special command `select -' switches to a blank window.
-
-
-File: screen.info,  Node: Session Management,  Next: Regions,  Prev: Selecting,  Up: Top
-
-Session Management Commands
-***************************
-
-   Perhaps the most useful feature of `screen' is the way it allows the
-user to move a session between terminals, by detaching and reattaching.
-This also makes life easier for modem users who have to deal with
-unexpected loss of carrier.
-
-* Menu:
-
-* Detach::                      Disconnect `screen' from your terminal.
-* Power Detach::                Detach and log out.
-* Lock::                        Lock your terminal temporarily.
-* Multiuser Session::		Changing number of allowed users.
-* Session Name::                Rename your session for later reattachment.
-* Suspend::                     Suspend your session.
-* Quit::                        Terminate your session.
 

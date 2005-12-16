@@ -57,7 +57,7 @@ extern struct win *windows, *wtab[];
 extern char NullStr[];
 extern char SockPath[];
 extern struct display *display, *displays;
-struct user *users;
+struct acluser *users;
 
 #ifdef MULTIUSER
 int maxusercount = 0;	/* used in process.c: RC_MONITOR, RC_SILENCE */
@@ -89,11 +89,11 @@ static char default_c_bit[ACL_BITS_PER_CMD] =
  */
 
 static int GrowBitfield __P((AclBits *, int, int, int));
-static struct usergroup **FindGroupPtr __P((struct usergroup **, struct user *, int));
-static int AclSetPermCmd __P((struct user *, char *, struct comm *));
-static int AclSetPermWin __P((struct user *, struct user *, char *, struct win *));
-static int UserAcl __P((struct user *, struct user **, int, char **));
-static int UserAclCopy __P((struct user **, struct user **));
+static struct aclusergroup **FindGroupPtr __P((struct aclusergroup **, struct acluser *, int));
+static int AclSetPermCmd __P((struct acluser *, char *, struct comm *));
+static int AclSetPermWin __P((struct acluser *, struct acluser *, char *, struct win *));
+static int UserAcl __P((struct acluser *, struct acluser **, int, char **));
+static int UserAclCopy __P((struct acluser **, struct acluser **));
 
 
 static int
@@ -124,11 +124,11 @@ int len, delta, defaultbit;
  * Returns an nonzero Address. Its contents is either a User-ptr, 
  * or NULL which may be replaced by a User-ptr to create the entry.
  */
-struct user **
+struct acluser **
 FindUserPtr(name)
 char *name;
 {
-  struct user **u;
+  struct acluser **u;
 
   for (u = &users; *u; u = &(*u)->u_next)
     if (!strcmp((*u)->u_name, name))
@@ -153,7 +153,7 @@ int DefaultMetaEsc = -1;
 int
 UserAdd(name, pass, up)
 char *name, *pass;
-struct user **up;
+struct acluser **up;
 {
 #ifdef MULTIUSER
   int j;
@@ -168,7 +168,7 @@ struct user **up;
       return 1;		/* he is already there */
     }
   if (strcmp("none", name))	/* "none" is a reserved word */
-    *up = (struct user *)calloc(1, sizeof(struct user));
+    *up = (struct acluser *)calloc(1, sizeof(struct acluser));
   if (!*up)
     return -1;		/* he still does not exist */
 #ifdef COPY_PASTE
@@ -197,7 +197,7 @@ struct user **up;
     {
       int j;
       struct win *w;
-      struct user *u;
+      struct acluser *u;
 
       debug2("growing all bitfields %d += %d\n", maxusercount, USER_CHUNK);
       /* the bitfields are full, grow a chunk */
@@ -305,7 +305,7 @@ struct user **up;
 int 
 UserSetPass(name, pass, up)
 char *name, *pass;
-struct user **up;
+struct acluser **up;
 {
   if (!up)
     up = FindUserPtr(name);
@@ -326,9 +326,9 @@ struct user **up;
 int 
 UserDel(name, up)
 char *name;
-struct user **up;
+struct acluser **up;
 {
-  struct user *u;
+  struct acluser *u;
 #ifdef MULTIUSER
   int i;
 #endif
@@ -355,13 +355,13 @@ struct user **up;
   for (up = &users; *up; up = &(*up)->u_next)
     {
       /* unlink all group references to this user */
-      struct usergroup **g = &(*up)->u_group;
+      struct aclusergroup **g = &(*up)->u_group;
 
       while (*g)
         {
 	  if ((*g)->u == u)
 	    {
-	      struct usergroup *next = (*g)->next;
+	      struct aclusergroup *next = (*g)->next;
 
 	      free((char *)(*g));
 	      *g = next;
@@ -401,7 +401,7 @@ struct user **up;
  */
 int
 UserFreeCopyBuffer(u)
-struct user *u;
+struct acluser *u;
 {
   struct win *w;
   struct paster *pa;
@@ -429,13 +429,13 @@ struct user *u;
  * depth first method.  If none of the nodes references u, the address of 
  * the last next pointer is returned. This address will contain NULL.
  */ 
-static struct usergroup **
+static struct aclusergroup **
 FindGroupPtr(gp, u, recursive)
-struct usergroup **gp;
-struct user *u;
+struct aclusergroup **gp;
+struct acluser *u;
 int recursive;
 {
-  struct usergroup **g;
+  struct aclusergroup **g;
   
   ASSERT(recursive < 1000);		/* Ouch, cycle detection failed */
   while (*gp)
@@ -459,8 +459,8 @@ int
 AclLinkUser(from, to)
 char *from, *to;
 {
-  struct user **u1, **u2;
-  struct usergroup **g;
+  struct acluser **u1, **u2;
+  struct aclusergroup **g;
 
   if (!*(u1 = FindUserPtr(from)) && UserAdd(from, NULL, u1))
     return -1;
@@ -472,7 +472,7 @@ char *from, *to;
   if (*(g = FindGroupPtr(&(*u1)->u_group, *u2, 0)))
     return 2;			/* aha, we are already linked! */
 
-  if (!(*g = (struct usergroup *)malloc(sizeof(struct usergroup))))
+  if (!(*g = (struct aclusergroup *)malloc(sizeof(struct aclusergroup))))
     return -1;			/* Could not alloc link. Poor screen */
   (*g)->u = (*u2);
   (*g)->next = NULL;
@@ -486,10 +486,10 @@ char *from, *to;
  */
 char *
 DoSu(up, name, pw1, pw2)
-struct user **up;
+struct acluser **up;
 char *name, *pw1, *pw2;
 {
-  struct user *u;
+  struct acluser *u;
   int sorry = 0;
 
   if (!(u = *FindUserPtr(name)))
@@ -598,7 +598,7 @@ char *name, *pw1, *pw2;
 int
 NewWindowAcl(w, u)
 struct win *w;
-struct user *u;
+struct acluser *u;
 {
   int i, j;
 
@@ -648,7 +648,7 @@ struct win *w;
  */
 static int
 AclSetPermCmd(u, mode, cmd)
-struct user *u;
+struct acluser *u;
 char *mode;
 struct comm *cmd;
 {
@@ -693,7 +693,7 @@ struct comm *cmd;
  */
 static int
 AclSetPermWin(uu, u, mode, win)
-struct user *u, *uu;
+struct acluser *u, *uu;
 char *mode;
 struct win *win;
 {
@@ -793,7 +793,7 @@ struct win *win;
  */
 int
 AclSetPerm(uu, u, mode, s)
-struct user *uu, *u;
+struct acluser *uu, *u;
 char *mode, *s;
 {
   struct win *w;
@@ -813,7 +813,7 @@ char *mode, *s;
 	    AclSetPermWin(uu, u, mode, (struct win *)1);
 	  else				/* .. or all windows */
 	    for (w = windows; w; w = w->w_next)
-	      AclSetPermWin((struct user *)0, u, mode, w);
+	      AclSetPermWin((struct acluser *)0, u, mode, w);
 	  s++;
 	  break;
 	case '?':
@@ -832,7 +832,7 @@ char *mode, *s;
 	  if ((i = FindCommnr(s)) != RC_ILLEGAL)
 	    AclSetPermCmd(u, mode, &comms[i]);
 	  else if (((i = WindowByNoN(s)) >= 0) && wtab[i])
-	    AclSetPermWin((struct user *)0, u, mode, wtab[i]);
+	    AclSetPermWin((struct acluser *)0, u, mode, wtab[i]);
 	  else
 	    /* checking group name */
 	    return -1;
@@ -857,7 +857,7 @@ char *mode, *s;
  */
 static int
 UserAcl(uu, u, argc, argv)
-struct user *uu, **u;
+struct acluser *uu, **u;
 int argc;
 char **argv;
 {
@@ -889,7 +889,7 @@ char **argv;
 
 static int
 UserAclCopy(to_up, from_up)
-struct user **to_up, **from_up;
+struct acluser **to_up, **from_up;
 {
   struct win *w;
   int i, j, to_id, from_id;
@@ -944,13 +944,13 @@ struct user **to_up, **from_up;
  */
 int
 UsersAcl(uu, argc, argv)
-struct user *uu;
+struct acluser *uu;
 int argc;
 char **argv;
 {
   char *s;
   int r;
-  struct user **cf_u = NULL;
+  struct acluser **cf_u = NULL;
 
   if (argc == 1)
     {
@@ -968,7 +968,7 @@ char **argv;
 
   if (argv[0][0] == '*' && argv[0][1] == '\0')
     {
-      struct user **u;
+      struct acluser **u;
   
       debug("all users acls.\n");
       for (u = &users; *u; u = &(*u)->u_next)
@@ -1005,7 +1005,7 @@ char **argv;
  */
 int 
 AclUmask(u, str, errp)
-struct user *u;
+struct acluser *u;
 char *str;
 char **errp;
 {
@@ -1054,11 +1054,11 @@ int a, b;
   debug2("AclWinSwap(%d, %d) NOP.\n", a, b);
 }
 
-struct user *EffectiveAclUser = NULL;	/* hook for AT command permission */
+struct acluser *EffectiveAclUser = NULL;	/* hook for AT command permission */
 
 int 
 AclCheckPermWin(u, mode, w)
-struct user *u;
+struct acluser *u;
 int mode;
 struct win *w;
 {
@@ -1076,8 +1076,8 @@ struct win *w;
 
   if (!ok)
     {
-      struct usergroup **g = &u->u_group;
-      struct user *saved_eff = EffectiveAclUser;
+      struct aclusergroup **g = &u->u_group;
+      struct acluser *saved_eff = EffectiveAclUser;
 
       EffectiveAclUser = NULL;
       while (*g)
@@ -1096,7 +1096,7 @@ struct win *w;
 
 int 
 AclCheckPermCmd(u, mode, c)
-struct user *u;
+struct acluser *u;
 int mode;
 struct comm *c;
 {
@@ -1113,8 +1113,8 @@ struct comm *c;
   debug3("AclCheckPermCmd(%s %d %s) = ", u->u_name, mode, c->name); 
   if (!ok)
     {
-      struct usergroup **g = &u->u_group;
-      struct user *saved_eff = EffectiveAclUser;
+      struct aclusergroup **g = &u->u_group;
+      struct acluser *saved_eff = EffectiveAclUser;
 
       EffectiveAclUser = NULL;
       while (*g)

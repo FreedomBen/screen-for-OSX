@@ -76,11 +76,15 @@ char *myname, *message, *arg;
   printf("-S sockname   Name this session <pid>.sockname instead of <pid>.<tty>.<host>.\n");
   printf("-t title      Set title. (window's name).\n");
   printf("-T term       Use term as $TERM for windows, rather than \"screen\".\n");
+#ifdef UTF8
+  printf("-U            Tell screen to use UTF-8 encoding.\n");
+#endif
   printf("-v            Print \"Screen version %s\".\n", version);
   printf("-wipe         Do nothing, just clean up SockDir.\n");
 #ifdef MULTI
   printf("-x            Attach to a not detached screen. (Multi display mode).\n");
 #endif /* MULTI */
+  printf("-X            Execute <cmd> as a screen command in the specified session.\n");
   if (message && *message)
     {
       printf("\nError: ");

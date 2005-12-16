@@ -116,3 +116,7 @@ enum move_t {
 #define SJIS	2
 
 #endif
+
+#ifdef UTF8
+# define UCS_REPL 0xfffd  /* replacement character for illegal codes */
+#endif

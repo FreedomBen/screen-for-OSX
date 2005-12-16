@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1993-2001
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -214,13 +214,16 @@ int he;
 	}
       if (D_OP && InStr(D_OP, "\033[39;49m"))
         D_CAX = 1;
-      if (strcmp(D_termname, "xterm-color") == 0)
-	D_BE = 1;
+      if (D_OP && InStr(D_OP, "\033[m") && InStr(D_OP, "\033[0m"))
+        D_OP = 0;
       /* ISO2022 */
       if ((D_EA && InStr(D_EA, "\033(B")) || (D_AS && InStr(D_AS, "\033(0")))
 	D_CG0 = 1;
       if (InStr(D_termname, "xterm") || InStr(D_termname, "rxvt"))
 	D_CXT = 1;
+      /* "be" seems to be standard for xterms... */
+      if (D_CXT)
+	D_BE = 1;
     }
   if (nwin_options.flowflag == nwin_undef.flowflag)
     nwin_default.flowflag = D_CNF ? FLOW_NOW * 0 : 
@@ -322,12 +325,8 @@ int he;
 	  t = D_attrtyp[i];
         }
     }
-  if (D_CAF == 0 && D_CAB == 0)
-    {
-      /* hmm, where's the difference? */
-      D_CAF = D_CSF;
-      D_CAB = D_CSB;
-    }
+  if (D_CAF || D_CAB || D_CSF || D_CSB)
+    D_hascolor = 1;
   if (D_UT)
     D_BE = 1;	/* screen erased with background color */
 
@@ -459,6 +458,17 @@ int he;
       D_obufmax = D_COL;
       D_obuflenmax = D_obuflen - D_obufmax;
     }
+
+  /* Some xterm entries set F0 and F10 to the same string. Nuke F0. */
+  if (D_tcs[T_CAPS].str && D_tcs[T_CAPS + 10].str && !strcmp(D_tcs[T_CAPS].str, D_tcs[T_CAPS + 10].str))
+    D_tcs[T_CAPS].str = 0;
+  /* Some xterm entries set kD to ^?. Nuke it. */
+  if (D_tcs[T_NAVIGATE_DELETE].str && !strcmp(D_tcs[T_NAVIGATE_DELETE].str, "\0177"))
+    D_tcs[T_NAVIGATE_DELETE].str = 0;
+  /* wyse52 entries have kcub1 == kb == ^H. Nuke... */
+  if (D_tcs[T_CURSOR + 3].str && !strcmp(D_tcs[T_CURSOR + 3].str, "\008"))
+    D_tcs[T_CURSOR + 3].str = 0;
+
 #ifdef MAPKEYS
   D_nseqs = 0;
   for (i = 0; i < T_OCAPS - T_CAPS; i++)
@@ -563,7 +573,7 @@ CheckEscape()
       display = odisplay;
       return;
     }
-  ParseEscape((struct user *)0, "^aa");
+  ParseEscape((struct acluser *)0, "^aa");
   if (odisplay->d_user->u_Esc == -1)
     odisplay->d_user->u_Esc = DefaultEsc;
   if (odisplay->d_user->u_MetaEsc == -1)
@@ -723,7 +733,7 @@ int aflag;
 {
   char buf[TERMCAP_BUFSIZE];
   register char *p, *cp, *s, ch, *tname;
-  int i, wi, he;
+  int i, wi, he, found;
 
   if (display)
     {
@@ -753,6 +763,7 @@ int aflag;
       debug("MakeTermcap sets screenterm=screen\n");
       strcpy(screenterm, "screen");
     }
+  found = 1;
   do
     {
       strcpy(Term, "TERM=");
@@ -773,21 +784,23 @@ int aflag;
       if (e_tgetent(buf, p) == 1)
 	break;
       strcpy(p, "vt100");
+      found = 0;
     }
   while (0);		/* Goto free programming... */
 
   /* check for compatibility problems, displays == 0 after fork */
-  {
-    char xbuf[TERMCAP_BUFSIZE], *xbp = xbuf;
-    if (tgetstr("im", &xbp) && tgetstr("ic", &xbp) && displays)
-      {
+  if (found)
+    {
+      char xbuf[TERMCAP_BUFSIZE], *xbp = xbuf;
+      if (tgetstr("im", &xbp) && tgetstr("ic", &xbp) && displays)
+	{
 #ifdef TERMINFO
-        Msg(0, "Warning: smir and ich1 set in %s terminfo entry", p);
+	  Msg(0, "Warning: smir and ich1 set in %s terminfo entry", p);
 #else
-        Msg(0, "Warning: im and ic set in %s termcap entry", p);
+	  Msg(0, "Warning: im and ic set in %s termcap entry", p);
 #endif
-      }
-  }
+	}
+    }
 
   tcLineLen = 100;	/* Force NL */
   if (strlen(Term) > TERMCAP_BUFSIZE - 40)
@@ -877,7 +890,7 @@ int aflag;
 	AddCap("mr=\\E[7m:");
       if (D_MB || D_MD || D_MH || D_MR)
 	AddCap("me=\\E[m:ms:");
-      if (D_CAF || D_CAB)
+      if (D_hascolor)
 	AddCap("Co#8:pa#64:AF=\\E[3%dm:AB=\\E[4%dm:op=\\E[39;49m:AX:");
       if (D_VB)
 	AddCap("vb=\\Eg:");

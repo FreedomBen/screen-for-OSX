@@ -1,4 +1,4 @@
-/* Copyright (c) 1993-2000
+/* Copyright (c) 1995-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -47,6 +47,9 @@ struct layer
   int	 l_height;
   int    l_x;			/* cursor position */
   int    l_y;
+#ifdef UTF8
+  int    l_utf8;
+#endif
   struct LayFuncs *l_layfn;
   char	*l_data;
 

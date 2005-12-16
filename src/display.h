@@ -75,7 +75,7 @@ struct viewport
 struct display
 {
   struct display *d_next;	/* linked list */
-  struct user *d_user;		/* user who owns that display */
+  struct acluser *d_user;		/* user who owns that display */
   struct canvas *d_cvlist;	/* the canvases of this display */
   struct canvas *d_forecv;	/* current input focus */
   void (*d_processinput) __P((char *, int));
@@ -93,10 +93,15 @@ struct display
   int	d_top, d_bot;		/* scrollregion start/end */
   int	d_x, d_y;		/* cursor position */
   struct mchar d_rend;		/* current rendition */
+  int   d_col16change;		/* the 16col bits changed in attr */
   char	d_atyp;			/* current attribute types */
 #ifdef KANJI
   int   d_mbcs;			/* saved char for multibytes charset */
   int   d_kanji;		/* what kanji type the display is */
+#endif
+#ifdef UTF8
+  int	d_utf8;			/* display wants UTF-8 codes */
+  int	d_utf8char;		/* display wants UTF-8 codes */
 #endif
   int	d_insert;		/* insert mode flag */
   int	d_keypad;		/* application keypad flag */
@@ -154,6 +159,7 @@ struct display
   union	tcu d_tcs[T_N];		/* terminal capabilities */
   char *d_attrtab[NATTR];	/* attrib emulation table */
   char  d_attrtyp[NATTR];	/* attrib group table */
+  int   d_hascolor;		/* do we support color */
   short	d_dospeed;		/* baudrate of tty */
 #ifdef FONT
   char	d_c0_tab[256];		/* conversion for C0 */
@@ -202,9 +208,12 @@ extern struct display TheDisplay;
 #define D_x		DISPLAY(d_x)
 #define D_y		DISPLAY(d_y)
 #define D_rend		DISPLAY(d_rend)
+#define D_col16change	DISPLAY(d_col16change)
 #define D_atyp		DISPLAY(d_atyp)
 #define D_mbcs		DISPLAY(d_mbcs)
 #define D_kanji		DISPLAY(d_kanji)
+#define D_utf8		DISPLAY(d_utf8)
+#define D_utf8char	DISPLAY(d_utf8char)
 #define D_insert	DISPLAY(d_insert)
 #define D_keypad	DISPLAY(d_keypad)
 #define D_cursorkeys	DISPLAY(d_cursorkeys)
@@ -252,6 +261,7 @@ extern struct display TheDisplay;
 #define D_tcs		DISPLAY(d_tcs)
 #define D_attrtab	DISPLAY(d_attrtab)
 #define D_attrtyp	DISPLAY(d_attrtyp)
+#define D_hascolor	DISPLAY(d_hascolor)
 #define D_dospeed	DISPLAY(d_dospeed)
 #define D_c0_tab	DISPLAY(d_c0_tab)
 #define D_xtable	DISPLAY(d_xtable)

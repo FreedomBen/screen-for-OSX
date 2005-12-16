@@ -1,11 +1,9 @@
-#3.3
-# This is a global screenrc file
-# Install this file as /usr/local/etc/screenrc. See config.h
+#
+# This is an example for the global screenrc file.
+# You may want to install this file as /usr/local/etc/screenrc.
+# Check config.h for the exact location.
 #
 # Flaws of termcap and standard settings are done here.
-# Note: This file should not be shared between different hosts.
-#       The 'termcap' lines are written in termcap syntax.
-#       The syntax for a terminfo based host is slightly different.
 #
 
 #startup_message off
@@ -94,6 +92,3 @@ bind 'I' login on
 bind 'O' login off
 bind '}' history
 
-# colon takes a parameter since screen-3.8.6
-bind 'R' colon "screen -ln rlogin faui -8^b^b^b"
-bind 'P' colon "^p"

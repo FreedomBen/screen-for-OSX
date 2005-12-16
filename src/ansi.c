@@ -47,6 +47,9 @@ extern char *hstatusstring;
 #ifdef COPY_PASTE
 extern int compacthist;
 #endif
+#ifdef MULTIUSER
+extern struct acluser *EffectiveAclUser;
+#endif
 
 int Z0width, Z1width;		/* widths for Z0/Z1 switching */
 
@@ -324,8 +327,10 @@ register int len;
   for (cv = wp->w_layer.l_cvlist; cv; cv = cv->c_lnext)
     {
       display = cv->c_display;
+#if 0	/* done by new status code */
       if (D_status == STATUS_ON_WIN)
 	RemoveStatus();
+#endif
       if (D_nonblock == 1 && (D_obufp - D_obuf > D_obufmax))
 	{
 	  /* one last surprising '~' means: lost data */
@@ -353,8 +358,14 @@ register int len;
 
       /* The next part is only for speedup */
       if (curr->w_state == LIT &&
+#ifdef UTF8
+          !curr->w_utf8 &&
+#endif
 #ifdef KANJI
           curr->w_FontL != KANJI && curr->w_FontL != KANA && !curr->w_mbcs &&
+#endif
+#ifdef FONT
+	  curr->w_rend.font != '<' &&
 #endif
           c >= ' ' && c != 0x7f &&
           ((c & 0x80) == 0 || ((c >= 0xa0 || !curr->w_c1) && !curr->w_gr)) && !curr->w_ss &&
@@ -383,6 +394,24 @@ register int len;
 	    break;
 	}
       /* end of speedup code */
+
+#ifdef UTF8
+      if (curr->w_utf8)
+	{
+	  c = FromUtf8(c, &curr->w_utf8char);
+	  if (c == -1)
+	    continue;
+	  if (c == -2)
+	    {
+	      c = UCS_REPL;
+	      /* try char again */
+	      buf--;
+	      len++;
+	    }
+	  if (c > 0xff)
+	    debug1("read UNICODE %04x\n", c);
+	}
+#endif
 
     tryagain:
       switch (curr->w_state)
@@ -638,6 +667,10 @@ register int len;
 
 #ifdef FONT
 	  font = curr->w_rend.font = (c >= 0x80 ? curr->w_FontR : curr->w_FontL);
+# ifdef UTF8
+	  if (curr->w_utf8)
+	    font = 0;
+# endif
 # ifdef KANJI
 	  if (font == KANA && curr->w_kanji == SJIS && curr->w_mbcs == 0)
 	    {
@@ -707,7 +740,16 @@ register int len;
 	      curr->w_mbcs = t;
 	    }
 # endif
-	  if (curr->w_gr)
+	  if (font == '<' && c >= ' ')
+	    {
+	      font = curr->w_rend.font = 0;
+	      c |= 0x80;
+	    }
+#ifdef UTF8
+	  else if (curr->w_gr && !curr->w_utf8)
+#else
+	  else if (curr->w_gr)
+#endif
 	    {
 	      c &= 0x7f;
 	      if (c < ' ')	/* this is ugly but kanji support */
@@ -717,6 +759,10 @@ register int len;
 	  if (c == '\177')
 	    break;
 	  curr->w_rend.image = c;
+#ifdef UTF8
+	  if (curr->w_utf8)
+	    curr->w_rend.font = c >> 8;
+#endif
 #ifdef KANJI
 	  curr->w_rend.mbcs = curr->w_mbcs;
 #endif
@@ -1331,6 +1377,28 @@ StringEnd()
 	break;
       typ = atoi(curr->w_string);
       p++;
+#ifdef MULTIUSER
+      if (typ == 83)	/* 83 = 'S' */
+	{
+	  /* special execute commands sequence */
+	  char *args[MAXARGS];
+	  struct acluser *windowuser;
+
+	  windowuser = *FindUserPtr(":window:");
+	  if (windowuser && Parse(p, args))
+	    {
+	      for (display = displays; display; display = display->d_next)
+		if (D_forecv->c_layer->l_bottom == &curr->w_layer)
+		  break;	/* found it */
+	      if (display == 0 && curr->w_layer.l_cvlist)
+		display = curr->w_layer.l_cvlist->c_display;
+	      EffectiveAclUser = windowuser;
+	      DoCommand(args);
+	      EffectiveAclUser = 0;
+	    }
+	  break;
+	}
+#endif
 #ifdef RXVT_OSC
       if (typ == 0 || typ == 1 || typ == 20 || typ == 39 || typ == 49)
 	{
@@ -1471,9 +1539,9 @@ PrintFlush()
     }
   else if (display && curr->w_stringp > curr->w_string)
     {
-      PutStr(D_PO);
+      AddCStr(D_PO);
       AddStrn(curr->w_string, curr->w_stringp - curr->w_string);
-      PutStr(D_PF);
+      AddCStr(D_PF);
       Flush();
     }
   curr->w_stringp = curr->w_string;
@@ -1556,7 +1624,7 @@ SaveCursor()
   curr->w_saved = 1;
   curr->w_Saved_x = curr->w_x;
   curr->w_Saved_y = curr->w_y;
-  curr->w_SavedRend= curr->w_rend;
+  curr->w_SavedRend = curr->w_rend;
 #ifdef FONT
   curr->w_SavedCharset = curr->w_Charset;
   curr->w_SavedCharsetR = curr->w_CharsetR;
@@ -1874,7 +1942,7 @@ int on;
 
 static char rendlist[] =
 {
-  (1 << NATTR), A_BD, A_DI, A_SO, A_US, A_BL, 0, A_RV, 0, 0,
+  ~((1 << NATTR) - 1), A_BD, A_DI, A_SO, A_US, A_BL, 0, A_RV, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, ~(A_BD|A_SO|A_DI), ~A_SO, ~A_US, ~A_BL, 0, ~A_RV
 };
@@ -1882,15 +1950,26 @@ static char rendlist[] =
 static void
 SelectRendition()
 {
-  register int j, i = 0, a = curr->w_rend.attr;
 #ifdef COLOR
-  register int c = curr->w_rend.color;
+  register int j, i = 0, a = curr->w_rend.attr, c = curr->w_rend.color;
+#else
+  register int j, i = 0, a = curr->w_rend.attr;
 #endif
 
   do
     {
       j = curr->w_args[i];
 #ifdef COLOR
+# ifdef COLORS16
+      if (j == 0 || (j >= 30 && j <= 39))
+	a &= 0xbf;
+      if (j == 0 || (j >= 40 && j <= 49))
+	a &= 0x7f;
+      if (j >= 90 && j <= 97)
+	a |= 0x40;
+      if (j >= 100 && j <= 107)
+	a |= 0x80;
+# endif
       if (j >= 90 && j <= 97)
 	j -= 60;
       if (j >= 100 && j <= 107)
@@ -2501,9 +2580,9 @@ int visual;
 	if (cv->c_layer->l_bottom == &p->w_layer)
 	  break;
       if (cv && !visual)
-	PutStr(D_BL);
+	AddCStr(D_BL);
       else if (cv && D_VB)
-	PutStr(D_VB);
+	AddCStr(D_VB);
       else
         p->w_bell = visual ? BELL_VISUAL : BELL_FOUND;
     }
@@ -2531,7 +2610,7 @@ int on;
       if (!on && p->w_revvid && !D_CVR)
 	{
 	  if (D_VB)
-	    PutStr(D_VB);
+	    AddCStr(D_VB);
 	  else
 	    p->w_bell = BELL_VISUAL;
 	}

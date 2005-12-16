@@ -6,7 +6,11 @@
 @finalout
 @setchapternewpage odd
 @c %**end of header
-@set version 3.9.6
+@set version 3.9.9
+
+@direntry
+* Screen: (screen).             Full-screen window manager.
+@end direntry
 
 @c For examples, use a literal escape in info.
 @ifinfo
@@ -19,7 +23,7 @@
 @ifinfo
 This file documents the @code{Screen} virtual terminal manager.
 
-Copyright (c) 1993-1995 Free Software Foundation, Inc.
+Copyright (c) 1993-2001 Free Software Foundation, Inc.
 
 Permission is granted to make and distribute verbatim copies of
 this manual provided the copyright notice and this permission notice
@@ -47,7 +51,7 @@ by the Foundation.
 @title Screen
 @subtitle The virtual terminal manager
 @subtitle for Version @value{version}
-@subtitle Jul 1999
+@subtitle May 2001
 
 @page
 @vskip 0pt plus 1filll
@@ -388,6 +392,11 @@ Set the title (name) for the default shell or specified program.
 This option is equivalent to the @code{shelltitle} command
 (@pxref{Shell}).
 
+@item -U
+Run screen in UTF-8 mode. This option tells screen that your terminal
+sends and understands UTF-8 encoded characters. It also sets the default
+encoding for new windows to @samp{utf8}.
+
 @item -v
 Print the version number.
 
@@ -401,6 +410,13 @@ See the @code{-r} flag for a description how to construct matches.
 @item -x
 Attach to a session which is already attached elsewhere (multi-display
 mode).
+
+@item -X
+Send the specified command to a running screen session. You can use
+the @code{-d} or @code{-r} option to tell screen to look only for 
+attached or detached screen sessions. Note that this command doesn't
+work if the session is password protected.
+
 @end table
 
 @node Customization, Commands, Invoking Screen, Top
@@ -773,7 +789,7 @@ Change a user's permissions.  @xref{Multiuser Session}.
 Disallow other user in this session.  @xref{Multiuser Session}.
 @item aclgrp @var{usrname [groupname]}
 Inherit permissions granted to a group leader. @xref{Multiuser Session}.
-@item aclumask @var{[users]+\-bits ...}
+@item aclumask @var{[users]+/-bits ...}
 Predefine access to new windows. @xref{Umask}.
 @item activity @var{message}
 Set the activity notification message.  @xref{Monitor}.
@@ -783,6 +799,8 @@ Synonym to @code{acladd}.  @xref{Multiuser Session}.
 Set all windows to partial refresh.  @xref{Redisplay}.
 @item at @var{[ident][@kbd{#}@var{|}@kbd{*}@var{|}@kbd{%}] command [args]}
 Execute a command at other displays or windows.  @xref{At}.
+@item attrcolor @var{attrib [attribute/color-modifier]}
+Map attributes to colors.  @xref{Attrcolor}.
 @item autodetach @var{state}
 Automatically detach the session on SIGHUP.  @xref{Detach}.
 @item autonuke @var{state}
@@ -865,6 +883,8 @@ Set the default program for new windows.  @xref{Shell}.
 Select default idle monitoring behavior.  @xref{Silence}.
 @item defslowpaste @var{msec}
 Select the default inter-character timeout when pasting.  @xref{Paste}.
+@item defutf8 @var{state}
+Select default character encoding.  @xref{Character Processing}.
 @item defwrap @var{state}
 Set default line-wrapping behavior.  @xref{Wrap}.
 @item defwritelock @var{on|off|auto}
@@ -875,6 +895,8 @@ Keep dead windows.  @xref{Zombie}.
 Disconnect @code{screen} from the terminal.  @xref{Detach}.
 @item digraph
 Enter digraph sequence.  @xref{Digraph}.
+@item dinfo
+Display terminal information.  @xref{Info}.
 @item displays
 List currently active user interfaces. @xref{Displays}.
 @item dumptermcap
@@ -901,7 +923,7 @@ Append to hardcopy files.  @xref{Hardcopy}.
 Place, where to dump hardcopy files.  @xref{Hardcopy}.
 @item hardstatus @var{[state]}
 Use the hardware status line.  @xref{Hardware Status Line}.
-@item height @var{[lines]}
+@item height @var{[lines [cols]]}
 Set display height.  @xref{Window Size}.
 @item help
 Display current key bindings.  @xref{Help}.
@@ -910,7 +932,7 @@ Find previous command beginning @dots{}.  @xref{History}.
 @item hstatus @var{status}
 Change the window's hardstatus line.  @xref{Hardstatus}.
 @item info
-Display terminal settings.  @xref{Info}.
+Display window settings.  @xref{Info}.
 @item ins_reg @var{[key]}
 Removed, use @code{paste} instead.  @xref{Registers}.
 @item kanji @var{wtype [dtype]}
@@ -985,7 +1007,7 @@ Set a command for VT100 printer port emulation.  @xref{Printcmd}.
 Treat a register as input to @code{screen}.  @xref{Registers}.
 @item quit
 Kill all windows and exit.  @xref{Quit}.
-@item readbuf
+@item readbuf @var{[filename]}
 Read the paste buffer from the screen-exchange file.  @xref{Screen-Exchange}.
 @item readreg @var{[reg [file]]}
 Load a register from paste buffer or file.  @xref{Registers}.
@@ -999,6 +1021,8 @@ Kill current region.  @xref{Regions}.
 Delete the screen-exchange file.  @xref{Screen-Exchange}.
 @item reset
 Reset the terminal settings for the window.  @xref{Reset}.
+@item resize [(+/-)lines]
+Grow or shrink a region
 @item screen @var{[opts] [n] [cmd [args]]}
 Create a new window.  @xref{Screen Command}.
 @item scrollback @var{num}
@@ -1045,10 +1069,12 @@ Ditto, for both systems.  @xref{Termcap Syntax}.
 Display time and load average.  @xref{Time}.
 @item title @var{[windowtitle]}
 Set the name of the current window.  @xref{Title Command}.
-@item umask @var{[users]+\-bits ...}
+@item umask @var{[users]+/-bits ...}
 Synonym to @code{aclumask}. @xref{Umask}.
 @item unsetenv @var{var}
 Unset environment variable for new windows.  @xref{Setenv}.
+@item utf8 @var{[state [dstate]]}
+Select character encoding of the current window.  @xref{Character Processing}.
 @item vbell @var{[state]}
 Use visual bell.  @xref{Bell}.
 @item vbell_msg @var{[message]}
@@ -1059,13 +1085,13 @@ Set delay for vbell message.  @xref{Bell}.
 Display @code{screen} version.  @xref{Version}.
 @item wall @var{message}
 Write a message to all displays.  @xref{Multiuser Session}.
-@item width @var{[num]}
+@item width @var{[cols [lines]]}
 Set the width of the window.  @xref{Window Size}.
 @item windows
 List active windows.  @xref{Windows}.
 @item wrap @var{[state]}
 Control line-wrap behavior.  @xref{Wrap}.
-@item writebuf
+@item writebuf @var{[filename]}
 Write paste buffer to screen-exchange file.  @xref{Screen-Exchange}.
 @item writelock @var{on|off|auto}
 Grant exclusive write permission.  @xref{Multiuser Session}.
@@ -1757,7 +1783,7 @@ even if only one window is displayed. The default
 is @samp{splitonly}.
 
 The second form changes the text used for the caption. You can use
-all string escapes (@xref{String Escapes}). @code{Screen} uses
+all string escapes (@pxref{String Escapes}). @code{Screen} uses
 a default of @samp{%3n %t}.
 
 You can mix both forms by providing the string as an additional
@@ -2009,7 +2035,7 @@ login off} will map these keys to be @kbd{C-a I} and @kbd{C-a O}
 The mode of each newly allocated pseudo-tty is set to @var{mode}.
 @var{mode} is an octal number as used by chmod(1).  Defaults to 0622 for
 windows which are logged in, 0600 for others (e.g. when @code{-ln} was 
-specified for creation. @pxref{Screen Command}).
+specified for creation, @pxref{Screen Command}).
 @end deffn
 
 @node Monitor, Windows, Mode, Window Settings
@@ -2161,8 +2187,14 @@ ESC P                   (A)     Device Control String
                                 Outputs a string directly to the host
                                 terminal without interpretation.
 ESC _                   (A)     Application Program Command (Hardstatus)
-ESC ]                   (A)     Operating System Command (Hardstatus, xterm
+ESC ] 0 ; string ^G     (A)     Operating System Command (Hardstatus, xterm
                                 title hack)
+ESC ] 83 ; cmd ^G       (A)     Execute screen command. This only works if
+                                multi-user support is compiled into screen.
+                                The pseudo-user ":window:" is used to check
+                                the access control list. Use "addacl :window:
+                                -rwx #?" to create a user with no rights and
+                                allow only the needed commands.
 Control-N               (A)     Lock Shift G1 (SO)
 Control-O               (A)     Lock Shift G0 (SI)
 ESC n                   (A)     Lock Shift G2
@@ -2271,7 +2303,7 @@ Because the sequences generated by a keypress can
 change after a reattach from a different terminal type, it is
 possible to bind commands to the termcap name of the keys.
 @code{Screen} will insert the correct binding after each
-reattach. @xref{Bindkey} for further details on the syntax and examples.
+reattach. See @ref{Bindkey} for further details on the syntax and examples.
 
 Here is the table of the default key bindings. (A) means that the
 command is executed if the keyboard is switched into application
@@ -2435,7 +2467,7 @@ window: the cursor position in the form @samp{(@var{column},@var{row})}
 starting with @samp{(1,1)}, the terminal width and height plus the size
 of the scrollback buffer in lines, like in @samp{(80,24)+50}, 
 the current state of window XON/XOFF flow control is shown like this
-(see also @xref{Flow Control}):
+(@pxref{Flow Control}):
 @example
   +flow     automatic flow control, currently on.
   -flow     automatic flow control, currently off.
@@ -2456,6 +2488,7 @@ The currently active
 character set (@samp{G0}, @samp{G1}, @samp{G2}, or @samp{G3}), and in
 square brackets the terminal character sets that are currently
 designated as @samp{G0} through @samp{G3}.  
+If the window is in UTF-8 mode, the string @samp{UTF-8} is shown instead.
 Additional modes depending on the type of the window are displayed at
 the end of the status line (@pxref{Window Types}).
 
@@ -2463,6 +2496,12 @@ If the state machine of the terminal emulator is in a non-default state,
 the info line is started with a string identifying the current state.
 
 For system information use @code{time}.
+@end deffn
+
+@deffn Command dinfo
+(none)@*
+Show what screen thinks about your terminal. Useful if you want to know
+why features like color or the alternate charset don't work.
 @end deffn
 
 @node Redisplay, Wrap, Info, Virtual Terminal
@@ -2529,15 +2568,19 @@ an application.
 @node Window Size, Character Processing, Reset, Virtual Terminal
 @section Window Size
 @kindex W
-@deffn Command width [num]
+@deffn Command width [@code{-w}|@code{-d}] [cols [lines]]
 (@kbd{C-a W})@*
 Toggle the window width between 80 and 132 columns, or set it to
-@var{num} columns if an argument is specified.  This requires a
+@var{cols} columns if an argument is specified.  This requires a
 capable terminal and the termcap entries @samp{Z0} and @samp{Z1}.  See
 the @code{termcap} command (@pxref{Termcap}), for more information.
+You can also specify a height if you want to
+change  both  values.  The @code{-w} option tells screen to leave
+the display size unchanged and just set the  window  size,
+@code{-d} vice versa.
 @end deffn
 
-@deffn Command height @var{[lines]}
+@deffn Command height [@code{-w}|@code{-d}] [lines [cols]]
 (none)@*
 Set the display height to a specified number of lines. When no
 argument is given it toggles between 24 and 42 lines display.
@@ -2599,7 +2642,20 @@ that the corresponding charset/mapping should not be changed
 @samp{.} chars). New windows have @samp{BBBB02} as default
 charset, unless a @samp{kanji} command is active.
 
-The current setting can be viewed with the @xref{Info} command.
+The current setting can be viewed with the @ref{Info} command.
+@end deffn
+
+@deffn Command utf8 [state [dstate]]
+(none)@*
+Change the encoding used in the current window. If utf8 is enabled, the
+strings sent to the window will be UTF-8 encoded and vice versa.
+Omitting the
+parameter toggles the setting. If a second parameter is given, the
+display's
+encoding is also changed (this should rather be done with screen's
+@samp{-U} option).
+See also @samp{defutf8}, which changes the default setting of a new
+window.
 @end deffn
 
 @deffn Command defc1 state
@@ -2630,6 +2686,13 @@ new windows is changed. Initial setting is @samp{off}, i.e. @samp{jis}.
 Like the @samp{charset} command except that the default setting for
 new windows is changed. Shows current default if called without
 argument.
+@end deffn
+
+@deffn Command defutf8 state
+(none)@*
+Same as the @samp{utf8} command except that the default setting for new
+windows is changed. Initial setting is @code{on} if screen was started
+with @samp{-U}, otherwise @code{off}.
 @end deffn
 
 @node Copy and Paste, Subprocess Execution, Virtual Terminal, Top
@@ -2960,7 +3023,7 @@ Save the specified @var{string} to the register @var{key}.
 Stuff the string @var{string} in the input buffer of the current window.
 This is like the @code{paste} command, but with much less overhead.
 You cannot paste large buffers with the @code{stuff} command. It is most
-useful for key bindings. @xref{Bindkey}
+useful for key bindings. @xref{Bindkey}.
 
 @end deffn
 
@@ -2983,9 +3046,10 @@ C-a : bufferfile
 @end deffn
 
 @kindex <
-@deffn Command readbuf
+@deffn Command readbuf [filename]
 (@kbd{C-a <})@*
-Reads the contents of the current screen-exchange file into the paste buffer. 
+Reads the contents of the specified file into the paste buffer.
+If no file is specified, the screen-exchange filename is used.
 @end deffn
 
 @kindex =
@@ -2995,10 +3059,11 @@ Unlinks the screen-exchange file.
 @end deffn
 
 @kindex >
-@deffn Command writebuf
+@deffn Command writebuf [filename]
 (@kbd{C-a >})@*
-Writes the contents of the paste buffer to a public accessible
-screen-exchange file. This is thought of as a primitive means of
+Writes the contents of the paste buffer to the specified file, or the
+public accessible screen-exchange file if no filename is given.
+This is thought of as a primitive means of
 communication between @code{screen} users on the same host. See also
 @kbd{C-a @key{ESC}} (@pxref{Copy}).
 @end deffn
@@ -3248,7 +3313,7 @@ entry in one of the tables tells screen how to react if a certain
 sequence of characters is encountered. There are three tables:
 one that should contain actions programmed by the user, one for
 the default actions used for terminal emulation and one for
-screen's copy mode to do cursor movement. @xref{Input Translation}
+screen's copy mode to do cursor movement. See @ref{Input Translation}
 for a list of default key bindings.
 
 If the @samp{-d}
@@ -3929,10 +3994,10 @@ the type even if the terminal supports a hardstatus line.
 
 The third form specifies the contents of the hardstatus line.
 @code{%h} is used as default string, i.e. the stored hardstatus of the
-current window (settable via @samp{\E]0;^G} or @samp{\E_\\}) is
+current window (settable via @samp{ESC]0;^G} or @samp{ESC_\\}) is
 displayed.
 You can customize this to any string you like including
-string escapes (@xref{String Escapes}).
+string escapes (@pxref{String Escapes}).
 If you leave
 out the argument @var{string}, the current string is displayed.
 
@@ -4102,6 +4167,7 @@ categories.
 * Zombie::                      Keep dead windows.
 * Printcmd::                    Set command for VT100 printer port emulation.
 * Sorendition::			Change the text highlighting method.
+* Attrcolor::			Map attributes to colors.
 @end menu
 
 @node At, Break,  , Miscellaneous
@@ -4318,19 +4384,41 @@ Warning: Be careful with this command! If other user have write
 access to your terminal, they will be able to fire off print commands.
 @end deffn
 
-@node Sorendition, , Printcmd, Miscellaneous
+@node Sorendition, Attrcolor, Printcmd, Miscellaneous
 @section Sorendition
 @deffn Command sorendition @var{[attr [color]]}
 (none)@*
 Change the way screen does highlighting for text marking and printing
 messages.
-@var{attr} is a hexadecimal number and describes the attributes
-(inverse, underline, ...) the text will get.  @var{color}
-is a 2 digit number and changes the 
-foreground/background of the highlighted text.
-Some knowledge of screen's internal character representation is
-needed to make the characters appear in the desired way. The default
-is currently @samp{10 99} (standout, default colors).
+See the chapter
+about string escapes (@pxref{String Escapes}) for the syntax of
+the modifiers. The default is currently @samp{=s dd} (standout,
+default colors).
+@end deffn
+
+@node Attrcolor, , Sorendition, Miscellaneous
+@section Attrcolor
+@deffn Command attrcolor @var{attrib [attribute/color-modifier]}
+(none)@*
+This command can be used to highlight attributes by changing the color of
+the text. If the attribute
+@var{attrib}
+is in use, the specified attribute/color modifier is also applied. If no
+modifier is given, the current one is deleted. See the chapter
+about string escapes (@pxref{String Escapes}) for the syntax of
+the modifier.
+
+@noindent 
+Examples:
+@table @code
+@item attrcolor b "R"
+Change the color to bright red if bold text is to be printed
+@item attrcolor u "-u b"
+Use blue text instead of underline
+@item attrcolor b "I"
+Use bright colors for bold text. Most terminal emulators do this
+already
+@end table
 @end deffn
 
 @node String Escapes, Environment, Miscellaneous, Top
@@ -4387,11 +4475,90 @@ the part to the next @code{%?} is displayed only if an escape expands
 to an nonempty string
 @item :
 else part of @code{%?}
+@item @{
+attribute/color modifier string terminated by the next @code{@}}
 @end table
 The @code{c} and @code{C} escape may be qualified with a @code{0} to
 make screen use
 zero instead of space as fill character. The @code{n} escape understands
 a length qualifier (e.g. @code{%3n}).
+
+An attribute/color modifier is is used to change the attributes or the
+color settings. Its format
+is @samp{[attribute modifier] [color description]}. The attribute modifier
+must be prefixed by a change type indicator if it can be confused with
+a color desciption. The following change types are known: 
+@table @code
+@item +
+add the specified set to the current attributes
+@item -
+remove the set from the current attributes
+@item !
+invert the set in the current attributes
+@item =
+change the current attributes to the specified set
+@end table
+The attribute set can either be specified as a hexadecimal number or
+a combination of the following letters: 
+@table @code
+@item u
+underline
+@item b
+bold
+@item r
+reverse
+@item s
+standout
+@item B
+blinking
+@end table
+Colors are coded either as a hexadecimal number or two letters specifying
+the desired background and foreground color (in that order). The following
+colors are known:
+@table @code
+@item k
+black
+@item r
+red
+@item g
+green
+@item y
+yellow
+@item b
+blue
+@item m
+magenta
+@item c
+cyan
+@item w
+white
+@item d
+default color
+@item .
+leave color unchanged
+@end table
+The capitalized versions of the letter specify bright colors. You can also
+use the pseudo-color @samp{i} to set just the brightness and leave the color
+unchanged.
+
+A one digit/letter color description is treated as foreground or
+background color dependant on the current attributes: if reverse mode is
+set, the background color is changed instead of the foreground color.
+If you don't like this, prefix the color with a @samp{.}. If you want
+the same behaviour for two-letter color descriptions, also prefix them
+with a @samp{.}.
+
+@noindent
+Examples:
+@table @samp
+@item G
+set color to bright green
+@item +b r
+use bold red
+@item = yd
+clear all attributes, write in default color on yellow background.
+@end table
+
 
 @node Environment, Files, String Escapes, Top
 @chapter Environment Variables

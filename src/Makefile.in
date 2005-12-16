@@ -7,6 +7,8 @@
 srcdir = @srcdir@
 VPATH = @srcdir@
 
+DESTDIR = 
+
 # Where to install screen.
 
 prefix = @prefix@
@@ -21,9 +23,9 @@ SCREEN = screen-$(VERSION)
 ETCSCREENRC = `sed < config.h -n -e '/define ETCSCREENRC/s/^.*"\([^"]*\)"/\1/p'`
 
 CC = @CC@
-CFLAGS = -O
+CFLAGS = @CFLAGS@
 CPPFLAGS = @CPPFLAGS@
-LDFLAGS =
+LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
 
 CPP=@CPP@
@@ -52,12 +54,12 @@ CFILES=	screen.c ansi.c fileio.c mark.c misc.c resize.c socket.c \
 	search.c tty.c term.c window.c utmp.c loadav.c putenv.c help.c \
 	termcap.c input.c attacher.c pty.c process.c display.c comm.c \
 	kmapdef.c acls.c braille.c braille_tsi.c logfile.c layer.c \
-	sched.c teln.c nethack.c
+	sched.c teln.c nethack.c utf8.c
 OFILES=	screen.o ansi.o fileio.o mark.o misc.o resize.o socket.o \
 	search.o tty.o term.o window.o utmp.o loadav.o putenv.o help.o \
 	termcap.o input.o attacher.o pty.o process.o display.o comm.o \
 	kmapdef.o acls.o braille.o braille_tsi.o logfile.o layer.o \
-	sched.o teln.o nethack.o
+	sched.o teln.o nethack.o utf8.o
 
 all:	screen
 
@@ -68,14 +70,14 @@ screen: $(OFILES)
 	$(CC) -c -I. -I$(srcdir) $(M_CFLAGS) $(DEFS) $(OPTIONS) $(CFLAGS) $<
 
 install_bin: .version screen
-	-if [ -f $(bindir)/$(SCREEN) ] && [ ! -f $(bindir)/$(SCREEN).old ]; \
-		then mv $(bindir)/$(SCREEN) $(bindir)/$(SCREEN).old; fi
-	$(INSTALL_PROGRAM) screen $(bindir)/$(SCREEN)
-	-chown root $(bindir)/$(SCREEN) && chmod 4755 $(bindir)/$(SCREEN)
+	-if [ -f $(DESTDIR)$(bindir)/$(SCREEN) ] && [ ! -f $(DESTDIR)$(bindir)/$(SCREEN).old ]; \
+		then mv $(DESTDIR)$(bindir)/$(SCREEN) $(DESTDIR)$(bindir)/$(SCREEN).old; fi
+	$(INSTALL_PROGRAM) screen $(DESTDIR)$(bindir)/$(SCREEN)
+	-chown root $(DESTDIR)$(bindir)/$(SCREEN) && chmod 4755 $(DESTDIR)$(bindir)/$(SCREEN)
 # This doesn't work if $(bindir)/screen is a symlink
-	-if [ -f $(bindir)/screen ] && [ ! -f $(bindir)/screen.old ]; then mv $(bindir)/screen $(bindir)/screen.old; fi
-	rm -f $(bindir)/screen
-	ln -s $(SCREEN) $(bindir)/screen
+	-if [ -f $(DESTDIR)$(bindir)/screen ] && [ ! -f $(DESTDIR)$(bindir)/screen.old ]; then mv $(DESTDIR)$(bindir)/screen $(DESTDIR)$(bindir)/screen.old; fi
+	rm -f $(DESTDIR)$(bindir)/screen
+	cd $(DESTDIR)$(bindir) && ln -sf $(SCREEN) screen
 
 ###############################################################################
 install: installdirs install_bin
@@ -91,14 +93,14 @@ install: installdirs install_bin
 
 installdirs:
 # Path leading to ETCSCREENRC and Socketdirectory not checked.
-	$(srcdir)/etc/mkinstalldirs $(bindir)
+	$(srcdir)/etc/mkinstalldirs $(DESTDIR)$(bindir)
 	cd doc ; $(MAKE) installdirs
 
 uninstall: .version
-	rm -f $(bindir)/$(SCREEN)
-	rm -f $(bindir)/screen
-	-mv $(bindir)/screen.old $(bindir)/screen
-	rm -f $(ETCSCREENRC)
+	rm -f $(DESTDIR)$(bindir)/$(SCREEN)
+	rm -f $(DESTDIR)$(bindir)/screen
+	-mv $(DESTDIR)$(bindir)/screen.old $(DESTDIR)$(bindir)/screen
+	rm -f $(DESTDIR)$(ETCSCREENRC)
 	cd doc; $(MAKE) uninstall
 
 shadow:
@@ -133,7 +135,7 @@ mostlyclean:
 	rm -f $(OFILES) screen config.cache osdef0.c osdef1.sed osdef2.sed
 
 clean celan: mostlyclean
-	rm -f tty.c term.h comm.h osdef.h core
+	rm -f tty.c term.h comm.h osdef.h kmapdef.c core
 
 # Delete all files from the current directory that are created by 
 # configuring or building the program.
@@ -154,7 +156,7 @@ maintainer-clean:
 realclean: .version mostlyclean
 	rm -f $(SCREEN).tar $(SCREEN).tar.gz
 	rm -f config.status Makefile doc/Makefile
-	rm -f tty.c term.h comm.h osdef.h
+	rm -f tty.c term.h comm.h osdef.h kmapdef.c
 	rm -f config.h
 	echo "install all Makefiles and config:" > Makefile
 	echo "  sh ./configure" >> Makefile
@@ -190,7 +192,7 @@ $(SCREEN).tar: .version term.h comm.h tty.c kmapdef.c
 	  ../dist/$(SCREEN)/terminfo
 	mkdir dist/$(SCREEN)/etc
 	cd etc; ln * ../dist/$(SCREEN)/etc
-	sed -e 's/^startup/#startup/' -e 's/^autodetach/#autodetach/' < $(ETCSCREENRC) > dist/$(SCREEN)/etc/etcscreenrc 
+	# sed -e 's/^startup/#startup/' -e 's/^autodetach/#autodetach/' < $(ETCSCREENRC) > dist/$(SCREEN)/etc/etcscreenrc 
 	cp $(HOME)/.screenrc dist/$(SCREEN)/etc/screenrc
 	mkdir dist/$(SCREEN)/doc
 	sed -e 's@/local/emacs@/usr/local@g' < doc/Makefile.in > dist/$(SCREEN)/doc/Makefile.in
@@ -320,4 +322,6 @@ sched.o: sched.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
 teln.o: teln.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
 nethack.o: nethack.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h
+utf8.o: utf8.c rcs.h config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h

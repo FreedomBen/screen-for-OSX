@@ -28,7 +28,6 @@ RCS_ID("$Id$ FAU")
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <netdb.h>
-#include <arpa/inet.h>
 
 #include "config.h"
 

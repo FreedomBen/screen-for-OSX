@@ -40,6 +40,7 @@ AC_SUBST(VERSION)
 AC_PREFIX_PROGRAM(screen)
 AC_PREFIX_PROGRAM(gzip)
 
+old_CFLAGS="$CFLAGS"
 AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_GCC_TRADITIONAL
@@ -706,14 +707,47 @@ main()
 ],[
     if test -f conftest_grp; then
 	ptygrp=`cat conftest_grp`
-	AC_NOTE(- pty mode: 0620, group: $ptygrp)
+	AC_NOTE([- pty mode: 0620, group: $ptygrp])
 	AC_DEFINE(PTYMODE, 0620)
 	AC_DEFINE_UNQUOTED(PTYGROUP,$ptygrp)
     else
 	AC_NOTE(- ptys are world accessable)
     fi
-],
-    AC_NOTE(- can't determine - assume ptys are world accessable)
+],[
+    WRITEPATH=''
+    XTERMPATH=''
+    AC_PATH_PROG(WRITEPATH, write)
+    AC_PATH_PROG(XTERMPATH, xterm)
+    found=
+    if test -n "$WRITEPATH$XTERMPATH"; then
+      findfollow=
+      lsfollow=
+      found=`find $WRITEPATH $XTERMPATH -follow -print 2>/dev/null`
+      if test -n "$found"; then
+	findfollow=-follow
+	lsfollow=L
+      fi
+      if test -n "$XTERMPATH"; then
+	ptygrpn=`ls -l$lsfollow $XTERMPATH | sed -n -e 1p | $AWK '{print $4}'`
+	if test tty != "$ptygrpn"; then
+	  XTERMPATH=
+	fi
+      fi
+    fi
+    if test -n "$WRITEPATH$XTERMPATH"; then
+      found=`find $WRITEPATH $XTERMPATH $findfollow -perm -2000 -print` 
+      if test -n "$found"; then
+	ptygrp=`ls -ln$lsfollow $found | sed -n -e 1p | $AWK '{print $4}'`
+	AC_NOTE([- pty mode: 0620, group: $ptygrp])
+	AC_DEFINE(PTYMODE, 0620)
+	AC_DEFINE_UNQUOTED(PTYGROUP,$ptygrp)
+      else
+	AC_NOTE(- ptys are world accessable)
+      fi
+    else
+      AC_NOTE(- can't determine - assume ptys are world accessable)
+    fi
+  ]
 )
 rm -f conftest_grp
 
@@ -826,7 +860,8 @@ else
 ],AC_DEFINE(NLIST_DECLARED))
 
   AC_CHECKING(for avenrun symbol)
-  for av in avenrun _avenrun _Loadavg ; do
+  nlist64=
+  for av in avenrun _avenrun _Loadavg avenrun _avenrun _Loadavg; do
   AC_TRY_RUN([
 #include <sys/types.h>
 #ifdef NLIST_STRUCT
@@ -835,11 +870,7 @@ else
 #include <a.out.h>
 #endif
 
-#ifdef __sgi
-# if _MIPS_SZLONG == 64 || (defined(_MIPS_ISA) && _MIPS_ISA > 2)
-#  define nlist nlist64
-# endif
-#endif
+$nlist64
 
 struct nlist nl[2];
 
@@ -860,12 +891,19 @@ main()
   exit(0);
 }
   ],avensym=$av;break)
+  if test "$av" = _Loadavg; then
+    nlist64='#define nlist nlist64'
+  fi
   done
   if test -z "$avensym" ; then
     AC_NOTE(- no avenrun symbol found)
   else
     AC_NOTE(- using avenrun symbol '$avensym')
     AC_DEFINE_UNQUOTED(LOADAV_AVENRUN,"$avensym")
+    if test -n "$nlist64"; then
+      AC_NOTE(- used nlist64 to find it)
+      AC_DEFINE(LOADAV_USE_NLIST64)
+    fi
     load=1
   fi
   else
@@ -884,7 +922,7 @@ AC_PROGRAM_SOURCE([
 #include <sys/types.h>
 #include <sys/param.h>
 ],[
-#if !defined(LOADAV_GETLOADAVG) && ((defined(hp300) && !defined(__hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news) || !(defined(__osf__) && defined(__alpha)) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
+#if !defined(LOADAV_GETLOADAVG) && ((defined(hp300) && !defined(__hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news) || (!defined(__osf__) && defined(__alpha)) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
 loadtype=long
 # if defined(apollo) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX)
 loadscale=65536
@@ -1118,12 +1156,21 @@ AC_MSG_RESULT(no)
 AC_MSG_CHECKING(for putenv)
 AC_TRY_LINK(,[putenv((char *)0);unsetenv((char *)0);], AC_MSG_RESULT(yes) ,  AC_MSG_RESULT(no);AC_DEFINE(NEEDPUTENV)
 ))
+AC_MSG_CHECKING([for nl_langinfo(CODESET)])
+AC_TRY_LINK([
+#include <langinfo.h>
+],[nl_langinfo(CODESET);], AC_MSG_RESULT(yes);AC_DEFINE(HAVE_NL_LANGINFO), AC_MSG_RESULT(no))
 
 AC_CHECK_FUNCS(rename fchmod fchown strerror lstat _exit utimes vsnprintf getcwd)
 
 dnl
 dnl    ****  the end  ****
 dnl
+if test -z "$old_CFLAGS"; then
+  if test "x$CFLAGS" = "x-g"; then
+    CFLAGS="-O"
+  fi
+fi
 dnl Ptx bug workaround -- insert -lc after -ltermcap
 test -n "$seqptx" && LIBS="-ltermcap -lc -lsocket -linet -lnsl -lsec -lseq"
 
