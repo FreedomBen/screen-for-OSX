@@ -50,7 +50,6 @@ static void MarkSetCursor __P((void));
 extern struct win *fore;
 extern struct display *display;
 extern char *null, *blank;
-extern char Esc, MetaEsc;
 
 #ifdef NETHACK
 extern nethackflag;
@@ -296,7 +295,7 @@ int a, b;
 
 
 int
-GetHistory()	/* return value 1 if d_copybuffer changed */
+GetHistory()	/* return value 1 if u_copybuffer changed */
 {
   int i = 0, q = 0, xx, yy, x, y;
   char *linep;
@@ -324,15 +323,15 @@ GetHistory()	/* return value 1 if d_copybuffer changed */
     }
   if (yy < 0)
     return 0;
-  if (d_copybuffer != NULL)
-    free(d_copybuffer);
-  if ((d_copybuffer = malloc((unsigned) (i - x + 2))) == NULL)
+  if (d_user->u_copybuffer != NULL)
+    UserFreeCopyBuffer(d_user);
+  if ((d_user->u_copybuffer = malloc((unsigned) (i - x + 2))) == NULL)
     {
       Msg(0, "Not enough memory... Sorry.");
       return 0;
     }
-  bcopy(linep - i + x + 1, d_copybuffer, i - x + 1);
-  d_copylen = i - x + 1;
+  bcopy(linep - i + x + 1, d_user->u_copybuffer, i - x + 1);
+  d_user->u_copylen = i - x + 1;
   return 1;
 }
 
@@ -375,6 +374,7 @@ static void
 MarkSetCursor()
 {
   markdata = (struct markdata *)d_lay->l_data;
+  fore = d_fore;
   GotoPos(markdata->cx, W2D(markdata->cy));
 }
 
@@ -395,6 +395,7 @@ int *inlenp;
 */
       
   markdata = (struct markdata *)d_lay->l_data;
+  fore = d_fore;
   if (inbufp == 0)
     {
       MarkAbort();
@@ -436,7 +437,7 @@ int *inlenp;
 	       * we can place on the screen are 1000 single letter words. Thus 1001
 	       * is sufficient. Users with bigger screens never write in single letter
 	       * words, as they should be more advanced. jw.
-	       * Oh, wrong. We still give even the experienced d_user a factor of ten.
+	       * Oh, wrong. We still give even the experienced user a factor of ten.
 	       */
 	    }
 	}
@@ -748,30 +749,28 @@ int *inlenp;
 	      x2 = cx;
 	      y2 = cy;
 	      newcopylen = rem(markdata->x1, markdata->y1, x2, y2, 2, (char *)0, 0); /* count */
-	      if (d_copybuffer != NULL && !append_mode)
+	      if (d_user->u_copybuffer != NULL && !append_mode)
 		{
-		  d_copylen = 0;
-		  free(d_copybuffer);
-		  d_copybuffer = NULL;
+		  UserFreeCopyBuffer(d_user);
 		}
 	      if (newcopylen > 0)
 		{
 		  /* the +3 below is for : cr + lf + \0 */
-		  if (d_copybuffer != NULL)
-		    d_copybuffer = realloc(d_copybuffer,
-			(unsigned) (d_copylen + newcopylen + 3));
+		  if (d_user->u_copybuffer != NULL)
+		    d_user->u_copybuffer = realloc(d_user->u_copybuffer,
+			(unsigned) (d_user->u_copylen + newcopylen + 3));
 		  else
 		    {
-		    d_copylen = 0;
-		    d_copybuffer = malloc((unsigned) (newcopylen + 3));
+		      d_user->u_copylen = 0;
+		      d_user->u_copybuffer = malloc((unsigned) (newcopylen + 3));
 		    }
-		  if (d_copybuffer == NULL)
+		  if (d_user->u_copybuffer == NULL)
 		    {
 		      MarkAbort();
 		      in_mark = 0;
 		      Msg(0, "Not enough memory... Sorry.");
-		      d_copylen = 0;
-		      d_copybuffer = NULL;
+		      d_user->u_copylen = 0;
+		      d_user->u_copybuffer = NULL;
 		      break;
 		    }
 		  if (append_mode)
@@ -784,17 +783,17 @@ int *inlenp;
 			case 0:
 			  if (join_with_cr)
 			    {
-			      d_copybuffer[d_copylen] = '\r';
-			      d_copylen++;
+			      d_user->u_copybuffer[d_user->u_copylen] = '\r';
+			      d_user->u_copylen++;
 			    }
-			  d_copybuffer[d_copylen] = '\n';
-			  d_copylen++;
+			  d_user->u_copybuffer[d_user->u_copylen] = '\n';
+			  d_user->u_copylen++;
 			  break;
 			case 1:
 			  break;
 			case 2:
-			  d_copybuffer[d_copylen] = ' ';
-			  d_copylen++;
+			  d_user->u_copybuffer[d_user->u_copylen] = ' ';
+			  d_user->u_copylen++;
 			  break;
 			}
 		    }
@@ -804,7 +803,9 @@ int *inlenp;
 		      markdata->second = 0;
 		      yend -= MarkScrollUpDisplay(fore->w_histheight - markdata->hist_offset);
 		    }
-		  d_copylen += rem(markdata->x1, markdata->y1, x2, y2, markdata->hist_offset == fore->w_histheight, d_copybuffer + d_copylen, yend);
+		  d_user->u_copylen += rem(markdata->x1, markdata->y1, x2, y2, 
+		    markdata->hist_offset == fore->w_histheight, 
+		    d_user->u_copybuffer + d_user->u_copylen, yend);
 		}
 	      if (markdata->hist_offset != fore->w_histheight)
 		LAY_CALL_UP(Activate(0));
@@ -813,7 +814,7 @@ int *inlenp;
 		Msg(0, "Appended %d characters to buffer",
 		    newcopylen);
 	      else
-		Msg(0, "Copied %d characters into buffer", d_copylen);
+		Msg(0, "Copied %d characters into buffer", d_user->u_copylen);
 	      if (write_buffer)
 		WriteFile(DUMP_EXCHANGE);
 	      in_mark = 0;
@@ -959,6 +960,7 @@ MarkAbort()
 
   debug("MarkAbort\n");
   markdata = (struct markdata *)d_lay->l_data;
+  fore = d_fore;
   yend = d_height - 1;
   redisp = markdata->second;
   if (fore->w_histheight - markdata->hist_offset < d_height)
@@ -992,6 +994,7 @@ int isblank;
     return;
 
   markdata = (struct markdata *)d_lay->l_data;
+  fore = d_fore;
 
   wi = iWIN(D2W(y));
   wa = aWIN(D2W(y));
@@ -1048,6 +1051,7 @@ int ry, xs, xe, doit;
   char *a, *f, *i;
 
   markdata = (struct markdata *)d_lay->l_data;
+  fore = d_fore;
   y = D2W(ry);
   dx = xe - xs;
   if (doit)

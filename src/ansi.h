@@ -61,7 +61,8 @@ enum string_t
   OSC,				/* Operating system command */
   APC,				/* Application program command */
   PM,				/* Privacy message */
-  AKA				/* a.k.a. for current screen */
+  AKA,				/* title for current screen */
+  GM				/* Global message to every display */
 };
 
 /*

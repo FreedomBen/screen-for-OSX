@@ -24,23 +24,14 @@
 RCS_ID("$Id$ FAU")
 
 
+#include <sys/types.h>
 #include <ctype.h>
-#ifdef __sgi
-# include <stdio.h> /* needed before pwd.h to avoid ansi compiler whining */
-#endif /* __sgi */
-#include <pwd.h>
+
 #include <fcntl.h>
 #ifdef sgi
 # include <sys/sysmacros.h>
 #endif /* sgi */
-#if !defined(sun) && !defined(B43) && !defined(ISC) && !defined(pyr) && !defined(_CX_UX)
-# include <time.h>
-#endif
-#include <sys/time.h>
-#if defined(M_XENIX) || defined(M_UNIX)
-#include <sys/select.h> /* for timeval */
-#endif
-#include <sys/types.h>
+
 #ifdef ISC
 # include <sys/bsdtypes.h>
 #endif
@@ -55,10 +46,6 @@ RCS_ID("$Id$ FAU")
 #include <signal.h>
 
 #include "config.h"
-
-#ifdef SHADOWPW
-# include <shadow.h>
-#endif /* SHADOWPW */
 
 #ifdef SVR4
 # include <sys/stropts.h>
@@ -82,34 +69,10 @@ RCS_ID("$Id$ FAU")
 
 #include "patchlevel.h"
 
-#if defined(xelos) || defined(m68k) || defined(M_XENIX)
- struct passwd *getpwuid __P((uid_t));
- struct passwd *getpwnam __P((char *));
-#endif
-
-#ifdef USEVARARGS
-# if defined(__STDC__)
-#  include <stdarg.h>
-# else
-#  include <varargs.h>
-# endif
-#endif
-
-#if defined(_SEQUENT_) 
-/* for the FD.. stuff */
-# include <sys/select.h>
-#endif /* _SEQUENT_ */
-
-#ifndef FD_SET
-typedef struct fd_set
-{
-  int fd_bits[1];
-}      fd_set;
-# define FD_ZERO(fd) ((fd)->fd_bits[0] = 0)
-# define FD_SET(b, fd) ((fd)->fd_bits[0] |= 1 << (b))
-# define FD_ISSET(b, fd) ((fd)->fd_bits[0] & 1 << (b))
-# define FD_SETSIZE 32
-#endif
+#include <pwd.h>
+#ifdef SHADOWPW
+# include <shadow.h>
+#endif /* SHADOWPW */
 
 
 #ifdef DEBUG
@@ -119,14 +82,15 @@ FILE *dfp;
 
 extern char *blank, *null, Term[], screenterm[], **environ, Termcap[];
 int force_vt = 1, assume_LP = 0;
-extern struct display *display; 
-extern struct layer BlankLayer;
 int VBellWait, MsgWait, MsgMinWait, SilenceWait;
 
-extern char *expand_vars __P((char *));
+extern struct plop plop_tab[];
+extern struct user *users;
+extern struct display *displays, *display; 
+extern struct layer BlankLayer;
 
 /* tty.c */
-extern int intrc, origintrc;
+extern int intrc;
 
 
 extern int use_hardstatus;
@@ -148,6 +112,7 @@ static sig_t SigChld __P(SIGPROTOARG);
 static sig_t SigInt __P(SIGPROTOARG);
 static sig_t CoreDump __P((int));
 static void  DoWait __P((void));
+static void  WindowDied __P((struct win *));
 
 
 #ifdef PASSWORD
@@ -208,16 +173,17 @@ int MasterPid;
 int real_uid, real_gid, eff_uid, eff_gid;
 int default_startup;
 int slowpaste;
+int ZombieKey;
 
 #ifdef NETHACK
 int nethackflag = 0;
 #endif
 
 
-struct display *displays;
 struct win *fore = NULL;
 struct win *windows = NULL;
 struct win *console_window;
+
 
 
 /*
@@ -225,17 +191,6 @@ struct win *console_window;
  */
 #include "extern.h"
 
-/*
- * XXX: Missing system header files.
- */
-#ifdef USEVARARGS
-# ifndef VPRNT_DECLARED
-int vsprintf __P((char *, char *, va_list));
-# endif /* VPRNT_DECLARED */
-#endif
-#ifndef SELECT_DECLARED
-int select __P((int, fd_set *, fd_set *, fd_set *, const struct timeval *));
-#endif
 
 #ifdef NETHACK
 char strnomem[] = "Who was that Maude person anyway?";
@@ -244,94 +199,9 @@ char strnomem[] = "Out of memory.";
 #endif
 
 
-/*
- *  ====> tty.c
- */
-
-/*ARGSUSED*/
-void
-brktty(fd)
-int fd;
-{
-#ifdef POSIX
-  setsid();		/* will break terminal affiliation */
-# ifdef BSD
-  ioctl(fd, TIOCSCTTY, 0);
-# endif /* BSD */
-#else /* POSIX */
-# ifdef SYSV
-  setpgrp();		/* will break terminal affiliation */
-# else /* SYSV */
-#  ifdef BSDJOBS
-  int devtty;
-
-  if ((devtty = open("/dev/tty", O_RDWR | O_NDELAY)) >= 0)
-    {
-      if (ioctl(devtty, TIOCNOTTY, (char *) 0))
-        debug2("brktty: ioctl(devtty=%d, TIOCNOTTY, 0) = %d\n", devtty, errno);
-      close(devtty);
-    }
-#  endif /* BSDJOBS */
-# endif /* SYSV */
-#endif /* POSIX */
-}
-
-void
-freetty()
-{
-  if (d_userfd >= 0)
-    close(d_userfd);
-  debug1("did freetty %d\n", d_userfd);
-  d_userfd = -1;
-  d_obufp = 0;
-  d_obuffree = 0;
-  if (d_obuf)
-    free(d_obuf);
-  d_obuf = 0;
-  d_obuflen = 0;
-}
-
-int
-fgtty(fd)
-int fd;
-{
-#ifdef BSDJOBS
-  int mypid;
-
-  mypid = getpid();
-
-# if defined(BSDI) || defined(__386BSD__) || defined(__osf__)
-  setsid();	/* should be obsolete */
-  /*
-   * khera@cs.duke.edu:
-   * The comment in screen.c about setsid() being obsolete is apparently wrong.
-   * the OSF/1 documentation says that's how POSIX defines it to be, and that's
-   * the needed code for it to work under POSIX.
-   */
-  ioctl(fd, TIOCSCTTY, 0);
-# endif /* BSDI || __386BSD__ */
-
-# ifdef POSIX
-  if (tcsetpgrp(fd, mypid))
-    {
-      debug1("fgtty: tcsetpgrp: %d\n", errno);
-      return -1;
-    }
-# else /* POSIX */
-  if (ioctl(fd, TIOCSPGRP, &mypid) != 0)
-    debug1("fgtty: TIOSETPGRP: %d\n", errno);
-#  ifndef SYSV	/* Already done in brktty():setpgrp() */
-  if (setpgrp(fd, mypid))
-    debug1("fgtty: setpgrp: %d\n", errno);
-#  endif
-# endif /* POSIX */
-#endif /* BSDJOBS */
-  return 0;
-}
-
-  
 static int InterruptPlease = 0;
 static int GotSigChld;
+
 
 static void
 mkfdsets(rp, wp)
@@ -370,19 +240,27 @@ fd_set *rp, *wp;
     }
   for (p = windows; p; p = p->w_next)
     {
+      if (p->w_ptyfd < 0)
+        continue;
 #ifdef COPY_PASTE
       if (p->w_pastelen)
         {
 	  /* paste to win/pseudo */
+# ifdef PSEUDOS
 	  FD_SET(W_UWP(p) ? p->w_pwin->p_ptyfd : p->w_ptyfd, wp);
+# else
+	  FD_SET(p->w_ptyfd, wp);
+# endif
 	}
 #endif
       /* query window buffer */
       if (p->w_inlen > 0)
 	FD_SET(p->w_ptyfd, wp);
+#ifdef PSEUDOS
       /* query pseudowin buffer */
       if (p->w_pwin && p->w_pwin->p_inlen > 0)
         FD_SET(p->w_pwin->p_ptyfd, wp);
+#endif
 
       display = p->w_display;
       if (p->w_active && d_status && !d_status_bell && !(use_hardstatus && HS))
@@ -400,6 +278,7 @@ fd_set *rp, *wp;
 	  debug1("too much output pending, window %d\n", p->w_number);
 	  continue;  
 	}
+#ifdef PSEUDOS
       if (W_RW(p))
 	{
 	  /* Check free space if we stuff window output in pseudo */
@@ -420,6 +299,9 @@ fd_set *rp, *wp;
 	  else
             FD_SET(p->w_pwin->p_ptyfd, rp);
 	}
+#else /* PSEUDOS */
+      FD_SET(p->w_ptyfd, rp);
+#endif /* PSEUDOS */
     }
   FD_SET(ServerSocket, rp);
 }
@@ -462,11 +344,16 @@ char **av;
    */
   closeallfiles(0);
 #ifdef DEBUG
-  (void) mkdir("/tmp/debug", 0777);
-  if ((dfp = fopen("/tmp/debug/screen.front", "w")) == NULL)
-    dfp = stderr;
-  else
-    (void) chmod("/tmp/debug/screen.front", 0666);
+    {
+      char buf[255];
+
+      sprintf(buf, "%s/screen.%d", DEBUGDIR, getpid());
+      (void) mkdir(DEBUGDIR, 0777);
+      if ((dfp = fopen(buf, "w")) == NULL)
+	dfp = stderr;
+      else
+	(void) chmod(buf, 0666);
+    }
 #endif
   sprintf(version, "%d.%.2d.%.2d%s (%s) %s", REV, VERS,
 	  PATCHLEVEL, STATE, ORIGIN, DATE);
@@ -541,11 +428,26 @@ char **av;
   nwin_options = nwin_undef;
 
   av0 = *av;
+  /* if this is a login screen, assume -R */
+  if (*av0 == '-')
+    {
+      rflag = 2;
+#ifdef MULTI
+      xflag = 1;
+#endif
+      ShellProg = SaveStr(DefaultShell); /* to prevent nasty circles */
+    }
   while (ac > 0)
     {
       ap = *++av;
       if (--ac > 0 && *ap == '-')
 	{
+	  if (ap[1] == '-' && ap[2] == 0)
+	    {
+	      av++;
+	      ac--;
+	      break;
+	    }
 	  switch (ap[1])
 	    {
 	    case 'a':
@@ -573,7 +475,7 @@ char **av;
 		    exit_with_usage(myname);
 		  ap = *++av;
 		}
-	      if (ParseEscape(ap))
+	      if (ParseEscape(NULL, ap))
 		Panic(0, "Two characters are required with -e option.");
 	      break;
 	    case 'f':
@@ -703,7 +605,7 @@ char **av;
 #ifdef REMOTE_DETACH
 	    case 'd':
 	      dflag = 1;
-	      /* FALLTHRU */
+	      /* FALLTHROUGH */
 	    case 'D':
 	      if (!dflag)
 		dflag = 2;
@@ -723,7 +625,7 @@ char **av;
 	      if (ap[2])
 		{
 		  if (ShellProg)
-		    Free(ShellProg);
+		    free(ShellProg);
 		  ShellProg = SaveStr(ap + 2);
 		}
 	      else
@@ -731,7 +633,7 @@ char **av;
 		  if (--ac == 0)
 		    exit_with_usage(myname);
 		  if (ShellProg)
-		    Free(ShellProg);
+		    free(ShellProg);
 		  ShellProg = SaveStr(*++av);
 		}
 	      debug1("ShellProg: '%s'\n", ShellProg);
@@ -800,10 +702,11 @@ char **av;
       SockName = sockp + 1;
       if (*multi)
 	{
-	  if ((ppp = getpwnam(multi)) == (struct passwd *) 0)
+	  struct passwd *mppp;
+	  if ((mppp = getpwnam(multi)) == (struct passwd *) 0)
 	    Panic(0, "Cannot identify account '%s'.", multi);
-	  multi_uid = ppp->pw_uid;
-	  multi_home = SaveStr(ppp->pw_dir);
+	  multi_uid = mppp->pw_uid;
+	  multi_home = SaveStr(mppp->pw_dir);
 #ifdef MULTI
 	  if (rflag || lsflag)
 	    {
@@ -1096,9 +999,16 @@ char **av;
     case -1:
       Panic(errno, "fork");
       /* NOTREACHED */
+#ifdef FORKDEBUG
+    default:
+      break;
+    case 0:
+      MasterPid = getppid();
+#else
     case 0:
       break;
     default:
+#endif
       if (detached)
         exit(0);
       if (SockName)
@@ -1140,12 +1050,17 @@ char **av;
     *av0 = 'S';
 
 #ifdef DEBUG
-  if (dfp != stderr)
-    fclose(dfp);
-  if ((dfp = fopen("/tmp/debug/screen.back", "w")) == NULL)
-    dfp = stderr;
-  else
-    (void) chmod("/tmp/debug/screen.back", 0666);
+  {
+    char buf[256];
+
+    if (dfp && dfp != stderr)
+      fclose(dfp);
+    sprintf(buf, "%s/SCREEN.%d", DEBUGDIR, getpid());
+    if ((dfp = fopen(buf, "w")) == NULL)
+      dfp = stderr;
+    else
+      (void) chmod(buf, 0666);
+  }
 #endif
   if (!detached)
     n = dup(0);
@@ -1159,17 +1074,13 @@ char **av;
   freopen("/dev/null", "w", stderr);
   debug("-- screen.back debug started\n");
 
-#ifdef MULTIUSER
-  /* initialise user structures here */
-  if (AclInit(LoginName))
-    {
-      Panic(0, "Could not init user structure");
-    }
-#endif
-
   if (!detached)
     {
+#ifdef FORKDEBUG
+      if (MakeDisplay(LoginName, attach_tty, attach_term, n, MasterPid, &attach_Mode) == 0)
+#else
       if (MakeDisplay(LoginName, attach_tty, attach_term, n, getppid(), &attach_Mode) == 0)
+#endif
 	Panic(0, "Could not alloc display");
     }
 
@@ -1189,10 +1100,12 @@ char **av;
   SockName = socknamebuf;
   ServerSocket = MakeServerSocket();
 #ifdef ETCSCREENRC
-  if ((ap = getenv("SYSSCREENRC")) == NULL)
-    StartRc(ETCSCREENRC);
-  else
+# ifdef ALLOW_SYSSCREENRC
+  if ((ap = getenv("SYSSCREENRC")))
     StartRc(ap);
+  else
+# endif
+    StartRc(ETCSCREENRC);
 #endif
   StartRc(RcFileName);
 # ifdef UTMPOK
@@ -1245,10 +1158,12 @@ char **av;
   else
     brktty(-1);		/* just try */
 #ifdef ETCSCREENRC
-  if ((ap = getenv("SYSSCREENRC")) == NULL)
-    FinishRc(ETCSCREENRC);
-  else
+# ifdef ALLOW_SYSSCREENRC
+  if ((ap = getenv("SYSSCREENRC")))
     FinishRc(ap);
+  else
+# endif
+    FinishRc(ETCSCREENRC);
 #endif
   FinishRc(RcFileName);
 
@@ -1375,10 +1290,15 @@ char **av;
 	    {
 	      char ibuf;
 	      ibuf = intrc;
+#ifdef PSEUDOS
 	      write(W_UWP(fore) ? fore->w_pwin->p_ptyfd : fore->w_ptyfd, 
 		    &ibuf, 1);
 	      debug1("Backend wrote interrupt to %d", fore->w_number);
 	      debug1("%s\n", W_UWP(fore) ? " (pseudowin)" : "");
+#else
+	      write(fore->w_ptyfd, &ibuf, 1);
+	      debug1("Backend wrote interrupt to %d\n", fore->w_number);
+#endif
 	    }
 	  InterruptPlease = 0;
 	}
@@ -1403,29 +1323,43 @@ char **av;
 	  for (p = windows; p; p = p->w_next)
 	    {
 	      int pastefd = -1;
+
+	      if (p->w_ptyfd < 0)
+	        continue;
 #ifdef COPY_PASTE
 	      if (p->w_pastelen)
 		{
 		  /*
 		   *  Write the copybuffer contents first, if any.
 		   */
+#ifdef PSEUDOS
 		  pastefd = W_UWP(p) ? p->w_pwin->p_ptyfd : p->w_ptyfd;
+#else
+		  pastefd = p->w_ptyfd;
+#endif
 		  if (FD_ISSET(pastefd, &w))
 		    {
-		      debug1("writing pastebuffer (%d)", p->w_pastelen);
-		      debug1("%s\n", W_UWP(p) ? " (pseudowin)" : "");
-		      len = write(pastefd, p->w_pastebuffer, 
-		                  (slowpaste > 0) ? 1 :
+		      debug1("writing pastebuffer (%d)\n", p->w_pastelen);
+		      len = write(pastefd, p->w_pasteptr, 
+				  (slowpaste > 0) ? 1 :
 				  (p->w_pastelen > IOSIZE ? 
 				   IOSIZE : p->w_pastelen));
 		      if (len < 0)	/* Problems... window is dead */
 			p->w_pastelen = 0;
 		      if (len > 0)
 			{
-			  p->w_pastebuffer += len;
+			  p->w_pasteptr += len;
 			  p->w_pastelen -= len;
 			}
 		      debug1("%d bytes pasted\n", len);
+		      if (p->w_pastelen == 0)
+			{
+			  if (p->w_pastebuf)
+			    free(p->w_pastebuf);
+			  p->w_pastebuf = 0;
+			  p->w_pasteptr = 0;
+			  pastefd = -1;
+			}
 		      if (slowpaste > 0)
 			{
 			  struct timeval t;
@@ -1437,12 +1371,11 @@ char **av;
 			}
 		      if (--nsel == 0)
 		        break;
-		      if (p->w_pastelen == 0)
-			pastefd = -1;
 		    }
 		}
 #endif
 
+#ifdef PSEUDOS
 	      if (p->w_pwin && p->w_pwin->p_inlen > 0)
 	        {
 		  /* stuff w_pwin->p_inbuf into pseudowin */
@@ -1460,6 +1393,7 @@ char **av;
 		        break;
 		    }
 		}
+#endif
 	      if (p->w_inlen > 0)
 		{
 		  /* stuff w_inbuf buffer into window */
@@ -1533,9 +1467,11 @@ char **av;
 		maxlen = IOSIZE;
 	      else
 		{
+#ifdef PSEUDOS
 		  if (W_UWP(d_fore))
 		    maxlen = sizeof(d_fore->w_pwin->p_inbuf) - d_fore->w_pwin->p_inlen;
 		  else
+#endif
 		    maxlen = sizeof(d_fore->w_inbuf) - d_fore->w_inlen;
 		}
 	      if (maxlen > IOSIZE)
@@ -1546,7 +1482,7 @@ char **av;
 		{
 		  if (maxlen == 1)
 		    maxlen = 2;	/* Allow one char for command keys */
-		  buf[0] = Esc;
+		  buf[0] = d_user->u_Esc;
 		  buflen = read(d_userfd, buf + 1, maxlen - 1) + 1;
 		  d_ESCseen = 0;
 		}
@@ -1586,8 +1522,9 @@ char **av;
 	  display = p->w_display;
 	  if (p->w_outlen)
 	    WriteString(p, p->w_outbuf, p->w_outlen);
-	  else 
+	  else if (p->w_ptyfd >= 0)
 	    {
+#ifdef PSEUDOS
 	      /* gather pseudowin output */
 	      if (W_RP(p) && nsel && FD_ISSET(p->w_pwin->p_ptyfd, &r))
 	        {
@@ -1624,10 +1561,12 @@ char **av;
 		      WriteString(p, buf, len);
 		    }
 		}
+#endif /* PSEUDOS */
 	      /* gather window output */
 	      if (nsel && FD_ISSET(p->w_ptyfd, &r))
 		{
 		  nsel--;
+#ifdef PSEUDOS
 		  n = 0;
 		  ASSERT(W_RW(p));
 		  if (p->w_pwin && W_WTOP(p))
@@ -1638,6 +1577,7 @@ char **av;
 		      n++;
 		    }
 		  else
+#endif
 		    tmp = IOSIZE;
 		  if ((len = read(p->w_ptyfd, buf, tmp)) <= 0)
 		    {
@@ -1648,7 +1588,7 @@ char **av;
 			continue;
 #endif
 		      debug2("Window %d: read error (errno %d) - killing window\n", p->w_number, len ? errno : 0);
-		      KillWindow(p);
+		      WindowDied(p);
 		      nsel = 0;	/* KillWindow may change window order */
 		      break;	/* so we just break */
 		    }
@@ -1665,6 +1605,7 @@ char **av;
 			}
 		      if (len > 1)
 			{
+#ifdef PSEUDOS
 			  if (n)
 			    {
 			      bcopy(buf + 1, 
@@ -1672,6 +1613,7 @@ char **av;
 				    len - 1);
 			      p->w_pwin->p_inlen += len - 1;
 			    }
+#endif
 			  WriteString(p, buf + 1, len - 1);
 			}
 		    }
@@ -1680,12 +1622,14 @@ char **av;
 		    {
 		      if (len > 0)
 			{
+#ifdef PSEUDOS
 			  if (n)
 			    {
 			      bcopy(buf, p->w_pwin->p_inbuf + p->w_pwin->p_inlen,
 				    len);
 			      p->w_pwin->p_inlen += len;
 			    }
+#endif
 			  WriteString(p, buf, len);
 			}
 		    }
@@ -1726,6 +1670,37 @@ char **av;
 #endif
     }
   /* NOTREACHED */
+}
+
+static void
+WindowDied(p)
+struct win *p;
+{
+  if (ZombieKey)
+    {
+      char buf[100];
+      struct tm *tp;
+      time_t now;
+
+      (void) time(&now);
+      tp = localtime(&now);
+      debug3("window %d (%s) going into zombie state fd %d",
+	     p->w_number, p->w_title, p->w_ptyfd);
+#ifdef UTMPOK
+      RemoveUtmp(p);
+#endif
+      (void) chmod(p->w_tty, 0666);
+      (void) chown(p->w_tty, 0, 0);
+      close(p->w_ptyfd);
+      p->w_ptyfd = -1;
+      p->w_pid = 0;
+      ResetWindow(p);
+      p->w_y = p->w_bot;
+      sprintf(buf, "\n=== Window terminated at %2d:%02d:%02d ===", tp->tm_hour, tp->tm_min, tp->tm_sec);
+      WriteString(p, buf, strlen(buf));
+    }
+  else
+    KillWindow(p);
 }
 
 static void
@@ -1863,7 +1838,16 @@ DoWait()
 # ifndef BSDWAIT
   while ((pid = waitpid(-1, &wstat, WNOHANG | WUNTRACED)) > 0)
 # else
+# ifdef USE_WAIT2
+  /* 
+   * From: rouilj@sni-usa.com (John Rouillard) 
+   * note that WUNTRACED is not documented to work, but it is defined in
+   * /usr/include/sys/wait.h, so it may work 
+   */
+  while ((pid = wait2(&wstat, WNOHANG | WUNTRACED )) > 0)
+#  else /* USE_WAIT2 */
   while ((pid = wait3(&wstat, WNOHANG | WUNTRACED, (struct rusage *) 0)) > 0)
+#  endif /* USE_WAIT2 */
 # endif
 #else	/* BSDJOBS */
   while ((pid = wait(&wstat)) < 0)
@@ -1907,15 +1891,19 @@ DoWait()
 		}
 	      else
 #endif
-		KillWindow(p);
+		{
+		  WindowDied(p);
+		}
 	      break;
 	    }
+#ifdef PSEUDOS
 	  if (p->w_pwin && pid == p->w_pwin->p_pid)
 	    {
 	      debug2("pseudo of win Nr %d died. pid == %d\n", p->w_number, p->w_pwin->p_pid);
 	      FreePseudowin(p);
 	      break;
 	    }
+#endif
 	}
       if (p == 0)
 	{
@@ -2092,10 +2080,14 @@ int mode;
 #endif
   if (d_fore)
     {
+      ReleaseAutoWritelock(display, d_fore);
+      if (d_fore->w_tstamp.seconds)
+        d_fore->w_tstamp.lastio = Now;
       d_fore->w_active = 0;
       d_fore->w_display = 0;
       d_lay = &BlankLayer;
       d_layfn = d_lay->l_layfn;
+      d_user->u_detachwin = d_fore->w_number;
     }
   while (d_lay != &BlankLayer)
     ExitOverlayPage();
@@ -2123,15 +2115,6 @@ int mode;
   signal(SIGHUP, SigHup);
 }
 
-void
-Kill(pid, sig)
-int pid, sig;
-{
-  if (pid < 2)
-    return;
-  (void) kill(pid, sig);
-}
-
 static int
 IsSymbol(e, s)
 register char *e, *s;
@@ -2152,7 +2135,7 @@ MakeNewEnv()
     ;
   if (NewEnv)
     free(NewEnv);
-  NewEnv = np = (char **) malloc((unsigned) (op - environ + 6 + 1) * sizeof(char **));
+  NewEnv = np = (char **) malloc((unsigned) (op - environ + 7 + 1) * sizeof(char **));
   if (!NewEnv)
     Panic(0, strnomem);
   SockName = SockNamePtr;
@@ -2161,6 +2144,7 @@ MakeNewEnv()
   sprintf(stybuf, "STY=%s", SockNamePtr);
   *np++ = stybuf;	                /* NewEnv[0] */
   *np++ = Term;	                /* NewEnv[1] */
+  np++;		/* room for SHELL */
 #ifdef TIOCSWINSZ
   np += 2;	/* room for TERMCAP and WINDOW */
 #else
@@ -2169,13 +2153,12 @@ MakeNewEnv()
 
   for (op = environ; *op; ++op)
     {
+debug1("MakeNewEnv: %s\n", *op);
       if (!IsSymbol(*op, "TERM") && !IsSymbol(*op, "TERMCAP")
 	  && !IsSymbol(*op, "STY") && !IsSymbol(*op, "WINDOW")
-	  && !IsSymbol(*op, "SCREENCAP")
-#ifndef TIOCGWINSZ
+	  && !IsSymbol(*op, "SCREENCAP") && !IsSymbol(*op, "SHELL")
 	  && !IsSymbol(*op, "LINES") && !IsSymbol(*op, "COLUMNS")
-#endif
-	  )
+	 )
 	*np++ = *op;
     }
   *np = 0;

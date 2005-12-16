@@ -33,25 +33,23 @@
 
 
 /*
- * Define HOMESOCKDIR if you want screen to put the named sockets in
+ * Define SOCKDIR to be the directory to contain the named sockets
+ * screen creates. This should be in a common subdirectory, such as
+ * /usr/local or /tmp. It makes things a little more secure if you
+ * choose a directory which is not writable by everyone or where the
+ * "sticky" bit is on, but this isn't required.
+ * If SOCKDIR is not defined screen will put the named sockets in
  * the user's home directory. Notice that this can cause you problems
  * if some user's HOME directories are NFS-mounted and don't support
- * named sockets. In such a case do not define HOMESOCKDIR and screen
- * will create the socket directories in SOCKDIR. This should be in a
- * common subdirectory, such as /local or /tmp. It makes things a
- * little more secure if you choose a directory which is not writable
- * by everyone or where the "sticky" bit is on, but this isn't required.
+ * named sockets.
  * Screen will name the subdirectories "S-$USER" (e.g /tmp/S-davison).
  * Do not define TMPTEST unless it's for debugging purpose.
  */
-#undef HOMESOCKDIR
 
-#ifndef HOMESOCKDIR
-# ifndef TMPTEST
-#  define SOCKDIR "/local/screens"
-# else
-#  define SOCKDIR "/tmp/testscreens"
-# endif
+#ifndef TMPTEST
+# define SOCKDIR "/tmp/screens"
+#else
+# define SOCKDIR "/tmp/testscreens"
 #endif
 
 /*
@@ -59,7 +57,17 @@
  * specified here, second your local $HOME/.screenrc
  * Don't define this, if you don't want it.
  */
-#define ETCSCREENRC "/local/etc/screenrc"
+#ifndef ETCSCREENRC
+# define ETCSCREENRC "/usr/local/etc/screenrc"
+#endif
+
+/*
+ * Screen can look for the environment variable $SYSSCREENRC and -if it
+ * exists- load the file specified in that variable as global screenrc.
+ * If you want to enable this feature, define ALLOW_SYSSCREENRC to one (1).
+ * Otherwise ETCSCREENRC is always loaded.
+ */
+#define ALLOW_SYSSCREENRC 1
 
 /* 
  * define PTYMODE if you do not like the default of 0622, which allows 
@@ -95,6 +103,7 @@
  * define POW_DETACH to have a detach_and_logout key.
  * define REMOTE_DETACH (-d option) to move screen between terminals.
  * define AUTO_NUKE to enable Tim MacKenzies clear screen nuking
+ * define PSEUDOS to allow window input/output filtering
  * define MULTI to allow multiple attaches.
  * define MULTIUSER to allow other users attach to your session
  *                  (if they are in the acl, of course)
@@ -108,6 +117,7 @@
 # define REMOTE_DETACH
 # define POW_DETACH
 # define AUTO_NUKE
+# define PSEUDOS
 # define MULTI
 # define MULTIUSER
 #endif /* SIMPLESCREEN */
@@ -130,8 +140,19 @@
 /* Set LOGINDEFAULT to one (1)
  * if you want entries added to /etc/utmp by default, else set it to
  * zero (0).
+ * LOGINDEFAULT will be one (1) whenever LOGOUTOK is undefined!
  */
 #define LOGINDEFAULT	1
+
+/* Set LOGOUTOK to one (1)
+ * if you want the user to be able to log her/his windows out.
+ * (Meaning: They are there, but not visible in /etc/utmp).
+ * Disabling this feature only makes sense if you have a secure /etc/utmp
+ * database. 
+ * Negative examples: suns usually have a world writable utmp file, 
+ * xterm will run perfectly without s-bit.
+ */
+#define LOGOUTOK 1
 
 
 /*
@@ -158,10 +179,17 @@
 /*
  * Some defines to identify special unix variants
  */
-#undef SVR4	/* KEEP_UNDEF_HERE override system value */
+#ifndef SVR4
 #undef SVR4
-#undef MIPS	/* KEEP_UNDEF_HERE override system value */
+#endif
+
+#ifndef OSF1
+#undef OSF1
+#endif
+
+#ifndef MIPS
 #undef MIPS
+#endif
 
 /*
  * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
@@ -198,7 +226,9 @@
 /*
  * Define SYSV if your machine is SYSV complient (Sys V, HPUX, A/UX)
  */
+#ifndef SYSV
 #undef SYSV
+#endif
 
 /*
  * Define SIGVOID if your signal handlers return void.  On older
@@ -222,9 +252,17 @@
  *
  * Only allow BSDWAIT i.e. wait3 on nonposix systems, since
  * posix implies wait(3) and waitpid(3). vdlinden@fwi.uva.nl
+ * 
  */
 #ifndef POSIX
 #undef BSDWAIT
+#endif
+
+/*
+ * On RISCOS we prefer wait2() over wait3(). rouilj@sni-usa.com 
+ */
+#ifdef BSDWAIT
+#undef USE_WAIT2
 #endif
 
 /*
@@ -273,6 +311,7 @@
 #undef LOADAV_UNIX
 #undef LOADAV_AVENRUN
 
+#undef NLIST_DECLARED
 #undef NLIST_STRUCT
 #undef NLIST_NAME_UNION
 
@@ -349,6 +388,12 @@
 #undef NAME_MAX		/* KEEP_UNDEF_HERE override system value */
 #undef NAME_MAX
 
+/*
+ * define HAVE_DEV_PTC if you have a /dev/ptc character special
+ * device.
+ */
+#undef HAVE_DEV_PTC
+
 /* 
  * define PTYRANGE0 and or PTYRANGE1 if you want to adapt screen
  * to unusual environments. E.g. For SunOs the defaults are "qpr" and 
@@ -360,23 +405,9 @@
 #undef PTYRANGE1
 
 /*
- * some defines to prevent redeclarations/retypedefs
+ * some defines to prevent retypedefs
  */
-#undef CRYPT_DECLARED
-#undef GETHOSTNAME_DECLARED
-#undef KILLSTUFF_DECLARED
-#undef MEMFUNCS_DECLARED
-#undef MKNOD_DECLARED
-#undef NLIST_DECLARED
-#undef PUTENV_DECLARED
-#undef REUID_DECLARED
-#undef SETPGID_DECLARED
-#undef VPRNT_DECLARED
-#undef WAITSTUFF_DECLARED
-#undef GETDTABLESIZE_DECLARED
-#undef SELECT_DECLARED
-#undef INDEX_DECLARED
-
 #undef SIG_T_DEFINED
 #undef PID_T_DEFINED
 #undef UID_T_DEFINED
+

@@ -5,7 +5,7 @@
 @finalout
 @setchapternewpage odd
 @c %**end of header
-@set version 3.3
+@set version 3.5
 
 @c For examples, use a literal escape in info.
 @ifinfo
@@ -46,7 +46,7 @@ by the Foundation.
 @title Screen
 @subtitle The virtual terminal manager
 @subtitle for Version @value{version}
-@subtitle May 1993
+@subtitle Aug 1993
 
 @page
 @vskip 0pt plus 1filll
@@ -84,7 +84,7 @@ This file documents the @code{Screen} virtual terminal manager, version
 * New Window::                  Running a program in a new window.
 * Selecting::                   Selecting a window to display.
 * Session Management::          Suspending or detaching a session.
-* Window Settings::             a.k.a., logging, etc.
+* Window Settings::             titles, logging, etc.
 * Virtual Terminal::            Controlling the @code{screen} VT100 emulation.
 * Copy and Paste::              Exchanging text between windows and sessions.
 * Subprocess Execution::	I/O filtering with @code{exec}.
@@ -125,8 +125,8 @@ create new (full-screen) windows with other programs in them (including
 more shells), kill the current window, view a list of the active
 windows, turn output logging on and off, copy text between windows, view
 the scrollback history, switch between windows, etc.  When a program
-terminates, @code{screen} kills the window that contained it.  If this
-window was in the foreground, the display switches to the previously
+terminates, @code{screen} (per default) kills the window that contained it.  
+If this window was in the foreground, the display switches to the previously
 displayed window; if none are left, @code{screen} exits.
 
 Everything you type is sent to the program running in the current
@@ -143,9 +143,9 @@ creates a new window running a shell and switches to that window
 immediately, regardless of the state of the process running in the
 current window.  Similarly, you can create a new window with a custom
 command in it by first binding the command to a keystroke (in your
-@file{.screenrc} file) and then using it just like the @kbd{C-a c}
-command.  In addition, new windows can be created by running a command
-like:
+@file{.screenrc} file or at the @kbd{C-a :} command line) and then using it 
+just like the @kbd{C-a c} command.  In addition, new windows can be created by 
+running a command like:
 
 @example
 screen emacs prog.c
@@ -154,9 +154,9 @@ screen emacs prog.c
 @noindent
 from a shell prompt within a previously created window.  This will not
 run another copy of @code{screen}, but will instead supply the command
-name and its arguments to the window manager who will use it to create
-the new window.  The above example would start the @code{emacs} editor
-(editing @file{prog.c}) and switch to its window.
+name and its arguments to the window manager (specified in the $STY environment
+variable) who will use it to create the new window.  The above example would 
+start the @code{emacs} editor (editing @file{prog.c}) and switch to its window.
 
 If @file{/etc/utmp} is writable by @code{screen}, an appropriate record
 will be written to this file for each window, and removed when the
@@ -317,7 +317,8 @@ detached @code{screen} sessions.
 Resume the first appropriate detached @code{screen} session.  If
 successful, all other command-line options are ignored.  If no detached
 session exists, start a new session using the specified options, just as
-if @samp{-R} had not been specified.
+if @samp{-R} had not been specified.  This option is set by default if
+screen is run as a login-shell.
 
 @item -s @var{program}
 Set the default shell to be @var{program}.  By default, @code{screen}
@@ -333,8 +334,8 @@ default @var{tty.host} suffix.  This name identifies the session for the
 equivalent to the @code{sessionname} command (@pxref{Session Name}).
 
 @item -t @var{name}
-Set the title (a.k.a.) for the default shell or specified program.
-This option is equivalent to the @code{shellaka} command
+Set the title (name) for the default shell or specified program.
+This option is equivalent to the @code{shelltitle} command
 (@pxref{Shell}).
 
 @item -v
@@ -367,25 +368,28 @@ to be executed at startup, or on the fly using the @code{colon} command.
 @cindex .screenrc
 @cindex screenrc
 When @code{screen} is invoked, it executes initialization commands from
-the files @file{/local/etc/screenrc} and @file{.screenrc} in the user's
-home directory.  These defaults can be overridden in the following ways:
+the files @file{.screenrc} in the user's home directory and
+@file{/usr/local/etc/screenrc}.  These defaults can be overridden in the 
+following ways:
 For the global screenrc file @code{screen} searches for the environment
-variable @code{$SYSSCREENRC}.  The user specific screenrc file is
+variable @code{$SYSSCREENRC} (this override feature may be disabled at
+compile-time).  The user specific screenrc file is
 searched for in @code{$ISCREENRC}, then @code{$SCREENRC}, then
 @file{@code{$HOME}/.iscreenrc} and finally defaults to
 @file{@code{$HOME}/.screenrc}.  The command line option @samp{-c}
 specifies which file to use (@pxref{Invoking Screen}.  Commands in these
 files are used to set options, bind commands to keys, and to
-automatically establish one or more extra windows at the beginning of
+automatically establish one or more windows at the beginning of
 your @code{screen} session.  Commands are listed one per line, with
 empty lines being ignored.  A command's arguments are separated by tabs
 or spaces, and may be surrounded by single or double quotes.  A @samp{#}
 turns the rest of the line into a comment, except in quotes.
 Unintelligible lines are warned about and ignored.  Commands may contain
 references to environment variables.  The syntax is the shell-like
-@code{$VAR} or @code{$@{VAR@}}.  Note that this causes incompatibilities
-with previous @code{screen} versions, as now the '$'-sign has to be
-protected with '\' if no variable substitution is intended.
+@code{$VAR} or @code{$@{VAR@}}.  Note that this causes incompatibility
+with previous @code{screen} versions, as now the '$'-character has to be
+protected with '\' if no variable substitution is intended. A string in 
+single-quotes is also protected from variable substitution.
 
 @node Colon,  , Startup Files, Customization
 @section Colon
@@ -461,9 +465,9 @@ Send the command character (C-a) to window. See @code{escape} command.
 @xref{Command Character}. 
 
 @item @kbd{C-a A}
-(aka)@*
-Allow the user to enter an a.k.a (also-known-as) for the current window.
-@xref{Also Known As}.
+(title)@*
+Allow the user to enter a title for the current window.
+@xref{Naming Windows}.
 
 @item @kbd{C-a c}
 @itemx @kbd{C-a C-c}
@@ -494,7 +498,6 @@ Cycle flow among @samp{on}, @samp{off} or @samp{auto}.  @xref{Flow}.
 Toggle visual bell mode.  @xref{Bell}.
 
 @item @kbd{C-a h}
-@itemx @kbd{C-a C-h}
 (hardcopy)@*
 Write a hardcopy of the current window to the file ``hardcopy.@var{n}''.
 @xref{Hardcopy}.
@@ -539,8 +542,14 @@ Toggle monitoring of the current window.  @xref{Monitor}.
 (next)@*
 Switch to the next window.  @xref{Selecting}.
 
+@item @kbd{C-a N}
+(number)@*
+Show the number (and title) of the current window.  @xref{Number}.
+
 @item @kbd{C-a p}
 @itemx @kbd{C-a C-p}
+@itemx @kbd{C-a C-h}
+@itemx @kbd{C-a @key{BackSpace}}
 (prev)@*
 Switch to the previous window (opposite of @kbd{C-a n}).
 @xref{Selecting}.
@@ -640,6 +649,10 @@ Read the screen-exchange file into the pastebuffer.
 @item @kbd{C-a =}
 (removebuf)@*
 Delete the screen-exchange file.  @xref{Screen-Exchange}.
+
+@item @kbd{C-a _}
+(silence)@*
+Start/stop monitoring the current window for inactivity. @xref{Silence},
 @end table
 
 @node Command Summary,  , Default Key Bindings, Commands
@@ -649,14 +662,16 @@ Delete the screen-exchange file.  @xref{Screen-Exchange}.
 @table @code
 @item acladd @var{username}
 Allow other user in this session.  @xref{Multiuser}.
+@item aclchg @var{username permbits list}
+Change a user's permissions.  @xref{Multiuser}.
 @item acldel @var{username}
 Disallow other user in this session.  @xref{Multiuser}.
 @item activity @var{message}
 Set the activity notification message.  @xref{Monitor}.
-@item aka @var{[windowalias]}
-Set the name of the current window.  @xref{AKA Command}.
 @item allpartial @var{state}
 Set all windows to partial refresh.  @xref{Redisplay}.
+@item at @var{[ident][@kbd{#}@var{|}@kbd{*}@var{|}@kbd{%}] command [args]}
+Execute a command at other displays or windows.  @xref{At}.
 @item autodetach @var{state}
 Automatically detach the session on SIGHUP.  @xref{Detach}.
 @item autonuke @var{state}
@@ -683,6 +698,8 @@ Enter copy mode.  @xref{Copy}.
 Store the copy buffer to a register.  @xref{Registers}.
 @item crlf @var{state}
 Select line break behavior for copying.  @xref{Line Termination}.
+@item debug @var{state}
+Suppress/allow debugging output.  @xref{Debug}.
 @item defautonuke @var{state}
 Select default autonuke behavior.  @xref{Autonuke}.
 @item defflow @var{fstate}
@@ -759,6 +776,8 @@ Go into single or multi user mode. @xref{Multiuser}.
 Use @code{nethack}-like error messages.  @xref{Nethack}.
 @item next
 Switch to the next window.  @xref{Selecting}.
+@item number @var{[n]}
+Change/display the current window's number.  @xref{Number}.
 @item obuflimit @var{[limit]}
 Select output buffer limit.  @xref{Obuflimit}.
 @item other
@@ -799,11 +818,11 @@ Set size of scrollback buffer.  @xref{Scrollback}.
 Switch to a specified window.  @xref{Selecting}.
 @item sessionname @var{[name]}
 Name this session.  @xref{Session Name}.
-@item setenv @var{var string}
+@item setenv @var{[var [string]]}
 Set an environment variable for new windows.  @xref{Setenv}.
 @item shell @var{command}
 Set the default program for new windows.  @xref{Shell}.
-@item shellaka @var{a.k.a.}
+@item shelltitle @var{title}
 Set the default name for new windows.  @xref{Shell}.
 @item silence @var{[state|seconds]}
 Monitor window for inactivity.  @xref{Silence}.
@@ -825,6 +844,8 @@ Tweak termcap entries for best performance.  @xref{Termcap Syntax}.
 Ditto, for terminfo systems.  @xref{Termcap Syntax}.
 @item time
 Display time and load average.  @xref{Time}.
+@item title @var{[windowtitle]}
+Set the name of the current window.  @xref{Title Command}.
 @item unsetenv @var{var}
 Unset environment variable for new windows.  @xref{Setenv}.
 @item vbell @var{[state]}
@@ -835,6 +856,8 @@ Set vbell message.  @xref{Bell}.
 Set delay for vbell message.  @xref{Bell}.
 @item version
 Display @code{screen} version.  @xref{Version}.
+@item wall @var{message ...}
+Write a message to all displays.  @xref{Multiuser}.
 @item width @var{[num]}
 Set the width of the window.  @xref{Width}.
 @item windows
@@ -843,10 +866,14 @@ List active windows.  @xref{Windows}.
 Control line-wrap behavior.  @xref{Wrap}.
 @item writebuf
 Write copy buffer to screen-exchange file.  @xref{Screen-Exchange}.
+@item writelock @var{on|off|auto}
+Grant exclusive write permission.  @xref{Multiuser}.
 @item xoff
 Send an XOFF character.  @xref{XON/XOFF}.
 @item xon
 Send an XON character.  @xref{XON/XOFF}.
+@item zombie @var{[key]}
+Keep dead windows.  @xref{Zombie}.
 @end table
 
 @node New Window, Selecting, Commands, Top
@@ -890,7 +917,7 @@ affect all the windows you create interactively.
 @deffn Command screen [opts] [n] [cmd [args]]
 (@kbd{C-a c}, @kbd{C-a C-c})@*
 Establish a new window.  The flow-control options (@samp{-f}, @samp{-fn}
-and @samp{-fa}), title (a.k.a.) option (@samp{-t}), login options
+and @samp{-fa}), title option (@samp{-t}), login options
 (@samp{-l} and @samp{-ln}) , terminal type option (@samp{-T @var{term}})
 and scrollback option (@samp{-h @var{num}}) may be specified for each
 command.  If an optional number @var{n} in the range 0@dots{}9 is given,
@@ -911,7 +938,7 @@ screen -fn -t foobar 2 telnet foobar
 @noindent
 @code{screen} creates a shell window (in window #1) and a window with a
 TELNET connection to the machine foobar (with no flow-control using the
-a.k.a. @samp{foobar} in window #2).  If you do not include any
+title @samp{foobar} in window #2).  If you do not include any
 @code{screen} commands in your @file{.screenrc} file, then @code{screen}
 defaults to creating a single shell window, number zero.  When the
 initialization is completed, @code{screen} switches to the last window
@@ -923,7 +950,9 @@ specified in your .screenrc file or, if none, it opens default window
 @deffn Command setenv var string
 (none)@*
 Set the environment variable @var{var} to value @var{string}.
-The environment is inherited by all subsequently forked shells.
+If only @var{var} is specified, the user will be prompted to enter a value.
+If no parameters are specified, the user will be prompted for both variable
+and value. The environment is inherited by all subsequently forked shells.
 @end deffn
 
 @deffn Command unsetenv var
@@ -938,13 +967,14 @@ Unset an environment variable.
 Set the command to be used to create a new shell.  This overrides the
 value of the environment variable @code{$SHELL}.  This is useful if
 you'd like to run a tty-enhancer which is expecting to execute the
-program specified in @code{$SHELL}.
+program specified in @code{$SHELL}.  If the command begins with
+a @samp{-} character, the shell will be started as a login-shell.
 @end deffn
 
-@deffn Command shellaka a.k.a.
+@deffn Command shelltitle title
 (none)@*
-Set the a.k.a. for all shells created during startup or by the C-a C-c
-command.  @xref{Also Known As}, for details about what a.k.a.'s are.
+Set the title for all shells created during startup or by the C-a C-c
+command.  @xref{Naming Windows}, for details about what titles are.
 @end deffn
 
 @node Term,  , Shell, New Window
@@ -1019,7 +1049,7 @@ C-a}, since @kbd{``} is bound to @code{meta}.
 (@kbd{C-a @var{n}}, @kbd{C-a '}, @kbd{C-a "})@*
 Switch to the window with the number @var{n}.
 If no window number is specified, you get prompted for an 
-identifier. This can be an a.k.a. or a number.
+identifier. This can be a window name (title) or a number.
 @end deffn
 
 @node Session Management, Window Settings, Selecting, Top
@@ -1114,15 +1144,20 @@ is started) and is executed with the user's uid and gid.
 
 These commands allow other users to gain access to one single @code{screen}
 session. When attaching to a multiuser @code{screen} the sessionname is 
-specified as @code{username/sessionname}.
+specified as @code{username/sessionname} to the @code{-S} command line option.
+@code{Screen} must be compiled with multiuser support to enable features 
+described here.
 
 @menu
-* Multiuser::			Enable / Disable multiuser mode
-* Acladd::			Enable a specific user
-* Acldel::			Disable a specific user
+* Multiuser::			Enable / Disable multiuser mode.
+* Acladd::			Enable a specific user.
+* Aclchg::                      Change a users permissions.
+* Acldel::			Disable a specific user.
+* Wall::                        Write a message to all users.
+* Writelock::                   Grant exclusive window access.
 @end menu
 
-@node Multiuser, AclAdd,  , Multiuser Session
+@node Multiuser, Acladd,  , Multiuser Session
 @subsection Multiuser
 @deffn Command multiuser @var{state}
 (none)@*
@@ -1131,18 +1166,59 @@ single-user. In multi-user mode the commands @code{acladd} and @code{acldel}
 can be used to enable (and disable) other users accessing this @code{screen}.
 @end deffn
 
-@node Acladd, Acldel, Multiuser, Multiuser Session
+@node Acladd, Aclchg, Multiuser, Multiuser Session
 @subsection Acladd
 @deffn Command acladd @var{username}
 (none)@*
-Enable a user to access this screen session. Multi-user mode only.
+Enable a user to (fully) access this screen session. Necessary to allow other
+users to attach to this @code{screen} session. Same as 
+@code{aclchg @var{username} +rwx "#?"}. Multi-user mode only.
 @end deffn
 
-@node Acldel,  , Acladd, Multiuser Session
+@node Aclchg, Acldel, Acladd, Multiuser Session
+@subsection Aclchg
+@deffn Command aclchg @var{username permbits list}
+(none)@*
+Change a users permissions. Permission bits are represented as @samp{r}, 
+@samp{w} and @samp{x}. Prefixing @samp{+} grants the permission, @samp{-} 
+removes it. The third parameter is a komma seperated list of commands or windows
+(specified either by number or title). The special list @samp{#} refers to all 
+windows, @samp{?} to all commands.
+A Command can be executed when the user has the @samp{x} bit for it. the user
+can type input to a window, when he has its @samp{w} bit set and no other
+user obtains a writelock for this window. Other bits are currently ignored.
+Multi-user mode only.
+@end deffn
+
+@node Acldel, Wall, Aclchg, Multiuser Session
 @subsection Acldel
 @deffn Command acldel @var{username}
 (none)@*
-Remove a user from screens access control list. Multi-user mode only.
+Remove a user from screens access control list. If currently attached, all the
+users displays are detached from the session. He cannot attach again.
+Multi-user mode only.
+@end deffn
+
+@node Wall, Writelock, Acldel, Multiuser Session
+@subsection Wall
+@deffn Command wall @var{message ...}
+(none)@*
+Write a message to all displays. The message will appear in the terminals
+status line.
+@end deffn
+
+@node Writelock,  , Wall, Multiuser Session
+@subsection Writelock
+@deffn Command writelock @var{on|off|auto}
+(none)@*
+In addition to access control lists, not all users may be able to write to
+the same window at once. Per default, writelock is in @samp{auto} mode and
+grants exclusive input permission to the user who is the first to switch
+to the particular window. When he leaves the window, other users may obtain
+the writelock (automatically). The writelock of the current window is disabled
+by the command @code{writelock off}. If the user issues the command
+@code{writelock on} he keeps the exclusive write permission while switching
+to other windows.
 @end deffn
 
 @node Session Name, Suspend, Multiuser Session, Session Management
@@ -1188,7 +1264,7 @@ in a session.  @xref{Virtual Terminal}, for comands to control the
 terminal emulation itself.
 
 @menu
-* Also Known As::               Control the name of the window
+* Naming Windows::               Control the name of the window
 * Autonuke::			Flush unseen output
 * Console::			See the host's console messages
 * Kill::                        Destroy an unwanted window
@@ -1199,49 +1275,49 @@ terminal emulation itself.
 * Windows::                     List the active windows
 @end menu
 
-@node Also Known As, Autonuke,  , Window Settings
-@section Also Known As (A.K.A.s)
-@cindex a.k.a
+@node Naming Windows, Autonuke,  , Window Settings
+@section Naming Windows (Titles)
+@cindex title
 
 You can customize each window's name in the window display (viewed with
 the @code{windows} command (@pxref{Windows}) by setting it with
-one of the a.k.a. commands.  Normally the name displayed is the actual
+one of the title commands.  Normally the name displayed is the actual
 command name of the program created in the window.  However, it is
 sometimes useful to distinguish various programs of the same name or to
 change the name on-the-fly to reflect the current state of the window.
 
 The default name for all shell windows can be set with the
-@code{shellaka} command (@pxref{Shell}).  You can specify the name you
+@code{shelltitle} command (@pxref{Shell}).  You can specify the name you
 want for a window with the @samp{-t} option to the @code{screen} command
 when the window is created (@pxref{Screen Command}).  To change the name after
-the window has been created you can use the AKA-string escape-sequence
-(@kbd{@key{ESC} k @var{name} @key{ESC} \}) and the @code{aka} command
+the window has been created you can use the title-string escape-sequence
+(@kbd{@key{ESC} k @var{name} @key{ESC} \}) and the @code{title} command
 (C-a A).  The former can be output from an application to control the
 window's name under software control, and the latter will prompt for a
 name when typed.  You can also bind predefined names to keys with the
-@code{aka} command to set things quickly without prompting.
+@code{title} command to set things quickly without prompting.
 
 @menu
-* AKA Command::                 The @code{aka} command.
-* Dynamic AKAs::                Make shell windows change AKAs dynamically.
-* AKA Prompts::                 Set up your shell prompt for dynamic AKAs.
-* AKA Screenrc::                Set up AKAs in your @file{.screenrc}.
+* Title Command::                 The @code{title} command.
+* Dynamic Titles::                Make shell windows change titles dynamically.
+* Title Prompts::                 Set up your shell prompt for dynamic Titles.
+* Title Screenrc::                Set up Titles in your @file{.screenrc}.
 @end menu
 
-@node AKA Command, Dynamic AKAs,  , Also Known As
-@subsection AKA Command
+@node Title Command, Dynamic Titles,  , Naming Windows
+@subsection Title Command
 @kindex A
-@deffn Command aka [windowalias]
+@deffn Command title [windowtitle]
 (@kbd{C-a A})@*
 Set the name of the current window to @var{windowalias}. If no name is 
 specified, screen prompts for one.
 @end deffn
 
-@node Dynamic AKAs, AKA Prompts, AKA Command, Also Known As
-@subsection Dynamic AKAs
+@node Dynamic Titles, Title Prompts, Title Command, Naming Windows
+@subsection Dynamic Titles
 @code{screen} has a shell-specific heuristic that is enabled by
 setting the window's name to @var{search|name} and arranging to have a
-null aka escape-sequence output as a part of your prompt.  The
+null title escape-sequence output as a part of your prompt.  The
 @var{search} portion specifies an end-of-prompt search string, while the
 @var{name} portion specifies the default shell name for the window.  If
 the @var{name} ends in a @samp{:} @code{screen} will add what it
@@ -1250,22 +1326,22 @@ the specified name (e.g. @var{name:cmd}).  Otherwise the current
 command name supersedes the shell name while it is running.
 
 Here's how it works: you must modify your shell prompt to output a null
-aka escape-sequence (@key{ESC} k @key{ESC} \) as a part of your prompt.
+title-escape-sequence (@key{ESC} k @key{ESC} \) as a part of your prompt.
 The last part of your prompt must be the same as the string you
-specified for the @var{search} portion of the a.k.a.  Once this is set
-up, @code{screen} will use the aka escape-sequence to clear the previous
+specified for the @var{search} portion of the title.  Once this is set
+up, @code{screen} will use the title-escape-sequence to clear the previous
 command name and get ready for the next command.  Then, when a newline
 is received from the shell, a search is made for the end of the prompt.
 If found, it will grab the first word after the matched string and use
 it as the command name.  If the command name begins with @samp{!},
 @samp{%}, or @samp{^}, @code{screen} will use the first word on the
 following line (if found) in preference to the just-found name.  This
-helps csh users get more accurate AKA's when using job control or
+helps csh users get more accurate titles when using job control or
 history recall commands.
 
-@node AKA Prompts, AKA Screenrc, Dynamic AKAs, Also Known As
-@subsection Setting up your prompt for shell AKA's
-One thing to keep in mind when adding a null aka escape-sequence to your
+@node Title Prompts, Title Screenrc, Dynamic Titles, Naming Windows
+@subsection Setting up your prompt for shell titles
+One thing to keep in mind when adding a null title-escape-sequence to your
 prompt is that some shells (like the csh) count all the non-control
 characters as part of the prompt's length.  If these invisible
 characters aren't a multiple of 8 then backspacing over a tab will
@@ -1296,8 +1372,8 @@ PROMPT_COMMAND='echo -n -e "\033k\033\134"'
 
 (I used @samp{\134} to output a @samp{\} because of a bug in v1.04).
 
-@node AKA Screenrc,  , AKA Prompts, Also Known As
-@subsection Setting up shell AKAs in your @file{.screenrc}
+@node Title Screenrc,  , Title Prompts, Naming Windows
+@subsection Setting up shell Titles in your @file{.screenrc}
 Here are some .screenrc examples:
 
 @example
@@ -1308,12 +1384,12 @@ Adding this line to your .screenrc would start a niced version of the
 @code{top} command in window 2 name @samp{top} rather than @samp{nice}.
 
 @example
-shellaka '> |csh'
+shelltitle '> |csh'
 screen 1
 @end example
 
-This file would start a shell using the given shellaka.  The a.k.a.
-specified is an auto-aka that would expect the prompt and the typed
+This file would start a shell using the given shelltitle.  The title
+specified is an auto-title that would expect the prompt and the typed
 command to look something like the following:
 
 @example
@@ -1329,8 +1405,8 @@ bind R screen -t '% |root:' su
 @end example
 
 Having this command in your .screenrc would bind the key sequence
-@kbd{C-a R} to the @code{su} command and give it an auto-aka name of
-@samp{root:}.  For this auto-aka to work, the screen could look
+@kbd{C-a R} to the @code{su} command and give it an auto-title name of
+@samp{root:}.  For this auto-title to work, the screen could look
 something like this:
 
 @example
@@ -1344,17 +1420,17 @@ previously entered @code{emacs} command.  The window status would show
 simply @samp{root:} at its completion.
 
 @example
-bind o aka
-bind E aka ""
-bind u aka (unknown)
+bind o title
+bind E title ""
+bind u title (unknown)
 @end example
 
 The first binding doesn't have any arguments, so it would prompt you for
-an a.k.a. when you type @kbd{C-a o}.  The second binding would clear an
-auto-aka's current setting (C-a E).  The third binding would set the
-current window's a.k.a. to @samp{(unknown)} (C-a u).
+a title when you type @kbd{C-a o}.  The second binding would clear an
+auto-titles current setting (C-a E).  The third binding would set the
+current window's title to @samp{(unknown)} (C-a u).
 
-@node Autonuke, Console, Also Known As, Window Settings
+@node Autonuke, Console, Naming Windows, Window Settings
 @section Autonuke
 @deffn Command autonuke @var{state}
 (none)@*
@@ -1406,7 +1482,8 @@ sequence, such as @kbd{C-a K} (@pxref{Key Binding}).
 (none)@*
 Same as the @code{login} command except that the default setting for new
 windows is changed.  This defaults to `on' unless otherwise specified at
-compile time (@pxref{Installation}).
+compile time (@pxref{Installation}). Both commands are only present when
+@code{screen} has been compiled with utmp support.
 @end deffn
 
 @kindex L
@@ -1494,13 +1571,16 @@ type dependant limit.
 (@kbd{C-a w}, @kbd{C-a C-w})@*
 Uses the message line to display a list of all the windows.  Each
 window is listed by number with the name of the program running in the
-window (or its a.k.a.); the current window is marked with a @samp{*};
+window (or its title); the current window is marked with a @samp{*};
 the previous window is marked with a @samp{-}; all the windows that are
 logged in are marked with a @samp{$} (@pxref{Login}); a background
 window that has received a bell is marked with a @samp{!}; a background
 window that is being monitored and has had activity occur is marked with
 an @samp{@@} (@pxref{Monitor}); a window which has output logging turned
-on is marked with @samp{(L)}.
+on is marked with @samp{(L)}; windows occupied by other users are marked with 
+@samp{&}; windows in the zombie state are marked with @samp{Z}. 
+If this list is too long to fit on the terminals status line only the
+portion around the current window is displayed.
 @end deffn
 
 @node Virtual Terminal, Copy and Paste, Window Settings, Top
@@ -1545,7 +1625,8 @@ ESC >                   (V)     Numeric Keypad Mode
 ESC # 8                 (V)     Fill Screen with E's
 ESC \                   (A)     String Terminator
 ESC ^                   (A)     Privacy Message String (Message Line)
-ESC k                           A.k.a. Definition String
+ESC !                           Global Message String (Message Line)
+ESC k                           Title Definition String
 ESC P                   (A)     Device Control String
                                 Outputs a string directly to the host
                                 terminal without interpretation.
@@ -1981,20 +2062,23 @@ mode.
 
 @kindex ]
 @kindex C-]
-@deffn Command paste
+@deffn Command paste [registers]
 (@kbd{C-a ]}, @kbd{C-a C-]})@*
-Write the contents of the paste buffer to the stdin stream of the
-current window.  The paste buffer can be filled with the @code{copy},
+Write the contents of the specified registers to the stdin stream of the
+current window.  The register @samp{.} is treated as the
+paste buffer. If no parameter is given only the paste buffer is used.
+The paste buffer can be filled with the @code{copy},
 @code{history} and @code{readbuf} commands.
 @end deffn
 
 @deffn Command slowpaste msec
 (none)@*
 Define the speed text is inserted by the @code{paste} command.
-For each 80 characters (IOSIZE) pasted, @code{screen} will pause for
-@var{msec} milliseconds to allow the application to process the
-input. Use @code{slowpaste} if your underlying system chokes on large
-pastes (i.e. a VAX).
+If the slowpaste value is nonzero text is written character by character.
+@code{screen} will pause for @var{msec} milliseconds after each write
+to allow the application to process the input. only use @code{slowpaste} if 
+your underlying system exposes flow control problems while pasting large 
+amounts of text.
 @end deffn
 
 @node Registers, Screen-Exchange, Paste, Copy and Paste
@@ -2016,8 +2100,8 @@ stream.
 (none)@*
 Stuff the contents of the specified register into the @code{screen}
 input queue. If no argument is given you are prompted for a
-register name. This command can be used to bind multiple actions
-to a single key.
+register name. The text is parsed as if it had been typed in from the users
+keyboard. This command can be used to bind multiple actions to a single key.
 @end deffn
 
 @deffn Command register key string
@@ -2226,7 +2310,7 @@ would bind the space key to the command that displays a list of windows
 (so that the command usually invoked by @kbd{C-a C-w} would also be
 available as @kbd{C-a space}), bind @kbd{C-f} to the command
 ``create a window with a TELNET connection to foobar'', and bind
-@key{ESC} to the command that creates an non-login window with a.k.a.
+@key{ESC} to the command that creates an non-login window with title
 @samp{root} in slot #9, with a super-user shell and a scrollbackbuffer
 of 1000 lines.
 
@@ -2694,7 +2778,7 @@ Toggles the use of the terminal's hardware status line. If @samp{on},
 Otherwise these messages are overlayed in reverse video mode at the
 display line. Note that the hardstatus feature can only be used if the
 termcap/terminfo capabilities "hs", "ts", "fs" and "ds" are set
-properly.  Default is @samp{on}.
+properly.  Default is @samp{on} whenever the "hs" capability is present.
 @end deffn
 
 @node Last Message, Message Wait, Hardware Status Line, Message Line
@@ -2824,15 +2908,39 @@ The commands described here do not fit well under any of the other
 categories.
 
 @menu
+* At::                          Execute a command at other displays or windows.
 * Break::                       Send a break signal to the window.
+* Debug::                       Suppress/allow debugging output.
 * License::                     Display the disclaimer page.
 * Nethack::                     Use @code{nethack}-like error messages.
+* Number::                      Change the current window's number.
 * Silence::			Notify on inactivity.
 * Time::                        Display the time and load average.
 * Version::                     Display the version of @code{screen}.
+* Zombie::                      Keep dead windows.
 @end menu
 
-@node Break, License,  , Miscellaneous
+@node At, Break,  , Miscellaneous
+@section At
+@deffn Command at [identifier][#|*|%] command [args]
+(none)@*
+Execute a command at other displays or windows as if it had been entered there.
+@code{At} changes the context (the `current window' or `current display'
+setting) of the command. If the first parameter describes a non-unique context,
+the command will be executed multiple times. If the first parameter is of the 
+form @samp{@var{identifier}*} then identifier is matched against user names.
+The command is executed once for each display of the selected user(s).
+If the first parameter is of the form @samp{@var{identifier}%} identifier is
+matched against displays. Displays are named after the ttys they attach. The
+prefix @samp{/dev/} or @samp{/dev/tty} may be ommited from the identifier.
+If @var{identifier} has a @code{#} or nothing appended it is matched against
+window numbers and titles. Omitting an identifier in front of the @code{#},
+@code{*} or @code{%} character selects all users, displays or windows because
+a prefix-match is performed. Note that on the affected display(s) a short
+message will describe what happened.
+@end deffn
+
+@node Break, Debug, At, Miscellaneous
 @section Break
 @deffn Command break [duration]
 (none)@*
@@ -2846,7 +2954,17 @@ a shell process.
 Reopen the window's terminal line and send a break condition.
 @end deffn
 
-@node License, Nethack, Break, Miscellaneous
+@node Debug, License, Break, Miscellaneous
+@section Debug
+@deffn Command debug [on|off]
+(none)@*
+Turns runtime debugging on or off. If @code{screen} has been compiled with
+option @code{-DDEBUG} debugging is available and is turned on per default.
+Note that this command only affects debugging output from the main 
+@samp{SCREEN} process.
+@end deffn
+
+@node License, Nethack, Debug, Miscellaneous
 @section License
 @deffn Command license
 (none)@*
@@ -2854,7 +2972,7 @@ Display the disclaimer page. This is done whenever @code{screen} is
 started without options, which should be often enough.
 @end deffn
 
-@node Nethack, Silence, License, Miscellaneous
+@node Nethack, Number, License, Miscellaneous
 @section Nethack
 @deffn Command nethack state
 (none)@*
@@ -2869,7 +2987,17 @@ determined by the presence of the environment variable
 @code{$NETHACKOPTIONS}.
 @end deffn
 
-@node Silence, Time, Nethack, Miscellaneous
+@node Number, Silence, Nethack, Miscellaneous
+@section Number
+@kindex N
+@deffn Command number @var{[n]}
+(@kbd{C-a N})@*
+Change the current window's number. If the given number @var{n} is already
+used by another window, both windows exchange their numbers. If no argument is
+specified, the current window number (and title) is shown.
+@end deffn
+
+@node Silence, Time, Number, Miscellaneous
 @section Silence
 @deffn Command silence @var{[state|sec]}
 (none)@*
@@ -2898,13 +3026,22 @@ load averages over 1, 5, and 15 minutes (if this is available on your
 system).  For window-specific information use @code{info} (@pxref{Info}).
 @end deffn
 
-@node Version,  , Time, Miscellaneous
+@node Version, Zombie, Time, Miscellaneous
 @section Version
 @kindex v
 @kindex C-v
 @deffn Command version
 (@kbd{C-a v}, @kbd{C-a C-v})@*
 Display the version and modification date in the message line.
+@end deffn
+
+@node Zombie,  , Version, Miscellaneous
+@section Zombie
+@deffn Command zombie @var{[key]}
+Per default windows are removed from the window list as soon as the
+window's process (e.g. shell) exits. When a key is specified to the
+zombie command a `dead' windows will remain in the list until it is selected
+and this key is pressed or the @code{kill} command is issued.
 @end deffn
 
 @node Environment, Files, Miscellaneous, Top
@@ -3146,8 +3283,9 @@ include these features of 4.2 and 4.3 BSD UNIX.
 @section Socket Directory
 @cindex socket directory
 
-The socket directory defaults either to @file{$HOME/.screen} or
-preferably to @file{/local/screens}. If @code{screen} is installed
+The socket directory defaults either to @file{$HOME/.screen} or simply to 
+@file{/tmp/screens} or preferably to @file{/usr/local/screens} chosen at 
+compile-time. If @code{screen} is installed
 setuid root, then the administrator should compile screen with an
 adequate (not NFS mounted) @code{SOCKDIR}. If @code{screen} is not
 running setuid-root, the user can specify any mode 777 directory in the

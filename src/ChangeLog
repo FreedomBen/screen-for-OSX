@@ -1,3 +1,20 @@
+31.7.93	-- 3.5.1
+================
+
+* writelock, number, paste with arg, at, zombie and wall commands added.
+
+* Access Control Lists and more multi-user support added.
+
+* select and setenv commands enhanced.
+
+* socket.c: motorola bugfix.
+
+* configure.in: --srcdir support.
+
+* configure.in: recognize alpha and SUNOS3 correctly.
+
+* doc/screen.texinfo: Documentation by Jason Merrill.
+
 13.05.93 -- 3.3.3
 =================
 
@@ -19,7 +36,7 @@
 
 * ins_reg copy_reg commands.
 
-* new iscreenrc syntax.
+* new screenrc syntax.
 
 * split up screen.c and ansi.c
 
@@ -91,7 +108,7 @@ data loss on stdin overflow fixed
 3.1.1
 ------
 
-iScreen is now under the GNU copyleft license. See file COPYING.
+Screen is now under the GNU copyleft license. See file COPYING.
 
 command line option -A. $LINES, $COLUMNS improved.
 

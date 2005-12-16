@@ -115,11 +115,28 @@
  * 13.05.93 -- 3.03.04 exit in newsyntax script, finished _CX_UX port.
  *                     Texinfo page added by Jason Merrill. Much longish debug 
  *                     output removed. Select window by title (or number).
+ * 16.06.93 -- 3.04.00 Replaced ^A- by ^A^H to be complementary to ^A SPACE.
+ *                     Moved into CVS. Yacc.
+ * 28.06.93 -- 3.04.01 Fixed selecting windows with numeric title. Silence 
+ *                     now works without nethackoption set.
+ * 01.07.93 -- 3.04.02 Implementing real acls.
+ * 22.07.93 -- 3.05.00 Fixed SVR4, some multiuser bugs, -- DISTRIBUTED
+ * 05.08.93 -- 3.05.01 ${srcdir} feature added. Shellprog bug fixed.
+ *                     Motorola reattach bug fixed. Writelock bug fixed.
+ *                     Copybuffer moved into struct user. Configure.in
+ *                     uglified for Autoconf1.5. Paste may now have an
+ *                     argument. Interactive setenv. Right margin bug
+ *                     fixed. IRIX 5 patches. -- DISTRIBUTED
+ * 13.08.93 -- 3.05.02 ultrix support added. expand_vars removed from
+ *                     register function. Paste bug fixed.
+ *                     sysmacros.h now included in pty.c on sgis
+ *                     Strange hpux hack added for TTYCMP. 
+ *                     Zombie feature improved.
  */
 
 #define ORIGIN "FAU"
 #define REV 3
-#define VERS 3
-#define PATCHLEVEL 4
-#define DATE "25-May-93"
-#define STATE "beta" 
+#define VERS 5
+#define PATCHLEVEL 2
+#define DATE "19-Aug-93"
+#define STATE "" 

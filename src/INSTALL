@@ -1,0 +1,56 @@
+Installation of screen3.3
+
+0.)
+Unpack. Screen comes as a compressed tar archive. You need gzip to uncompress.
+But... you probably already managed that step, when you are reading this.
+
+1.)
+Run configure. This should create a Makefile and a config.h file
+suited for your machine. Rename config.status to reflect the architecture 
+(hostname) where it was built. To reconfigure quickly for that architecture
+just run that config.status file.
+If this process fails, try to find out what configure did do and what it
+should have checked. Mail me.
+
+2.)
+Look through the Makefile & user configuration section in config.h and check the
+pathnames. Change them to suit your installation requirements.
+
+3.)
+You may well run screen from your private binary directory and with a 
+private socket directory like $HOME/.screen. But to have a full featured
+screen and (from a users point of view) more secure pty's you should
+consult a system administrator and discuss installing screen setuid-root
+in some globally accessible directory like /usr/local/bin.
+
+Consider this, when deciding whether you install screen setuid-root:
+- On some machines root priviliges are required to open pty's. 
+- Pty's should be owned by the user, so that she can do chmod to prevent
+  intrudor attacks.
+- The ^At feature may need to lseek and read the kernel file to retrieve 
+  the load average.
+- On most machines utmp slots can only be created/manipulated with root
+  privileges. 
+- Multi-user screen sessions are only allowed when screen has a root-s-bit.
+
+4.)
+The creation of term.h, comm.h, tty.c or osdef.h may fail on some machines
+for some odd reason. (E.g. the sed under SCO-unix is known to be 
+case-insensitive and breaks term.h) If so, please mail a short description 
+of the problem to screen@uni-erlangen.de and use the files ending in .dist 
+as a replacement (or in case of osdef.h retry with an empty file).
+
+5.)
+The man page screen.1 should go to /usr/local/man/man1, or some similar
+directory. It should format nicely with nroff -man. If it does not, then
+try removing extra dots with: sed -e 's/^\.\././' < screen.1 | nroff -man 
+Look through the etcscreenrc file for system wide defaults that you like to 
+set. e.g. autodetach off, startup_message off, vbell on, ... 
+Install it to match the pathname specified in config.h
+
+6.)
+Since version 3.2.15 the screenrc file syntax changed slightly. All rc files
+from previous versions should be run through the newsyntax script that comes 
+with this package.
+
+Juergen Weigert. (screen@uni-erlangen.de)

@@ -1,0 +1,161 @@
+/* Copyright (c) 1993
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
+ * Copyright (c) 1987 Oliver Laumann
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (see the file COPYING); if not, write to the
+ * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *
+ ****************************************************************
+ * $Id$ FAU
+ */
+
+/****************************************************************
+ * Thanks to Christos S. Zoulas (christos@ee.cornell.edu) who 
+ * mangled the screen source through 'gcc -Wall'.
+ ****************************************************************
+ */
+
+#ifdef SYSV
+extern char *strchr __P((char *, int));
+extern char *strrchr __P((char *, int));
+extern char *memset __P((char *, int, int));
+extern int   memcmp __P((char *, char *, int));
+#else
+extern char *index __P((char *, int));
+extern char *rindex __P((char *, int));
+extern void  bzero __P((char *, int));
+extern int   bcmp __P((char *, char *, int));
+extern int   killpg __P((int, int));
+#endif
+
+#ifndef USEBCOPY
+# ifdef USEMEMCPY
+extern void  memcpy __P((char *, char *, int));
+# else
+#  ifdef USEMEMMOVE
+extern void  memmove __P((char *, char *, int));
+#  else
+extern void  bcopy __P((char *, char *, int));
+#  endif
+# endif
+#else
+extern void  bcopy __P((char *, char *, int));
+#endif
+
+#ifdef BSDWAIT
+struct rusage;
+union wait;
+extern int   wait3 __P((union wait *, int, struct rusage *));
+#else
+extern int   waitpid __P((int, int *, int));
+#endif
+
+extern int   getdtablesize __P((void));
+
+#ifndef NOREUID
+# ifdef hpux
+extern int   setresuid __P((int, int, int));
+extern int   setresgid __P((int, int, int));
+# else
+extern int   setreuid __P((int, int));
+extern int   setregid __P((int, int));
+# endif
+#endif
+
+extern char *crypt __P((char *, char *));
+extern int   putenv __P((char *));
+
+extern int   tgetent __P((char *, char *));
+extern int   tgetnum __P((char *));
+extern int   tgetflag __P((char *));
+extern void  tputs __P((char *, int, void (*)(int)));
+extern char *tgoto __P((char *, int, int));
+
+#ifdef POSIX
+extern int   setsid __P((void));
+extern int   setpgid __P((int, int));
+extern int   tcsetpgrp __P((int, int));
+#endif
+extern int   ioctl __P((int, int, char *));
+
+extern int   getpgrp __P((int));
+extern int   kill __P((int, int));
+
+extern int   getpid __P((void));
+extern int   getuid __P((void)); 
+extern int   geteuid __P((void));
+extern int   getgid __P((void)); 
+extern int   getegid __P((void));
+extern struct passwd *getpwuid __P((int));
+extern struct passwd *getpwnam __P((char *));
+extern int   isatty __P((int)); 
+extern int   chown __P((char *, int, int)); 
+extern int   rename __P((char *, char *));
+
+extern int   gethostname __P((char *, int));
+extern int   lseek __P((int, int, int));
+extern void  exit __P((int));
+extern char *getwd __P((char *));
+extern char *getenv __P((char *));
+extern time_t time __P((time_t *));
+
+extern char *getpass __P((char *));
+extern char *getlogin __P((void));
+extern char *ttyname __P((int));
+
+extern int   fputs __P((char *, FILE *)); 
+extern int   fwrite __P((char *, int, int, FILE *));
+extern int   fflush __P((FILE *)); 
+extern int   fclose __P((FILE *)); 
+
+extern char *malloc __P((int));
+extern char *realloc __P((char *, int));
+extern void  free __P((char *));
+
+#ifdef NAMEDPIPE
+extern int   mknod __P((char *, int, int));
+#else
+struct sockaddr;
+extern int   socket __P((int, int, int));
+extern int   connect __P((int, struct sockaddr *, int));
+extern int   bind __P((int, struct sockaddr *, int));
+extern int   listen __P((int, int));
+extern int   accept __P((int, struct sockaddr *, int *));
+#endif
+
+#if defined(UTMPOK) && defined(GETUTENT)
+extern void  setutent __P((void));
+#endif
+
+#if defined(sequent) || defined(_SEQUENT_)
+extern int   getpseudotty __P((char **, char **));
+#ifdef _SEQUENT_
+extern int   fvhangup __P((char *));
+#endif
+#endif
+
+#ifdef USEVARARGS
+extern int   vsprintf __P((char *, char *, va_list));
+#endif
+struct timeval;
+extern int   select __P((int, fd_set *, fd_set *, fd_set *, struct timeval *));
+
+extern void  unsetenv __P((char *));
+
+# if defined(GETTTYENT) && !defined(GETUTENT) && !defined(UTNOKEEP)
+struct ttyent;
+extern void  setttyent __P((void));
+extern struct ttyent *getttyent __P((void));
+# endif

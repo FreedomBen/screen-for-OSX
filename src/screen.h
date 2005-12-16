@@ -22,24 +22,6 @@
  */
 
 #include "os.h"
-#include "ansi.h"
-#include "comm.h"
-#include "overlay.h"
-#include "term.h"
-
-
-#ifdef DEBUG
-#	define debug(x) {fprintf(dfp,x);fflush(dfp);}
-#	define debug1(x,a) {fprintf(dfp,x,a);fflush(dfp);}
-#	define debug2(x,a,b) {fprintf(dfp,x,a,b);fflush(dfp);}
-#	define debug3(x,a,b,c) {fprintf(dfp,x,a,b,c);fflush(dfp);}
-	extern FILE *dfp;
-#else
-#	define debug(x) {}
-#	define debug1(x,a) {}
-#	define debug2(x,a,b) {}
-#	define debug3(x,a,b,c) {}
-#endif
 
 #if defined(__STDC__)
 # ifndef __P
@@ -52,6 +34,32 @@
 # define const
 #endif
 
+#include "osdef.h"
+
+#include "ansi.h"
+#include "acl.h"
+#include "comm.h"
+#include "overlay.h"
+#include "term.h"
+
+
+#ifdef DEBUG
+#	define DEBUGDIR "/tmp/debug"
+#	define debug(x) {if(dfp){fprintf(dfp,x);fflush(dfp);}}
+#	define debug1(x,a) {if(dfp){fprintf(dfp,x,a);fflush(dfp);}}
+#	define debug2(x,a,b) {if(dfp){fprintf(dfp,x,a,b);fflush(dfp);}}
+#	define debug3(x,a,b,c) {if(dfp){fprintf(dfp,x,a,b,c);fflush(dfp);}}
+	extern FILE *dfp;
+#else
+#	define debug(x) {}
+#	define debug1(x,a) {}
+#	define debug2(x,a,b) {}
+#	define debug3(x,a,b,c) {}
+#endif
+
+#ifndef DEBUG
+# define NOASSERT
+#endif
 
 #ifndef NOASSERT
 # if defined(__STDC__)
@@ -218,7 +226,6 @@ struct NewWindow
   int	lflag;
   int	histheight;
   int	monitor;
-  struct pseudowin *pwin;
 };
 
 /*
@@ -236,4 +243,12 @@ struct acl
   char *name;
 };
 #endif
+
+/* register list */
+#define MAX_PLOP_DEFS 256
+struct plop
+{
+  char *buf;
+  int len;
+};
 

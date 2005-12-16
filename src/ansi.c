@@ -23,7 +23,6 @@
 #include "rcs.h"
 RCS_ID("$Id$ FAU")
 
-#include <stdio.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #ifndef sun	/* we want to know about TIOCPKT. */
@@ -40,16 +39,16 @@ extern char *malloc();
 
 extern struct win *windows;	/* linked list of all windows */
 extern struct win *fore;
+extern struct display *display, *displays;
+
 extern int  force_vt;
 extern int  all_norefresh;	/* => display */
-extern char Esc, MetaEsc;	/* => display */
+extern int  ZombieKey;
 extern time_t Now;
 
 int maxwidth;			/* maximum of all widths so far */
 
 int Z0width, Z1width;		/* widths for Z0/Z1 switching */
-
-struct display *display;
 
 static struct win *curr;	/* window we are working on */
 static int rows, cols;		/* window size of the curr window */
@@ -68,13 +67,13 @@ static void WinProcess __P((char **, int *));
 static void WinRedisplayLine __P((int, int, int, int));
 static void WinClearLine __P((int, int, int));
 static int  WinRewrite __P((int, int, int, int));
-static void WinSetCursor __P(());
+static void WinSetCursor __P((void));
 static int  WinResize __P((int, int));
 static void WinRestore __P((void));
 static int  Special __P((int));
 static void DoESC __P((int, int ));
 static void DoCSI __P((int, int ));
-static void SetChar __P(());
+static void SetChar __P((int));
 static void StartString __P((enum string_t));
 static void SaveChar __P((int ));
 static void PrintChar __P((int ));
@@ -104,10 +103,10 @@ static void ClearFullLine __P((void));
 static void ClearToEOL __P((void));
 static void ClearFromBOL __P((void));
 static void ClearInLine __P((int, int, int));
-static void CursorRight __P(());
-static void CursorUp __P(());
-static void CursorDown __P(());
-static void CursorLeft __P(());
+static void CursorRight __P((int));
+static void CursorUp __P((int));
+static void CursorDown __P((int));
+static void CursorLeft __P((int));
 static void ASetMode __P((int));
 static void SelectRendition __P((void));
 static void RestorePosAttrFont __P((void));
@@ -142,7 +141,28 @@ int *lenp;
   char *ibuf;
   
   fore = d_fore;
-  if (AclCheck(NULL, RC_PROCESS, display, fore))
+  /* if w_wlock is set, only one user may write, else we check acls */
+  if (fore->w_ptyfd < 0)
+    {
+      SetCurr(fore);
+      Special('\007');
+      while ((*lenp)-- > 0)
+        {
+	  if (*(*bufpp)++ == ZombieKey)
+	    {
+	      debug2("Turning undead: %d(%s)\n", fore->w_number, fore->w_title);
+	      KillWindow(fore);
+	      break;
+	    }
+	}
+      *bufpp += *lenp;
+      *lenp = 0;
+      return;
+    }
+#ifdef MULTIUSER
+  if ((fore->w_wlock == WLOCK_OFF) ? 
+      AclCheckPermWin(d_user, ACL_WRITE, fore) :
+      (d_user != fore->w_wlockuser))
     {
       SetCurr(fore);
       Special('\007');
@@ -150,15 +170,18 @@ int *lenp;
       *lenp = 0;
       return;
     }
+#endif /* MULTIUSER */
+#ifdef PSEUDOS
   if (W_UWP(fore))
     {
-      /* we send the d_user input to our pseudowin */
+      /* we send the user input to our pseudowin */
       ibuf = fore->w_pwin->p_inbuf; ilen = &fore->w_pwin->p_inlen;
       f = sizeof(fore->w_pwin->p_inbuf) - *ilen;
     }
   else
+#endif /* PSEUDOS */
     {
-      /* we send the d_user input to the window */
+      /* we send the user input to the window */
       ibuf = fore->w_inbuf; ilen = &fore->w_inlen;
       f = sizeof(fore->w_inbuf) - *ilen;
     }
@@ -389,7 +412,7 @@ register int len;
       /* The next part is only for speedup */
       if (curr->w_state == LIT &&
           c >= ' ' && ((c & 0x80) == 0 || display == 0 || !CB8) &&
-          !curr->w_insert && !curr->w_ss)
+          !curr->w_insert && !curr->w_ss && curr->w_x < cols - 1)
 	{
 	  register int currx;
 	  register char *imp, *atp, *fop, at, fo;
@@ -508,6 +531,15 @@ skip:	      if (--len == 0)
 	      *(curr->w_stringp) = '\0';
 	      switch (curr->w_StringType)
 		{
+		case GM:
+		    {
+		      struct display *old = display;
+		      for (display = displays; display; display = display->_d_next)
+			if (display != old)
+			  MakeStatus(curr->w_string);
+		      display = old;
+		    }
+		  /*FALLTHROUGH*/
 		case PM:
 		  if (!display)
 		    break;
@@ -524,9 +556,9 @@ skip:	      if (--len == 0)
 		    AddStr(curr->w_string);
 		  break;
 		case AKA:
-		  if (curr->w_akapos == 0 && !*curr->w_string)
+		  if (curr->w_title == curr->w_akabuf && !*curr->w_string)
 		    break;
-		  strncpy(curr->w_cmd + curr->w_akapos, curr->w_string, 20);
+		  ChangeAKA(curr, curr->w_string, 20);
 		  if (!*curr->w_string)
 		    curr->w_autoaka = curr->w_y + 1;
 		  break;
@@ -534,10 +566,14 @@ skip:	      if (--len == 0)
 		  break;
 		}
 	      break;
+	    case '\033':
+	      SaveChar('\033');
+	      break;
 	    default:
 	      curr->w_state = ASTR;
 	      SaveChar('\033');
 	      SaveChar(c);
+	      break;
 	    }
 	  break;
 	case ASTR:
@@ -572,6 +608,9 @@ skip:	      if (--len == 0)
 	      break;
 	    case '^':
 	      StartString(PM);
+	      break;
+	    case '!':
+	      StartString(GM);
 	      break;
 	    case '"':
 	    case 'k':
@@ -711,7 +750,16 @@ skip:	      if (--len == 0)
 		}
 	      else
 		{
-		  LineFeed(display == 0 || AM ? 0 : 2);
+		  if (display && d_x != cols)	/* write char again */
+		    {
+		      SetAttrFont(curr->w_attr[curr->w_y][cols - 1],
+                                  curr->w_font[curr->w_y][cols - 1]);
+		      RAW_PUTCHAR(curr->w_image[curr->w_y][cols - 1]);
+		      SetAttrFont(curr->w_Attr, curr->w_Font);
+		      if (curr->w_y == d_bot)
+			d_lp_missing = 0;	/* just wrote it */
+		    }
+		  LineFeed((display == 0 || AM) ? 0 : 2);
 		  if (display)
 		    PUTCHAR(c);
 		  SetChar(c);
@@ -725,7 +773,8 @@ skip:	      if (--len == 0)
 	    }
 	  break;
 	}
-    } while (--len);
+    }
+  while (--len);
   curr->w_outlen = 0;
   if (curr->w_state == PRIN)
     PrintFlush();
@@ -1044,7 +1093,9 @@ int c, intermediate;
 	    }
 	  break;
 	case 'n':
-	  if (a1 == 6)		/* Report cursor position */
+	  if (a1 == 5)		/* Report terminal status */
+	    Report("\033[0n", 0, 0);
+	  else if (a1 == 6)		/* Report cursor position */
 	    Report("\033[%d;%dR", curr->w_y + 1, curr->w_x + 1);
 	  break;
 	case 'c':		/* Identify as VT100 */
@@ -1053,56 +1104,60 @@ int c, intermediate;
 	}
       break;
     case '?':
-      debug2("\\E[?%d%c\n",a1,c);
-      if (c != 'h' && c != 'l')
-	break;
-      i = (c == 'h');
-      switch (a1)
+      for (a2 = 0; a2 < curr->w_NumArgs; a2++)
 	{
-	case 1:
-	  CursorkeysMode(curr->w_cursorkeys = i);
+	  a1 = curr->w_args[a2];
+	  debug2("\\E[?%d%c\n",a1,c);
+	  if (c != 'h' && c != 'l')
+	    break;
+	  i = (c == 'h');
+	  switch (a1)
+	    {
+	    case 1:
+	      CursorkeysMode(curr->w_cursorkeys = i);
 #ifndef TIOCPKT
-	  NewAutoFlow(curr, !i);
+	      NewAutoFlow(curr, !i);
 #endif /* !TIOCPKT */
-	  break;
-	case 3:
-	  i = (i ? Z0width : Z1width);
-	  if (curr->w_width != i && (display == 0 || (CZ0 || CWS)))
-	    {
-              ChangeWindowSize(curr, i, curr->w_height);
-	      SetCurr(curr);	/* update rows/cols */
+	      break;
+	    case 3:
+	      i = (i ? Z0width : Z1width);
+	      if (curr->w_width != i && (display == 0 || (CZ0 || CWS)))
+		{
+		  ChangeWindowSize(curr, i, curr->w_height);
+		  SetCurr(curr);	/* update rows/cols */
+		  if (display)
+		    Activate(0);
+		}
+	      break;
+	    case 5:
+	      if (i)
+		curr->w_vbwait = 1;
+	      else
+		{
+		  if (display && curr->w_vbwait)
+		    PutStr(VB);
+		  curr->w_vbwait = 0;
+		}
+	      break;
+	    case 6:
+	      if ((curr->w_origin = i) != 0)
+		{
+		  curr->w_y = curr->w_top;
+		  curr->w_x = 0;
+		}
+	      else
+		curr->w_y = curr->w_x = 0;
 	      if (display)
-		Activate(0);
+		GotoPos(curr->w_x, curr->w_y);
+	      break;
+	    case 7:
+	      curr->w_wrap = i;
+	      break;
+	    case 35:
+	      debug1("Cursor %svisible\n", i ? "in" : "");
+	      curr->w_cursor_invisible = i;
+	      break;
 	    }
-	  break;
-	case 5:
-	  if (i)
-	    curr->w_vbwait = 1;
-	  else
-	    {
-	      if (display && curr->w_vbwait)
-		PutStr(VB);
-	      curr->w_vbwait = 0;
-	    }
-	  break;
-	case 6:
-	  if ((curr->w_origin = i) != 0)
-	    {
-	      curr->w_y = curr->w_top;
-	      curr->w_x = 0;
-	    }
-	  else
-	    curr->w_y = curr->w_x = 0;
-	  if (display)
-	    GotoPos(curr->w_x, curr->w_y);
-	  break;
-	case 7:
-	  curr->w_wrap = i;
-	  break;
-	case 35:
-	  debug1("Cursor %svisible\n", i ? "in" : "");
-	  curr->w_cursor_invisible = i;
-	  break;
 	}
       break;
     }
@@ -1466,8 +1521,11 @@ ScrollUpMap(n)
 int n;
 {
   char tmp[256 * sizeof(char *)];
-  register int ii, i, cnt1, cnt2;
+  register int i, cnt1, cnt2;
   register char **ppi, **ppa, **ppf;
+#ifdef COPY_PASTE
+  register int ii;
+#endif
 
   i = curr->w_top + n;
   cnt1 = n * sizeof(char *);
@@ -1738,53 +1796,30 @@ int on;
     }
 }
 
+static char rendlist[] =
+{
+  (1 << NATTR), A_BD, A_DI, A_SO, A_US, A_BL, 0, A_RV, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, ~(A_BD|A_SO|A_DI), ~A_SO, ~A_US, ~A_BL, 0, ~A_RV
+};
+
 static void
 SelectRendition()
 {
-  register int i = 0, a = curr->w_Attr;
+  register int j, i = 0, a = curr->w_Attr;
 
   do
     {
-      switch (curr->w_args[i])
-	{
-	case 0:
-	  a = 0;
-	  break;
-	case 1:
-	  a |= A_BD;
-	  break;
-	case 2:
-	  a |= A_DI;
-	  break;
-	case 3:
-	  a |= A_SO;
-	  break;
-	case 4:
-	  a |= A_US;
-	  break;
-	case 5:
-	  a |= A_BL;
-	  break;
-	case 7:
-	  a |= A_RV;
-	  break;
-	case 22:
-	  a &= ~(A_BD | A_SO | A_DI);
-	  break;
-	case 23:
-	  a &= ~A_SO;
-	  break;
-	case 24:
-	  a &= ~A_US;
-	  break;
-	case 25:
-	  a &= ~A_BL;
-	  break;
-	case 27:
-	  a &= ~A_RV;
-	  break;
-	}
-    } while (++i < curr->w_NumArgs);
+      j = curr->w_args[i];
+      if (j < 0 || j >= (sizeof(rendlist)/sizeof(*rendlist)))
+	continue;
+      j = rendlist[j];
+      if (j & (1 << NATTR))
+        a &= j;
+      else
+        a |= j;
+    }
+  while (++i < curr->w_NumArgs);
   SetAttr(curr->w_Attr = a);
 }
 
@@ -1858,19 +1893,41 @@ char n_ch;
     }
 }
 
+/*
+ *  Ugly autoaka hack support:
+ *    ChangeAKA() sets a new aka
+ *    FindAKA() searches for an autoaka match
+ */
+
+void
+ChangeAKA(p, s, l)
+struct win *p;
+char *s;
+int l;
+{
+  if (l > 20)
+    l = 20;
+  strncpy(p->w_akachange, s, l);
+  p->w_akachange[l] = 0;
+  p->w_title = p->w_akachange;
+  if (p->w_akachange != p->w_akabuf)
+    if (p->w_akachange[0] == 0 || p->w_akachange[-1] == ':')
+      p->w_title = p->w_akabuf + strlen(p->w_akabuf) + 1;
+}
+
 static void
 FindAKA()
 {
   register char *cp, *line;
   register struct win *wp = curr;
-  register int len = strlen(wp->w_cmd);
+  register int len = strlen(wp->w_akabuf);
   int y;
 
   y = (wp->w_autoaka > 0 && wp->w_autoaka <= wp->w_height) ? wp->w_autoaka - 1 : wp->w_y;
   cols = wp->w_width;
  try_line:
   cp = line = wp->w_image[y];
-  if (wp->w_autoaka > 0 &&  *wp->w_cmd != '\0')
+  if (wp->w_autoaka > 0 &&  *wp->w_akabuf != '\0')
     {
       for (;;)
 	{
@@ -1880,7 +1937,7 @@ FindAKA()
 		goto try_line;
 	      return;
 	    }
-	  if (strncmp(cp, wp->w_cmd, len) == 0)
+	  if (strncmp(cp, wp->w_akabuf, len) == 0)
 	    break;
 	  cp++;
 	}
@@ -1894,14 +1951,14 @@ FindAKA()
 	wp->w_autoaka = -1;
       else
 	wp->w_autoaka = 0;
-      line = wp->w_cmd + wp->w_akapos;
+      line = cp;
       while (len && *cp != ' ')
 	{
-	  if ((*line++ = *cp++) == '/')
-	    line = wp->w_cmd + wp->w_akapos;
+	  if (*cp++ == '/')
+	    line = cp;
 	  len--;
 	}
-      *line = '\0';
+      ChangeAKA(wp, line, cp - line);
     }
   else
     wp->w_autoaka = 0;

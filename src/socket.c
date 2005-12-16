@@ -37,9 +37,9 @@ RCS_ID("$Id$ FAU")
 #include <sys/un.h>
 #endif
 #include <signal.h>
-#ifndef M_XENIX
-#include <sys/time.h>
-#endif /* M_XENIX */
+
+#include "screen.h"
+
 #ifdef DIRENT
 # include <dirent.h>
 #else
@@ -47,20 +47,11 @@ RCS_ID("$Id$ FAU")
 # define dirent direct
 #endif
 
-#include "screen.h"
-
-#ifdef USEVARARGS
-# if defined(__STDC__)
-#  include <stdarg.h>
-# else
-#  include <varargs.h>
-# endif
-#endif
-
 #include "extern.h"
 
 #if defined(_SEQUENT_) && !defined(NAMEDPIPE)
 # define connect sconnect	/* _SEQUENT_ has braindamaged connect */
+static int sconnect __P((int, struct sockaddr *, int));
 #endif
 
 extern char *RcFileName, *extra_incap, *extra_outcap;
@@ -68,7 +59,7 @@ extern int ServerSocket, real_uid, real_gid, eff_uid, eff_gid;
 extern int dflag, iflag, rflag, lsflag, quietflag, wipeflag, xflag;
 extern char *attach_tty, *LoginName, HostName[];
 extern struct display *display, *displays;
-extern struct win *fore, *console_window, *windows;
+extern struct win *fore, *wtab[], *console_window, *windows;
 extern struct NewWindow nwin_undef;
 #ifdef NETHACK
 extern nethackflag;
@@ -171,6 +162,7 @@ int *fdp;
        * there may be a file ".termcap" here. 
        * Ignore it just like "." and "..". 
        */
+      debug1("- %s\n", Name);
       if (Name[0] == '.')
 	continue;
       if (SockName && l)
@@ -206,7 +198,10 @@ int *fdp;
        */
       strcpy(SockNamePtr, Name);
       if (stat(SockPath, &st))
-	continue;
+        {
+          debug1("could not stat! (%d)\n", errno);
+	  continue;
+        }
 #ifndef SOCK_NOT_IN_FS
 # ifdef NAMEDPIPE
       if (!S_ISFIFO(st.st_mode))
@@ -225,8 +220,12 @@ int *fdp;
 # endif /* NAMEDPIPE */
 #endif
       if (st.st_uid != real_uid)
-	continue;
+        {
+          debug2("uid mismatch (%d - %d) - ignored\n", st.st_uid, real_uid);
+	  continue;
+        }
       s = st.st_mode & 0777;
+      debug2("FindSocket: %s has mode %04o...\n", Name, s);
 #ifdef MULTIUSER
       if (multi && ((s & 0677) == 0600))
 	continue;
@@ -237,7 +236,6 @@ int *fdp;
 #else
       foundsock[foundsockcount].mode = s;
 #endif
-      debug2("FindSocket: %s has mode %04o...\n", Name, s);
       {
 	/* 
 	 * marc parses the socketname again
@@ -376,7 +374,7 @@ debug2("mode = %d --> found = %d\n", foundsock[s].mode, found);
 	      break;
 #endif
 	    case -1:
-#if defined(__STDC__) || defined(_AIX)
+#if defined(__STDC__) || defined(_AIX) || defined(SVR4)
 	      printf("\t%s\t(Dead ??\?)\n", foundsock[s].name);
 #else
 	      printf("\t%s\t(Dead ???)\n", foundsock[s].name);
@@ -559,7 +557,7 @@ MakeServerSocket()
   setreuid(eff_uid, real_uid);
   setregid(eff_gid, real_gid);
 # endif /* NOREUID */
-  if (connect(s, (struct sockaddr *) & a, strlen(SockPath) + 2) != -1)
+  if (connect(s, (struct sockaddr *) &a, strlen(SockPath) + 2) != -1)
     {
       debug("oooooh! socket already is alive!\n");
       if (quietflag)
@@ -583,7 +581,7 @@ MakeServerSocket()
 	Panic(0, "It is not detached.");
       /* NOTREACHED */
     }
-#if defined(m88k) || defined(m68k)
+#if defined(m88k) || defined(sysV68)
   close(s);	/* we get bind: Invalid argument if this is not done */
   if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
     Panic(errno, "reopen socket");
@@ -594,7 +592,7 @@ MakeServerSocket()
 #ifdef SOCK_NOT_IN_FS
     {
       int f;
-      if (f = secopen(SockPath, O_RDWR | O_CREAT, SOCKMODE) < 0)
+      if ((f = secopen(SockPath, O_RDWR | O_CREAT, SOCKMODE)) < 0)
         Panic(errno, "shadow socket open");
       close(f);
     }
@@ -652,7 +650,7 @@ char *name;
       return -1;
     }
 # endif /* NOREUID */
-  if (connect(s, (struct sockaddr *) & a, strlen(SockPath) + 2) == -1)
+  if (connect(s, (struct sockaddr *) &a, strlen(SockPath) + 2) == -1)
     {
       if (err)
 	Msg(errno, "%s: connect", SockPath);
@@ -841,6 +839,33 @@ int pid;
   return UserStatus();
 }
 
+#ifdef hpux
+/*
+ * From: "F. K. Bruner" <napalm@ugcs.caltech.edu>
+ * From: "Dan Egnor" <egnor@oracorp.com> Tue Aug 10 06:56:45 1993
+ * The problem is that under HPUX (and possibly other systems too) there are
+ * two equivalent device files for each pty/tty device:
+ * /dev/ttyxx == /dev/pty/ttyxx
+ * /dev/ptyxx == /dev/ptym/ptyxx
+ * I didn't look into the exact specifics, but I've run across this problem
+ * before: Even if you open /dev/ttyxx as fds 0 1 & 2 for a process, if that
+ * process calls the system to determine its tty, it'll get /dev/pty/ttyxx.
+ *
+ * Earlier versions seemed to work -- wonder what they did.
+ */
+static int
+ttycmp(s1, s2)
+char *s1, *s2;
+{
+  if (strlen(s1) > 5) s1 += strlen(s1) - 5;
+  if (strlen(s2) > 5) s2 += strlen(s2) - 5;
+  return strcmp(s1, s2);
+}
+# define TTYCMP(a, b) ttycmp(a, b)
+#else
+# define TTYCMP(a, b) strcmp(a, b)
+#endif
+
 void
 ReceiveMsg()
 {
@@ -848,10 +873,10 @@ ReceiveMsg()
   static struct msg m;
   char *p;
   int ns = ServerSocket;
-  struct display *next;
   struct mode Mode;
-#ifdef UTMPOK
   struct win *wi;
+#ifdef REMOTE_DETACH
+  struct display *next;
 #endif
 
 #ifdef NAMEDPIPE
@@ -909,18 +934,17 @@ ReceiveMsg()
     }
   debug2("*** RecMsg: type %d tty %s\n", m.type, m.m_tty);
   for (display = displays; display; display = display->_d_next)
-    if (strcmp(d_usertty, m.m_tty) == 0)
+    if (TTYCMP(d_usertty, m.m_tty) == 0)
       break;
   debug2("display: %s display %sfound\n", m.m_tty, display ? "" : "not ");
   if (!display)
     {
-      struct win *w;
-
-      for (w = windows; w; w = w->w_next)
-        if (!strcmp(m.m_tty, w->w_tty))
+      for (wi = windows; wi; wi = wi->w_next)
+        if (!TTYCMP(m.m_tty, wi->w_tty))
 	  {
-            display = w->w_display;
-	    debug2("but window %s %sfound.\n", m.m_tty, display ? "" : "deatached (ignoring) ");
+            display = wi->w_display;
+	    debug2("but window %s %sfound.\n", m.m_tty, display ? "" : 
+	    	   "(backfacing)");
 	    break;
           }
     }
@@ -936,7 +960,15 @@ ReceiveMsg()
         CheckScreenSize(1); /* Change fore */
       break;
     case MSG_CREATE:
-      if (display)
+      /*
+       * the window that issued the create message need not be an active
+       * window. Then we create the window without having a display.
+       * Resulting in another inactive window.
+       * 
+       * Currently we enforce that at least one display exists. But why?
+       * jw.
+       */
+      if (displays)
 	ExecCreate(&m);
       break;
     case MSG_CONT:
@@ -989,7 +1021,7 @@ ReceiveMsg()
 
 #ifdef MULTIUSER
       if (strcmp(m.m.attach.auser, LoginName))
-        if (AclCheck(m.m.attach.auser, RC_ILLEGAL, NULL, NULL))
+        if (*FindUserPtr(m.m.attach.auser) == 0)
 	  {
               write(i, "Access to session denied.\n", 26);
 	      close(i);
@@ -1025,7 +1057,7 @@ ReceiveMsg()
 	  Kill(m.m.attach.apid, SIG_BYE);
 	  break;
         }
-#ifdef ultrix
+#if defined(ultrix) || defined(pyr)
       brktty(d_userfd);	/* for some strange reason this must be done */
 #endif
 #if defined(pyr) || defined(xelos) || defined(sequent)
@@ -1052,10 +1084,12 @@ ReceiveMsg()
       extra_incap = extra_outcap = 0;
       debug2("Message says size (%dx%d)\n", m.m.attach.columns, m.m.attach.lines);
 #ifdef ETCSCREENRC
-      if ((p = getenv("SYSSCREENRC")) == NULL)
-	StartRc(ETCSCREENRC);
-      else
+# ifdef ALLOW_SYSSCREENRC
+      if ((p = getenv("SYSSCREENRC")))
 	StartRc(p);
+      else
+# endif
+	StartRc(ETCSCREENRC);
 #endif
       StartRc(RcFileName);
       if (InitTermcap(m.m.attach.columns, m.m.attach.lines))
@@ -1081,11 +1115,37 @@ ReceiveMsg()
 #endif
       SetMode(&d_OldMode, &d_NewMode);
       SetTTY(d_userfd, &d_NewMode);
-      if (fore && fore->w_display == 0)
+
+      d_fore = NULL;
+      if (d_user->u_detachwin >= 0) 
+        fore = wtab[d_user->u_detachwin];
+      if (!fore || fore->w_display
+#ifdef MULTIUSER
+				   || AclCheckPermWin(d_user, ACL_WRITE, fore)
+#endif
+				   					      )
+        {
+	  /* try to get another window */
+#ifdef MULTIUSER
+	  for (wi = windows; wi; wi = wi->w_next)
+	    if (!wi->w_display && !AclCheckPermWin(d_user, ACL_WRITE, fore))
+	      break;
+	  if (!wi)
+	    for (wi = windows; wi; wi = wi->w_next)
+	      if (!wi->w_display && !AclCheckPermWin(d_user, ACL_READ, fore))
+	        break;
+	  if (!wi)
+#endif
+	    for (wi = windows; wi; wi = wi->w_next)
+	      if (!wi->w_display)
+	        break;
+	  fore = wi;
+	}
+      if (fore)
         SetForeWindow(fore);
-      else
-        d_fore = 0;
       Activate(0);
+      if (!d_fore)
+	ShowWindows();
       if (displays->_d_next == 0 && console_window)
 	{
 	  if (TtyGrabConsole(console_window->w_ptyfd, 1, "reattach") == 0)
@@ -1128,7 +1188,7 @@ ReceiveMsg()
 /*
  *  sequent_ptx socket emulation must have mode 000 on the socket!
  */
-int
+static int
 sconnect(s, sapp, len)
 int s, len;
 struct sockaddr *sapp;

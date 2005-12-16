@@ -2,7 +2,7 @@ dnl Process this file with autoconf to produce a configure script.
 dnl
 dnl $Id$ FAU
 dnl
-dnl Many thanks to David McKenzie for writing autoconf and
+dnl Many thanks to David MacKenzie for writing autoconf and
 dnl providing a sample configure.in file for screen.
 dnl
 AC_INIT(screen.c)
@@ -22,9 +22,9 @@ eval "$CPP $DEFS conftest.c 2>/dev/null | sed -e '1,/_CUT_HERE_/d' > conftest.ou
 rm -f conftest*
 ])dnl
 
-rev=`sed < patchlevel.h -n -e '/#define REV/s/#define REV  *//p'`
-vers=`sed < patchlevel.h -n -e '/#define VERS/s/#define VERS  *//p'`
-pat=`sed < patchlevel.h -n -e '/#define PATCHLEVEL/s/#define PATCHLEVEL  *//p'`
+rev=`sed < ${srcdir}/patchlevel.h -n -e '/#define REV/s/#define REV  *//p'`
+vers=`sed < ${srcdir}/patchlevel.h -n -e '/#define VERS/s/#define VERS  *//p'`
+pat=`sed < ${srcdir}/patchlevel.h -n -e '/#define PATCHLEVEL/s/#define PATCHLEVEL  *//p'`
 VERSION="$rev.$vers.$pat"
 echo "this is screen version $VERSION"
 AC_SUBST(VERSION)
@@ -47,10 +47,27 @@ if test -n "$ISC"; then
   AC_DEFINE(ISC) LIBS="$LIBS -linet"
 fi
 
+echo checking for OSF1
+if test -f /bin/uname ; then
+if test `/bin/uname` = OSF1 || test -f /osf_boot; then
+AC_DEFINE(OSF1)	# this disables MIPS again....
+fi
+fi
+
 echo checking for MIPS
 if test -f /lib/libmld.a || test -f /usr/lib/libmld.a || test -f /usr/lib/cmplrs/cc/libmld.a; then
-#  test -z "$GCC" && CC="$CC -systype bsd43"
-  AC_DEFINE(MIPS) LIBS="$LIBS -lmld" # for nlist.
+LIBS="$LIBS -lmld" # for nlist.
+if test -r /dev/ptc; then
+AC_DEFINE(MIPS)
+AC_COMPILE_CHECK(wait3, , [wait3();], ,
+AC_COMPILE_CHECK(wait2, , [wait2();],
+dnl John Rouillard (rouilj@sni-usa.com):
+dnl need -I/usr/include/bsd in RISCOS otherwise sockets are broken, no
+dnl job control etc.
+dnl Detect RISCOS if wait2 is present, but not wait3.
+AC_DEFINE(USE_WAIT2) LIBS="$LIBS -lbsd" ; CC="$CC -I/usr/include/bsd"
+))
+fi
 fi
 
 echo checking for Ultrix
@@ -60,10 +77,20 @@ AC_PROGRAM_EGREP(yes,
 #endif
 ], ULTRIX=1)
 
+dnl ghazi@caip.rutgers.edu (Kaveh R. Ghazi):
+dnl BBN butterfly is not POSIX, but a MACH BSD system.
+dnl Do not define POSIX and TERMIO.
+echo checking for butterfly
+AC_PROGRAM_EGREP(yes,
+[#if defined(butterfly)
+  yes
+#endif
+], butterfly=1)
+
+if test -z "$butterfly"; then
 if test -n "$ULTRIX"; then
   test -z "$GCC" && CC="$CC -YBSD"
-else
-  # POSIX termios is broken on Ultrix so don't look for it.
+fi
 echo checking for POSIX.1
 AC_PROGRAM_EGREP(yes,
 [#include <sys/types.h>
@@ -87,92 +114,17 @@ AC_PROGRAM_EGREP(yes,
 #endif
 ], LIBS="$LIBS -lsocket -linet";seqptx=1)
 
-echo checking for SVR4
-AC_HEADER_CHECK(dwarf.h, AC_DEFINE(SVR4) ; AC_DEFINE(BUGGYGETLOGIN) ; LIBS="$LIBS -lelf",
-AC_HEADER_CHECK(elf.h, AC_DEFINE(SVR4) ; AC_DEFINE(BUGGYGETLOGIN) ; LIBS="$LIBS -lelf"))
+oldlibs="$LIBS"
+LIBS="$LIBS -lelf"
+AC_COMPILE_CHECK(SVR4,,,
+AC_HEADER_CHECK(dwarf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN),
+AC_HEADER_CHECK(elf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN)))
+,LIBS="$oldlibs")
 
 
 dnl
-dnl    ****  typedefs / declarations  ****
+dnl    ****  typedefs ****
 dnl
-dnl #undef NLIST_DECLARED
-
-echo checking for putenv declaration
-AC_PROGRAM_EGREP([putenv( |	|\()],[#include <sys/types.h>
-#include <unistd.h>
-#include <stdlib.h>
-],AC_DEFINE(PUTENV_DECLARED))
-
-echo checking for getdtablesize declaration
-AC_PROGRAM_EGREP([getdtablesize( |	|\()],[#include <sys/types.h>
-#include <unistd.h>
-],AC_DEFINE(GETDTABLESIZE_DECLARED))
-
-echo checking for select declaration
-AC_PROGRAM_EGREP([select( |	|\()],[#include <sys/types.h>
-#include <sys/time.h>
-#include <unistd.h>
-],AC_DEFINE(SELECT_DECLARED))
-
-echo checking for vsprintf declaration
-AC_PROGRAM_EGREP([vsprintf( |	|\()],[#include <sys/types.h>
-#include <stdio.h>
-#ifdef __STDC__
-#include <stdarg.h>
-#else
-#include <varargs.h>
-#endif
-],AC_DEFINE(VPRNT_DECLARED))
-
-echo checking for setreuid declaration
-AC_PROGRAM_EGREP([setres?uid( |	|\()],[#include <sys/types.h>
-#include <unistd.h>
-],AC_DEFINE(REUID_DECLARED))
-
-echo checking for wait declaration
-AC_PROGRAM_EGREP([wait( |	|\()],[#include <sys/types.h>
-#include <signal.h>
-#include <sys/wait.h>
-],AC_DEFINE(WAITSTUFF_DECLARED))
-
-echo checking for memfuncs declaration
-AC_PROGRAM_EGREP([(memcpy|memmove|bcopy)( |	|\()],[#include <sys/types.h>
-#include <unistd.h>
-#include <string.h>
-#include <strings.h>
-],AC_DEFINE(MEMFUNCS_DECLARED))
-
-echo checking for [index] declaration
-AC_PROGRAM_EGREP([[index( |	|\()]],[#include <sys/types.h>
-#include <strings.h>
-],AC_DEFINE(INDEX_DECLARED))
-
-echo checking for crypt declaration
-AC_PROGRAM_EGREP([crypt( |	|\()],[#include <sys/types.h>
-#include <unistd.h>
-],AC_DEFINE(CRYPT_DECLARED))
-
-echo checking for mknod declaration
-AC_PROGRAM_EGREP([mknod( |	|\()],[#include <sys/types.h>
-#include <sys/stat.h>
-],AC_DEFINE(MKNOD_DECLARED))
-
-echo checking for setpgid declaration
-AC_PROGRAM_EGREP([setpgid( |	|\()],[#include <sys/types.h>
-#include <unistd.h>
-],AC_DEFINE(SETPGID_DECLARED))
-
-echo checking for kill declaration
-AC_PROGRAM_EGREP([kill( |	|\()],[#include <sys/types.h>
-#include <unistd.h>
-#include <signal.h>
-],AC_DEFINE(KILLSTUFF_DECLARED))
-
-echo checking for gethostname declaration
-AC_PROGRAM_EGREP([gethostname( |	|\()],[#include <sys/types.h>
-#include <unistd.h>
-],AC_DEFINE(GETHOSTNAME_DECLARED))
-
 echo checking for pid_t
 AC_PROGRAM_EGREP(pid_t,[#include <sys/types.h>
 ],AC_DEFINE(PID_T_DEFINED))
@@ -204,7 +156,7 @@ setpgrp();
 int y = TIOCNOTTY;
 #endif
 #endif
-], echo "- you have jobcontrol";AC_DEFINE(BSDJOBS), echo "- you don't have jobcontrol")
+], echo "- you have jobcontrol" AC_DEFINE(BSDJOBS), echo "- you don't have jobcontrol")
 
 dnl
 dnl    ****  setreuid()  ****
@@ -291,7 +243,7 @@ main()
   struct timeval tv;
   int r, x;
 
-  if (mknod(fin, S_IFIFO|0600))
+  if (mknod(fin, S_IFIFO|0600, 0))
     exit(1);
   close(0);
   if (open(fin, O_RDONLY|O_NDELAY))
@@ -303,12 +255,15 @@ main()
     exit(1);
   exit(0);
 }
-], echo "- your implementation is ok", echo "- you have a broken implementation";AC_DEFINE(BROKEN_PIPE);fifobr=1)
+], echo "- your implementation is ok", 
+echo "- you have a broken implementation" AC_DEFINE(BROKEN_PIPE) fifobr=1)
 rm -f /tmp/conftest*
 fi
 
 dnl
 dnl    ****  SOCKET tests  ****
+dnl 
+dnl 	may need  	LIBS="$LIBS -lsocket" 	here
 dnl
 
 echo checking sockets
@@ -346,7 +301,7 @@ main()
     {
       if ((s2 = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
 	kill(getppid(), 3);
-      (void)connect(s2, &a, strlen(son) + 2);
+      (void)connect(s2, (struct sockaddr *)&a, strlen(son) + 2);
       if (write(s2, "HELLO", 5) == -1)
 	kill(getppid(), 3);
       exit(0);
@@ -390,7 +345,9 @@ main()
   close(s);
   exit(0);
 }
-],echo "- you are normal",echo "- unix domain sockets are not kept in the filesystem";AC_DEFINE(SOCK_NOT_IN_FS);socknofs=1)
+],echo "- you are normal",
+echo "- unix domain sockets are not kept in the filesystem"
+AC_DEFINE(SOCK_NOT_IN_FS) socknofs=1)
 rm -f /tmp/conftest*
 fi
 
@@ -480,14 +437,14 @@ main()
     {
       if ((s2 = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
 	kill(getppid(), 3);
-      (void)connect(s2, &a, strlen(nam) + 2);
+      (void)connect(s2, (struct sockaddr *)&a, strlen(nam) + 2);
       if (write(s2, "HELLO", 5) == -1)
 	kill(getppid(), 3);
       exit(0);
     }
   l = sizeof(a);
   close(0);
-  if (accept(s1, &a, &l))
+  if (accept(s1, (struct sockaddr *)&a, &l))
     exit(1);
 #endif
 
@@ -499,7 +456,8 @@ main()
     exit(1);
   exit(0);
 }
-],echo "- select is ok",echo "- it is not usable";AC_DEFINE(SELECT_BROKEN))
+],echo "- select is ok",echo "- it is not usable"
+AC_DEFINE(SELECT_BROKEN))
 
 dnl
 dnl    ****  termcap or terminfo  ****
@@ -523,7 +481,8 @@ main()
   if (tgetent(buf, "scrdumm") != 1)
     exit(1);
   exit(0);
-}], echo "- you use the termcap database", echo "- you use the terminfo database";AC_DEFINE(TERMINFO))
+}], echo "- you use the termcap database", echo "- you use the terminfo database"
+AC_DEFINE(TERMINFO))
 AC_COMPILE_CHECK(ospeed,extern short ospeed;,ospeed=5;,,AC_DEFINE(NEED_OSPEED))
 
 dnl
@@ -539,8 +498,8 @@ ptys=`echo $pdir/pty??`
 if test "$ptys" != "$pdir/pty??" ; then
 p0=`echo $ptys | tr ' ' '\012' | sed -e 's/^.*\(.\).$/\1/g' | tr ' ' '\012' | sort -u | sed -n -e H -e g -e 's/\n//g' -e '$p'`
 p1=`echo $ptys | tr ' ' '\012' | sed -e 's/^.*\(.\)$/\1/g' | tr ' ' '\012' | sort -u | sed -n -e H -e g -e 's/\n//g' -e '$p'`
-AC_DEFINE(PTYRANGE0,\"$p0\")
-AC_DEFINE(PTYRANGE1,\"$p1\")
+AC_DEFINE_UNQUOTED(PTYRANGE0,\"$p0\")
+AC_DEFINE_UNQUOTED(PTYRANGE1,\"$p1\")
 fi
 
 
@@ -550,13 +509,25 @@ dnl
 dnl linux has a void pututline, grrr, gcc will error when evaluating it.
 AC_COMPILE_CHECK(getutent, [#include <time.h> /* to get time_t on SCO */
 #include <sys/types.h>
+#ifdef SVR4
+#include <utmpx.h>
+#else
 #include <utmp.h>
+#endif
 #ifdef hpux
 #define pututline _pututline
 #endif
 ],
 [int x = DEAD_PROCESS; struct utmp *y = pututline((struct utmp *)0); getutent();], AC_DEFINE(GETUTENT))
-AC_HEADER_EGREP(ut_host, utmp.h, AC_DEFINE(UTHOST))
+AC_COMPILE_CHECK(ut_host, [#include <time.h>
+#include <sys/types.h>
+#ifdef SVR4
+#include <utmpx.h>
+#define utmp utmpx
+#else
+#include <utmp.h>
+#endif
+],[struct utmp u; u.ut_host[0] = 0;], AC_DEFINE(UTHOST))
 
 
 dnl
@@ -567,7 +538,7 @@ test -f /usr/lib/libutils.a && LIBS="$LIBS -lutils"
 test -f /usr/lib/libutil.a && LIBS="$LIBS -lutil"
 
 AC_COMPILE_CHECK(getloadavg, , [getloadavg((double *)0, 0);],
-AC_DEFINE(LOADAV_GETLOADAVG);load=1)
+AC_DEFINE(LOADAV_GETLOADAVG) load=1)
 if test -z "$load" ; then
 AC_PROGRAM_EGREP(yes,
 [#if defined(NeXT) || defined(apollo) || defined(linux)
@@ -577,7 +548,7 @@ AC_PROGRAM_EGREP(yes,
 fi
 if test -z "$load" ; then
 echo "searching for kernelfile"
-for core in /unix /vmunix /dynix /hp-ux /xelos /386bsd ; do
+for core in /unix /vmunix /dynix /hp-ux /xelos /386bsd /kernel/unix ; do
   if test -f $core ; then
     break
   fi
@@ -586,7 +557,7 @@ if test ! -f $core ; then
   echo "- no kernelfile found"
 else
   echo "- using kernelfile '$core'"
-  AC_DEFINE(LOADAV_UNIX,\"$core\")
+  AC_DEFINE_UNQUOTED(LOADAV_UNIX,\"$core\")
   AC_HEADER_CHECK(nlist.h,
     [AC_DEFINE(NLIST_STRUCT)
      AC_COMPILE_CHECK(n_un in struct nlist, [#include <nlist.h>],
@@ -594,7 +565,7 @@ else
         AC_DEFINE(NLIST_NAME_UNION))])
 
   echo checking for nlist declaration
-  AC_PROGRAM_EGREP([nlist( |	|\()],[
+  AC_PROGRAM_EGREP([nlist( |	)( |	)*.*\(],[
 #ifdef NLIST_STRUCT
 # include <nlist.h>
 #else
@@ -632,7 +603,7 @@ main()
     echo "- no avenrun symbol found"
   else
     echo "- using avenrun symbol '$avensym'"
-    AC_DEFINE(LOADAV_AVENRUN,\"$avensym\");
+    AC_DEFINE_UNQUOTED(LOADAV_AVENRUN,\"$avensym\")
     load=1
   fi
 fi
@@ -642,7 +613,7 @@ AC_PROGRAM_SOURCE([
 #include <sys/types.h>
 #include <sys/param.h>
 ],[
-#if ((defined(hp300) && !defined(hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news))
+#if ((defined(hp300) && !defined(hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news) || defined(__alpha))
 loadtype=long
 # ifdef apollo
 loadscale=65536
@@ -673,10 +644,10 @@ loadnum=3
 #endif
 ])
 
-if test -n "$load" ; then AC_DEFINE(LOADAV) ; fi
-if test -n "$loadtype" ; then AC_DEFINE(LOADAV_TYPE,$loadtype) ; fi
-if test -n "$loadnum" ; then AC_DEFINE(LOADAV_NUM,$loadnum) ; fi
-if test -n "$loadscale" ; then AC_DEFINE(LOADAV_SCALE,$loadscale) ; fi
+if test -n "$load" ; then AC_DEFINE(LOADAV) fi
+if test -n "$loadtype" ; then AC_DEFINE_UNQUOTED(LOADAV_TYPE,$loadtype) fi
+if test -n "$loadnum" ; then AC_DEFINE_UNQUOTED(LOADAV_NUM,$loadnum) fi
+if test -n "$loadscale" ; then AC_DEFINE_UNQUOTED(LOADAV_SCALE,$loadscale) fi
 
 
 dnl
@@ -754,12 +725,14 @@ AC_COMPILE_CHECK(wait union,[#include <sys/types.h>
 #endif
 ],AC_DEFINE(BSDWAIT))
 
+if test -z "$butterfly"; then
 echo checking for termio or termios
 AC_TEST_CPP([#include <termios.h>], AC_DEFINE(TERMIO),
             AC_TEST_CPP([#include <termio.h>], AC_DEFINE(TERMIO)))
+fi
 
 dnl AC_HEADER_CHECK(shadow.h, AC_DEFINE(SHADOWPW))
-AC_COMPILE_CHECK(getspnam, [#include <shadow.h>], [getspnam();],
+AC_COMPILE_CHECK(getspnam, [#include <shadow.h>], [getspnam("x");],
 		 AC_DEFINE(SHADOWPW))
 
 AC_COMPILE_CHECK(getttyent, , [getttyent();], AC_DEFINE(GETTTYENT))
@@ -829,6 +802,9 @@ AC_COMPILE_CHECK(setenv, , [setenv((char *)0,(char *)0);unsetenv((char *)0);], A
 AC_COMPILE_CHECK(putenv, , [putenv((char *)0);unsetenv((char *)0);], ,
 AC_DEFINE(NEEDPUTENV)
 ))
+if test -r /dev/ptc; then
+AC_DEFINE(HAVE_DEV_PTC)
+fi
 
 dnl
 dnl    ****  the end  ****
@@ -837,7 +813,11 @@ dnl Ptx bug workaround -- insert -lc after -ltermcap
 test -n "$seqptx" && LIBS="-ltermcap -lc -lsocket -linet -lsec -lseq"
 
 AC_TEST_PROGRAM(main(){exit(0);},,echo "Can't run the compiler - internal error. Sorry.";exit)
-AC_OUTPUT(Makefile)
+if test -n "$prefix"; then
+AC_DEFINE_UNQUOTED(ETCSCREENRC,\"$prefix/etc/screenrc\")
+fi
+
+AC_OUTPUT(Makefile doc/Makefile)
 
 # a hook for preserving undef directive in config.h
 if test -z "$no_create" ; then

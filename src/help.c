@@ -23,7 +23,6 @@
 #include "rcs.h"
 RCS_ID("$Id$ FAU")
 
-#include <stdio.h>
 #include <sys/types.h>
 
 #include "config.h"
@@ -32,7 +31,7 @@ RCS_ID("$Id$ FAU")
 #include "extern.h"
 
 char version[40];      /* initialised by main() */
-extern char Esc, MetaEsc;
+
 extern struct display *display;
 extern char *noargs[];
 
@@ -54,7 +53,9 @@ char *myname;
   printf("-f           Flow control on, -fn = off, -fa = auto.\n");
   printf("-h lines     Set the size of the scrollback history buffer.\n");
   printf("-i           Interrupt output sooner when flow control is on.\n");
+#ifdef LOGOUTOK
   printf("-l           Login mode on (update %s), -ln = off.\n", UTMPFILE);
+#endif
   printf("-list        or -ls. Do nothing, just list our SockDir.\n");
   printf("-L           Terminal's last character can be safely updated.\n");
   printf("-m           ignore $STY variable, do create a new screen session.\n");
@@ -64,7 +65,7 @@ char *myname;
   printf("-R           Reattach if possible, otherwise start a new session.\n");
   printf("-s shell     Shell to execute rather than $SHELL.\n");
   printf("-S sockname  Name this session <pid>.sockname instead of <pid>.<tty>.<host>.\n");
-  printf("-t title     Set command's a.k.a. (window title).\n");
+  printf("-t title     Set title. (window's name).\n");
   printf("-T term      Use term as $TERM for windows, rather than \"screen\".\n");
   printf("-v           Print \"Screen version %s\".\n", version);
   printf("-wipe        Do nothing, just clean up SockDir.\n");
@@ -264,14 +265,14 @@ helppage()
   crow = 2;
 
   *Esc_buf = '\0';
-  add_key_to_buf(Esc_buf, Esc);
+  add_key_to_buf(Esc_buf, d_user->u_Esc);
 
   for (; crow < d_height - 3; crow++)
     {
       if (helpdata->grow < 1)
         {
    	  *buf = '\0';
-          add_key_to_buf(buf, MetaEsc);
+          add_key_to_buf(buf, d_user->u_MetaEsc);
           sprintf(cbuf,"Command key:  %s   Literal %s:  %s", Esc_buf, Esc_buf, buf);
           centerline(cbuf);
 	  helpdata->grow++;
@@ -432,14 +433,14 @@ static struct LayFuncs CopyrightLf =
 
 static const char cpmsg[] = "\
 \n\
-iScreen version %v\n\
+Screen version %v\n\
 \n\
 Copyright (c) 1993 Juergen Weigert, Michael Schroeder\n\
 Copyright (c) 1987 Oliver Laumann\n\
 \n\
 This program is free software; you can redistribute it and/or \
 modify it under the terms of the GNU General Public License as published \
-by the Free Software Foundation; either version 1, or (at your option) \
+by the Free Software Foundation; either version 2, or (at your option) \
 any later version.\n\
 \n\
 This program is distributed in the hope that it will be useful, \
@@ -452,7 +453,7 @@ along with this program (see the file COPYING); if not, write to the \
 Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.\n\
 \n\
 Send bugreports, fixes, enhancements, t-shirts, money, beer & pizza to \
-screen@informatik.uni-erlangen.de\n";
+screen@uni-erlangen.de\n";
 
 
 static void
@@ -519,7 +520,6 @@ display_copyright()
   copydata->savedcps = 0;
   copypage();
 }
-
 
 static void
 copypage()
@@ -614,5 +614,11 @@ int y, xs, xe, isblank;
   if (isblank)
     return;
   Clear(xs, y, xe, y);
+}
+
+void 
+display_displays()
+{
+  /* To be filled in... */
 }
 

@@ -23,6 +23,7 @@
 #include "rcs.h"
 RCS_ID("$Id$ FAU")
 
+
 #include <sys/types.h>
 #ifndef sgi
 # include <sys/file.h>
@@ -32,7 +33,7 @@ RCS_ID("$Id$ FAU")
 
 #include <signal.h>
 
-#include "config.h"
+#include "config.h" 
 #include "screen.h"
 #include "extern.h"
 
@@ -353,7 +354,7 @@ char *ss;
 	        *e++ = *v++;
 	    }
 	  else 
-	    debug1("exp: '%s' not env\n", s);  /* {-: */
+	    debug1("exp: '%s' not env\n", s);  /* '{'-: */
 	  if ((*p = c) == '}' || c == ':')
 	    p++;
 	  s = p;
@@ -402,6 +403,7 @@ char *ss;
   if (esize <= 0)
     Msg(0, "expand_vars: buffer overflow\n");
   *e = '\0';
+  debug1("expand_var returns '%s'\n", ebuf);
   return ebuf;
 }
 
@@ -410,20 +412,12 @@ RcLine(ubuf)
 char *ubuf;
 {
   char *args[MAXARGS], *buf;
-  struct action act;
 
   buf = expand_vars(ubuf); 
   if (Parse(buf, args) <= 0)
     return;
-  if ((act.nr = FindCommnr(*args)) == RC_ILLEGAL)
-    {
-      Msg(0, "%s: unknown command '%s'", rc_name, *args);
-      return;
-    }
-  act.args = args + 1;
-  DoAction(&act, -1);
+  DoCommand(args);
 }
-
 
 void
 WriteFile(dump)
@@ -504,8 +498,8 @@ int dump;
 	      break;
 #ifdef COPY_PASTE
 	    case DUMP_EXCHANGE:
-	      p = d_copybuffer;
-	      for (i = 0; i < d_copylen; i++)
+	      p = d_user->u_copybuffer;
+	      for (i = 0; i < d_user->u_copylen; i++)
 		putc(*p++, f);
 	      break;
 #endif
@@ -558,33 +552,34 @@ ReadFile()
       return;
     }
   size = stb.st_size;
-  if (d_copybuffer)
-    free(d_copybuffer);
-  d_copylen = 0;
-  if ((d_copybuffer = malloc(size)) == NULL)
+  if (d_user->u_copybuffer)
+    UserFreeCopyBuffer(d_user);
+  d_user->u_copylen = 0;
+  if ((d_user->u_copybuffer = malloc(size)) == NULL)
     {
       close(i);
       Msg(0, strnomem);
       return;
     }
   errno = 0;
-  if ((l = read(i, d_copybuffer, size)) != size)
+  if ((l = read(i, d_user->u_copybuffer, size)) != size)
     {
-      d_copylen = (l > 0) ? l : 0;
+      d_user->u_copylen = (l > 0) ? l : 0;
 #ifdef NETHACK
       if (nethackflag)
-        Msg(errno, "You choke on your food: %d bytes", d_copylen);
+        Msg(errno, "You choke on your food: %d bytes from %s", 
+	    d_user->u_copylen, fn);
       else
 #endif
-      Msg(errno, "Got only %d bytes from %s", d_copylen, fn);
+      Msg(errno, "Got only %d bytes from %s", d_user->u_copylen, fn);
       close(i);
       return;
     }
-  d_copylen = l;
+  d_user->u_copylen = l;
   if (read(i, &c, 1) > 0)
-    Msg(0, "Slurped only %d characters into buffer - try again", d_copylen);
+    Msg(0, "Slurped only %d characters into buffer - try again", d_user->u_copylen);
   else
-    Msg(0, "Slurped %d characters into buffer", d_copylen);
+    Msg(0, "Slurped %d characters into buffer", d_user->u_copylen);
   close(i);
   return;
 }

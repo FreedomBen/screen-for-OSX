@@ -21,131 +21,6 @@
  * $Id$ FAU
  */
 
-/****************************************************************
- * Thanks to Christos S. Zoulas (christos@ee.cornell.edu) who 
- * mangled the screen source through 'gcc -Wall'.
- ****************************************************************
- */
-
-#ifndef MEMFUNCS_DECLARED /* bsd386 */
-# ifndef SYSV
-extern void  bzero __P((char *, int));
-extern void  bcopy __P((char *, char *, int));
-# else
-extern char *memset __P((char *, int, size_t));
-extern char *memcpy __P((char *, char *, int));
-#  ifdef USEBCOPY
-extern void  bcopy __P((char *, char *, int));
-#  endif
-# endif
-#endif /* MEMFUNCS_DECLARED */
-#ifndef WAITSTUFF_DECLARED
-# ifdef BSDWAIT
-struct rusage;
-union wait;
-extern int   wait3 __P((union wait *, int, struct rusage *));
-# else /* BSDWAIT */
-extern pid_t waitpid __P((int, int *, int));
-# endif /* BSDWAIT */
-#endif /* WAITSTUFF_DECLARED */
-#ifndef GETDTABLESIZE_DECLARED
-extern int   getdtablesize __P((void));
-#endif /* GETDTABLESIZE_DECLARED */
-#ifndef REUID_DECLARED
-# if !defined(NOREUID)
-#  ifdef hpux
-extern int   setresuid __P((uid_t, uid_t, uid_t));
-extern int   setresgid __P((gid_t, gid_t, gid_t));
-#  else
-extern int   setreuid __P((uid_t, uid_t));
-extern int   setregid __P((gid_t, gid_t));
-#  endif
-# endif
-#endif /* REUID_DECLARED */
-#ifndef CRYPT_DECLARED
-extern char *crypt __P((char *, char *));
-#endif /* CRYPT_DECLARED */
-#ifdef sun
-# ifdef SVR4 /* Solaris 2 */
-extern pid_t   getpgrp __P((int));
-# else
-extern int   getpgrp __P((int));
-# endif
-#endif
-#ifndef MKNOD_DECLARED
-# ifdef POSIX
-extern int   mknod __P((const char *, mode_t, dev_t));
-# else
-extern int   mknod __P((char *, int, int));
-# endif
-#endif /* MKNOD_DECLARED */
-#ifndef PUTENV_DECLARED
-extern int   putenv __P((char *));
-#endif /* PUTENV_DECLARED */
-#ifndef KILLSTUFF_DECLARED
-extern int   kill __P((int, int));
-# ifndef SYSV
-extern int   killpg __P((int, int));
-# endif
-#endif /* KILLSTUFF_DECLARED */
-extern int   tgetent __P((char *, char *));
-extern int   tgetnum __P((char *));
-extern int   tgetflag __P((char *));
-extern void  tputs __P((char *, int, void (*)(int)));
-# ifdef POSIX
-extern pid_t setsid __P((void));
-#  ifndef SETPGID_DECLARED
-extern int   setpgid __P((int, int));
-#  endif /* SETPGID_DECLARED */
-#  if defined(BSDI) || defined(__386BSD__) || defined(_CX_UX) || defined(SVR4)
-extern int   tcsetpgrp __P((int, pid_t));
-#  else
-extern int   tcsetpgrp __P((int, int));
-#  endif
-# endif /* POSIX */
-extern pid_t getpid __P((void));
-extern uid_t getuid __P((void)); 
-extern uid_t geteuid __P((void));
-extern gid_t getgid __P((void)); 
-extern gid_t getegid __P((void));
-extern int   isatty __P((int)); 
-#ifdef notdef
-extern int   chown __P((const char *, uid_t, gid_t)); 
-#endif
-#ifndef GETHOSTNAME_DECLARED
-extern int   gethostname __P((char *, size_t));
-#endif /* GETHOSTNAME_DECLARED */
-extern off_t lseek __P((int, off_t, int));
-#if defined(sun) && !defined(__GNUC__)		/* sun's exit returns ??? */
-extern int   exit __P((int));
-#else
-extern void  exit __P((int));
-#endif
-extern char *getwd __P((char *));
-extern char *getenv __P((const char *));
-extern time_t time __P((time_t *));
-
-extern char *getpass __P((char *));
-extern char *getlogin(), *ttyname();
-extern int   fflush(); 
-#if !defined(__STDC__) || !defined(POSIX)
-extern char *malloc(), *realloc();
-#endif
-
-#ifndef INDEX_DECLARED
-# if defined(SVR4) && defined(sun)
-extern char *index __P((const char *, int));
-extern char *rindex __P((const char *, int));
-# else
-extern char *index __P((char *, int));
-extern char *rindex __P((char *, int));
-# endif
-#endif /* INDEX_DECLARED */
-
-
-/************************************************************
- *  Screens function declarations
- */
 
 /* screen.c */
 extern void  main __P((int, char **));
@@ -154,17 +29,22 @@ extern void  eexit __P((int));
 extern void  Detach __P((int));
 extern void  Kill __P((int, int));
 #ifdef USEVARARGS
-extern void  Msg __P((int, char *, ...));
-extern void  Panic __P((int, char *, ...));
+extern void  Msg __P((int, char *, ...))
+# ifdef __GNUC__
+__attribute__ ((format (printf, 2, 3)))
+# endif
+;
+extern void  Panic __P((int, char *, ...))
+# ifdef __GNUC__
+__attribute__ ((format (printf, 2, 3)))
+# endif
+;
 #else
 extern void  Msg __P(());
 extern void  Panic __P(());
 #endif
 extern void  DisplaySleep __P((int));
 extern sig_t Finit __P((int));
-extern int   fgtty __P((int));
-extern void  freetty __P((void));
-extern void  brktty __P((int));
 extern void  MakeNewEnv __P((void));
 
 /* ansi.c */
@@ -176,6 +56,7 @@ extern void  Redisplay __P((int));
 extern void  CheckLP __P((int));
 extern void  MakeBlankLine __P((char *, int));
 extern void  SetCurr __P((struct win *));
+extern void  ChangeAKA __P((struct win *, char *, int));
 extern void  AddLineToHist __P((struct win *, char **, char **, char **));
 
 /* fileio.c */
@@ -187,19 +68,22 @@ extern int   secopen __P((char *, int, int));
 extern void  WriteFile __P((int));
 extern void  ReadFile __P((void));
 extern void  KillBuffers __P((void));
+extern char *expand_vars __P((char *));
 
 /* tty.c */
-extern void  SendBreak __P((struct win *, int, int));
-extern void  SetFlow __P((int));
 extern int   OpenTTY __P((char *));
+extern void  InitTTY __P((struct mode *, int));
 extern void  GetTTY __P((int, struct mode *));
 extern void  SetTTY __P((int, struct mode *));
 extern void  SetMode __P((struct mode *, struct mode *));
+extern void  SetFlow __P((int));
+extern void  SendBreak __P((struct win *, int, int));
 extern int   TtyGrabConsole __P((int, int, char *));
-extern void  InitTTY __P((struct mode *, int));
 #ifdef DEBUG
 extern void  DebugTTY __P((struct mode *));
 #endif /* DEBUG */
+extern int   fgtty __P((int));
+extern void  brktty __P((int));
 
 /* mark.c */
 extern int   GetHistory __P((void));
@@ -219,12 +103,18 @@ extern void  Input __P((char *, int, void (*)(), int));
 extern void  exit_with_usage __P((char *));
 extern void  display_help __P((void));
 extern void  display_copyright __P((void));
+extern void  display_displays __P((void));
 
-/* exec.c */
+/* window.c */
 extern int   MakeWindow __P((struct NewWindow *));
 extern void  FreeWindow __P((struct win *));
+#ifdef PSEUDOS
 extern int   winexec __P((char **));
 extern void  FreePseudowin __P((struct win *));
+#endif
+#ifdef MULTI
+extern int   execclone __P((char **));
+#endif
 extern void  nwin_compose __P((struct NewWindow *, struct NewWindow *, struct NewWindow *));
 
 /* utmp.c */
@@ -253,14 +143,18 @@ extern int   OpenPTY __P((char **));
 extern void  InitKeytab __P((void));
 extern void  ProcessInput __P((char *, int));
 extern int   FindCommnr __P((char *));
-extern void  DoAction __P((struct action *, int));
+extern void  DoCommand __P((char **));
 extern void  KillWindow __P((struct win *));
+extern int   ReleaseAutoWritelock __P((struct display *, struct win *));
 extern void  SetForeWindow __P((struct win *));
 extern int   Parse __P((char *, char **));
-extern int   ParseEscape __P((char *));
-extern int   CompileKeys __P((char *, char *));
+extern int   ParseEscape __P((struct user *, char *));
 extern void  DoScreen __P((char *, char **));
-extern struct acl **findacl __P((char *));
+extern void  ShowWindows __P((void));
+extern int   WindowByNoN __P((char *));
+#ifdef COPY_PASTE
+extern int   CompileKeys __P((char *, char *));
+#endif
 
 /* termcap.c */
 extern int   InitTermcap __P((int, int));
@@ -314,12 +208,13 @@ extern void  ExitOverlayPage __P((void));
 extern void  AddStr __P((char *));
 extern void  AddStrn __P((char *, int));
 extern void  Flush __P((void));
+extern void  freetty __P((void));
 extern void  Resize_obuf __P((void));
 #ifdef AUTO_NUKE
 extern void  NukePending __P((void));
 #endif
 
-/* window.c */
+/* resize.c */
 extern int   ChangeScrollback __P((struct win *, int, int));
 extern int   ChangeWindowSize __P((struct win *, int, int));
 extern void  ChangeScreenSize __P((int, int, int));
@@ -336,7 +231,11 @@ extern int   chsock __P((void));
 extern void  ReceiveMsg __P(());
 extern void  SendCreateMsg __P((int, struct NewWindow *));
 #ifdef USEVARARGS
-extern void  SendErrorMsg __P((char *, ...));
+extern void  SendErrorMsg __P((char *, ...))
+# ifdef __GNUC__
+__attribute__ ((format (printf, 1, 2)))
+# endif
+;
 #else
 extern void  SendErrorMsg __P(());
 #endif
@@ -346,9 +245,9 @@ extern char *SaveStr __P((const char *));
 extern void  centerline __P((char *));
 extern char *Filename __P((char *));
 extern char *stripdev __P((char *));
-#if !defined(MEMFUNCS_DECLARED) && !defined(bcopy)
+#if defined(NEED_OWN_BCOPY) && !defined(linux)
 extern void  bcopy __P((char *, char *, int));
-#endif /* !MEMFUNCS_DECLARED && !bcopy */
+#endif
 extern void  bclear __P((char *, int));
 extern void  closeallfiles __P((int));
 extern int   UserContext __P((void));
@@ -357,15 +256,21 @@ extern int   UserStatus __P((void));
 
 /* acl.c */
 #ifdef MULTIUSER
-int AclInit __P((char *));
-int AclAddUser __P((char *, char *));
-int AclSetPass __P((char *, char *));
-int AclDelUser __P((char *));
-int AclAddGroup __P((char *));
-int AclSetGroupPerm __P((char *, char *));
-int AclDelGroup __P((char *));
-int AclUserAddGroup __P((char *, char *));
-int AclUserDelGroup __P((char *, char *));
-int AclCheck __P((char *, int, struct display *, struct win *));
+extern int   AclInit __P((char *));
+extern int   AclSetPass __P((char *, char *));
+extern int   AclDelUser __P((char *));
+extern int   UserFreeCopyBuffer __P((struct user *));
+extern int   AclAddGroup __P((char *));
+extern int   AclSetGroupPerm __P((char *, char *));
+extern int   AclDelGroup __P((char *));
+extern int   AclUserAddGroup __P((char *, char *));
+extern int   AclUserDelGroup __P((char *, char *));
+extern int   AclCheckPermWin __P((struct user *, int, struct win *));
+extern int   AclCheckPermCmd __P((struct user *, int, struct comm *));
+extern int   AclSetPerm __P((struct user *, char *, char *));
+extern void  AclWinSwap __P((int, int));
+extern int   NewWindowAcl __P((struct win *));
 #endif /* MULTIUSER */
-
+extern struct user **FindUserPtr __P((char *));
+extern int   UserAdd __P((char *, char *, struct user **));
+extern int   UserDel __P((char *, struct user **));
