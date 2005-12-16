@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -33,7 +33,15 @@ RCS_ID("$Id$ FAU")
 #include "screen.h"
 #include "extern.h"
 
+#ifdef HAVE_UTEMPTER
+#include <utempter.h>
+#endif
+
+
 extern struct display *display;
+#ifdef CAREFULUTMP
+extern struct win *windows;
+#endif
 extern struct win *fore;
 extern char *LoginName;
 extern int real_uid, eff_uid;

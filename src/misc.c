@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -170,7 +170,12 @@ char *nam;
  */
 
 #ifdef POSIX
-sigret_t (*xsignal(sig, func)) __P(SIGPROTOARG)
+sigret_t (*xsignal(sig, func))
+# ifndef __APPLE__
+ __P(SIGPROTOARG)
+# else
+()
+# endif
 int sig;
 sigret_t (*func) __P(SIGPROTOARG);
 {

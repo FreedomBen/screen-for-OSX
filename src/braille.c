@@ -341,8 +341,8 @@ RefreshBraille()
     }
   else if (xs <= xe)
     {
-      RedisplayLine(-1, xs, xe, 1);
-      RedisplayLine(y, xs, xe, 1);
+      LayRedisplayLine(-1, xs, xe, 1);
+      LayRedisplayLine(y, xs, xe, 1);
     }
 
   debug1("Braille: got >%s<\n", bd.bd_line);
@@ -411,8 +411,8 @@ int y, xs, xe;
       bd.bd_refreshing = bd.bd_searching = 1;
       bd.bd_searchstart = xs;
       bd.bd_searchend   = xe;
-      RedisplayLine(-1, xs, xe, 1);
-      RedisplayLine(y, xs, xe, 1);
+      LayRedisplayLine(-1, xs, xe, 1);
+      LayRedisplayLine(y, xs, xe, 1);
       bd.bd_refreshing = bd.bd_searching = 0;
       BD_FORE->w_bd_y = oy;
     }

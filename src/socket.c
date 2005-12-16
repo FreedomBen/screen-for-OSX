@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -357,7 +357,7 @@ char *match;
       if (wipeflag)
         Msg(0, "%d socket%s wiped out.", nwipe, nwipe > 1 ? "s" : "");
       else
-        Msg(0, "Remove dead screens with 'screen -wipe'.", ndead > 1 ? "s" : "", ndead > 1 ? "" : "es");	/* other args for nethack */
+        Msg(0, "Remove dead screens with 'screen -wipe'."+1-1, ndead > 1 ? "s" : "", ndead > 1 ? "" : "es");	/* other args for nethack */
     }
   if (firsts != -1)
     {
@@ -939,6 +939,15 @@ ReceiveMsg()
 #endif
 
       debug2("RecMsg: apid %d is o.k. and we just opened '%s'\n", m.m.attach.apid, m.m_tty);
+#ifndef MULTI
+      if (displays)
+	{
+	  write(i, "Screen session in use.\n", 23);
+	  close(i);
+	  Kill(m.m.attach.apid, SIG_BYE);
+	  break;
+	}
+#endif
 
       /* create new display */
       GetTTY(i, &Mode);
@@ -1104,7 +1113,7 @@ struct msg *m;
    * We reboot our Terminal Emulator. Forget all we knew about
    * the old terminal, reread the termcap entries in .screenrc
    * (and nothing more from .screenrc is read. Mainly because
-   * I did not check, weather a full reinit is save. jw) 
+   * I did not check, weather a full reinit is safe. jw) 
    * and /etc/screenrc, and initialise anew.
    */
   if (extra_outcap)

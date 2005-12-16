@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -50,7 +50,7 @@
  * Screen will name the subdirectories "S-$USER" (e.g /tmp/S-davison).
  */
 
-#define SOCKDIR (eff_uid ? "/tmp/uscreens" : "/tmp/screens")
+#undef SOCKDIR
 
 /*
  * Screen sources two startup files. First a global file with a path
@@ -131,6 +131,8 @@
  *        Needs FONT to work.
  * define BUILTIN_TELNET to add telnet support to screen.
  *        Syntax: screen //telnet host [port]
+ * define RXVT_OSC if you want support for rxvts special
+ *        change fgcolor/bgcolor/bgpicture sequences
  */
 #undef SIMPLESCREEN
 #ifndef SIMPLESCREEN
@@ -150,6 +152,7 @@
 #endif /* SIMPLESCREEN */
 
 #undef BUILTIN_TELNET
+#undef RXVT_OSC
 
 
 /*

@@ -208,37 +208,39 @@ union tcu
 #define D_CVN (D_tcs[92].str)
 #define d_CTF  d_tcs[93].flg
 #define D_CTF (D_tcs[93].flg)
-#define d_CG0  d_tcs[94].flg
-#define D_CG0 (D_tcs[94].flg)
-#define d_CS0  d_tcs[95].str
-#define D_CS0 (D_tcs[95].str)
-#define d_CE0  d_tcs[96].str
-#define D_CE0 (D_tcs[96].str)
-#define d_CC0  d_tcs[97].str
-#define D_CC0 (D_tcs[97].str)
-#define d_AS  d_tcs[98].str
-#define D_AS (D_tcs[98].str)
-#define d_AE  d_tcs[99].str
-#define D_AE (D_tcs[99].str)
-#define d_AC  d_tcs[100].str
-#define D_AC (D_tcs[100].str)
-#define d_EA  d_tcs[101].str
-#define D_EA (D_tcs[101].str)
-#define d_CXC  d_tcs[102].str
-#define D_CXC (D_tcs[102].str)
-#define T_CAPS 103
-#define T_NAVIGATE 142
-#define T_CURSOR 150
-#define T_KEYPAD 154
-#define T_OCAPS 172
-#define T_ECAPS 185
-#define T_N 185
+#define d_CXT  d_tcs[94].flg
+#define D_CXT (D_tcs[94].flg)
+#define d_CG0  d_tcs[95].flg
+#define D_CG0 (D_tcs[95].flg)
+#define d_CS0  d_tcs[96].str
+#define D_CS0 (D_tcs[96].str)
+#define d_CE0  d_tcs[97].str
+#define D_CE0 (D_tcs[97].str)
+#define d_CC0  d_tcs[98].str
+#define D_CC0 (D_tcs[98].str)
+#define d_AS  d_tcs[99].str
+#define D_AS (D_tcs[99].str)
+#define d_AE  d_tcs[100].str
+#define D_AE (D_tcs[100].str)
+#define d_AC  d_tcs[101].str
+#define D_AC (D_tcs[101].str)
+#define d_EA  d_tcs[102].str
+#define D_EA (D_tcs[102].str)
+#define d_CXC  d_tcs[103].str
+#define D_CXC (D_tcs[103].str)
+#define T_CAPS 104
+#define T_NAVIGATE 143
+#define T_CURSOR 151
+#define T_KEYPAD 155
+#define T_OCAPS 173
+#define T_ECAPS 186
+#define T_N 186
 
 #ifdef MAPKEYS
-#  define KMAPDEFSTART 103
+#  define KMAPDEFSTART 104
 #  define NKMAPDEF 69
-#  define KMAPADEFSTART 150
+#  define KMAPADEFSTART 151
 #  define NKMAPADEF 22
-#  define KMAPMDEFSTART 135
+#  define KMAPMDEFSTART 136
 #  define NKMAPMDEF 19
 #endif

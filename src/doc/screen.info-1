@@ -26,7 +26,7 @@ Screen
 ******
 
    This file documents the `Screen' virtual terminal manager, version
-3.9.0.
+3.9.6.
 
 * Menu:
 
@@ -756,6 +756,9 @@ Command Summary
      Enable a clear screen to discard unwritten output.  *Note
      Autonuke::.
 
+`bce [STATE]'
+     Change background color erase.  *Note Character Processing::.
+
 `bell_msg [MESSAGE]'
      Set the bell notification message.  *Note Bell::.
 
@@ -819,6 +822,9 @@ Command Summary
 
 `defautonuke STATE'
      Select default autonuke behavior.  *Note Autonuke::.
+
+`defbce STATE'
+     Select background color erase.  *Note Character Processing::.
 
 `defbreaktype [TCSENDBREAK | TCSBRK | TIOCSBRK]'
      Specify the default for generating breaks.  *Note Break::.
@@ -1204,9 +1210,8 @@ New Window
 
    This section describes the commands for creating a new window for
 running programs.  When a new window is created, the first available
-number from the range 0...9 is assigned to it.  There can be no more
-than 10 windows active at any one time unless `screen' was compiled
-with a higher MAXWIN setting.
+number from the range 0...9 is assigned to it.  The number of windows
+is limited at compile-time by the MAXWIN configuration parameter.
 
 * Menu:
 

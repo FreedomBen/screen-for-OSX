@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -142,6 +142,8 @@ static void confirm_fn __P((char *, int, char *));
 static int  StuffKey __P((int));
 #endif
 static int IsOnDisplay __P((struct win *));
+static void ResizeRegions __P((char*));
+static void ResizeFin __P((char *, int, char *));
 
 
 extern struct layer *flayer;
@@ -406,7 +408,17 @@ InitKeytab()
   ktab['H'].nr = RC_LOG;
   ktab['M'].nr = RC_MONITOR;
   ktab['?'].nr = RC_HELP;
+#ifdef MULTI
   ktab['*'].nr = RC_DISPLAYS;
+#endif
+  {
+    char *args[2];
+    args[0] = "-";
+    args[1] = NULL;
+
+    ktab['-'].nr = RC_SELECT;
+    ktab['-'].args = SaveArgs(args);
+  }
   for (i = 0; i < ((MAXWIN < 10) ? MAXWIN : 10); i++)
     {
       char *args[2], arg1[10];
@@ -416,6 +428,7 @@ InitKeytab()
       ktab['0' + i].nr = RC_SELECT;
       ktab['0' + i].args = SaveArgs(args);
     }
+  ktab['\''].nr = ktab['"'].nr = RC_SELECT; /* calling a window by name */
   ktab[Ctrl('G')].nr = RC_VBELL;
   ktab[':'].nr = RC_COLON;
 #ifdef COPY_PASTE
@@ -433,7 +446,6 @@ InitKeytab()
   ktab['>'].nr = RC_WRITEBUF;
   ktab['<'].nr = RC_READBUF;
   ktab['='].nr = RC_REMOVEBUF;
-  ktab['\''].nr = ktab['"'].nr = RC_SELECT; /* calling a window by name */
 #endif
 #ifdef POW_DETACH
   ktab['D'].nr = RC_POW_DETACH;
@@ -449,19 +461,17 @@ InitKeytab()
   ktab['X'].nr = RC_REMOVE;
   ktab['F'].nr = RC_FIT;
   ktab['\t'].nr = RC_FOCUS;
-  {
-    char *args[2];
-    args[0] = "-";
-    args[1] = NULL;
-
-    ktab['-'].nr = RC_SELECT;
-    ktab['-'].args = SaveArgs(args);
-  }
   /* These come last; they may want overwrite others: */
   if (DefaultEsc >= 0)
-    ktab[DefaultEsc].nr = RC_OTHER;
+    {
+      ClearAction(&ktab[DefaultEsc]);
+      ktab[DefaultEsc].nr = RC_OTHER;
+    }
   if (DefaultMetaEsc >= 0)
-    ktab[DefaultMetaEsc].nr = RC_META;
+    {
+      ClearAction(&ktab[DefaultMetaEsc]);
+      ktab[DefaultMetaEsc].nr = RC_META;
+    }
 }
 
 static void
@@ -609,6 +619,7 @@ int ilen;
   debug1("ProcessInput2: %d bytes\n", ilen);
   while (ilen && display)
     {
+      debug1(" - ilen now %d bytes\n", ilen);
       flayer = D_forecv->c_layer;
       fore = D_fore;
       slen = ilen;
@@ -682,7 +693,7 @@ struct paster *pa;
   while (flayer && *lenp)
     {
       oldlen = *lenp;
-      Process(bufp, lenp);
+      LayProcess(bufp, lenp);
 #ifdef COPY_PASTE
       if (pa && !pa->pa_pastelayer)
 	break;		/* flush rest of paste */
@@ -843,7 +854,10 @@ int key;
   int argc, i, n, msgok;
   char *s;
   char ch;
+  struct display *odisplay = display;
+  struct user *user;
 
+  user = display ? D_user : users;
   if (nr == RC_ILLEGAL)
     {
       debug1("key '%c': No action\n", key);
@@ -858,6 +872,11 @@ int key;
   if ((n & NEED_FORE) && fore == 0)
     {
       Msg(0, "%s: %s: window required", rc_name, comms[nr].name);
+      return;
+    }
+  if ((n & NEED_LAYER) && flayer == 0)
+    {
+      Msg(0, "%s: %s: display or window required", rc_name, comms[nr].name);
       return;
     }
   if ((argc = CheckArgNum(nr, args)) < 0)
@@ -917,10 +936,10 @@ int key;
       D_obuflenmax = D_obuflen - D_obufmax;
       break;
     case RC_DUMPTERMCAP:
-      WriteFile(DUMP_TERMCAP);
+      WriteFile(user, DUMP_TERMCAP);
       break;
     case RC_HARDCOPY:
-      WriteFile(DUMP_HARDCOPY);
+      WriteFile(user, DUMP_HARDCOPY);
       break;
     case RC_LOG:
       n = fore->w_log ? 1 : 0;
@@ -946,7 +965,11 @@ int key;
 
 	if (key >= 0)
 	  {
+#ifdef PSEUDOS
 	    Input(fore->w_pwin ? "Really kill this filter [y/n]" : "Really kill this window [y/n]", 1, INP_RAW, confirm_fn, (char *)RC_KILL);
+#else
+	    Input("Really kill this window [y/n]", 1, INP_RAW, confirm_fn, (char *)RC_KILL);
+#endif
 	    break;
 	  }
 	n = fore->w_number;
@@ -1299,13 +1322,13 @@ int key;
 	  if (StuffKey(i - T_CAPS) == 0)
 	    break;
 #endif
-	  s = D_tcs[i].str;
+	  s = display ? D_tcs[i].str : 0;
 	  if (s == 0)
 	    break;
 	}
       n = strlen(s);
       while(n)
-        Process(&s, &n);
+        LayProcess(&s, &n);
       break;
     case RC_REDISPLAY:
       Activate(-1);
@@ -1332,27 +1355,27 @@ int key;
       /* FALLTHROUGH */
     case RC_OTHER:
       if (MoreWindows())
-	SwitchWindow(D_other ? D_other->w_number : NextWindow());
+	SwitchWindow(display && D_other ? D_other->w_number : NextWindow());
       break;
     case RC_META:
-      if (D_user->u_Esc == -1)
+      if (user->u_Esc == -1)
         break;
-      ch = D_user->u_Esc;
+      ch = user->u_Esc;
       s = &ch;
       n = 1;
-      Process(&s, &n);
+      LayProcess(&s, &n);
       break;
     case RC_XON:
       ch = Ctrl('q');
       s = &ch;
       n = 1;
-      Process(&s, &n);
+      LayProcess(&s, &n);
       break;
     case RC_XOFF:
       ch = Ctrl('s');
       s = &ch;
       n = 1;
-      Process(&s, &n);
+      LayProcess(&s, &n);
       break;
     case RC_DEFBREAKTYPE:
     case RC_BREAKTYPE:
@@ -1486,7 +1509,7 @@ int key;
 	{
 	  s = *args;
 	  n = strlen(s);
-	  Process(&s, &n);
+	  LayProcess(&s, &n);
 	}
       break;
     case RC_LASTMSG:
@@ -1586,8 +1609,7 @@ int key;
 #endif
 	  if (fore->w_monitor == MON_OFF)
 	    fore->w_monitor = MON_ON;
-	    Msg(0, "Window %d (%s) is now being monitored for all activity.", 
-		fore->w_number, fore->w_title);
+	  Msg(0, "Window %d (%s) is now being monitored for all activity.", fore->w_number, fore->w_title);
 	}
       else
 	{
@@ -1604,13 +1626,14 @@ int key;
 	  if (i < 0)
 #endif
 	    fore->w_monitor = MON_OFF;
-	    Msg(0, "Window %d (%s) is no longer being monitored for activity.", 
-		fore->w_number, fore->w_title);
+	  Msg(0, "Window %d (%s) is no longer being monitored for activity.", fore->w_number, fore->w_title);
 	}
       break;
+#ifdef MULTI
     case RC_DISPLAYS:
       display_displays();
       break;
+#endif
     case RC_HELP:
       display_help();
       break;
@@ -1637,7 +1660,7 @@ int key;
 	  }
 	if (GetHistory() == 0)
 	  break;
-	if (D_user->u_copybuffer == NULL)
+	if (user->u_copybuffer == NULL)
 	  break;
 	args = pasteargs;
       }
@@ -1673,7 +1696,7 @@ int key;
 	    if (ch == '.')
 	      {
 	      	if (display)
-		  l += D_user->u_copylen;
+		  l += user->u_copylen;
 	      }
 	    else
               l += plop_tab[(int)(unsigned char)ch].len;
@@ -1691,7 +1714,7 @@ int key;
         if (s[1] == 0 && args[1] == 0)
           {
 	    if (fore)
-	      MakePaster(&fore->w_paster, *s == '.' ? D_user->u_copybuffer : plop_tab[(int)(unsigned char)*s].buf, l, 0);
+	      MakePaster(&fore->w_paster, *s == '.' ? user->u_copybuffer : plop_tab[(int)(unsigned char)*s].buf, l, 0);
 	    break;
           }
 	/*
@@ -1713,8 +1736,8 @@ int key;
 	      {
 	        if (display == 0)
 		  continue;
-		bcopy(D_user->u_copybuffer, dbuf + l, D_user->u_copylen);
-                l += D_user->u_copylen;
+		bcopy(user->u_copybuffer, dbuf + l, user->u_copylen);
+                l += user->u_copylen;
               }
 	    else
 	      {
@@ -1747,10 +1770,10 @@ int key;
 		    free(dbuf);
 		    break;
 		  }
-	        if (D_user->u_copybuffer != NULL)
-	          UserFreeCopyBuffer(D_user);
-		D_user->u_copybuffer = dbuf;
-		D_user->u_copylen = l;
+	        if (user->u_copybuffer != NULL)
+	          UserFreeCopyBuffer(user);
+		user->u_copybuffer = dbuf;
+		user->u_copylen = l;
 	      }
 	    else
 	      {
@@ -1765,20 +1788,20 @@ int key;
         break;
       }
     case RC_WRITEBUF:
-      if (D_user->u_copybuffer == NULL)
+      if (user->u_copybuffer == NULL)
 	{
 	  Msg(0, "empty buffer");
 	  break;
 	}
-      WriteFile(DUMP_EXCHANGE);
+      WriteFile(user, DUMP_EXCHANGE);
       break;
     case RC_READBUF:
       if ((s = ReadFile(BufferFile, &n)))
 	{
-	  if (D_user->u_copybuffer)
-	    UserFreeCopyBuffer(D_user);
-	  D_user->u_copylen = n;
-	  D_user->u_copybuffer = s;
+	  if (user->u_copybuffer)
+	    UserFreeCopyBuffer(user);
+	  user->u_copylen = n;
+	  user->u_copybuffer = s;
 	}
       break;
     case RC_REMOVEBUF:
@@ -1786,7 +1809,7 @@ int key;
       break;
 #endif				/* COPY_PASTE */
     case RC_ESCAPE:
-      if (ParseEscape(display ? D_user : users, *args))
+      if (ParseEscape(user, *args))
 	{
 	  Msg(0, "%s: two characters required after escape.", rc_name);
 	  break;
@@ -1794,7 +1817,7 @@ int key;
       /* Change defescape if master user. This is because we only
        * have one ktab.
        */
-      if (display && D_user != users)
+      if (display && user != users)
 	break;
       /* FALLTHROUGH */
     case RC_DEFESCAPE:
@@ -1818,7 +1841,10 @@ int key;
         ShellArgs[0] = ShellProg;
       break;
     case RC_HARDCOPYDIR:
-      (void)ParseSaveStr(act, &hardcopydir);
+      if (*args)
+        (void)ParseSaveStr(act, &hardcopydir);
+      if (msgok)
+	Msg(0, "hardcopydir is %s\n", hardcopydir && *hardcopydir ? hardcopydir : "<cwd>");
       break;
     case RC_LOGFILE:
       if (*args)
@@ -1871,7 +1897,7 @@ int key;
     case RC_TERMCAP:
     case RC_TERMCAPINFO:
     case RC_TERMINFO:
-      if (!rc_name || rc_name == "")
+      if (!rc_name || !*rc_name)
         Msg(0, "Sorry, too late now. Place that in your .screenrc file.");
       break;
     case RC_SLEEP:
@@ -1882,7 +1908,7 @@ int key;
 	break;
       if (strlen(s) >= 20)
 	{
-	  Msg(0,"%s: term: argument too long ( < 20)", rc_name);
+	  Msg(0, "%s: term: argument too long ( < 20)", rc_name);
 	  free(s);
 	  break;
 	}
@@ -1896,7 +1922,7 @@ int key;
       if (!msgok)
 	break;
       /*
-       * D_user typed ^A:echo... well, echo isn't FinishRc's job,
+       * user typed ^A:echo... well, echo isn't FinishRc's job,
        * but as he wanted to test us, we show good will
        */
       if (*args && (args[1] == 0 || (strcmp(args[1], "-n") == 0 && args[2] == 0)))
@@ -1980,6 +2006,11 @@ int key;
     case RC_DEFC1:
       (void)ParseOnOff(act, &nwin_default.c1);
       break;
+#ifdef COLOR
+    case RC_DEFBCE:
+      (void)ParseOnOff(act, &nwin_default.bce);
+      break;
+#endif
     case RC_DEFGR:
       (void)ParseOnOff(act, &nwin_default.gr);
       break;
@@ -2389,17 +2420,15 @@ int key;
     case RC_PASSWORD:
       if (*args)
 	{
-	  struct user *u = display ? D_user : users;
-
-	  n = (*u->u_password) ? 1 : 0;
-	  if (u->u_password != NullStr) free((char *)u->u_password);
-	  u->u_password = SaveStr(*args);
-	  if (!strcmp(u->u_password, "none"))
+	  n = (*user->u_password) ? 1 : 0;
+	  if (user->u_password != NullStr) free((char *)user->u_password);
+	  user->u_password = SaveStr(*args);
+	  if (!strcmp(user->u_password, "none"))
 	    {
 	      if (n)
 	        Msg(0, "Password checking disabled");
-	      free(u->u_password);
-	      u->u_password = NullStr;
+	      free(user->u_password);
+	      user->u_password = NullStr;
 	    }
 	}
       else
@@ -2409,7 +2438,7 @@ int key;
 	      Msg(0, "%s: password: window required", rc_name);
 	      break;
 	    }
-	  Input("New screen password:", 100, INP_NOECHO, pass1, (char *)D_user);
+	  Input("New screen password:", 100, INP_NOECHO, pass1, display ? (char *)D_user : (char *)users);
 	}
       break;
 #endif				/* PASSWORD */
@@ -2421,7 +2450,6 @@ int key;
 	  break;
 	}
       n = (unsigned char)ch;
-      ClearAction(&ktab[n]);
       if (args[1])
 	{
 	  if ((i = FindCommnr(args[1])) == RC_ILLEGAL)
@@ -2431,10 +2459,13 @@ int key;
 	    }
 	  if (CheckArgNum(i, args + 2) < 0)
 	    break;
+          ClearAction(&ktab[n]);
 	  ktab[n].nr = i;
 	  if (args[2])
 	    ktab[n].args = SaveArgs(args + 2);
 	}
+      else
+        ClearAction(&ktab[n]);
       break;
 #ifdef MAPKEYS
     case RC_BINDKEY:
@@ -2527,7 +2558,6 @@ int key;
 	        i -=  T_CAPS;
 	    }
 	  newact = df ? &dmtab[i] : mf ? &mmtab[i] : &umtab[i];
-	  ClearAction(newact);
 	  if (args[1])
 	    {
 	      if ((newnr = FindCommnr(args[1])) == RC_ILLEGAL)
@@ -2537,6 +2567,7 @@ int key;
 		}
 	      if (CheckArgNum(newnr, args + 2) < 0)
 		break;
+	      ClearAction(newact);
 	      newact->nr = newnr;
 	      if (args[2])
 		newact->args = SaveArgs(args + 2);
@@ -2548,6 +2579,8 @@ int key;
 		  kmap_extras_fl[i - (KMAP_KEYS+KMAP_AKEYS)] = fl;
 		}
 	    }
+	  else
+	    ClearAction(newact);
 	  for (display = displays; display; display = display->d_next)
 	    remap(i, args[1] ? 1 : 0);
 	  if (kf == 0 && !args[1])
@@ -2695,6 +2728,12 @@ int key;
       if (ParseSwitch(act, &fore->w_c1) == 0 && msgok)
         Msg(0, "Will %suse C1", fore->w_c1 ? "" : "not ");
       break;
+#ifdef COLOR
+    case RC_BCE:
+      if (ParseSwitch(act, &fore->w_bce) == 0 && msgok)
+        Msg(0, "Will %serase with background color", fore->w_bce ? "" : "not ");
+      break;
+#endif
 #ifdef KANJI
     case RC_KANJI:
       for (i = 0; i < 2; i++)
@@ -2761,7 +2800,7 @@ int key;
 	{
 	  s = *args;
 	  n = strlen(s);
-	  Process(&s, &n);
+	  LayProcess(&s, &n);
 	}
       break;
 
@@ -2896,19 +2935,55 @@ int key;
       D_forecv->c_yoff = D_forecv->c_ys;
       RethinkViewportOffsets(D_forecv);
       ResizeLayer(D_forecv->c_layer, D_forecv->c_xe - D_forecv->c_xs + 1, D_forecv->c_ye - D_forecv->c_ys + 1, 0);
-      /* XXX: only on canvas? */
       flayer = D_forecv->c_layer;
-      SetCursor();
+      LaySetCursor();
       break;
     case RC_FOCUS:
-      D_forecv = D_forecv->c_next ? D_forecv->c_next : D_cvlist;
+      if (!*args || !strcmp(*args, "down"))
+        D_forecv = D_forecv->c_next ? D_forecv->c_next : D_cvlist;
+      else if (!strcmp(*args, "up"))
+	{
+	  struct canvas *cv;
+	  for (cv = D_cvlist; cv->c_next && cv->c_next != D_forecv; cv = cv->c_next)
+	    ;
+	  D_forecv = cv;
+	}
+      else if (!strcmp(*args, "top"))
+        D_forecv = D_cvlist;
+      else if (!strcmp(*args, "bottom"))
+	{
+	  struct canvas *cv;
+	  for (cv = D_cvlist; cv->c_next; cv = cv->c_next)
+	    ;
+	  D_forecv = cv;
+	}
+      else
+	{
+	  Msg(0, "%s: usage: focus [up|down|top|bottom]", rc_name);
+	  break;
+	}
       D_fore = Layer2Window(D_forecv->c_layer);
       fore = D_fore;
-      RefreshHStatus();
-      /* XXX: only on canvas? */
       flayer = D_forecv->c_layer;
-      Restore();
-      SetCursor();
+#ifdef RXVT_OSC
+      if (D_xtermosc[2] || D_xtermosc[3])
+	{
+	  Activate(-1);
+	  break;
+	}
+#endif
+      RefreshHStatus();
+#ifdef RXVT_OSC
+      RefreshXtermOSC();
+#endif
+      flayer = D_forecv->c_layer;
+      CV_CALL(D_forecv, LayRestore();LaySetCursor());
+      break;
+    case RC_RESIZE:
+      if (*args)
+	ResizeRegions(*args);
+      else
+	Input("resize # lines: ", 20, INP_COOKED, ResizeFin, (char*)0);
       break;
     default:
 #ifdef HAVE_BRAILLE
@@ -2916,6 +2991,12 @@ int key;
       DoBrailleAction(act, key == -2 ? 0 : msgok);
 #endif
       break;
+    }
+  if (display != odisplay)
+    {
+      for (display = displays; display; display = display->d_next)
+        if (display == odisplay)
+	  break;
     }
 }
 
@@ -3041,15 +3122,6 @@ char *buf, **args;
     }
 }
 
-/*
- * buf is split into argument vector args.
- * leading whitespace is removed.
- * @!| abbreviations are expanded.
- * the end of buffer is recognized by '\0' or an un-escaped '#'.
- * " and ' are interpreted.
- *
- * argc is returned.
- */
 int 
 ParseEscape(u, p)
 struct user *u;
@@ -3314,7 +3386,7 @@ char *p, *cp;
 {
   if (*p == 0)
     return 0;
-  if (*p == '^')
+  if (*p == '^' && p[1])
     {
       if (*++p == '?')
         *cp = '\177';
@@ -3603,7 +3675,7 @@ MoreWindows()
       Msg(0, "No window available");
       return 0;
     }
-  Msg(0, "No other window.", fore->w_number);	/* other arg for nethack */
+  Msg(0, "No other window."+1-1, fore->w_number);	/* other arg for nethack */
   return 0;
 }
 
@@ -3860,16 +3932,21 @@ ShowInfo()
 #ifdef COPY_PASTE
   sprintf(p += strlen(p), "+%d", wp->w_histheight);
 #endif
-  sprintf(p += strlen(p), " %c%sflow %cwrap",
+  sprintf(p += strlen(p), " %c%sflow",
   	  (wp->w_flow & FLOW_NOW) ? '+' : '-',
 	  (wp->w_flow & FLOW_AUTOFLAG) ? "" : 
-	   ((wp->w_flow & FLOW_AUTO) ? "(+)" : "(-)"),
-	  wp->w_wrap ? '+' : '-');
+	   ((wp->w_flow & FLOW_AUTO) ? "(+)" : "(-)"));
+  if (!wp->w_wrap) sprintf(p += strlen(p), " -wrap");
   if (wp->w_insert) sprintf(p += strlen(p), " ins");
   if (wp->w_origin) sprintf(p += strlen(p), " org");
   if (wp->w_keypad) sprintf(p += strlen(p), " app");
   if (wp->w_log)    sprintf(p += strlen(p), " log");
   if (wp->w_monitor != MON_OFF) sprintf(p += strlen(p), " mon");
+  if (wp->w_mouse) sprintf(p += strlen(p), " mouse");
+#ifdef COLOR
+  if (wp->w_bce) sprintf(p += strlen(p), " bce");
+#endif
+  if (!wp->w_c1) sprintf(p += strlen(p), " -c1");
   if (wp->w_norefresh) sprintf(p += strlen(p), " nored");
 
   p += strlen(p);
@@ -3877,10 +3954,10 @@ ShowInfo()
   if (D_CC0 || (D_CS0 && *D_CS0))
     {
       if (wp->w_gr)
-        sprintf(p++, " G%c%c [", wp->w_Charset + '0', wp->w_CharsetR + '0');
+        sprintf(p++, " G%c%c[", wp->w_Charset + '0', wp->w_CharsetR + '0');
       else
-        sprintf(p, " G%c [", wp->w_Charset + '0');
-      p += 5;
+        sprintf(p, " G%c[", wp->w_Charset + '0');
+      p += 4;
       for (i = 0; i < 4; i++)
 	{
 	  if (wp->w_charsets[i] == ASCII)
@@ -3932,7 +4009,20 @@ char *data;	/* dummy */
 static void
 InputAKA()
 {
+  char *s, *ss;
+  int n;
   Input("Set window's title to: ", 20, INP_COOKED, AKAfin, NULL);
+  s = fore->w_title;
+  if (!s)
+    return;
+  for (; *s; s++)
+    {
+      if ((*(unsigned char *)s & 0x7f) < 0x20 || *s == 0x7f)
+	continue;
+      ss = s;
+      n = 1;
+      LayProcess(&ss, &n);
+    }
 }
 
 static void
@@ -4294,20 +4384,6 @@ char *data;	/* dummy */
 }
 
 static void
-quit_fn(buf, len, data)
-char *buf;
-int len;
-char *data;	/* dummy */
-{
-  if (len || (*buf != 'y' && *buf != 'Y'))
-    {
-      *buf = 0;
-      return;
-    }
-  Finit(0);
-}
-
-static void
 confirm_fn(buf, len, data)
 char *buf;
 int len;
@@ -4519,7 +4595,7 @@ char *data;	/* dummy */
   i = 1;
   *buf = x;
   while(i)
-    Process(&buf, &i);
+    LayProcess(&buf, &i);
 }
 
 #ifdef MAPKEYS
@@ -4689,3 +4765,130 @@ char *str;
 
 #endif
 
+static void
+ResizeRegions(arg)
+char *arg;
+{
+  struct canvas *cv;
+  int nreg, dsize, diff, siz;
+
+  ASSERT(display);
+  for (nreg = 0, cv = D_cvlist; cv; cv = cv->c_next)
+    nreg++;
+  if (nreg < 2)
+    {
+      Msg(0, "resize: need more than one region");
+      return;
+    }
+  dsize = D_height - (D_has_hstatus == HSTATUS_LASTLINE);
+  if (*arg == '=')
+    {
+      /* make all regions the same height */
+      int h = dsize;
+      int hh, i = 0;
+      for (cv = D_cvlist; cv; cv = cv->c_next)
+	{
+	  hh = h / nreg-- - 1;
+	  cv->c_ys = i;
+	  cv->c_ye = i + hh - 1;
+	  cv->c_yoff = i;
+	  i += hh + 1;
+	  h -= hh + 1;
+        }
+      RethinkDisplayViewports();
+      ResizeLayersToCanvases();
+      return;
+    }
+  siz = D_forecv->c_ye - D_forecv->c_ys + 1;
+  if (*arg == '+')
+    diff = atoi(arg + 1);
+  else if (*arg == '-')
+    diff = -atoi(arg + 1);
+  else if (!strcmp(arg, "min"))
+    diff = 1 - siz;
+  else if (!strcmp(arg, "max"))
+    diff = dsize - (nreg - 1) * 2 - 1 - siz;
+  else
+    diff = atoi(arg) - siz;
+  if (diff == 0)
+    return;
+  if (siz + diff < 1)
+    diff = 1 - siz;
+  if (siz + diff > dsize - (nreg - 1) * 2 - 1)
+    diff = dsize - (nreg - 1) * 2 - 1 - siz;
+  if (diff == 0 || siz + diff < 1)
+    return;
+
+  if (diff < 0)
+    {
+      if (D_forecv->c_next)
+	{
+	  D_forecv->c_ye += diff;
+	  D_forecv->c_next->c_ys += diff;
+	  D_forecv->c_next->c_yoff += diff;
+	}
+      else
+	{
+	  for (cv = D_cvlist; cv; cv = cv->c_next)
+	    if (cv->c_next == D_forecv)
+	      break;
+	  ASSERT(cv);
+	  cv->c_ye -= diff;
+	  D_forecv->c_ys -= diff;
+	  D_forecv->c_yoff -= diff;
+	}
+    }
+  else
+    {
+      int s, i = 0, found = 0, di = diff, d2;
+      s = dsize - (nreg - 1) * 2 - 1 - siz;
+      for (cv = D_cvlist; cv; i = cv->c_ye + 2, cv = cv->c_next)
+	{
+	  if (cv == D_forecv)
+	    {
+	      cv->c_ye = i + (cv->c_ye - cv->c_ys) + diff;
+	      cv->c_yoff -= cv->c_ys - i;
+	      cv->c_ys = i;
+	      found = 1;
+	      continue;
+	    }
+	  s -= cv->c_ye - cv->c_ys;
+	  if (!found)
+	    {
+	      if (s >= di)
+		continue;
+	      d2 = di - s;
+	    }
+	  else
+	    d2 = di > cv->c_ye - cv->c_ys ? cv->c_ye - cv->c_ys : di;
+	  di -= d2;
+	  cv->c_ye = i + (cv->c_ye - cv->c_ys) - d2;
+	  cv->c_yoff -= cv->c_ys - i;
+	  cv->c_ys = i;
+        }
+    }
+  RethinkDisplayViewports();
+  ResizeLayersToCanvases();
+}
+
+static void
+ResizeFin(buf, len, data)
+char *buf;
+int len;
+char *data;
+{
+  ResizeRegions(buf);
+}
+
+#ifdef RXVT_OSC
+void
+RefreshXtermOSC()
+{
+  int i;
+  struct win *p;
+
+  p = Layer2Window(D_forecv->c_layer);
+  for (i = 3; i >=0; i--)
+    SetXtermOSC(i, p ? p->w_xtermosc[i] : 0);
+}
+#endif

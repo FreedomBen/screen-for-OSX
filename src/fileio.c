@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -39,6 +39,7 @@ RCS_ID("$Id$ FAU")
 
 extern struct display *display, *displays;
 extern struct win *fore;
+extern struct layer *flayer;
 extern int real_uid, eff_uid;
 extern int real_gid, eff_gid;
 extern char *extra_incap, *extra_outcap;
@@ -286,7 +287,12 @@ char *ubuf;
 #endif
 
   if (display)
-    fore = D_fore;
+    {
+      fore = D_fore;
+      flayer = D_forecv->c_layer;
+    }
+  else
+    flayer = fore ? fore->w_savelayer : 0;
   buf = expand_vars(ubuf, display);
   if (Parse(buf, args) <= 0)
     return;
@@ -309,7 +315,8 @@ char *ubuf;
  * needs display for copybuffer access and termcap dumping
  */
 void
-WriteFile(dump)
+WriteFile(user, dump)
+struct user *user;
 int dump;
 {
   /* dump==0:	create .termcap,
@@ -346,7 +353,7 @@ int dump;
       strcpy(fn + i, ".termcap");
       break;
     case DUMP_HARDCOPY:
-      if (hardcopydir && strlen(hardcopydir) < sizeof(fn) - 21)
+      if (hardcopydir && *hardcopydir && strlen(hardcopydir) < sizeof(fn) - 21)
 	sprintf(fn, "%s/hardcopy.%d", hardcopydir, fore->w_number);
       else
         sprintf(fn, "hardcopy.%d", fore->w_number);
@@ -416,14 +423,14 @@ int dump;
 	      if (*mode == 'a')
 		{
 		  putc('>', f);
-		  for (j = D_width - 2; j > 0; j--)
+		  for (j = fore->w_width - 2; j > 0; j--)
 		    putc('=', f);
 		  fputs("<\n", f);
 		}
-	      for (i = 0; i < D_height; i++)
+	      for (i = 0; i < fore->w_height; i++)
 		{
 		  p = fore->w_mlines[i].image;
-		  for (k = D_width - 1; k >= 0 && p[k] == ' '; k--)
+		  for (k = fore->w_width - 1; k >= 0 && p[k] == ' '; k--)
 		    ;
 		  for (j = 0; j <= k; j++)
 		    putc(p[j], f);
@@ -439,8 +446,8 @@ int dump;
 	      break;
 #ifdef COPY_PASTE
 	    case DUMP_EXCHANGE:
-	      p = D_user->u_copybuffer;
-	      for (i = D_user->u_copylen; i-- > 0; p++)
+	      p = user->u_copybuffer;
+	      for (i = user->u_copylen; i-- > 0; p++)
 		if (*p == '\r' && (i == 0 || p[1] != '\n'))
 		  putc('\n', f);
 		else

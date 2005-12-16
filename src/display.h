@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -97,7 +97,6 @@ struct display
 #ifdef KANJI
   int   d_mbcs;			/* saved char for multibytes charset */
   int   d_kanji;		/* what kanji type the display is */
-  int   d_lp_mbcs;		/* mbcs part of lp_missing */
 #endif
   int	d_insert;		/* insert mode flag */
   int	d_keypad;		/* application keypad flag */
@@ -107,6 +106,10 @@ struct display
   int   d_has_hstatus;		/* display has hardstatus line */
   int	d_hstatus;		/* hardstatus used */
   int	d_lp_missing;		/* last character on bot line missing */
+  int   d_mouse;		/* mouse mode */
+#ifdef RXVT_OSC
+  int   d_xtermosc[4];		/* osc used */
+#endif
   struct mchar d_lpchar;	/* missing char */
   time_t d_status_time;		/* time of status display */
   int   d_status;		/* is status displayed? */
@@ -116,9 +119,11 @@ struct display
   int   d_status_buflen;	/* last message buffer len */
   int	d_status_lastx;		/* position of the cursor */
   int	d_status_lasty;		/*   before status was displayed */
-  int	d_status_delayed;	/* status not displayed yet */
+  int   d_status_obuflen;	/* saved obuflen */ 
+  int   d_status_obuffree;	/* saved obuffree */ 
   struct event d_statusev;	/* timeout event */
   struct event d_hstatusev;	/* hstatus changed event */
+  int	d_kaablamm;		/* display kaablamm msg */
   int	d_ESCseen;		/* Was the last char an ESC (^a) */
   int	d_userpid;		/* pid of attacher */
   char	d_usertty[MAXPATHLEN];	/* tty we are attached to */
@@ -200,7 +205,6 @@ extern struct display TheDisplay;
 #define D_atyp		DISPLAY(d_atyp)
 #define D_mbcs		DISPLAY(d_mbcs)
 #define D_kanji		DISPLAY(d_kanji)
-#define D_lp_mbcs	DISPLAY(d_lp_mbcs)
 #define D_insert	DISPLAY(d_insert)
 #define D_keypad	DISPLAY(d_keypad)
 #define D_cursorkeys	DISPLAY(d_cursorkeys)
@@ -209,6 +213,8 @@ extern struct display TheDisplay;
 #define D_has_hstatus	DISPLAY(d_has_hstatus)
 #define D_hstatus	DISPLAY(d_hstatus)
 #define D_lp_missing	DISPLAY(d_lp_missing)
+#define D_mouse		DISPLAY(d_mouse)
+#define D_xtermosc	DISPLAY(d_xtermosc)
 #define D_lpchar	DISPLAY(d_lpchar)
 #define D_status	DISPLAY(d_status)
 #define D_status_time	DISPLAY(d_status_time)
@@ -218,9 +224,11 @@ extern struct display TheDisplay;
 #define D_status_buflen	DISPLAY(d_status_buflen)
 #define D_status_lastx	DISPLAY(d_status_lastx)
 #define D_status_lasty	DISPLAY(d_status_lasty)
-#define D_status_delayed	DISPLAY(d_status_delayed)
+#define D_status_obuflen	DISPLAY(d_status_obuflen)
+#define D_status_obuffree	DISPLAY(d_status_obuffree)
 #define D_statusev	DISPLAY(d_statusev)
 #define D_hstatusev	DISPLAY(d_hstatusev)
+#define D_kaablamm	DISPLAY(d_kaablamm)
 #define D_ESCseen	DISPLAY(d_ESCseen)
 #define D_userpid	DISPLAY(d_userpid)
 #define D_usertty	DISPLAY(d_usertty)
@@ -273,7 +281,7 @@ extern struct display TheDisplay;
 #define AddChar(c)		\
 do				\
   {				\
-    if (--D_obuffree == 0)	\
+    if (--D_obuffree <= 0)	\
       Resize_obuf();		\
     *D_obufp++ = (c);		\
   }				\

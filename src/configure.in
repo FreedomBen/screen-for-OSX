@@ -14,6 +14,7 @@ dnl Define some useful macros
 dnl
 AC_DEFUN(AC_PROGRAM_SOURCE,
 [AC_REQUIRE([AC_PROG_CPP])AC_PROVIDE([$0])cat > conftest.c <<EOF
+#include "confdefs.h"
 [$1]
 _CUT_HERE_
 [$2]
@@ -77,6 +78,26 @@ if test -f etc/toolcheck; then
 AC_CHECKING(for buggy tools)
 sh etc/toolcheck 1>&AC_FD_MSG
 fi
+
+
+
+dnl SOCKDIR
+AC_MSG_CHECKING(if a system-wide socket dir should be used) 
+AC_ARG_ENABLE(socket-dir,
+    [  --disable-socket-dir    disable system wide socket-dir and use ~/.screen instead],
+    [
+	AC_MSG_RESULT(no.  ~/.screen will be used instead.)
+    ],
+    [
+	AC_MSG_RESULT(yes)
+	AC_MSG_CHECKING(for the socket dir)
+	SOCKDIR="(eff_uid ? \"/tmp/uscreens\" : \"/tmp/screens\")"
+	AC_ARG_WITH(socket-dir, [  --with-socket-dir=path  where to put the per-user sockets], [ SOCKDIR="\"${withval}\"" ])
+	AC_MSG_RESULT(${SOCKDIR})
+	AC_DEFINE_UNQUOTED(SOCKDIR, $SOCKDIR)
+    ]
+)
+
 
 dnl
 dnl    ****  special unix variants  ****
@@ -581,6 +602,7 @@ dnl
 dnl    ****  termcap or terminfo  ****
 dnl
 AC_CHECKING(for tgetent)
+AC_TRY_LINK(,tgetent((char *)0, (char *)0);,,
 olibs="$LIBS"
 LIBS="-lcurses $olibs"
 AC_CHECKING(libcurses)
@@ -600,7 +622,7 @@ AC_TRY_LINK(,tgetent((char *)0, (char *)0);,,
 LIBS="-lncurses $olibs"
 AC_CHECKING(libncurses)
 AC_TRY_LINK(,tgetent((char *)0, (char *)0);,,
-AC_MSG_ERROR(!!! no tgetent - no screen)))))
+AC_MSG_ERROR(!!! no tgetent - no screen))))))
 
 AC_TRY_RUN([
 main()
@@ -862,7 +884,7 @@ AC_PROGRAM_SOURCE([
 #include <sys/types.h>
 #include <sys/param.h>
 ],[
-#if ((defined(hp300) && !defined(__hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news) || !(defined(__osf__) && defined(__alpha)) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
+#if !defined(LOADAV_GETLOADAVG) && ((defined(hp300) && !defined(__hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news) || !(defined(__osf__) && defined(__alpha)) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
 loadtype=long
 # if defined(apollo) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX)
 loadscale=65536
@@ -988,7 +1010,7 @@ AC_CHECKING(syslog)
 AC_TRY_LINK(,[closelog();], , [oldlibs="$LIBS"
 LIBS="$LIBS -lbsd"
 AC_CHECKING(syslog in libbsd.a)
-AC_TRY_LINK(, [closelog();], AC_NOTE(- found.), [LIBS="oldlibs"
+AC_TRY_LINK(, [closelog();], AC_NOTE(- found.), [LIBS="$oldlibs"
 AC_NOTE(- bad news: syslog missing.) AC_DEFINE(NOSYSLOG)])])
 
 AC_EGREP_CPP(yes,
@@ -1106,9 +1128,15 @@ dnl Ptx bug workaround -- insert -lc after -ltermcap
 test -n "$seqptx" && LIBS="-ltermcap -lc -lsocket -linet -lnsl -lsec -lseq"
 
 AC_TRY_RUN(main(){exit(0);},,AC_MSG_ERROR(Can't run the compiler - internal error. Sorry.))
+
+ETCSCREENRC="\"/usr/local/etc/screenrc\""
 if test -n "$prefix"; then
-AC_DEFINE_UNQUOTED(ETCSCREENRC,"$prefix/etc/screenrc")
+ETCSCREENRC="\"$prefix/etc/screenrc\""
 fi
+AC_MSG_CHECKING(for the global screenrc file)
+AC_ARG_WITH(sys-screenrc, [  --with-sys-screenrc=path  where to put the global screenrc file], [ ETCSCREENRC="\"${withval}\"" ])
+AC_DEFINE_UNQUOTED(ETCSCREENRC,$ETCSCREENRC)
+AC_MSG_RESULT($ETCSCREENRC)
 
 AC_OUTPUT(Makefile doc/Makefile, [[
 # a hook for preserving undef directive in config.h

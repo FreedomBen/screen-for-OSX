@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -31,13 +31,13 @@ struct mchar;	/* forward declaration */
 
 struct LayFuncs
 {
-  void	(*LayProcess) __P((char **, int *));
-  void	(*LayAbort) __P((void));
-  void	(*LayRedisplayLine) __P((int, int, int, int));
-  void	(*LayClearLine) __P((int, int, int));
-  int	(*LayRewrite) __P((int, int, int, struct mchar *, int));
-  int	(*LayResize) __P((int, int));
-  void	(*LayRestore) __P((void));
+  void	(*lf_LayProcess) __P((char **, int *));
+  void	(*lf_LayAbort) __P((void));
+  void	(*lf_LayRedisplayLine) __P((int, int, int, int));
+  void	(*lf_LayClearLine) __P((int, int, int, int));
+  int	(*lf_LayRewrite) __P((int, int, int, struct mchar *, int));
+  int	(*lf_LayResize) __P((int, int));
+  void	(*lf_LayRestore) __P((void));
 };
 
 struct layer
@@ -55,16 +55,16 @@ struct layer
   int	 l_blocking;
 };
 
-#define Process		(*flayer->l_layfn->LayProcess)
-#define Abort		(*flayer->l_layfn->LayAbort)
-#define RedisplayLine	(*flayer->l_layfn->LayRedisplayLine)
-#define ClearLine	(*flayer->l_layfn->LayClearLine)
-#define Rewrite		(*flayer->l_layfn->LayRewrite)
-#define Resize		(*flayer->l_layfn->LayResize)
-#define Restore		(*flayer->l_layfn->LayRestore)
+#define LayProcess		(*flayer->l_layfn->lf_LayProcess)
+#define LayAbort		(*flayer->l_layfn->lf_LayAbort)
+#define LayRedisplayLine	(*flayer->l_layfn->lf_LayRedisplayLine)
+#define LayClearLine		(*flayer->l_layfn->lf_LayClearLine)
+#define LayRewrite		(*flayer->l_layfn->lf_LayRewrite)
+#define LayResize		(*flayer->l_layfn->lf_LayResize)
+#define LayRestore		(*flayer->l_layfn->lf_LayRestore)
 
-#define SetCursor()	LGotoPos(flayer, flayer->l_x, flayer->l_y)
-#define CanResize(l)	(l->l_layfn->LayResize != DefResize)
+#define LaySetCursor()	LGotoPos(flayer, flayer->l_x, flayer->l_y)
+#define LayCanResize(l)	(l->l_layfn->LayResize != DefResize)
 
 /* XXX: AArgh! think again! */
 

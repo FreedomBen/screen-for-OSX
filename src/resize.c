@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -128,8 +128,11 @@ int change_flag;
       return;
     }
   ChangeScreenSize(wi, he, change_flag);
+/* XXX Redisplay logic */
+#if 0
   if (change_flag == 1)
     Redisplay(D_fore ? D_fore->w_norefresh : 0);
+#endif
 }
 
 void
@@ -246,6 +249,7 @@ ResizeLayersToCanvases()
   int lx, ly;
 
   debug("ResizeLayersToCanvases\n");
+  D_kaablamm = 0;
   for (cv = D_cvlist; cv; cv = cv->c_next)
     {
       l = cv->c_layer;
@@ -303,6 +307,11 @@ ResizeLayersToCanvases()
 	}
     }
   Redisplay(0);
+  if (D_kaablamm)
+    {
+      kaablamm();
+      D_kaablamm = 0;
+    }
 }
 
 int
@@ -334,7 +343,6 @@ struct layer *l;
 static void
 kaablamm()
 {
-  /* this only works because of the status_delayed hack... */
   Msg(0, "Aborted because of window size change.");
 }
 
@@ -366,7 +374,7 @@ struct display *norefdisp;
 	      {
 		flayer = cv->c_layer;
 		if (flayer->l_next)
-		  kaablamm();
+		  d->d_kaablamm = 1;
 	        while(flayer->l_next)
 		  ExitOverlayPage();
 	      }
@@ -374,13 +382,13 @@ struct display *norefdisp;
       l = p->w_savelayer;
     }
   flayer = l;
-  if (flayer->l_next)
-    kaablamm();
+  if (flayer->l_next && display)
+    D_kaablamm = 1;
   while(flayer->l_next)
     ExitOverlayPage();
   if (p)
     flayer = &p->w_layer;
-  Resize(wi, he);
+  LayResize(wi, he);
   /* now everybody is on flayer, redisplay */
   l = flayer;
   for (display = displays; display; display = display->d_next)
@@ -390,6 +398,11 @@ struct display *norefdisp;
       for (cv = D_cvlist; cv; cv = cv->c_next)
 	if (cv->c_layer == l)
           RefreshArea(cv->c_xs, cv->c_ys, cv->c_xe, cv->c_ye, 0);
+      if (D_kaablamm)
+	{
+	  kaablamm();
+	  D_kaablamm = 0;
+	}
     }
   flayer = oldflayer;
   display = olddisplay;

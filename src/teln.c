@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -215,7 +215,7 @@ int *lenp;
 	  fore->w_telbuf[fore->w_telbufl++] = '\n';
 	  tb = fore->w_telbuf;
 	  tl = fore->w_telbufl;
-	  Process(&tb, &tl);
+	  LayProcess(&tb, &tl);
 	  fore->w_telbufl = 0;
 	  continue;
 	}
@@ -476,7 +476,8 @@ struct win *p;
       if (p->w_telsubidx != 2 || p->w_telsubbuf[1] != 1)
 	return;
       l = strlen(screenterm);
-      ASSERT(l < 20);
+      if (l >= 20)
+	break;
       sprintf(trepl, "%c%c%c%c%s%c%c", TC_IAC, TC_SB, TO_TTYPE, 0, screenterm, TC_IAC, TC_SE);
       TelReply(p, trepl, l + 6);
       break;

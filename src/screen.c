@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -105,10 +105,9 @@ FILE *dfp;
 
 
 extern char *blank, *null, Term[], screenterm[], **environ, Termcap[];
-int force_vt = 1, assume_LP = 0;
+int force_vt = 1;
 int VBellWait, MsgWait, MsgMinWait, SilenceWait;
 
-extern struct plop plop_tab[];
 extern struct user *users;
 extern struct display *displays, *display; 
 
@@ -281,7 +280,7 @@ pw_try_again:
   for (; n < 13; n++)
     {
       char c = ppp->pw_passwd[n];
-      if (!(c == '.' || c == '/' ||
+      if (!(c == '.' || c == '/' || c == '$' ||
 	    (c >= '0' && c <= '9') || 
 	    (c >= 'a' && c <= 'z') || 
 	    (c >= 'A' && c <= 'Z'))) 
@@ -517,7 +516,7 @@ char **av;
 		    }
 		  if (ParseEscape(NULL, ap))
 		    Panic(0, "Two characters are required with -e option, not '%s'.", ap);
-		  ap += 3; /* estimated size of notation */
+		  ap = NULL;
 		  break;
 		case 'f':
 		  ap++;
@@ -908,7 +907,7 @@ char **av;
 #else
 		  0777;
 #endif
-	      if (mkdir(SockDir, eff_uid ? 0777 : 0755) == -1)
+	      if (mkdir(SockDir, n) == -1)
 		Panic(errno, "Cannot make directory '%s'", SockDir);
 	    }
 	  else
@@ -917,7 +916,7 @@ char **av;
 		Panic(0, "'%s' must be a directory.", SockDir);
               if (eff_uid == 0 && real_uid && st.st_uid != eff_uid)
 		Panic(0, "Directory '%s' must be owned by root.", SockDir);
-	      n = (eff_uid == 0 && (real_uid || (st.st_mode & 0777) != 0777)) ? 0755 :
+	      n = (eff_uid == 0 && (real_uid || (st.st_mode & 0775) != 0775)) ? 0755 :
 	          (eff_gid == st.st_gid && eff_gid != real_gid) ? 0775 :
 		  0777;
 	      if ((st.st_mode & 0777) != n)
@@ -1026,11 +1025,6 @@ char **av;
     }
   nwin_compose(&nwin_default, &nwin_options, &nwin_default);
 
-  if (DefaultEsc == -1)
-    DefaultEsc = Ctrl('a');
-  if (DefaultMetaEsc == -1)
-    DefaultMetaEsc = 'a';
-
   if (!detached || dflag != 2)
     MasterPid = fork();
   else
@@ -1041,16 +1035,9 @@ char **av;
     case -1:
       Panic(errno, "fork");
       /* NOTREACHED */
-#ifdef FORKDEBUG
-    default:
-      break;
-    case 0:
-      MasterPid = getppid();
-#else
     case 0:
       break;
     default:
-#endif
       if (detached)
         exit(0);
       if (SockMatch)
@@ -1072,6 +1059,11 @@ char **av;
       Attacher();
       /* NOTREACHED */
     }
+
+  if (DefaultEsc == -1)
+    DefaultEsc = Ctrl('a');
+  if (DefaultMetaEsc == -1)
+    DefaultMetaEsc = 'a';
 
   ap = av0 + strlen(av0) - 1;
   while (ap >= av0)
@@ -1125,11 +1117,7 @@ char **av;
     Panic(0, "Could not create user info");
   if (!detached)
     {
-#ifdef FORKDEBUG
-      if (MakeDisplay(LoginName, attach_tty, attach_term, n, MasterPid, &attach_Mode) == 0)
-#else
       if (MakeDisplay(LoginName, attach_tty, attach_term, n, getppid(), &attach_Mode) == 0)
-#endif
 	Panic(0, "Could not alloc display");
     }
 
@@ -1357,7 +1345,7 @@ SigHup SIGDEFARG
       D_userfd = -1;
     }
   if (auto_detach || displays->d_next)
-    Detach(D_DETACH);
+    Detach(D_HANGUP);
   else
     Finit(0);
   SIGRETURN;
@@ -1591,6 +1579,7 @@ int e;
 /*
  * Detach now has the following modes:
  *D_DETACH	 SIG_BYE	detach backend and exit attacher
+ *D_HANGUP	 SIG_BYE	detach backend and exit attacher
  *D_STOP	 SIG_STOP	stop attacher (and detach backend)
  *D_REMOTE	 SIG_BYE	remote detach -- reattach to new attacher
  *D_POWER 	 SIG_POWER_BYE 	power detach -- attacher kills his parent
@@ -1618,6 +1607,9 @@ int mode;
   FinitTerm();
   switch (mode)
     {
+    case D_HANGUP:
+      sign = SIG_BYE;
+      break;
     case D_DETACH:
       AddStr("[detached]\r\n");
       sign = SIG_BYE;
@@ -1656,7 +1648,7 @@ int mode;
 #endif
 #endif
     case D_LOCK:
-      ClearDisplay();
+      ClearAll();
       sign = SIG_LOCK;
       /* tell attacher to lock terminal with a lockprg. */
       break;
@@ -1677,7 +1669,8 @@ int mode;
 	    }
 	}
     }
-  RestoreLoginSlot();
+  if (mode != D_HANGUP)
+    RestoreLoginSlot();
 #endif
   if (displays->d_next == 0 && console_window)
     {
@@ -2003,7 +1996,10 @@ struct event *ev;
 	  if (l < 4)
 	    break;
 	  if (tm == 0)
-	    tm = localtime(&now.tv_sec);
+            {
+	      time_t nowsec = now.tv_sec;
+	      tm = localtime(&nowsec);
+	    }
 	  qmflag = 1;
 	  switch (*s)
 	    {
@@ -2281,15 +2277,6 @@ char *data;
       InterruptPlease = 0;
     }
 
-  for (display = displays; display; display = display->d_next)
-    {
-      if (D_status_delayed > 0)
-	{
-	  D_status_delayed = -1;
-	  MakeStatus(D_status_lastmsg);
-	}
-    }
-
   for (p = windows; p; p = p->w_next)
     {
       if (p->w_bell == BELL_FOUND || p->w_bell == BELL_VISUAL)
@@ -2305,13 +2292,11 @@ char *data;
 	      if (cv == 0)
 		{
 		  p->w_bell = BELL_DONE;
-		  D_status_delayed = -1;
 		  Msg(0, "%s", MakeWinMsg(BellString, p, '%'));
 		}
 	      else if (visual && !D_VB && (!D_status || !D_status_bell))
 		{
-		  D_status_delayed = -1;
-		  Msg(0, VisualBellString);
+		  Msg(0, "%s", VisualBellString);
 		  if (D_status)
 		    {
 		      D_status_bell = 1;
@@ -2339,7 +2324,6 @@ char *data;
 	      if (!(ACLBYTE(p->w_mon_notify, D_user->u_id) & ACLBIT(D_user->u_id)))
 		continue;	/* user doesn't care */
 #endif
-	      D_status_delayed = -1;
 	      Msg(0, "%s", MakeWinMsg(ActivityString, p, '%'));
 	      p->w_monitor = MON_DONE;
 	    }
@@ -2369,12 +2353,12 @@ char *data;
 	      if (n > cv->c_layer->l_height)
 		n = cv->c_layer->l_height;
 	      CV_CALL(cv, 
-		LScrollV(flayer, -n, 0, flayer->l_height - 1);
-		RedisplayLine(-1, -1, -1, 1);
+		LScrollV(flayer, -n, 0, flayer->l_height - 1, 0);
+		LayRedisplayLine(-1, -1, -1, 1);
 		for (i = 0; i < n; i++)
-		  RedisplayLine(i, 0, flayer->l_width - 1, 1);
+		  LayRedisplayLine(i, 0, flayer->l_width - 1, 1);
 	        if (cv == cv->c_display->d_forecv)
-	          SetCursor();
+	          LaySetCursor();
 	      );
 	    }
 	  else if (ly + cv->c_yoff > cv->c_ye)
@@ -2385,12 +2369,12 @@ char *data;
 	      if (n > cv->c_layer->l_height)
 		n = cv->c_layer->l_height;
 	      CV_CALL(cv, 
-	        LScrollV(flayer, n, 0, cv->c_layer->l_height - 1);
-		RedisplayLine(-1, -1, -1, 1);
+	        LScrollV(flayer, n, 0, cv->c_layer->l_height - 1, 0);
+		LayRedisplayLine(-1, -1, -1, 1);
 		for (i = 0; i < n; i++)
-		  RedisplayLine(i + flayer->l_height - n, 0, flayer->l_width - 1, 1);
+		  LayRedisplayLine(i + flayer->l_height - n, 0, flayer->l_width - 1, 1);
 	        if (cv == cv->c_display->d_forecv)
-	          SetCursor();
+	          LaySetCursor();
 	      );
 	    }
 	  if (lx + cv->c_xoff < cv->c_xs)
@@ -2405,14 +2389,14 @@ char *data;
 	      if (n > cv->c_layer->l_width)
 		n = cv->c_layer->l_width;
 	      CV_CALL(cv, 
-		RedisplayLine(-1, -1, -1, 1);
+		LayRedisplayLine(-1, -1, -1, 1);
 		for (i = 0; i < flayer->l_height; i++)
 		  {
-		    LScrollH(flayer, -n, i, 0, flayer->l_width - 1, 0);
-		    RedisplayLine(i, 0, n - 1, 1);
+		    LScrollH(flayer, -n, i, 0, flayer->l_width - 1, 0, 0);
+		    LayRedisplayLine(i, 0, n - 1, 1);
 		  }
 	        if (cv == cv->c_display->d_forecv)
-	          SetCursor();
+	          LaySetCursor();
 	      );
 	    }
 	  else if (lx + cv->c_xoff > cv->c_xe)
@@ -2427,14 +2411,14 @@ char *data;
 	      if (n > cv->c_layer->l_width)
 		n = cv->c_layer->l_width;
 	      CV_CALL(cv, 
-		RedisplayLine(-1, -1, -1, 1);
+		LayRedisplayLine(-1, -1, -1, 1);
 		for (i = 0; i < flayer->l_height; i++)
 		  {
-		    LScrollH(flayer, n, i, 0, flayer->l_width - 1, 0);
-		    RedisplayLine(i, flayer->l_width - n, flayer->l_width - 1, 1);
+		    LScrollH(flayer, n, i, 0, flayer->l_width - 1, 0, 0);
+		    LayRedisplayLine(i, flayer->l_width - n, flayer->l_width - 1, 1);
 		  }
 	        if (cv == cv->c_display->d_forecv)
-	          SetCursor();
+	          LaySetCursor();
 	      );
 	    }
 	}
@@ -2445,7 +2429,7 @@ char *data;
       if (D_status == STATUS_ON_WIN || D_cvlist == 0 || D_cvlist->c_next == 0)
 	continue;
       debug1("serv_select_fn: Restore on cv %#x\n", (int)D_forecv);
-      CV_CALL(D_forecv, Restore();SetCursor());
+      CV_CALL(D_forecv, LayRestore();LaySetCursor());
     }
 }
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -37,7 +37,7 @@ struct nlstrans {
 };
 
 #ifdef NETHACK
-struct nlstrans nethacktrans[] = {
+static struct nlstrans nethacktrans[] = {
 {"Cannot lock terminal - fork failed",
 	 "Cannot fork terminal - lock failed"},
 {"Got only %d bytes from %s",

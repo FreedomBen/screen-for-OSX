@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -38,12 +38,18 @@
 # define IFCOLOR(x)
 #endif
 
+#ifdef KANJI
+# define IFKANJI(x) x
+#else
+# define IFKANJI(x)
+#endif
 
 struct mchar {
 	char image;
 	char attr;
 IFFONT( char font;)
 IFCOLOR(char color;)
+IFKANJI(char mbcs;)
 };
 
 struct mline {
@@ -109,5 +115,6 @@ IFCOLOR((ml)->color[x] = (mc)->color;			       )\
 	(mc)->attr  = (ml)->attr[x];				\
 IFFONT(	(mc)->font  = (ml)->font[x];			       )\
 IFCOLOR((mc)->color = (ml)->color[x];			       )\
+IFKANJI((mc)->mbcs  = 0;				       )\
 } while (0)
 

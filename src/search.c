@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -289,7 +289,7 @@ char *data;	/* dummy */
       y = pos / flayer->l_width;
       LAY_CALL_UP
 	(
-          RedisplayLine(INPUTLINE, 0, flayer->l_width - 1, 0);
+          LayRedisplayLine(INPUTLINE, 0, flayer->l_width - 1, 0);
           revto(x, y);
           if (W2D(markdata->cy) == INPUTLINE)
 	    revto_line(markdata->cx, markdata->cy, INPUTLINE > 0 ? INPUTLINE - 1 : 1);

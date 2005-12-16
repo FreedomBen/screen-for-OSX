@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -117,9 +117,10 @@ int x, y;
 }
 
 void
-LScrollH(l, n, y, xs, xe, ol)
+LScrollH(l, n, y, xs, xe, bce, ol)
 struct layer *l;
 int n, y, xs, xe;
+int bce;
 struct mline *ol;
 {
   struct canvas *cv;
@@ -143,7 +144,7 @@ struct mline *ol;
 	if (xs2 > xe2)
 	  continue;
 	display = cv->c_display;
-	ScrollH(y2, xs2, xe2, n, ol ? mloff(ol, -vp->v_xoff) : 0);
+	ScrollH(y2, xs2, xe2, n, bce, ol ? mloff(ol, -vp->v_xoff) : 0);
 	if (xe2 - xs2 == xe - xs)
 	  continue;
 	if (n > 0)
@@ -166,10 +167,11 @@ struct mline *ol;
 }
 
 void
-LScrollV(l, n, ys, ye)
+LScrollV(l, n, ys, ye, bce)
 struct layer *l;
 int n;
 int ys, ye;
+int bce;
 {
   struct canvas *cv;
   struct viewport *vp;
@@ -195,9 +197,9 @@ int ys, ye;
 	  continue;
 	display = cv->c_display;
 #if 0
-	ScrollV(xs2, ys2, xe2, ye2, n);
+	ScrollV(xs2, ys2, xe2, ye2, n, bce);
 #else
-	ScrollV(vp->v_xs, ys2, vp->v_xe, ye2, n);
+	ScrollV(vp->v_xs, ys2, vp->v_xe, ye2, n, bce);
 #endif
 	debug2("LScrollV: %d %d", ys, ye);
 	debug2(" -> %d %d\n", ys2, ye2);
@@ -291,21 +293,20 @@ int x, y;
     }
 #endif
   for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
-    for (vp = cv->c_vplist; vp; vp = vp->v_next)
-      {
-	y2 = y + vp->v_yoff;
-	if (y2 < vp->v_ys || y2 > vp->v_ye)
-	  continue;
-	x2 = x + vp->v_xoff;
-	if (x2 < vp->v_xs || x2 > vp->v_xe)
-	  continue;
-	display = cv->c_display;
-	GotoPos(x2, y2);
-	SetRendition(c);
-	PUTCHARLP(c->image);
-	if (D_AM && !D_CLP && x2 == D_width - 1)
-	  GotoPos(x2, y2);
-      }
+    {
+      display = cv->c_display;
+      for (vp = cv->c_vplist; vp; vp = vp->v_next)
+	{
+	  y2 = y + vp->v_yoff;
+	  if (y2 < vp->v_ys || y2 > vp->v_ye)
+	    continue;
+	  x2 = x + vp->v_xoff;
+	  if (x2 < vp->v_xs || x2 > vp->v_xe)
+	    continue;
+	  PutChar(c, x2, y2);
+	  break;
+	}
+    }
 }
 
 void
@@ -354,9 +355,9 @@ int x, y;
 }
 
 void
-LClearLine(l, y, xs, xe, ol)
+LClearLine(l, y, xs, xe, bce, ol)
 struct layer *l;
-int xs, xe;
+int xs, xe, bce;
 struct mline *ol;
 {
   struct canvas *cv;
@@ -383,14 +384,15 @@ struct mline *ol;
 	if (xs2 > xe2)
 	  continue;
 	display = cv->c_display;
-	DisplayLine(ol ? mloff(ol, -vp->v_xoff) : &mline_null, &mline_blank, y2, xs2, xe2);
+	ClearLine(ol ? mloff(ol, -vp->v_xoff) : (struct mline *)0, y2, xs2, xe2, bce);
       }
 }
 
 void
-LClear(l, xs, ys, xe, ye, uself)
+LClearArea(l, xs, ys, xe, ye, bce, uself)
 struct layer *l;
 int xs, ys, xe, ye;
+int bce;
 int uself;
 {
   struct canvas *cv;
@@ -440,14 +442,14 @@ int uself;
 	if (ye2 != ye + vp->v_yoff)
 	  xe2 = xce;
 	display = cv->c_display;
-	Clear(xs2, ys2, xcs, xce, xe2, ye2, uself);
+	ClearArea(xs2, ys2, xcs, xce, xe2, ye2, bce, uself);
 #else
 	if (xs == 0 || ys2 != ys + vp->v_yoff)
 	  xs2 = vp->v_xs;
 	if (xe == l->l_width - 1 || ye2 != ye + vp->v_yoff)
 	  xe2 = vp->v_xe;
 	display = cv->c_display;
-	Clear(xs2, ys2, vp->v_xs, vp->v_xe, xe2, ye2, uself);
+	ClearArea(xs2, ys2, vp->v_xs, vp->v_xe, xe2, ye2, bce, uself);
 #endif
       }
 }
@@ -516,7 +518,13 @@ int ins;
   struct canvas *cv, *cvlist, *cvlnext;
   struct viewport *vp, *evp, **vpp;
   int yy, y2, yy2, top2, bot2;
+  int bce;
 
+#ifdef COLOR
+  bce = c->color >> 4 & 0xf;
+#else
+  bce = 0;
+#endif
   if (y != bot)
     {
       /* simple case: no scrolling */
@@ -526,6 +534,7 @@ int ins;
 
       for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
 	{
+	  y2 = 0;       /* gcc -Wall */
 	  display = cv->c_display;
 	  /* find the viewport of the wrapped character */
 	  for (vp = cv->c_vplist; vp; vp = vp->v_next)
@@ -588,7 +597,7 @@ int ins;
 	      cvlnext = cv->c_lnext;
 	      l->l_cvlist = cv;
 	      cv->c_lnext = 0;
-	      LScrollV(l, 1, top, bot);
+	      LScrollV(l, 1, top, bot, bce);
 	      if (!vp)
 		{
 		  if (ins)
@@ -674,34 +683,50 @@ int on;
     }
 }
 
+void
+LMouseMode(l, on)
+struct layer *l;
+int on;
+{
+  struct canvas *cv;
+  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+    {
+      display = cv->c_display;
+      if (cv != D_forecv)
+	continue;
+      MouseMode(on);
+    }
+}
+
+
 
 /*******************************************************************/
 
 void
-ClearLayer(l, uself)
+LClearAll(l, uself)
 struct layer *l;
 int uself;
 {
-  LClear(l, 0, 0, l->l_width - 1, l->l_height - 1, uself);
+  LClearArea(l, 0, 0, l->l_width - 1, l->l_height - 1, 0, uself);
 }
 
 void
-RedisplayLayer(l, isblank)
+LRefreshAll(l, isblank)
 struct layer *l;
 int isblank;
 {
   struct layer *oldflayer;
   int y;
 
-  debug1("RedisplayLayer isblank=%d\n", isblank);
+  debug1("LRefreshAll isblank=%d\n", isblank);
   oldflayer = flayer;
   flayer = l;
   if (!isblank)
-    LClear(l, 0, 0, l->l_width - 1, l->l_height - 1, 0);
+    LClearArea(l, 0, 0, l->l_width - 1, l->l_height - 1, -1, 0);
   /* signal full refresh */
-  RedisplayLine(-1, -1, -1, 1);
+  LayRedisplayLine(-1, -1, -1, 1);
   for (y = 0; y < l->l_height; y++)
-    RedisplayLine(y, 0, l->l_width - 1, 1);
+    LayRedisplayLine(y, 0, l->l_width - 1, 1);
   flayer = oldflayer;
 }
 
@@ -829,7 +854,7 @@ int block;
   newlay->l_next = flayer;
   newlay->l_bottom = flayer->l_bottom;
   flayer = newlay;
-  Restore();
+  LayRestore();
   return 0;
 }
 
@@ -887,13 +912,13 @@ ExitOverlayPage()
       flayer->l_cvlist = oldlay->l_cvlist;
       /* redisplay only the warped cvs */
       if (doredisplay)
-	RedisplayLayer(flayer, 0);
+	LRefreshAll(flayer, 0);
       ocv->c_lnext = cv;
     }
   oldlay->l_cvlist = 0;
   free((char *)oldlay);
-  Restore();
-  SetCursor();
+  LayRestore();
+  LaySetCursor();
 }
 
 void

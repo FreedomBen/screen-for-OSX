@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -387,7 +387,7 @@ AttacherSigInt SIGDEFARG
 
 /*
  * Unfortunatelly this is also the SIGHUP handler, so we have to
- * check, if the backend is already detached.
+ * check if the backend is already detached.
  */
 
 sigret_t
@@ -557,14 +557,10 @@ Attacher()
 #if defined(DEBUG) || !defined(DO_NOT_POLL_MASTER)
       if (AttacherPanic)
         {
-# ifdef FORKDEBUG
-	  exit(0);
-# else
 	  fcntl(0, F_SETFL, 0);
 	  SetTTY(0, &attach_Mode);
 	  printf("\nSuddenly the Dungeon collapses!! - You die...\n");
 	  eexit(1);
-# endif
         }
 #endif
 #ifdef BSDJOBS

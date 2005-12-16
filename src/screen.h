@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -131,11 +131,11 @@ struct mode
   int m_ldisc;
   int m_lmode;
 # endif /* TERMIO */
+#endif /* POSIX */
 #if defined(KANJI) && defined(TIOCKSET)
   struct jtchars m_jtchars;
   int m_knjmode;
-# endif
-#endif /* POSIX */
+#endif
 };
 
 
@@ -153,6 +153,7 @@ struct mode
 #define D_POWER 	3
 #define D_REMOTE_POWER	4
 #define D_LOCK		5
+#define D_HANGUP	6
 
 /*
  * Here are the messages the attacher sends to the backend

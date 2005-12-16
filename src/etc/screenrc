@@ -1,3 +1,4 @@
+
 #
 # Example of a user's .screenrc file
 #
@@ -70,7 +71,7 @@ termcapinfo   xterm 'XC=K%,%\E(B,[\304,\\\\\326,]\334,{\344,|\366,}\374,~\337'
 
 # xterm-52 tweaks:
 # - uses background color for delete operations
-termcapinfo xterm ut
+termcapinfo xterm be
 
 ################
 #
@@ -136,3 +137,7 @@ bind ^] paste [.]
 # hardstatus alwaysignore
 # hardstatus alwayslastline "%w"
 
+# bind = resize =
+# bind + resize +1
+# bind - resize -1
+# bind _ resize max

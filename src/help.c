@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -242,7 +242,7 @@ int *plen;
 static void
 HelpAbort()
 {
-  LAY_CALL_UP(RedisplayLayer(flayer, 0));
+  LAY_CALL_UP(LRefreshAll(flayer, 0));
   ExitOverlayPage();
 }
 
@@ -262,7 +262,7 @@ helppage()
   helpdata->refcommand_search = helpdata->command_search;
 
   /* Clear the help screen */
-  ClearLayer(flayer, 0);
+  LClearAll(flayer, 0);
   
   sprintf(cbuf,"Screen key bindings, page %d of %d.", helpdata->grow / (flayer->l_height-5) + 1, helpdata->numpages);
   centerline(cbuf, 0);
@@ -332,7 +332,7 @@ helppage()
   sprintf(cbuf,"[Press Space %s Return to end.]",
 	 helpdata->grow < helpdata->maxrow ? "for next page;" : "or");
   centerline(cbuf, flayer->l_height - 2);
-  SetCursor();
+  LaySetCursor();
   return 0;
 }
 
@@ -428,7 +428,7 @@ int y, xs, xe, isblank;
   if (y != 0 && y != flayer->l_height - 1)
     return;
   if (!isblank)
-    LClear(flayer, xs, y, xe, y, 0);
+    LClearArea(flayer, xs, y, xe, y, 0, 0);
 }
 
 
@@ -464,7 +464,7 @@ static const char cpmsg[] = "\
 \n\
 Screen version %v\n\
 \n\
-Copyright (c) 1993-1999 Juergen Weigert, Michael Schroeder\n\
+Copyright (c) 1993-2000 Juergen Weigert, Michael Schroeder\n\
 Copyright (c) 1987 Oliver Laumann\n\
 \n\
 This program is free software; you can redistribute it and/or \
@@ -522,7 +522,7 @@ int *plen;
 static void
 CopyrightAbort()
 {
-  LAY_CALL_UP(RedisplayLayer(flayer, 0));
+  LAY_CALL_UP(LRefreshAll(flayer, 0));
   ExitOverlayPage();
 }
 
@@ -558,7 +558,7 @@ copypage()
   ASSERT(flayer);
   copydata = (struct copydata *)flayer->l_data;
 
-  ClearLayer(flayer, 0);
+  LClearAll(flayer, 0);
   x = y = 0;
   cps = copydata->cps;
   copydata->refcps = cps;
@@ -614,7 +614,7 @@ copypage()
 	 *cps ? "for next page;" : "or");
   centerline(cbuf, flayer->l_height - 2);
   copydata->cps = cps;
-  SetCursor();
+  LaySetCursor();
 }
 
 static void
@@ -636,7 +636,7 @@ int y, xs, xe, isblank;
     return;
   if (isblank)
     return;
-  LClear(flayer, xs, y, xe, y, 0);
+  LClearArea(flayer, xs, y, xe, y, 0, 0);
 }
 
 
@@ -646,6 +646,8 @@ int y, xs, xe, isblank;
 **    here is all the displays stuff 
 **
 */
+
+#ifdef MULTI
 
 static void DisplaysProcess __P((char **, int *));
 static void DisplaysRedisplayLine __P((int, int, int, int));
@@ -698,6 +700,7 @@ int *plen;
     }
 }
 
+
 void
 display_displays()
 {
@@ -748,7 +751,7 @@ displayspage()
 
   displaysdata = (struct displaysdata *)flayer->l_data;
 
-  ClearLayer(flayer, 0);
+  LClearAll(flayer, 0);
 
   leftline("term-type   size         user interface           window", 0);  
   leftline("---------- ------- ---------- ----------------- ----------", 1);
@@ -800,7 +803,7 @@ displayspage()
   sprintf(tbuf,"[Press Space %s Return to end.]",
 	  1 ? "to refresh;" : "or");
   centerline(tbuf, flayer->l_height - 2);
-  SetCursor();
+  LaySetCursor();
 }
 
 static void
@@ -820,9 +823,11 @@ int y, xs, xe, isblank;
     return;
   if (isblank)
     return;
-  LClear(flayer, xs, y, xe, y, 0);
+  LClearArea(flayer, xs, y, xe, y, 0, 0);
   /* To be filled in... */
 }
+
+#endif /* MULTI */
 
 
 /*
@@ -903,7 +908,7 @@ struct action *tab;
 static void
 BindkeyAbort()
 {
-  LAY_CALL_UP(RedisplayLayer(flayer, 0));
+  LAY_CALL_UP(LRefreshAll(flayer, 0));
   ExitOverlayPage();
 }
 
@@ -918,7 +923,7 @@ bindkeypage()
 
   bindkeydata = (struct bindkeydata *)flayer->l_data;
 
-  ClearLayer(flayer, 0);
+  LClearAll(flayer, 0);
 
   sprintf(tbuf, "%s key bindings, page %d of %d.", bindkeydata->title, bindkeydata->page, bindkeydata->pages);
   centerline(tbuf, 0);
@@ -970,7 +975,7 @@ bindkeypage()
   bindkeydata->last = i;
   sprintf(tbuf,"[Press Space %s Return to end.]", bindkeydata->page < bindkeydata->pages ? "for next page;" : "or");
   centerline(tbuf, flayer->l_height - 2);
-  SetCursor();
+  LaySetCursor();
 }
  
 static void
@@ -1021,7 +1026,7 @@ int y, xs, xe, isblank;
   if (y != 0 && y != flayer->l_height - 1)
     return;
   if (!isblank)
-    LClear(flayer, xs, y, xe, y, 0);
+    LClearArea(flayer, xs, y, xe, y, 0, 0);
 }
 
 #endif /* MAPKEYS */

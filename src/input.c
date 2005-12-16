@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -243,7 +243,7 @@ int *plen;
   	  x = inpdata->inpstringlen;
 	  if (inpdata->inp.len && !(inpdata->inpmode & INP_NOECHO))
 	    {
-	      LClear(flayer, x, INPUTLINE, x + inpdata->inp.len - 1, INPUTLINE, 0);
+	      LClearArea(flayer, x, INPUTLINE, x + inpdata->inp.len - 1, INPUTLINE, 0, 0);
 	      LGotoPos(flayer, x, INPUTLINE);
 	    }
 	  inpdata->inp.len = inpdata->inp.pos = 0;
@@ -253,7 +253,7 @@ int *plen;
   	  x = inpdata->inpstringlen + inpdata->inp.pos;
 	  if (inpdata->inp.len > inpdata->inp.pos && !(inpdata->inpmode & INP_NOECHO))
 	    {
-	      LClear(flayer, x, INPUTLINE, x + inpdata->inp.len - inpdata->inp.pos - 1, INPUTLINE, 0);
+	      LClearArea(flayer, x, INPUTLINE, x + inpdata->inp.len - inpdata->inp.pos - 1, INPUTLINE, 0, 0);
 	      LGotoPos(flayer, x, INPUTLINE);
 	    }
 	  inpdata->inp.len = inpdata->inp.pos;
@@ -283,7 +283,7 @@ int *plen;
 	  struct mchar mc;
 	  mc = mchar_so;
 	  if (inpdata->inp.len && !(inpdata->inpmode & INP_NOECHO))
-	    LClear(flayer, inpdata->inpstringlen, INPUTLINE, inpdata->inpstringlen + inpdata->inp.len - 1, INPUTLINE, 0);
+	    LClearArea(flayer, inpdata->inpstringlen, INPUTLINE, inpdata->inpstringlen + inpdata->inp.len - 1, INPUTLINE, 0, 0);
 
 	  inpdata->inp = inphist;	/* structure copy */
 	  if (inpdata->inp.len > inpdata->inpmaxlen)
@@ -341,7 +341,7 @@ int *plen;
 static void
 InpAbort()
 {
-  LAY_CALL_UP(RedisplayLine(INPUTLINE, 0, flayer->l_width - 1, 0));
+  LAY_CALL_UP(LayRedisplayLine(INPUTLINE, 0, flayer->l_width - 1, 0));
   ExitOverlayPage();
 }
 
@@ -355,7 +355,7 @@ int y, xs, xe, isblank;
   inpdata = (struct inpdata *)flayer->l_data;
   if (y != INPUTLINE)
     {
-      LAY_CALL_UP(RedisplayLine(y, xs, xe, isblank));
+      LAY_CALL_UP(LayRedisplayLine(y, xs, xe, isblank));
       return;
     }
   inpdata->inp.buf[inpdata->inp.len] = 0;
@@ -390,7 +390,7 @@ int y, xs, xe, isblank;
       l = v;
       if (l > r - q)
 	l = r - q;
-      LClear(flayer, q, y, q + l - 1, y, 0);
+      LClearArea(flayer, q, y, q + l - 1, y, 0, 0);
       q += l;
     }
 }

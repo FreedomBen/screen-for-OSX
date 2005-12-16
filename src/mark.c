@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -960,7 +960,7 @@ int *inlenp;
 		}
 	      if (markdata->hist_offset != fore->w_histheight)
 		{
-		  LAY_CALL_UP(RedisplayLayer(flayer, 0));
+		  LAY_CALL_UP(LRefreshAll(flayer, 0));
 		}
 	      ExitOverlayPage();
 	      if (append_mode)
@@ -969,7 +969,7 @@ int *inlenp;
 	      else
 		LMsg(0, "Copied %d characters into buffer", md_user->u_copylen);
 	      if (write_buffer)
-		WriteFile(DUMP_EXCHANGE);
+		WriteFile(md_user, DUMP_EXCHANGE);
 	      in_mark = 0;
 	      break;
 	    }
@@ -1132,15 +1132,17 @@ int tx, ty, line;
 	    }
 	  else
 	    copy_mline2mchar(&mc, ml, x);
-	  LPutChar(flayer, &mc, x, W2D(y));
 #ifdef KANJI
 	  if (ml->font[x] == KANJI)
 	    {
-	      x++;
-	      mc.image = ml->image[x];
-	      LPutChar(flayer, &mc, x, W2D(y));
+	      mc.mbcs = ml->image[x + 1];
 	      t++;
 	    }
+#endif
+	  LPutChar(flayer, &mc, x, W2D(y));
+#ifdef KANJI
+	  if (ml->font[x] == KANJI)
+	    x++;
 #endif
 	}
     }
@@ -1164,7 +1166,7 @@ MarkAbort()
     }
   if (markdata->hist_offset != fore->w_histheight)
     {
-      LAY_CALL_UP(RedisplayLayer(flayer, 0));
+      LAY_CALL_UP(LRefreshAll(flayer, 0));
     }
   else
     {
@@ -1243,15 +1245,18 @@ int isblank;
 	mchar_marked.font = ml->font[x];
 #endif
       mchar_marked.image = ml->image[x];
+#ifdef KANJI
+      mchar_marked.mbcs = 0;
+      if (ml->font[x] == KANJI)
+	{
+	  mchar_marked.mbcs = ml->image[x + 1];
+	  cp++;
+	}
+#endif
       LPutChar(flayer, &mchar_marked, x, y);
 #ifdef KANJI
       if (ml->font[x] == KANJI)
-	{
-	  x++;
-	  mchar_marked.image = ml->image[x];
-	  LPutChar(flayer, &mchar_marked, x, y);
-	  cp++;
-	}
+	x++;
 #endif
     }
   if (x <= xe)
@@ -1345,7 +1350,7 @@ int n;
     n = fore->w_histheight - markdata->hist_offset;
   markdata->hist_offset += n;
   i = (n < flayer->l_height) ? n : (flayer->l_height);
-  LScrollV(flayer, i, 0, flayer->l_height - 1);
+  LScrollV(flayer, i, 0, flayer->l_height - 1, 0);
   while (i-- > 0)
     MarkRedisplayLine(flayer->l_height - i - 1, 0, flayer->l_width - 1, 1);
   return n;
@@ -1364,7 +1369,7 @@ int n;
     n = markdata->hist_offset;
   markdata->hist_offset -= n;
   i = (n < flayer->l_height) ? n : (flayer->l_height);
-  LScrollV(flayer, -i, 0, fore->w_height - 1);
+  LScrollV(flayer, -i, 0, fore->w_height - 1, 0);
   while (i-- > 0)
     MarkRedisplayLine(i, 0, flayer->l_width - 1, 1);
   return n;

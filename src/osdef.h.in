@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -194,4 +194,8 @@ extern int lstat __P((char *, struct stat *));
 extern int fstat __P((int, struct stat *));
 extern int fchmod __P((int, int));
 extern int fchown __P((int, int, int));
+
+#if defined(LOADAV) && defined(LOADAV_GETLOADAVG)
+extern int getloadavg(double *, int);
+#endif
 

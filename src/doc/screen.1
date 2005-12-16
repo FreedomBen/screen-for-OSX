@@ -801,6 +801,14 @@ that has not been written to the terminal. See also
 \*Qobuflimit\*U.
 .sp
 .ne 3
+.BR "bce " [ on | off ]
+.PP
+Change background-color-erase setting. If \*Qbce\*U is set to on, all
+characters cleared by an erase/insert/scroll/clear operation
+will be displayed in the current background color. Otherwise
+the default background color is used.
+.sp
+.ne 3
 .B bell_msg
 .RI [ message ]
 .PP
@@ -1296,6 +1304,12 @@ Note that you can use the special `AN' terminal capability if you
 want to have a dependency on the terminal type.
 .sp
 .ne 3
+.BR "defbce on" | off
+.PP
+Same as the \fBbce\fP command except that the default setting for new
+windows is changed. Initial setting is `off'.
+.sp
+.ne 3
 .B defbreaktype
 .RI [ tcsendbreak | TIOCSBRK
 .RI | TCSBRK ]
@@ -1627,10 +1641,19 @@ details and note, that this is subject to change in future releases.
 Default is set by `defflow'.
 .sp
 .ne 3
-.B focus
+.BR "focus " [ up | down | top | bottom ]
 .PP
 Move the input focus to the next region. This is done in a cyclic
-way so that the top region is selected after the bottom one.
+way so that the top region is selected after the bottom one. If
+no subcommand is given it defaults to `down'. `up' cycles in the
+opposite order, `top' and `bottom' go to the top and bottom
+region respectively. Useful bindings are (j and k as in vi)
+.nf
+    bind j focus down
+    bind k focus up
+    bind t focus top
+    bind b focus bottom
+.fi
 .sp
 .ne 3
 .BR "gr " [ on | off ]
@@ -2260,6 +2283,25 @@ Unlinks the screen-exchange file used by the commands \*Qwritebuf\*U and
 Reset the virtual terminal to its \*Qpower-on\*U values. Useful when strange
 settings (like scroll regions or graphics character set) are left over from
 an application.
+.sp
+.ne 3
+.B "resize"
+.PP 
+Resize the current region. The space will be removed from or added to
+the region below or if there's not enough space from the region above.
+.IP
+resize +N	increase current region height by N
+.IP
+resize -N	decrease current region height by N
+.IP
+resize  N	set current region height to N
+.IP
+resize  =	make all windows equally high
+.IP
+resize  max	maximize current region height
+.IP
+resize  min	minimize current region height
+.PP
 .sp
 .ne 3
 .B "screen \fP[\fI-opts\fP] [\fIn\fP] [\fIcmd\fP [\fIargs\fP]]"
@@ -3410,6 +3452,9 @@ From Beginning of Line to Cursor
 \h'\w'ESC [ Pn = 'u'\fB2\fP
 Entire Line
 .TP 27
+.B "ESC [ \fPPn\fB X"
+Erase character
+.TP 27
 .B "ESC [ \fPPn\fB A"
 Cursor Up
 .TP 27
@@ -3581,8 +3626,14 @@ Reverse Video
 \h'\w'ESC [ Ps = 'u'\fB?7\fP	(V)
 \fIWrap\fP Mode
 .TP 27
+\h'\w'ESC [ Ps = 'u'\fB?9\fP
+X10 mouse tracking
+.TP 27
 \h'\w'ESC [ Ps = 'u'\fB?25\fP	(V)
 Visible Cursor
+.TP 27
+\h'\w'ESC [ Ps = 'u'\fB?1000\fP	(V)
+VT200 mouse tracking
 .TP 27
 .BR "ESC [ 5 i" "	(A)"
 Start relay to printer (ANSI Media Copy)
@@ -3778,6 +3829,9 @@ Does understand ANSI set default fg/bg color (\eE[39m / \eE[49m).
 .BI XC "	(str)"
 Describe a translation of characters to strings depending on the
 current font. More details follow in the next section.
+.TP 13
+.BI XT "	(bool)"
+Terminal understands special xterm sequences (OSC, mouse tracking).
 .TP 13
 .BI TF "	(bool)"
 Add missing capabilities to the termcap/info entry. (Set by default).
@@ -3981,7 +4035,7 @@ Gregory Neil Shapiro (gshapiro@wpi.WPI.EDU).
 
 
 .SH VERSION
-This is version 3.9 Its roots are a merge of a custom version
+This is version 3.9.6. Its roots are a merge of a custom version
 2.3PR7 by Wayne Davison
 and several enhancements to Oliver Laumann's version 2.0. Note that all versions
 numbered 2.x are copyright by Oliver Laumann. 

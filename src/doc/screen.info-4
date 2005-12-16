@@ -20,6 +20,135 @@ versions, except that this permission notice may be stated in a
 translation approved by the Foundation.
 
 
+File: screen.info,  Node: Character Translation,  Prev: Obuflimit,  Up: Termcap
+
+Character Translation
+=====================
+
+   `Screen' has a powerful mechanism to translate characters to
+arbitrary strings depending on the current font and terminal type.  Use
+this feature if you want to work with a common standard character set
+(say ISO8851-latin1) even on terminals that scatter the more unusual
+characters over several national language font pages.
+
+   Syntax:
+
+         XC=<CHARSET-MAPPING>{,,<CHARSET-MAPPING>}
+         <CHARSET-MAPPING> := <DESIGNATOR><TEMPLATE>{,<MAPPING>}
+         <MAPPING> := <CHAR-TO-BE-MAPPED><TEMPLATE-ARG>
+
+   The things in braces may be repeated any number of times.
+
+   A <CHARSET-MAPPING> tells screen how to map characters in font
+<DESIGNATOR> (`B': Ascii, `A': UK, `K': german, etc.) to strings. Every
+<MAPPING> describes to what string a single character will be
+translated. A template mechanism is used, as most of the time the codes
+have a lot in common (for example strings to switch to and from another
+charset). Each occurrence of `%' in <TEMPLATE> gets substituted with the
+TEMPLATE-ARG specified together with the character. If your strings are
+not similar at all, then use `%' as a template and place the full
+string in <TEMPLATE-ARG>. A quoting mechanism was added to make it
+possible to use a real `%'. The `\' character quotes the special
+characters `\', `%', and `,'.
+
+   Here is an example:
+
+         termcap hp700 'XC=B\E(K%\E(B,\304[,\326\\\\,\334]'
+
+   This tells `screen', how to translate ISOlatin1 (charset `B') upper
+case umlaut characters on a `hp700' terminal that has a german charset.
+`\304' gets translated to `\E(K[\E(B' and so on.  Note that this line
+gets parsed *three* times before the internal lookup table is built,
+therefore a lot of quoting is needed to create a single `\'.
+
+   Another extension was added to allow more emulation: If a mapping
+translates the unquoted `%' char, it will be sent to the terminal
+whenever screen switches to the corresponding <DESIGNATOR>.  In this
+special case the template is assumed to be just `%' because the charset
+switch sequence and the character mappings normally haven't much in
+common.
+
+   This example shows one use of the extension:
+         termcap xterm 'XC=K%,%\E(B,[\304,\\\\\326,]\334'
+
+   Here, a part of the german (`K') charset is emulated on an xterm.
+If screen has to change to the `K' charset, `\E(B' will be sent to the
+terminal, i.e. the ASCII charset is used instead. The template is just
+`%', so the mapping is straightforward: `[' to `\304', `\' to `\326',
+and `]' to `\334'.
+
+
+File: screen.info,  Node: Message Line,  Next: Logging,  Prev: Termcap,  Up: Top
+
+The Message Line
+****************
+
+   `screen' displays informational messages and other diagnostics in a
+"message line" at the bottom of the screen.  If your terminal has a
+status line defined in its termcap, screen will use this for displaying
+its messages, otherwise the last line of the screen will be temporarily
+overwritten and output will be momentarily interrupted.  The message
+line is automatically removed after a few seconds delay, but it can also
+be removed early (on terminals without a status line) by beginning to
+type.
+
+* Menu:
+
+* Privacy Message::             Using the message line from your program.
+* Hardware Status Line::        Use the terminal's hardware status line.
+* Last Message::                Redisplay the last message.
+* Message Wait::                Control how long messages are displayed.
+
+
+File: screen.info,  Node: Privacy Message,  Next: Hardware Status Line,  Up: Message Line
+
+Using the message line from your program
+========================================
+
+   The message line facility can be used by an application running in
+the current window by means of the ANSI "Privacy message" control
+sequence.  For instance, from within the shell, try something like:
+
+     echo "^Hello world from window $WINDOW\"
+
+   where `' is ASCII ESC and `^' is a literal caret or up-arrow.
+
+
+File: screen.info,  Node: Hardware Status Line,  Next: Last Message,  Prev: Privacy Message,  Up: Message Line
+
+Hardware Status Line
+====================
+
+ - Command: hardstatus [STATE]
+ - Command: hardstatus [`always']`lastline'|`message'|`ignore' [STRING]
+ - Command: hardstatus `string' [STRING]
+     (none)
+     This command configures the use and emulation of the terminal's
+     hardstatus line. The first form toggles whether `screen' will use
+     the hardware status line to display messages. If the flag is set
+     to `off', these messages are overlaid in reverse video mode at the
+     display line. The default setting is `on'.
+
+     The second form tells screen what to do if the terminal doesn't
+     have a hardstatus line (i.e. the termcap/terminfo capabilities
+     "hs", "ts", "fs" and "ds" are not set). If the type `lastline' is
+     used, screen will reserve the last line of the display for the
+     hardstatus. `message' uses `screen''s message mechanism and
+     `ignore' tells `screen' never to display the hardstatus.  If you
+     prepend the word `always' to the type, `screen' will use the type
+     even if the terminal supports a hardstatus line.
+
+     The third form specifies the contents of the hardstatus line.
+     `%h' is used as default string, i.e. the stored hardstatus of the
+     current window (settable via `\E]0;^G' or `\E_\\') is displayed.
+     You can customize this to any string you like including string
+     escapes (*Note String Escapes::).  If you leave out the argument
+     STRING, the current string is displayed.
+
+     You can mix the second and third form by providing the string as
+     additional argument.
+
+
 File: screen.info,  Node: Last Message,  Next: Message Wait,  Prev: Hardware Status Line,  Up: Message Line
 
 Display Last Message
@@ -692,7 +821,7 @@ Contributors
 Version
 =======
 
-   This manual describes version 3.9.0 of the `screen' program. Its
+   This manual describes version 3.9.6 of the `screen' program. Its
 roots are a merge of a custom version 2.3PR7 by Wayne Davison and
 several enhancements to Oliver Laumann's version 2.0.  Note that all
 versions numbered 2.x are copyright by Oliver Laumann.
@@ -927,6 +1056,7 @@ Command Index
 * at:                                   At.
 * autodetach:                           Detach.
 * autonuke:                             Autonuke.
+* bce:                                  Character Processing.
 * bell_msg:                             Bell.
 * bind:                                 Bind.
 * bindkey:                              Bindkey.
@@ -949,6 +1079,7 @@ Command Index
 * crlf:                                 Line Termination.
 * debug:                                Debug.
 * defautonuke:                          Autonuke.
+* defbce:                               Character Processing.
 * defbreaktype:                         Break.
 * defc1:                                Character Processing.
 * defcharset:                           Character Processing.
@@ -975,7 +1106,7 @@ Command Index
 * echo:                                 echo.
 * escape:                               Command Character.
 * exec:                                 Exec.
-* fit:                                  Window Size.
+* fit:                                  Fit.
 * flow:                                 Flow.
 * focus:                                Focus.
 * gr:                                   Character Processing.
@@ -1037,6 +1168,7 @@ Command Index
 * remove:                               Remove.
 * removebuf:                            Screen-Exchange.
 * reset:                                Reset.
+* resize:                               Resize.
 * screen:                               Screen Command.
 * scrollback:                           Scrollback.
 * select:                               Select.
@@ -1103,8 +1235,8 @@ omitted from the key sequences, since it is the same for all bindings.
 * {:                                    History.
 * A:                                    Title Command.
 * a:                                    Command Character.
-* c:                                    Screen Command.
 * C:                                    Clear.
+* c:                                    Screen Command.
 * C-a:                                  Other Window.
 * C-c:                                  Screen Command.
 * C-d:                                  Detach.
@@ -1128,33 +1260,33 @@ omitted from the key sequences, since it is the same for all bindings.
 * C-[:                                  Copy.
 * C-\:                                  Quit.
 * C-]:                                  Paste.
-* D:                                    Power Detach.
 * d:                                    Detach.
+* D:                                    Power Detach.
 * ESC:                                  Copy.
-* F:                                    Window Size.
+* F:                                    Fit.
 * f:                                    Flow.
 * H:                                    Log.
 * h:                                    Hardcopy.
 * i:                                    Info.
 * k:                                    Kill.
-* l:                                    Redisplay.
 * L:                                    Login.
-* m:                                    Last Message.
+* l:                                    Redisplay.
 * M:                                    Monitor.
-* N:                                    Number.
+* m:                                    Last Message.
 * n:                                    Next and Previous.
+* N:                                    Number.
 * p:                                    Next and Previous.
-* q:                                    XON/XOFF.
 * Q:                                    Only.
+* q:                                    XON/XOFF.
 * r:                                    Wrap.
-* S:                                    Split.
 * s:                                    XON/XOFF.
+* S:                                    Split.
 * SPC:                                  Next and Previous.
 * t:                                    Time.
 * TAB:                                  Focus.
 * v:                                    Version.
-* w:                                    Windows.
 * W:                                    Window Size.
+* w:                                    Windows.
 * x:                                    Lock.
 * X:                                    Remove.
 * z:                                    Suspend.

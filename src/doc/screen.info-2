@@ -344,7 +344,9 @@ contain different windows.
 * Focus::			Change to the next region
 * Only::			Delete all other regions
 * Remove::			Delete the current region
+* Resize::			Grow or shrink a region
 * Caption::			Control the window's caption
+* Fit::				Resize a window to fit the region
 
 
 File: screen.info,  Node: Split,  Next: Focus,  Up: Regions
@@ -367,7 +369,14 @@ Focus
  - Command: focus
      (`C-a Tab')
      Move the input focus to the next region. This is done in a cyclic
-     way so that the top region is selected after the bottom one.
+     way so that the top region is selected after the bottom one. If no
+     subcommand is given it defaults to `down'. `up' cycles in the
+     opposite order, `top' and `bottom' go to the top and bottom region
+     respectively. Useful bindings are (j and k as in vi)
+          bind j focus down
+          bind k focus up
+          bind t focus top
+          bind b focus bottom
 
 
 File: screen.info,  Node: Only,  Next: Remove,  Prev: Focus,  Up: Regions
@@ -380,7 +389,7 @@ Only
      Kill all regions but the current one.
 
 
-File: screen.info,  Node: Remove,  Next: Caption,  Prev: Only,  Up: Regions
+File: screen.info,  Node: Remove,  Next: Resize,  Prev: Only,  Up: Regions
 
 Remove
 ======
@@ -391,7 +400,25 @@ Remove
      region.
 
 
-File: screen.info,  Node: Caption,  Prev: Remove,  Up: Regions
+File: screen.info,  Node: Resize,  Next: Caption,  Prev: Remove,  Up: Regions
+
+Resize
+======
+
+ - Command: resize [(+/-)LINES]
+     (none)
+     Resize the current region. The space will be removed from or added
+     to the region below or if there's not enough space from the region
+     above.
+          resize +N       increase current region height by N
+          resize -N       decrease current region height by N
+          resize  N       set current region height to N
+          resize  =       make all windows equally high
+          resize  max     maximize current region height
+          resize  min     minimize current region height
+
+
+File: screen.info,  Node: Caption,  Next: Fit,  Prev: Resize,  Up: Regions
 
 Caption
 =======
@@ -411,6 +438,18 @@ Caption
 
      You can mix both forms by providing the string as an additional
      argument.
+
+
+File: screen.info,  Node: Fit,  Prev: Caption,  Up: Regions
+
+Fit
+===
+
+ - Command: fit
+     (`C-a F')
+     Change the window size to the size of the current region. This
+     command is needed because screen doesn't adapt the window size
+     automatically if the window is displayed more than once.
 
 
 File: screen.info,  Node: Window Settings,  Next: Virtual Terminal,  Prev: Regions,  Up: Top
@@ -857,8 +896,8 @@ functions, respectively.
                 37           (A)     Foreground White
                 39           (A)     Foreground Default
                 40           (A)     Background Black
-     	   ...                  ...
-     	   49           (A)     Background Default
+                ...                  ...
+                49           (A)     Background Default
      ESC [ Pn g                      Tab Clear
            Pn = None or 0            Clear Tab at Current Position
                 3                    Clear All Tabs
@@ -882,7 +921,9 @@ functions, respectively.
                 ?5           (V)     Reverse Video
                 ?6           (V)     `Origin' Mode
                 ?7           (V)     `Wrap' Mode
+                ?9                   X10 mouse tracking
                 ?25          (V)     Visible Cursor
+                ?1000        (V)     VT200 mouse tracking
      ESC [ 5 i               (A)     Start relay to printer (ANSI Media Copy)
      ESC [ 4 i               (A)     Stop relay to printer (ANSI Media Copy)
      ESC [ 8 ; Ph ; Pw t             Resize the window to `Ph' lines and
@@ -1177,79 +1218,4 @@ Window Size
      (none)
      Set the display height to a specified number of lines. When no
      argument is given it toggles between 24 and 42 lines display.
-
- - Command: fit
-     (`C-a F')
-     Change the window size to the size of the current region. This
-     command is needed because screen doesn't adapt the window size
-     automatically if the window is displayed more than once.
-
-
-File: screen.info,  Node: Character Processing,  Prev: Window Size,  Up: Virtual Terminal
-
-Character Processing
-====================
-
- - Command: c1 [STATE]
-     (none)
-     Change c1 code processing. `c1 on' tells screen to treat the input
-     characters between 128 and 159 as control functions.  Such an
-     8-bit code is normally the same as ESC followed by the
-     corresponding 7-bit code. The default setting is to process c1
-     codes and can be changed with the `defc1' command.  Users with
-     fonts that have usable characters in the c1 positions may want to
-     turn this off.
-
-
- - Command: gr [STATE]
-     (none)
-     Turn GR charset switching on/off. Whenever screen sees an input
-     char with an 8th bit set, it will use the charset stored in the GR
-     slot and print the character with the 8th bit stripped. The
-     default (see also `defgr') is not to process GR switching because
-     otherwise the ISO88591 charset would not work.
-
- - Command: kanji WTYPE [DTYPE]
-     (none)
-     Tell screen how to process kanji input/output. WTYPE and DTYPE
-     must be one of the strings `jis', `euc' or `sjis'. The first
-     argument sets the kanji type of the current window. Each window
-     can emulate a different type. The optional second parameter tells
-     screen how to write the kanji codes to the connected terminal. The
-     preferred method of setting the display type is to use the `KJ'
-     termcap entry. *Note Special Capabilities::.  See also `defkanji',
-     which changes the default setting of a new window.
-
- - Command: charset SET
-     (none)
-     Change the current character set slot designation and charset
-     mapping.  The first four character of SET are treated as charset
-     designators while the fifth and sixth character must be in range
-     `0' to `3' and set the GL/GR charset mapping. On every position a
-     `.' may be used to indicate that the corresponding charset/mapping
-     should not be changed (SET is padded to six characters internally
-     by appending `.' chars). New windows have `BBBB02' as default
-     charset, unless a `kanji' command is active.
-
-     The current setting can be viewed with the *Note Info:: command.
-
- - Command: defc1 STATE
-     (none)
-     Same as the `c1' command except that the default setting for new
-     windows is changed. Initial setting is `on'.
-
- - Command: defgr STATE
-     (none)
-     Same as the `gr' command except that the default setting for new
-     windows is changed. Initial setting is `off'.
-
- - Command: defkanji WTYPE
-     (none)
-     Same as the `kanji' command except that the default setting for
-     new windows is changed. Initial setting is `off', i.e. `jis'.
-
- - Command: defcharset [SET]
-     Like the `charset' command except that the default setting for new
-     windows is changed. Shows current default if called without
-     argument.
 

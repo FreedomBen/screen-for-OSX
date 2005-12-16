@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -121,19 +121,19 @@ int f;
 }
 
 void
-InitPty(f)
+InitPTY(f)
 int f;
 {
   if (f < 0)
     return;
 #if defined(I_PUSH) && defined(HAVE_SVR4_PTYS) && !defined(sgi) && !defined(linux) && !defined(__osf__) && !defined(M_UNIX)
   if (ioctl(f, I_PUSH, "ptem"))
-    Panic(errno, "InitPty: cannot I_PUSH ptem");
+    Panic(errno, "InitPTY: cannot I_PUSH ptem");
   if (ioctl(f, I_PUSH, "ldterm"))
-    Panic(errno, "InitPty: cannot I_PUSH ldterm");
+    Panic(errno, "InitPTY: cannot I_PUSH ldterm");
 # ifdef sun
   if (ioctl(f, I_PUSH, "ttcompat"))
-    Panic(errno, "InitPty: cannot I_PUSH ttcompat");
+    Panic(errno, "InitPTY: cannot I_PUSH ttcompat");
 # endif
 #endif
 }

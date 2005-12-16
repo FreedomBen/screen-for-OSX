@@ -24,7 +24,7 @@ sed -e '1,26d' \
 chmod -w $1
 exit 0
 
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -202,6 +202,15 @@ char *line, *opt;
 #endif
   SetTTY(f, &Mode);
 
+#if defined(linux) && defined(TIOCMSET)
+  {
+    int mcs = 0;
+    ioctl(f, TIOCMGET, &mcs);
+    mcs |= TIOCM_RTS;
+    ioctl(f, TIOCMSET, &mcs);
+  }
+#endif
+
   brktty(f);
   alarm(0);
   signal(SIGALRM, sigalrm);
@@ -246,9 +255,9 @@ IF{ONLCR}	m->tio.c_oflag |= ONLCR;
 IF{TAB3}	m->tio.c_oflag |= TAB3; 
 IF{OXTABS}      m->tio.c_oflag |= OXTABS;
 /* IF{PARENB}	m->tio.c_cflag |= PARENB;	nah! jw. */
+IF{OPOST}	m->tio.c_oflag |= OPOST;
     }
 
-IF{OPOST}	m->tio.c_oflag |= OPOST;
 
 /*
  * Or-ing the speed into c_cflags is dangerous.
@@ -327,10 +336,9 @@ XIF{VSTATUS}	m->tio.c_cc[VSTATUS]  = Ctrl('T');
 IF{ISTRIP}	m->tio.c_iflag |= ISTRIP;
 IF{IXON}	m->tio.c_iflag |= IXON;
 
-IF{OPOST}	m->tio.c_oflag |= OPOST;
-
   if (!ttyflag)	/* may not even be good for ptys.. */
     {
+IF{OPOST}	m->tio.c_oflag |= OPOST;
 IF{ICRNL}	m->tio.c_iflag |= ICRNL;
 IF{ONLCR}	m->tio.c_oflag |= ONLCR;
 IF{TAB3}	m->tio.c_oflag |= TAB3;
@@ -747,6 +755,18 @@ char *opt;
 	  m->m_ttyb.sg_flags &= ~TANDEM;
 #endif
         }
+      else if (!strncmp("crtscts", opt, 7))
+	{
+#if (defined(POSIX) || defined(TERMIO)) && defined(CRTSCTS)
+	  m->tio.c_cflag |= CRTSCTS;
+#endif
+	}
+      else if (!strncmp("-crtscts", opt, 8))
+        {
+#if (defined(POSIX) || defined(TERMIO)) && defined(CRTSCTS)
+	  m->tio.c_cflag &= ~CRTSCTS;
+#endif
+	}
       else
         return -1;
       while (*opt && !index(sep, *opt)) opt++;
@@ -1015,8 +1035,8 @@ int n, closeopen;
 
 #if !defined(TIOCCONS) && defined(SRIOCSREDIR)
 
-struct event consredir_ev;
-int consredirfd[2] = {-1, -1};
+static struct event consredir_ev;
+static int consredirfd[2] = {-1, -1};
 
 static void
 consredir_readev_fn(ev, data)
@@ -1060,7 +1080,7 @@ char *rc_name;
   int sfd = -1;
 
   if (on < 0)
-    return;		/* pty close will ungrab */
+    return 0;		/* pty close will ungrab */
   if (on)
     {
       if (displays == 0)
@@ -1211,15 +1231,14 @@ IF{MCTS}#  define TIOCM_CTS MCTS
 #if defined(CLOCAL) || defined(CRTSCTS)
   GetTTY(fd, &mtio);
 #endif
+  clocal = 0;
 #ifdef CLOCAL
   if (mtio.tio.c_cflag & CLOCAL)
     {
       clocal = 1;
       *p++ = '{';
     }
-  else
 #endif
-    clocal = 0;
 
 #ifdef TIOCM_CTS
 # ifdef CRTSCTS
@@ -1241,8 +1260,8 @@ IF{MCTS}#  define TIOCM_CTS MCTS
 # else
 #  ifdef TIOCMODG
   if (ioctl(fd, TIOCMODG, (char *)&mflags) < 0)
-# else
-  if (ioctl(fd, TIOCMODG, &mflags) < 0)
+#  else
+  if (ioctl(fd, MCGETA, &mflags) < 0)
 #  endif
 # endif
     {
@@ -1268,6 +1287,7 @@ IF{MCTS}#  define TIOCM_CTS MCTS
       while (*s) *p++ = *s++;
 # endif
 # ifdef TIOCM_CTS
+      s = "!CTS "; 
       if (!rtscts)
         {
           *p++ = '(';
@@ -1286,15 +1306,14 @@ IF{MCTS}#  define TIOCM_CTS MCTS
       while (*s) *p++ = *s++;
 # endif
 # if defined(TIOCM_CD) || defined(TIOCM_CAR)
+      s = "!CD "; 
 #  ifdef TIOCGSOFTCAR
       if (softcar)
 	 {
 	  *p++ = '(';
 	  s = "!CD) ";
 	 }
-      else
 #  endif
-      s = "!CD "; 
 #  ifdef TIOCM_CD
       if (mflags & TIOCM_CD) s++;
 #  else

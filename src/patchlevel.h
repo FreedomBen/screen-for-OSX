@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -423,8 +423,9 @@
  *                     SCO-5 Fixes (Brian L. Gentry).
  * 25.11.98 -- 3.07.06 resize code now handles tabs correctly.
  *                     -- DISTRIBUTED
- *          -- 3.09.00 loads'o'bugs fixed, 3.8 merged with 3.7, new region
- *                     clip code. Many new features (see NEWS file).
+ *          -- 3.09.00 loads'o'bugs fixed, 3.8 merged with 3.7.
+ *                     new region clip code.
+ *                     Many new features (see NEWS file).
  *  3.08.99 -- 3.09.02 -- DISTRIBUTED
  * 11.08.99 -- 3.09.04 small utmp fix, BSD chflags fix, tty mode fix
  *                     -- DISTRIBUTED
@@ -434,11 +435,22 @@
  *                     console grabbing with SRIOCSREDIR.
  *                     linux utmp workaround added. Some KANJI bugs
  *                     fixed. Stupid StuffKey() bug fixed.
+ *                     -- DISTRIBUTED
+ * 24.07.00 -- 3.09.06 kanji fixes. lock escape char fix.
+ *                     removed delayed message hack.
+ *                     resize command & focus subcomands by joze.
+ *                     fix for solaris' utmp_helper bug.
+ *                     linux tty handling fix.
+ *                     mousetracking, rxvt osc sequences.
+ *                     background color erase support.
+ *                     don't log user in after hangup.
+ *                     hstatus escape update bug fixed.
+ *  1.09.00 -- 3.09.08 -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 9
-#define PATCHLEVEL 5
-#define DATE "1-Sep-99"
+#define PATCHLEVEL 8
+#define DATE "1-Sep-00"
 #define STATE "" 

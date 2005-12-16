@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -33,7 +33,7 @@ extern struct display *display, *displays;
 extern int real_uid, real_gid, eff_uid, eff_gid;
 extern struct term term[];	/* terminal capabilities */
 extern struct NewWindow nwin_undef, nwin_default, nwin_options;
-extern int force_vt, assume_LP;
+extern int force_vt;
 extern int Z0width, Z1width;
 extern int hardstatusemu;
 #ifdef MAPKEYS
@@ -202,7 +202,7 @@ int he;
     {
       /* standard fixes for xterms etc */
       /* assume color for everything that looks ansi-compatible */
-      if (!D_CAF && D_ME && InStr(D_ME, "\033[m"))
+      if (!D_CAF && D_ME && (InStr(D_ME, "\033[m") || InStr(D_ME, "\033[0m")))
 	{
 #ifdef TERMINFO
 	  D_CAF = "\033[3%p1%dm";
@@ -219,12 +219,14 @@ int he;
       /* ISO2022 */
       if ((D_EA && InStr(D_EA, "\033(B")) || (D_AS && InStr(D_AS, "\033(0")))
 	D_CG0 = 1;
+      if (InStr(D_termname, "xterm") || InStr(D_termname, "rxvt"))
+	D_CXT = 1;
     }
   if (nwin_options.flowflag == nwin_undef.flowflag)
     nwin_default.flowflag = D_CNF ? FLOW_NOW * 0 : 
 			    D_NX ? FLOW_NOW * 1 :
 			    FLOW_AUTOFLAG;
-  D_CLP |= (assume_LP || !D_AM || D_XV || D_XN);
+  D_CLP |= (!D_AM || D_XV || D_XN);
   if (!D_BL)
     D_BL = "\007";
   if (!D_BC)
@@ -326,8 +328,8 @@ int he;
       D_CAF = D_CSF;
       D_CAB = D_CSB;
     }
-  if (D_BE)
-    D_UT = 1;	/* screen erased with background color */
+  if (D_UT)
+    D_BE = 1;	/* screen erased with background color */
 
   if (!D_DO)
     D_DO = D_NL;

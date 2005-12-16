@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -41,8 +41,9 @@ struct NewWindow
   int   wrap;
   int	Lflag;		/* logging */
   int	slow;		/* inter character milliseconds */
-  int   c1;
   int   gr;
+  int   c1;
+  int   bce;
   int   kanji;
   char	*hstatus;
   char	*charset;
@@ -193,6 +194,7 @@ struct win
   char  *w_hstatus;		/* hardstatus line */
   int	 w_gr;			/* enable GR flag */
   int	 w_c1;			/* enable C1 flag */
+  int	 w_bce;			/* enable backcol erase */
 #ifdef KANJI
   int    w_kanji;		/* for input and paste */
   int    w_mbcs;		/* saved char for multibytes charset */
@@ -209,6 +211,10 @@ struct win
   int	 w_silence;		/* silence status (Lloyd Zusman) */
   char	 w_vbwait;            
   char	 w_norefresh;		/* dont redisplay when switching to that win */
+#ifdef RXVT_OSC
+  char	 w_xtermosc[4][MAXSTR];	/* special xterm/rxvt escapes */
+#endif
+  int    w_mouse;		/* mouse mode 0,9,1000 */
 #ifdef HAVE_BRAILLE
   int	 w_bd_x, w_bd_y;	/* Braille cursor position */
 #endif

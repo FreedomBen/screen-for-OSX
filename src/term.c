@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -159,6 +159,7 @@ struct term term[T_N] =
   { "VR", T_STR  },
   { "VN", T_STR  },
   { "TF", T_FLG  },
+  { "XT", T_FLG  },
 
 /* d_font setting */
   { "G0", T_FLG  },

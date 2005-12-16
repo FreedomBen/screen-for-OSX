@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -75,7 +75,7 @@ extern int errno;
 #undef strerror
 #endif
 
-#ifndef SYSV
+#if !defined(SYSV) && !defined(linux)
 # ifdef NEWSOS
 #  define strlen ___strlen___
 #  include <strings.h>

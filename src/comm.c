@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -60,6 +60,9 @@ struct comm comms[RC_LAST + 1] =
 #ifdef AUTO_NUKE
   { "autonuke",		NEED_DISPLAY|ARGS_1 },
 #endif
+#ifdef COLOR
+  { "bce",		NEED_FORE|ARGS_01 },
+#endif
 
 #ifdef HAVE_BRAILLE
 /* keywords for braille display (bd) */
@@ -104,7 +107,7 @@ struct comm comms[RC_LAST + 1] =
   { "charset",          NEED_FORE|ARGS_1 },
   { "chdir",		ARGS_01 },
   { "clear",		NEED_FORE|ARGS_0 },
-  { "colon",		NEED_DISPLAY|ARGS_01 },
+  { "colon",		NEED_LAYER|ARGS_01 },
   { "command",		NEED_DISPLAY|ARGS_0 },
 #ifdef COPY_PASTE
   { "compacthist",	ARGS_01 },
@@ -117,6 +120,9 @@ struct comm comms[RC_LAST + 1] =
   { "debug",		ARGS_01 },
 #ifdef AUTO_NUKE
   { "defautonuke",	ARGS_1 },
+#endif
+#ifdef COLOR
+  { "defbce",		ARGS_1 },
 #endif
   { "defbreaktype",	ARGS_01 },
   { "defc1",		ARGS_1 },
@@ -145,35 +151,35 @@ struct comm comms[RC_LAST + 1] =
 #ifdef DETACH
   { "detach",		NEED_DISPLAY|ARGS_0 },
 #endif
-  { "digraph",		NEED_DISPLAY|ARGS_01 },
-  { "displays",		NEED_DISPLAY|ARGS_0 },
+  { "digraph",		NEED_LAYER|ARGS_01 },
+  { "displays",		NEED_LAYER|ARGS_0 },
   { "dumptermcap",	NEED_FORE|ARGS_0 },
   { "echo",		ARGS_12 },
-  { "escape",		NEED_DISPLAY|ARGS_1 },
+  { "escape",		ARGS_1 },
 #ifdef PSEUDOS
   { "exec", 		NEED_FORE|ARGS_0|ARGS_ORMORE },
 #endif
   { "fit",		NEED_DISPLAY|ARGS_0 },
   { "flow",		NEED_FORE|ARGS_01 },
-  { "focus",		NEED_DISPLAY|ARGS_0 },
+  { "focus",		NEED_DISPLAY|ARGS_01 },
   { "gr",		NEED_FORE|ARGS_01 },
   { "hardcopy",		NEED_FORE|ARGS_0 },
   { "hardcopy_append",	ARGS_1 },
-  { "hardcopydir",	ARGS_1 },
+  { "hardcopydir",	ARGS_01 },
   { "hardstatus",	ARGS_012 },
   { "height",		NEED_DISPLAY|ARGS_01 },
-  { "help",		NEED_DISPLAY|ARGS_0 },
+  { "help",		NEED_LAYER|ARGS_0 },
 #ifdef COPY_PASTE
-  { "history",		NEED_FORE|ARGS_0 },
+  { "history",		NEED_DISPLAY|NEED_FORE|ARGS_0 },
 #endif
   { "hstatus",		NEED_FORE|ARGS_1 },
-  { "info",		NEED_DISPLAY|ARGS_0 },
+  { "info",		NEED_LAYER|ARGS_0 },
 #ifdef KANJI
   { "kanji",		NEED_FORE|ARGS_12 },
 #endif
   { "kill",		NEED_FORE|ARGS_0 },
   { "lastmsg",		NEED_DISPLAY|ARGS_0 },
-  { "license",		NEED_DISPLAY|ARGS_0 },
+  { "license",		NEED_LAYER|ARGS_0 },
 #ifdef LOCK
   { "lockscreen",	NEED_DISPLAY|ARGS_0 },
 #endif
@@ -191,7 +197,7 @@ struct comm comms[RC_LAST + 1] =
 #ifdef COPY_PASTE
   { "markkeys",		ARGS_1 },
 #endif
-  { "meta",		NEED_DISPLAY|ARGS_0 },
+  { "meta",		NEED_LAYER|ARGS_0 },
   { "monitor",		NEED_FORE|ARGS_01 },
   { "msgminwait",	ARGS_1 },
   { "msgwait",		ARGS_1 },
@@ -201,20 +207,20 @@ struct comm comms[RC_LAST + 1] =
 #ifdef NETHACK
   { "nethack",		ARGS_1 },
 #endif
-  { "next",		NEED_DISPLAY|ARGS_0 },
+  { "next",		ARGS_0 },
 #ifdef MULTI
   { "nonblock",		NEED_DISPLAY|ARGS_01 },
 #endif
   { "number",		NEED_FORE|ARGS_01 },
   { "obuflimit",	NEED_DISPLAY|ARGS_01 },
   { "only",		NEED_DISPLAY|ARGS_0 },
-  { "other",		NEED_DISPLAY|ARGS_0 },
+  { "other",		ARGS_0 },
   { "partial",		NEED_FORE|ARGS_01 },
 #ifdef PASSWORD
   { "password",		ARGS_01 },
 #endif
 #ifdef COPY_PASTE
-  { "paste",		NEED_DISPLAY|ARGS_012 },
+  { "paste",		NEED_LAYER|ARGS_012 },
   { "pastefont",	ARGS_01 },
 #endif
   { "pow_break",	NEED_FORE|ARGS_01 },
@@ -222,12 +228,12 @@ struct comm comms[RC_LAST + 1] =
   { "pow_detach",	NEED_DISPLAY|ARGS_0 },
   { "pow_detach_msg",	ARGS_01 },
 #endif
-  { "prev",		NEED_DISPLAY|ARGS_0 },
+  { "prev",		ARGS_0 },
   { "printcmd",		ARGS_01 },
   { "process",		NEED_DISPLAY|ARGS_01 },
   { "quit",		ARGS_0 },
 #ifdef COPY_PASTE
-  { "readbuf",		NEED_DISPLAY|ARGS_0 },
+  { "readbuf",		ARGS_0 },
 #endif
   { "readreg",          ARGS_012 },
   { "redisplay",	NEED_DISPLAY|ARGS_0 },
@@ -237,6 +243,7 @@ struct comm comms[RC_LAST + 1] =
   { "removebuf",	ARGS_0 },
 #endif
   { "reset",		NEED_FORE|ARGS_0 },
+  { "resize",		NEED_DISPLAY|ARGS_01 },
   { "screen",		ARGS_0|ARGS_ORMORE },
 #ifdef COPY_PASTE
   { "scrollback",	NEED_FORE|ARGS_1 },
@@ -253,7 +260,7 @@ struct comm comms[RC_LAST + 1] =
   { "sorendition",      ARGS_012 },
   { "split",		NEED_DISPLAY|ARGS_0 },
   { "startup_message",	ARGS_1 },
-  { "stuff",		NEED_DISPLAY|ARGS_12 },
+  { "stuff",		NEED_LAYER|ARGS_12 },
 #ifdef MULTIUSER
   { "su",		NEED_DISPLAY|ARGS_012 },
 #endif
@@ -278,10 +285,10 @@ struct comm comms[RC_LAST + 1] =
   { "windows",		NEED_DISPLAY|ARGS_0 },
   { "wrap",		NEED_FORE|ARGS_01 },
 #ifdef COPY_PASTE
-  { "writebuf",		NEED_DISPLAY|ARGS_0 },
+  { "writebuf",		ARGS_0 },
 #endif
   { "writelock",	NEED_FORE|ARGS_01 },
-  { "xoff",		NEED_DISPLAY|ARGS_0 },
-  { "xon",		NEED_DISPLAY|ARGS_0 },
+  { "xoff",		NEED_LAYER|ARGS_0 },
+  { "xon",		NEED_LAYER|ARGS_0 },
   { "zombie",		ARGS_01 }
 };

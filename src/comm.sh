@@ -39,6 +39,7 @@ struct comm
 
 #define NEED_FORE	(1<<6)	/* this command needs a fore window */
 #define NEED_DISPLAY	(1<<7)	/* this command needs a display */
+#define NEED_LAYER	(1<<8)	/* this command needs a layer */
 
 #define ARGS_01		(ARGS_0 | ARGS_PLUS1)
 #define ARGS_02		(ARGS_0 | ARGS_PLUS2)

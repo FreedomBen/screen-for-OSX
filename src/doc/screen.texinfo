@@ -6,7 +6,7 @@
 @finalout
 @setchapternewpage odd
 @c %**end of header
-@set version 3.9.0
+@set version 3.9.6
 
 @c For examples, use a literal escape in info.
 @ifinfo
@@ -787,6 +787,8 @@ Execute a command at other displays or windows.  @xref{At}.
 Automatically detach the session on SIGHUP.  @xref{Detach}.
 @item autonuke @var{state}
 Enable a clear screen to discard unwritten output.  @xref{Autonuke}.
+@item bce @var{[state]}
+Change background color erase.  @xref{Character Processing}.
 @item bell_msg @var{[message]}
 Set the bell notification message.  @xref{Bell}.
 @item bind @var{key [command [args]]}
@@ -829,6 +831,8 @@ Select line break behavior for copying.  @xref{Line Termination}.
 Suppress/allow debugging output.  @xref{Debug}.
 @item defautonuke @var{state}
 Select default autonuke behavior.  @xref{Autonuke}.
+@item defbce @var{state}
+Select background color erase.  @xref{Character Processing}.
 @item defbreaktype @var{[tcsendbreak | TCSBRK | TIOCSBRK]}
 Specify the default for generating breaks.  @xref{Break}.
 @item defc1 @var{state}
@@ -1675,7 +1679,9 @@ which can contain different windows.
 * Focus::			Change to the next region
 * Only::			Delete all other regions
 * Remove::			Delete the current region
+* Resize::			Grow or shrink a region
 * Caption::			Control the window's caption
+* Fit::				Resize a window to fit the region
 @end menu
 
 @node Split, Focus,  , Regions
@@ -1694,7 +1700,16 @@ window is displayed on the new region.
 @deffn Command focus
 (@kbd{C-a @key{Tab}})@*
 Move the input focus to the next region. This is done in a cyclic
-way so that the top region is selected after the bottom one.
+way so that the top region is selected after the bottom one. If
+no subcommand is given it defaults to `down'. `up' cycles in the
+opposite order, `top' and `bottom' go to the top and bottom
+region respectively. Useful bindings are (j and k as in vi)
+@example
+bind j focus down
+bind k focus up
+bind t focus top
+bind b focus bottom
+@end example
 @end deffn
 
 @node Only, Remove, Focus, Regions
@@ -1705,7 +1720,7 @@ way so that the top region is selected after the bottom one.
 Kill all regions but the current one.
 @end deffn
 
-@node Remove, Caption, Only, Regions
+@node Remove, Resize, Only, Regions
 @section Remove
 @kindex X
 @deffn Command remove
@@ -1713,7 +1728,23 @@ Kill all regions but the current one.
 Kill the current region. This is a no-op if there is only one region.
 @end deffn
 
-@node Caption, , Remove, Regions
+@node Resize, Caption, Remove, Regions
+@section Resize
+@deffn Command resize @var{[(+/-)lines]}
+(none)@*
+Resize the current region. The space will be removed from or added to
+the region below or if there's not enough space from the region above.
+@example
+resize +N       increase current region height by N
+resize -N       decrease current region height by N
+resize  N       set current region height to N
+resize  =       make all windows equally high
+resize  max     maximize current region height
+resize  min     minimize current region height
+@end example
+@end deffn
+
+@node Caption, Fit, Resize, Regions
 @section Caption
 @deffn Command caption @code{always}|@code{splitonly} [string]
 @deffnx Command caption @code{string} [string]
@@ -1731,6 +1762,16 @@ a default of @samp{%3n %t}.
 
 You can mix both forms by providing the string as an additional
 argument.
+@end deffn
+
+@node Fit, , Caption, Regions
+@section Fit
+@kindex F
+@deffn Command fit
+(@kbd{C-a F})@*
+Change the window size to the size of the current region. This
+command is needed because screen doesn't adapt the window size
+automatically if the window is displayed more than once.
 @end deffn
 
 @node Window Settings, Virtual Terminal, Regions, Top
@@ -2142,6 +2183,7 @@ ESC [ Pn K                      Erase in Line
       Pn = None or 0            From Cursor to End of Line
            1                    From Beginning of Line to Cursor
            2                    Entire Line
+ESC [ Pn X                      Erase character
 ESC [ Pn A                      Cursor Up
 ESC [ Pn B                      Cursor Down
 ESC [ Pn C                      Cursor Right
@@ -2174,8 +2216,8 @@ ESC [ Ps ;...; Ps m             Select Graphic Rendition
            37           (A)     Foreground White
            39           (A)     Foreground Default
            40           (A)     Background Black
-	   ...                  ...
-	   49           (A)     Background Default
+           ...                  ...
+           49           (A)     Background Default
 ESC [ Pn g                      Tab Clear
       Pn = None or 0            Clear Tab at Current Position
            3                    Clear All Tabs
@@ -2199,7 +2241,9 @@ ESC [ Ps ;...; Ps l             Reset Mode
            ?5           (V)     Reverse Video
            ?6           (V)     @samp{Origin} Mode
            ?7           (V)     @samp{Wrap} Mode
+           ?9                   X10 mouse tracking
            ?25          (V)     Visible Cursor
+           ?1000        (V)     VT200 mouse tracking
 ESC [ 5 i               (A)     Start relay to printer (ANSI Media Copy)
 ESC [ 4 i               (A)     Stop relay to printer (ANSI Media Copy)
 ESC [ 8 ; Ph ; Pw t             Resize the window to @samp{Ph} lines and
@@ -2499,14 +2543,6 @@ Set the display height to a specified number of lines. When no
 argument is given it toggles between 24 and 42 lines display.
 @end deffn
 
-@kindex F
-@deffn Command fit
-(@kbd{C-a F})@*
-Change the window size to the size of the current region. This
-command is needed because screen doesn't adapt the window size
-automatically if the window is displayed more than once.
-@end deffn
-
 @node Character Processing, ,Window Size, Virtual Terminal
 @section Character Processing
 
@@ -2528,6 +2564,14 @@ char with an 8th bit set, it will use the charset stored in the
 GR slot and print the character with the 8th bit stripped. The
 default (see also @samp{defgr}) is not to process GR switching because
 otherwise the ISO88591 charset would not work.
+@end deffn
+
+@deffn Command bce [state]
+(none)@*
+Change background-color-erase setting. If @samp{bce} is set to
+on, all characters cleared by an erase/insert/scroll/clear
+operation will be displayed in the current background color.
+Otherwise the default background color is used.
 @end deffn
 
 @deffn Command kanji wtype [dtype]
@@ -2567,6 +2611,12 @@ new windows is changed. Initial setting is @samp{on}.
 @deffn Command defgr state
 (none)@*
 Same as the @samp{gr} command except that the default setting for
+new windows is changed. Initial setting is @samp{off}.
+@end deffn
+
+@deffn Command defbce state
+(none)@*
+Same as the @samp{bce} command except that the default setting for
 new windows is changed. Initial setting is @samp{off}.
 @end deffn
 
@@ -3707,6 +3757,10 @@ Does understand ANSI set default fg/bg color (@samp{\E[39m / \E[49m}).
 (str)@*
 Describe a translation of characters to strings depending on the
 current font.  (@pxref{Character Translation}).
+
+@item XT
+(bool)@*
+Terminal understands special xterm sequences (OSC, mouse tracking).
 
 @item TF
 (bool)@*

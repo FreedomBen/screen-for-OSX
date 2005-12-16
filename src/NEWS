@@ -1,4 +1,26 @@
 
+                  ------------------------------
+                   What's new in screen-3.9.8 ?
+                  ------------------------------
+
+* new command 'resize' to resize regions (aka split windows), try:
+    bind = resize =
+    bind + resize +1
+    bind - resize -1
+    bind _ resize max
+
+* new argument for 'focus': up, down, top, bottom
+
+* X11 mouse tracking support
+
+* Support for the "new color model", aka "background color erase":
+    the bce/defbce commands change the color model of the current
+    window/new windows.
+
+* experimental rxvt OSC sequence support (used to set a background
+  picture or to change the default colors), disabled by default.
+
+
                   ----------------------------
                    What's new in screen-3.9 ?
                   ----------------------------

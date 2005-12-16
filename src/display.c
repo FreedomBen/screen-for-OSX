@@ -1,4 +1,4 @@
-/* Copyright (c) 1993
+/* Copyright (c) 1993-2000
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  * Copyright (c) 1987 Oliver Laumann
@@ -34,7 +34,7 @@ RCS_ID("$Id$ FAU")
 #include "braille.h"
 
 static int  CountChars __P((int));
-static int  PutChar __P((int));
+static int  DoAddChar __P((int));
 static int  BlankResize __P((int, int));
 static int  CallRewrite __P((int, int, int, int));
 static void FreeCanvas __P((struct canvas *));
@@ -47,8 +47,11 @@ static void cv_winid_fn __P((struct event *, char *));
 static void disp_map_fn __P((struct event *, char *));
 #endif
 static void WriteLP __P((int, int));
-static void  INSERTCHAR __P((int));
-static void  RAW_PUTCHAR __P((int));
+static void INSERTCHAR __P((int));
+static void RAW_PUTCHAR __P((int));
+#ifdef COLOR
+static void SetBackColor __P((int));
+#endif
 
 
 extern struct layer *flayer;
@@ -59,7 +62,7 @@ extern int  use_hardstatus;
 extern int  MsgWait, MsgMinWait;
 extern int  Z0width, Z1width;
 extern char *blank, *null;
-extern struct mline mline_blank, mline_null;
+extern struct mline mline_blank, mline_null, mline_old;
 extern struct mchar mchar_null, mchar_blank, mchar_so;
 
 /* XXX shouldn't be here */
@@ -109,14 +112,14 @@ DefRedisplayLine(y, xs, xe, isblank)
 int y, xs, xe, isblank;
 {
   if (isblank == 0 && y >= 0)
-    DefClearLine(y, xs, xe);
+    DefClearLine(y, xs, xe, 0);
 }
 
 void
-DefClearLine(y, xs, xe)
-int y, xs, xe;
+DefClearLine(y, xs, xe, bce)
+int y, xs, xe, bce;
 {
-  LClearLine(flayer, y, xs, xe, (struct mline *)0);
+  LClearLine(flayer, y, xs, xe, bce, (struct mline *)0);
 }
 
 /*ARGSUSED*/
@@ -144,6 +147,7 @@ DefRestore()
   LKeypadMode(flayer, 0);
   LCursorkeysMode(flayer, 0);
   LCursorVisibility(flayer, 0);
+  LMouseMode(flayer, 0);
   LSetRendition(flayer, &mchar_null);
   LSetFlow(flayer, FLOW_NOW);
 }
@@ -227,6 +231,7 @@ struct mode *Mode;
   D_mapev.handler = disp_map_fn;
 #endif
   D_OldMode = *Mode;
+  D_status_obuffree = -1;
   Resize_obuf();  /* Allocate memory for buffer */
   D_obufmax = defobuflimit;
   D_obuflenmax = D_obuflen - D_obufmax;
@@ -673,7 +678,7 @@ int adapt;
   ChangeScrollRegion(0, D_height - 1);
   D_x = D_y = 0;
   Flush();
-  ClearDisplay();
+  ClearAll();
   debug1("we %swant to adapt all our windows to the display\n", 
 	 (adapt) ? "" : "don't ");
   /* In case the size was changed by a init sequence */
@@ -692,6 +697,7 @@ FinitTerm()
       KeypadMode(0);
       CursorkeysMode(0);
       CursorVisibility(0);
+      MouseMode(0);
       SetRendition(&mchar_null);
       SetFlow(FLOW_NOW);
 #ifdef MAPKEYS
@@ -700,6 +706,9 @@ FinitTerm()
 #endif
       if (D_hstatus)
 	ShowHStatus((char *)0);
+#ifdef RXVT_OSC
+      ClearAllXtermOSC();
+#endif
       D_x = D_y = -1;
       GotoPos(0, D_height - 1);
       AddChar('\r');
@@ -759,15 +768,25 @@ int c;
     }
   if (D_CLP || D_y != D_bot)
     {
+      int y = D_y;
       RAW_PUTCHAR(c);
+      if (D_AM && !D_CLP)
+	GotoPos(D_width - 1, y);
       return;
     }
+  debug("PUTCHARLP: lp_missing!\n");
   D_lp_missing = 1;
   D_rend.image = c;
   D_lpchar = D_rend;
 #ifdef KANJI
-  D_lp_mbcs = D_mbcs;
-  D_mbcs = 0;
+  /* XXX -> PutChar ? */
+  if (D_mbcs)
+    {
+      D_lpchar.mbcs = c;
+      D_lpchar.image = D_mbcs;
+      D_mbcs = 0;
+      D_x--;
+    }
 #endif
 }
 
@@ -853,10 +872,10 @@ int c;
 }
 
 static int
-PutChar(c)
+DoAddChar(c)
 int c;
 {
-  /* this PutChar for ESC-sequences only (AddChar is a macro) */
+  /* this is for ESC-sequences only (AddChar is a macro) */
   AddChar(c);
   return c;
 }
@@ -868,7 +887,7 @@ char *s;
   if (display && s)
     {
       ospeed = D_dospeed;
-      tputs(s, 1, PutChar);
+      tputs(s, 1, DoAddChar);
     }
 }
 
@@ -880,7 +899,7 @@ int c;
   if (display && s)
     {
       ospeed = D_dospeed;
-      tputs(tgoto(s, 0, c), 1, PutChar);
+      tputs(tgoto(s, 0, c), 1, DoAddChar);
     }
 }
 
@@ -974,6 +993,22 @@ int v;
     }
 }
 
+void
+MouseMode(mode)
+int mode;
+{
+  if (display && D_mouse != mode)
+    {
+      if (!D_CXT)
+	return;
+      if (D_mouse)
+        AddStr(D_mouse == 9 ? "\033[?9l" : "\033[?1000l");
+      if (mode)
+        AddStr(mode == 9 ? "\033[?9h" : "\033[?1000h");
+      D_mouse = mode;
+    }
+}
+
 static int StrCost;
 
 /* ARGSUSED */
@@ -1033,7 +1068,7 @@ int y, xs, xe, doit;
       cvlnext = cv->c_lnext;
       flayer->l_cvlist = cv;
       cv->c_lnext = 0;
-      Rewrite(y - vp->v_yoff, xs - vp->v_xoff, xe - vp->v_xoff, &D_rend, 1);
+      LayRewrite(y - vp->v_yoff, xs - vp->v_xoff, xe - vp->v_xoff, &D_rend, 1);
       flayer->l_cvlist = cvlist;
       cv->c_lnext = cvlnext;
       flayer = oldflayer;
@@ -1050,7 +1085,7 @@ int y, xs, xe, doit;
   oldflayer = flayer;
   flayer = cv->c_layer;
   debug3("Calling Rewrite %d %d %d\n", y - vp->v_yoff, xs - vp->v_xoff, xe - vp->v_xoff);
-  cost = Rewrite(y - vp->v_yoff, xs - vp->v_xoff, xe - vp->v_xoff, &D_rend, 0);
+  cost = LayRewrite(y - vp->v_yoff, xs - vp->v_xoff, xe - vp->v_xoff, &D_rend, 0);
   flayer = oldflayer;
   if (D_insert)
     cost += D_EIcost + D_IMcost;
@@ -1105,6 +1140,13 @@ int x2, y2;
       D_y = y2;
       return;
     }
+
+  /* some scrollregion implementations don't allow movements
+   * away from the region. sigh.
+   */
+  if ((y1 > D_bot && y2 > y1) || (y1 < D_top && y2 < y1))
+    goto DoCM;
+
   /* Calculate CMcost */
   if (D_HO && !x2 && !y2)
     s = D_HO;
@@ -1128,7 +1170,7 @@ int x2, y2;
 	      costx = m;
 	      xm = M_RI;
 	    }
-	  /* Speedup: dx <= Rewrite() */
+	  /* Speedup: dx <= LayRewrite() */
 	  if (dx < costx && (m = CallRewrite(y1, x1, x2 - 1, 0)) < costx)
 	    {
 	      costx = m;
@@ -1151,7 +1193,7 @@ int x2, y2;
       else
 	costx = 0;
     }
-  /* Speedup: Rewrite() >= x2 */
+  /* Speedup: LayRewrite() >= x2 */
   if (x2 + D_CRcost < costx && (m = (x2 ? CallRewrite(y1, 0, x2 - 1, 0) : 0) + D_CRcost) < costx)
     {
       costx = m;
@@ -1251,15 +1293,15 @@ int x2, y2;
 }
 
 void
-ClearDisplay()
+ClearAll()
 {
   ASSERT(display);
-  Clear(0, 0, 0, D_width - 1, D_width - 1, D_height - 1, 0);
+  ClearArea(0, 0, 0, D_width - 1, D_width - 1, D_height - 1, 0, 0);
 }
 
 void
-Clear(x1, y1, xs, xe, x2, y2, uselayfn)
-int x1, y1, xs, xe, x2, y2, uselayfn;
+ClearArea(x1, y1, xs, xe, x2, y2, bce, uselayfn)
+int x1, y1, xs, xe, x2, y2, bce, uselayfn;
 {
   int y, xxe;
   struct canvas *cv;
@@ -1267,20 +1309,29 @@ int x1, y1, xs, xe, x2, y2, uselayfn;
 
   debug2("Clear %d,%d", x1, y1);
   debug2(" %d-%d", xs, xe);
-  debug3(" %d,%d uselayfn=%d\n", x2, y2, uselayfn);
+  debug2(" %d,%d", x2, y2);
+  debug2(" uselayfn=%d bce=%d\n", uselayfn, bce);
   ASSERT(display);
   if (x1 == D_width)
     x1--;
   if (x2 == D_width)
     x2--;
+  if (xs == -1)
+    xs = x1;
+  if (xe == -1)
+    xe = x2;
   if (D_UT)	/* Safe to erase ? */
     SetRendition(&mchar_null);
+#ifdef COLOR
+  if (D_BE)
+    SetBackColor(bce);
+#endif
   if (D_lp_missing && y1 <= D_bot && xe >= D_width - 1)
     {
       if (y2 > D_bot || (y2 == D_bot && x2 >= D_width - 1))
 	D_lp_missing = 0;
     }
-  if (x2 == D_width - 1 && (xs == 0 || y1 == y2) && xe == D_width - 1 && y2 == D_height - 1)
+  if (x2 == D_width - 1 && (xs == 0 || y1 == y2) && xe == D_width - 1 && y2 == D_height - 1 && (!bce || D_BE))
     {
 #ifdef AUTO_NUKE
       if (x1 == 0 && y1 == 0 && D_auto_nuke)
@@ -1303,7 +1354,7 @@ int x1, y1, xs, xe, x2, y2, uselayfn;
 	  return;
 	}
     }
-  if (x1 == 0 && xs == 0 && (xe == D_width - 1 || y1 == y2) && y1 == 0 && D_CCD)
+  if (x1 == 0 && xs == 0 && (xe == D_width - 1 || y1 == y2) && y1 == 0 && D_CCD && (!bce || D_BE))
     {
       GotoPos(x1, y1);
       PutStr(D_CCD);
@@ -1314,13 +1365,13 @@ int x1, y1, xs, xe, x2, y2, uselayfn;
     {
       if (y == y2)
 	xxe = x2;
-      if (x1 == 0 && D_CB && (xxe != D_width - 1 || (D_x == xxe && D_y == y)))
+      if (x1 == 0 && D_CB && (xxe != D_width - 1 || (D_x == xxe && D_y == y)) && (!bce || D_BE))
 	{
 	  GotoPos(xxe, y);
 	  PutStr(D_CB);
 	  continue;
 	}
-      if (xxe == D_width - 1 && D_CE)
+      if (xxe == D_width - 1 && D_CE && (!bce || D_BE))
 	{
 	  GotoPos(x1, y);
 	  PutStr(D_CE);
@@ -1350,14 +1401,14 @@ int x1, y1, xs, xe, x2, y2, uselayfn;
 	      cvlnext = cv->c_lnext;
 	      flayer->l_cvlist = cv;
 	      cv->c_lnext = 0;
-              ClearLine(y - vp->v_yoff, x1 - vp->v_xoff, xxe - vp->v_xoff);
+              LayClearLine(y - vp->v_yoff, x1 - vp->v_xoff, xxe - vp->v_xoff, bce);
 	      flayer->l_cvlist = cvlist;
 	      cv->c_lnext = cvlnext;
 	      flayer = oldflayer;
 	      continue;
 	    }
 	}
-      DisplayLine(&mline_null, &mline_blank, y, x1, xxe);
+      ClearLine((struct mline *)0, y, x1, xxe, bce);
     }
 }
 
@@ -1370,9 +1421,6 @@ void
 Redisplay(cur_only)
 int cur_only;
 {
-  register int i, stop;
-  struct canvas *cv;
-
   ASSERT(display);
 
   /* XXX do em all? */
@@ -1381,30 +1429,20 @@ int cur_only;
   KeypadMode(0);
   CursorkeysMode(0);
   CursorVisibility(0);
+  MouseMode(0);
   SetRendition(&mchar_null);
   SetFlow(FLOW_NOW);
 
-  ClearDisplay();
-  stop = D_height;
-  i = 0;
+  ClearAll();
+#ifdef RXVT_OSC
+  RefreshXtermOSC();
+#endif
   if (cur_only > 0 && D_fore)
-    {
-      i = stop = D_fore->w_y;
-      stop++;
-    }
+    RefreshArea(0, D_fore->w_y, D_width - 1, D_fore->w_y, 1);
   else
-    {
-      debug("Signalling full refresh!\n");
-      for (cv = D_cvlist; cv; cv = cv->c_next)
-	{
-	  CV_CALL(cv, RedisplayLine(-1, -1, -1, 1));
-	  display = cv->c_display;	/* just in case! */
-	}
-    }
-  RefreshArea(0, i, D_width - 1, stop - 1, 1);
+    RefreshAll(1);
   RefreshHStatus();
-
-  CV_CALL(D_forecv, Restore();SetCursor());
+  CV_CALL(D_forecv, LayRestore();LaySetCursor());
 }
 
 void
@@ -1420,8 +1458,8 @@ int cur_only;
 
 /* XXX: use oml! */
 void
-ScrollH(y, xs, xe, n, oml)
-int y, xs, xe, n;
+ScrollH(y, xs, xe, n, bce, oml)
+int y, xs, xe, n, bce;
 struct mline *oml;
 {
   int i;
@@ -1437,8 +1475,14 @@ struct mline *oml;
   GotoPos(xs, y);
   if (D_UT)
     SetRendition(&mchar_null);
+#ifdef COLOR
+  if (D_BE)
+    SetBackColor(bce);
+#endif
   if (n > 0)
     {
+      if (n >= xe - xs + 1)
+	n = xe - xs + 1;
       if (D_CDC && !(n == 1 && D_DC))
 	CPutStr(D_CDC, n);
       else if (D_DC)
@@ -1455,6 +1499,8 @@ struct mline *oml;
     }
   else
     {
+      if (-n >= xe - xs + 1)
+	n = -(xe - xs + 1);
       if (!D_insert)
 	{
 	  if (D_CIC && !(n == -1 && D_IC))
@@ -1467,8 +1513,13 @@ struct mline *oml;
 	  else if (D_IM)
 	    {
 	      InsertMode(1);
+	      SetRendition(&mchar_null);
+#ifdef COLOR
+	      SetBackColor(bce);
+#endif
 	      for (i = -n; i--; )
 		INSERTCHAR(' ');
+	      bce = 0;	/* all done */
 	    }
 	  else
 	    {
@@ -1479,9 +1530,21 @@ struct mline *oml;
 	}
       else
 	{
+	  SetRendition(&mchar_null);
+#ifdef COLOR
+	  SetBackColor(bce);
+#endif
 	  for (i = -n; i--; )
 	    INSERTCHAR(' ');
+	  bce = 0;	/* all done */
 	}
+    }
+  if (bce && !D_BE)
+    {
+      if (n > 0)
+        ClearLine((struct mline *)0, y, xe - n + 1, xe, bce);
+      else
+        ClearLine((struct mline *)0, y, xs, xs - n - 1, bce);
     }
   if (D_lp_missing && y == D_bot)
     {
@@ -1492,8 +1555,8 @@ struct mline *oml;
 }
 
 void
-ScrollV(xs, ys, xe, ye, n)
-int xs, ys, xe, ye, n;
+ScrollV(xs, ys, xe, ye, n, bce)
+int xs, ys, xe, ye, n, bce;
 {
   int i;
   int up;
@@ -1506,7 +1569,7 @@ int xs, ys, xe, ye, n;
     return;
   if (n >= ye - ys + 1 || -n >= ye - ys + 1)
     {
-      Clear(xs, ys, xs, xe, xe, ye, 0);
+      ClearArea(xs, ys, xs, xe, xe, ye, bce, 0);
       return;
     }
   if (xs > D_vpxmin || xe < D_vpxmax)
@@ -1557,27 +1620,34 @@ int xs, ys, xe, ye, n;
 /* XXX
 	      ChangeScrollRegion(oldtop, oldbot);
 */
+	      if (bce && !D_BE)
+		ClearLine((struct mline *)0, ye, xs, xe, bce);
 	      return;
 	    }
 	}
     }
 
-  aldlfaster = (n > 1 && ys >= D_top && ye == D_bot && ((up && D_CDL) || (!up && D_CAL)));
-
   if (D_UT)
     SetRendition(&mchar_null);
+#ifdef COLOR
+  if (D_BE)
+    SetBackColor(bce);
+#endif
+
+  aldlfaster = (n > 1 && ys >= D_top && ye == D_bot && ((up && D_CDL) || (!up && D_CAL)));
+
   if ((up || D_SR) && D_top == ys && D_bot == ye && !aldlfaster)
     {
       if (up)
 	{
 	  GotoPos(0, ye);
-	  while (n-- > 0)
+	  for(i = n; i-- > 0; )
 	    PutStr(D_NL);		/* was SF, I think NL is faster */
 	}
       else
 	{
 	  GotoPos(0, ys);
-	  while (n-- > 0)
+	  for(i = n; i-- > 0; )
 	    PutStr(D_SR);
 	}
     }
@@ -1607,6 +1677,13 @@ int xs, ys, xe, ye, n;
       RefreshArea(xs, ys, xe, ye, 0);
       return;
     }
+  if (bce && !D_BE)
+    {
+      if (up)
+        ClearArea(xs, ye - n + 1, xs, xe, xe, ye, bce, 0);
+      else
+        ClearArea(xs, ys, xs, xe, xe, ys + n - 1, bce, 0);
+    }
   if (D_lp_missing && missy != D_bot)
     WriteLP(D_width - 1, missy);
 /* XXX
@@ -1632,7 +1709,7 @@ register int new;
       ospeed = D_dospeed;
       tputs(tparm(D_SA, new & A_SO, new & A_US, new & A_RV, new & A_BL,
 			new & A_DI, new & A_BD, 0         , 0         ,
-			0), 1, PutChar);
+			0), 1, DoAddChar);
       D_rend.attr = new;
       D_atyp = 0;
 # ifdef COLOR
@@ -1726,6 +1803,8 @@ int new;
   ob = (D_rend.color >> 4) & 0xf;
   f = new & 0xf;
   b = (new >> 4) & 0xf;
+  ASSERT(f >= 0 && f <= 9);
+  ASSERT(b >= 0 && b <= 9);
 
   if (!D_CAX && (D_CAF || D_CAB) && ((f == 0 && f != of) || (b == 0 && b != ob)))
     {
@@ -1747,7 +1826,17 @@ int new;
     }
   D_rend.color = new;
 }
-#endif
+
+static void
+SetBackColor(new)
+int new;
+{
+  if (!display)
+    return;
+  ASSERT(new >=0 && new <= 9);
+  SetColor((D_rend.color & 0xf) | (new << 4));
+}
+#endif /* COLOR */
 
 void
 SetRendition(mc)
@@ -1859,12 +1948,6 @@ char *msg;
   D_status_lasty = D_y;
   if (!use_hardstatus || D_has_hstatus == HSTATUS_IGNORE || D_has_hstatus == HSTATUS_MESSAGE)
     {
-      if (D_status_delayed != -1 && t - msg < D_status_buflen)
-	{
-	  D_status_delayed = 1;	/* not yet... */
-	  D_status = 0;
-	  return;
-	}
       D_status = STATUS_ON_WIN;
       debug1("using STATLINE %d\n", STATLINE);
       GotoPos(0, STATLINE);
@@ -1892,8 +1975,27 @@ char *msg;
       D_status = STATUS_ON_HS;
       ShowHStatus(msg);
     }
-  D_status_delayed = 0;
   Flush();
+  if (D_status == STATUS_ON_WIN)
+    {
+      struct display *olddisplay = display;
+      struct layer *oldflayer = flayer;
+
+      ASSERT(D_obuffree == D_obuflen);
+      D_status = 0;
+      GotoPos(0, STATLINE);
+      RefreshLine(STATLINE, 0, D_status_len - 1, 0);
+      GotoPos(D_status_lastx, D_status_lasty);
+      flayer = D_forecv->c_layer;
+      if (flayer)
+	LaySetCursor();
+      display = olddisplay;
+      flayer = oldflayer;
+      D_status_obuflen = D_obuflen;
+      D_status_obuffree = D_obuffree;
+      D_obuffree = D_obuflen = 0;
+      D_status = STATUS_ON_WIN;
+    }
   (void) time(&D_status_time);
   SetTimeout(&D_statusev, MsgWait * 1000);
   evenq(&D_statusev);
@@ -1914,6 +2016,17 @@ RemoveStatus()
   if (!(where = D_status))
     return;
   
+  debug("RemoveStatus\n");
+  if (D_status_obuffree >= 0)
+    {
+      D_obuflen = D_status_obuflen;
+      D_obuffree = D_status_obuffree;
+      D_status_obuffree = -1;
+      D_status = 0;
+      D_status_bell = 0;
+      evdeq(&D_statusev);
+      return;
+    }
   D_status = 0;
   D_status_bell = 0;
   evdeq(&D_statusev);
@@ -1929,7 +2042,7 @@ RemoveStatus()
     RefreshHStatus();
   flayer = D_forecv->c_layer;
   if (flayer)
-    SetCursor();
+    LaySetCursor();
   display = olddisplay;
   flayer = oldflayer;
 }
@@ -1981,7 +2094,7 @@ char *str;
         while (l++ < D_width)
 	  PUTCHARLP(' ');
       if (l < D_width)
-        Clear(l, D_height - 1, l, D_width - 1, D_width - 1, D_height - 1, 0);
+        ClearArea(l, D_height - 1, l, D_width - 1, D_width - 1, D_height - 1, 0, 0);
       if (ox != -1 && oy != -1)
 	GotoPos(ox, oy);
       D_hstatus = *str ? 1 : 0;
@@ -2023,6 +2136,22 @@ RefreshHStatus()
  */
 
 void
+RefreshAll(isblank)
+int isblank;
+{
+  struct canvas *cv;
+
+  ASSERT(display);
+  debug("Signalling full refresh!\n");
+  for (cv = D_cvlist; cv; cv = cv->c_next)
+    {
+      CV_CALL(cv, LayRedisplayLine(-1, -1, -1, isblank));
+      display = cv->c_display;	/* just in case! */
+    }
+  RefreshArea(0, 0, D_width - 1, D_height - 1, isblank);
+}
+
+void
 RefreshArea(xs, ys, xe, ye, isblank)
 int xs, ys, xe, ye, isblank;
 {
@@ -2032,7 +2161,7 @@ int xs, ys, xe, ye, isblank;
   debug3(" - %d,%d (isblank=%d)\n", xe, ye, isblank);
   if (!isblank && xs == 0 && xe == D_width - 1 && ye == D_height - 1 && (ys == 0 || D_CD))
     {
-      Clear(xs, ys, xs, xe, xe, ye, 0);
+      ClearArea(xs, ys, xs, xe, xe, ye, 0, 0);
       isblank = 1;
     }
   for (y = ys; y <= ye; y++)
@@ -2061,7 +2190,7 @@ int y, from, to, isblank;
   if (isblank == 0 && D_CE && to == D_width - 1 && from < to)
     {
       GotoPos(from, y);
-      if (D_UT)
+      if (D_UT || D_BE)
 	SetRendition(&mchar_null);
       PutStr(D_CE);
       isblank = 1;
@@ -2097,7 +2226,7 @@ int y, from, to, isblank;
 	  from = lvp->v_xs;
 	}
 
-      /* call RedisplayLine on canvas lcv viewport lvp */
+      /* call LayRedisplayLine on canvas lcv viewport lvp */
       yy = y - lvp->v_yoff;
       xx = to < lvp->v_xe ? to : lvp->v_xe;
 
@@ -2129,7 +2258,7 @@ int y, from, to, isblank;
       cvlnext = lcv->c_lnext;
       flayer->l_cvlist = lcv;
       lcv->c_lnext = 0;
-      RedisplayLine(yy, from - lvp->v_xoff, xx - lvp->v_xoff, isblank);
+      LayRedisplayLine(yy, from - lvp->v_xoff, xx - lvp->v_xoff, isblank);
       flayer->l_cvlist = cvlist;
       lcv->c_lnext = cvlnext;
       flayer = oldflayer;
@@ -2185,15 +2314,69 @@ int x2, y2;
   ASSERT(display);
   ASSERT(D_lp_missing);
   oldrend = D_rend;
+  debug2("WriteLP(%d,%d)\n", x2, y2);
 #ifdef KANJI
-  if (D_lpchar.font == KANJI && (D_mbcs = D_lp_mbcs) != 0 && x2 > 0)
-    x2--;
+  if (D_lpchar.mbcs)
+    {
+      if (x2 > 0)
+	x2--;
+      else
+	D_lpchar = mchar_blank;
+    }
 #endif
+  /* Can't use PutChar */
   GotoPos(x2, y2);
   SetRendition(&D_lpchar);
   PUTCHAR(D_lpchar.image);
+#ifdef KANJI
+  if (D_lpchar.mbcs)
+    PUTCHAR(D_lpchar.mbcs);
+#endif
   D_lp_missing = 0;
   SetRendition(&oldrend);
+}
+
+void
+ClearLine(oml, y, from, to, bce)
+struct mline *oml;
+int from, to, y, bce;
+{
+  int x;
+
+  debug3("ClearLine %d,%d-%d\n", y, from, to);
+  if (D_UT)	/* Safe to erase ? */
+    SetRendition(&mchar_null);
+#ifdef COLOR
+  if (D_BE)
+    SetBackColor(bce);
+#endif
+  if (from == 0 && D_CB && (to != D_width - 1 || (D_x == to && D_y == y)) && (!bce || D_BE))
+    {
+      GotoPos(to, y);
+      PutStr(D_CB);
+      return;
+    }
+  if (to == D_width - 1 && D_CE && (!bce || D_BE))
+    {
+      GotoPos(from, y);
+      PutStr(D_CE);
+      return;
+    }
+  if (oml == 0)
+    oml = &mline_null;
+#ifdef COLOR
+  if (!bce)
+    {
+      DisplayLine(oml, &mline_blank, y, from, to);
+      return;
+    }
+  save_mline(&mline_blank, to + 1);
+  for (x = from; x <= to; x++)
+    mline_old.color[x] = bce << 4;
+  DisplayLine(oml, &mline_old, y, from, to);
+#else
+  DisplayLine(oml, &mline_blank, y, from, to);
+#endif
 }
 
 void
@@ -2212,27 +2395,30 @@ int from, to, y;
     {
       if (D_lp_missing || !cmp_mline(oml, ml, to))
 	{
+#ifdef KANJI
+	  if ((D_IC || D_IM) && from < to && ml->font[to] != KANJI)
+#else
 	  if ((D_IC || D_IM) && from < to)
+#endif
 	    {
-	      to -= 2;
 	      last2flag = 1;
 	      D_lp_missing = 0;
+	      to--;
 	    }
 	  else
 	    {
-	      to--;
-	      delete_lp = (D_CE || D_DC || D_CDC);
+	      delete_lp = !cmp_mchar_mline(&mchar_blank, oml, to) && (D_CE || D_DC || D_CDC);
 	      D_lp_missing = !cmp_mchar_mline(&mchar_blank, ml, to);
 	      copy_mline2mchar(&D_lpchar, ml, to);
 	    }
 	}
-      else
-	to--;
+      to--;
     }
 #ifdef KANJI
   if (D_mbcs)
     {
       /* finish kanji (can happen after a wrap) */
+      debug("DisplayLine finishing kanji\n");
       SetRenditionMline(ml, from);
       PUTCHAR(ml->image[from]);
       from++;
@@ -2294,6 +2480,20 @@ int from, to, y;
 }
 
 void
+PutChar(c, x, y)
+struct mchar *c;
+int x, y;
+{
+  GotoPos(x, y);
+  SetRendition(c);
+  PUTCHARLP(c->image);
+#ifdef KANJI
+  if (c->mbcs)
+    PUTCHARLP(c->mbcs);
+#endif
+}
+
+void
 InsChar(c, x, xe, y, oml)
 struct mchar *c;
 int x, xe, y;
@@ -2304,6 +2504,7 @@ struct mline *oml;
     {
       if (x == D_width - 1)
         {
+          D_lp_missing = 1;
           D_lpchar = *c;
           return;
         }
@@ -2312,10 +2513,8 @@ struct mline *oml;
     }
   if (x == xe)
     {
-      if (xe != D_width - 1)
-        InsertMode(0);
       SetRendition(c);
-      RAW_PUTCHAR(c->image);
+      PUTCHARLP(c->image);
       return;
     }
   if (!(D_IC || D_CIC || D_IM) || xe != D_width - 1)
@@ -2328,13 +2527,31 @@ struct mline *oml;
   InsertMode(1);
   if (!D_insert)
     {
+#ifdef KANJI
+      if (c->mbcs && D_IC)
+        PutStr(D_IC);
+      if (D_IC)
+        PutStr(D_IC);
+      else
+        CPutStr(D_CIC, c->mbcs ? 2 : 1);
+#else
       if (D_IC)
         PutStr(D_IC);
       else
         CPutStr(D_CIC, 1);
+#endif
     }
   SetRendition(c);
   RAW_PUTCHAR(c->image);
+#ifdef KANJI
+  if (c->mbcs)
+    {
+      if (D_x == D_width - 1)
+	PUTCHARLP(c->mbcs);
+      else
+	RAW_PUTCHAR(c->mbcs);
+    }
+#endif
 }
 
 void
@@ -2344,6 +2561,13 @@ int x, y;
 int xs, ys, xe, ye;
 int ins;
 {
+  int bce;
+
+#ifdef COLOR
+  bce = c->color >> 4 & 0xf;
+#else
+  bce = 0;
+#endif
   debug("WrapChar:");
   debug2("  x %d  y %d", x, y);
   debug2("  Dx %d  Dy %d", D_x, D_y);
@@ -2352,27 +2576,23 @@ int ins;
   if (xs != 0 || x != D_width || !D_AM)
     {
       if (y == ye)
-	ScrollV(xs, ys, xe, ye, 1);
+	ScrollV(xs, ys, xe, ye, 1, bce);
       else if (y < D_height - 1)
 	y++;
-      GotoPos(xs, y);
       if (ins)
-	{
-	  InsChar(c, xs, xe, y, 0);
-	  return;
-	}
-      SetRendition(c);
-      RAW_PUTCHAR(c->image);
+	InsChar(c, xs, xe, y, 0);
+      else
+        PutChar(c, xs, y);
       return;
     }
   if (y == ye)		/* we have to scroll */
     {
       debug("- scrolling\n");
       ChangeScrollRegion(ys, ye);
-      if (D_bot != y)
+      if (D_bot != y || D_x != D_width || (!bce && !D_BE))
 	{
 	  debug("- have to call ScrollV\n");
-	  ScrollV(xs, ys, xe, ye, 1);
+	  ScrollV(xs, ys, xe, ye, 1, bce);
 	  y--;
 	}
     }
@@ -2380,13 +2600,13 @@ int ins;
     ChangeScrollRegion(ys, ye);		/* remove unusable region */
   if (D_x != D_width || D_y != y)
     {
-      if (D_CLP && y >= 0)		/* don't even try if !LP */
+      if (D_CLP)			/* don't even try if !LP */
         RefreshLine(y, D_width - 1, D_width - 1, 0);
       debug2("- refresh last char -> x,y now %d,%d\n", D_x, D_y);
       if (D_x != D_width || D_y != y)	/* sorry, no bonus */
 	{
 	  if (y == ye)
-	    ScrollV(xs, ys, xe, ye, 1);
+	    ScrollV(xs, ys, xe, ye, 1, bce);
 	  GotoPos(xs, y == ye || y == D_height - 1 ? y : y + 1);
 	}
     }
@@ -2401,10 +2621,14 @@ int ins;
       debug2(" -> done with insert (%d,%d)\n", D_x, D_y);
       return;
     }
-  SetRendition(c);
   D_y = y;
   D_x = 0;
+  SetRendition(c);
   RAW_PUTCHAR(c->image);
+#ifdef KANJI
+  if (c->mbcs)
+    RAW_PUTCHAR(c->mbcs);
+#endif
   debug2(" -> done (%d,%d)\n", D_x, D_y);
 }
 
@@ -2461,6 +2685,44 @@ int newtop, newbot;
   D_y = D_x = -1;		/* Just in case... */
 }
 
+#ifdef RXVT_OSC
+void
+SetXtermOSC(i, s)
+int i;
+char *s;
+{
+  static char oscs[] = "1;\000\00020;\00039;\00049;\000";
+
+  ASSERT(display);
+  if (!D_CXT)
+    return;
+  if (!s)
+    s = "";
+  if (!D_xtermosc[i] && !*s)
+    return;
+  if (i == 0 && !*s)
+    s = "screen";		/* always set icon name */
+  if (i == 1 && !*s)
+    s = "";			/* no background */
+  if (i == 2 && !*s)
+    s = "black";		/* black text */
+  if (i == 3 && !*s)
+    s = "white";		/* on white background */
+  D_xtermosc[i] = 1;
+  AddStr("\033]");
+  AddStr(oscs + i * 4);
+  AddStr(s);
+  AddChar(7);
+}
+
+void
+ClearAllXtermOSC()
+{
+  int i;
+  for (i = 3; i >= 0; i--)
+    SetXtermOSC(i, 0);
+}
+#endif
 
 /*
  *  Output buffering routines
@@ -2501,9 +2763,9 @@ Flush()
   ASSERT(display);
   l = D_obufp - D_obuf;
   debug1("Flush(): %d\n", l);
-  ASSERT(l + D_obuffree == D_obuflen);
   if (l == 0)
     return;
+  ASSERT(l + D_obuffree == D_obuflen);
   if (D_userfd < 0)
     {
       D_obuffree += l;
@@ -2563,6 +2825,13 @@ Resize_obuf()
   register int ind;
 
   ASSERT(display);
+  if (D_status_obuffree >= 0)
+    {
+      ASSERT(D_obuffree == -1);
+      RemoveStatus();
+      if (--D_obuffree > 0)	/* redo AddChar decrement */
+	return;
+    }
   if (D_obuflen && D_obuf)
     {
       ind  = D_obufp - D_obuf;
@@ -2593,6 +2862,7 @@ NukePending()
   struct mchar oldrend;
   int oldkeypad = D_keypad, oldcursorkeys = D_cursorkeys;
   int oldcurvis = D_curvis;
+  int oldmouse = D_mouse;
 
   oldrend = D_rend;
   len = D_obufp - D_obuf;
@@ -2654,6 +2924,7 @@ NukePending()
   KeypadMode(oldkeypad);
   CursorkeysMode(oldcursorkeys);
   CursorVisibility(oldcurvis);
+  MouseMode(oldmouse);
   if (D_CWS)
     {
       debug("ResizeDisplay: using WS\n");
@@ -2777,6 +3048,49 @@ char *data;
       sleep(1);
       return;
     }
+  if (D_mouse && D_forecv)
+    {
+      unsigned char *bp = (unsigned char *)buf;
+      int x, y, i = size;
+
+      /* XXX this assumes that the string is read in as a whole... */
+      for (i = size; i > 0; i--, bp++)
+	{
+	  if (i > 5 && bp[0] == 033 && bp[1] == '[' && bp[2] == 'M')
+	    {
+	      bp++;
+	      i--;
+	    }
+	  else if (i < 5 || bp[0] != 0233 || bp[1] != 'M')
+	    continue;
+	  x = bp[3] - 33;
+	  y = bp[4] - 33;
+	  if (x >= D_forecv->c_xs && x <= D_forecv->c_xe && y >= D_forecv->c_ys && y <= D_forecv->c_ye)
+	    {
+	      x -= D_forecv->c_xoff;
+	      y -= D_forecv->c_yoff;
+	      if (x >= 0 && x < D_forecv->c_layer->l_width && y >= 0 && y < D_forecv->c_layer->l_height)
+		{
+		  bp[3] = x + 33;
+		  bp[4] = y + 33;
+		  i -= 4;
+		  bp += 4;
+		  continue;
+		}
+	    }
+	  if (bp[0] == '[')
+	    {
+	      bcopy((char *)bp + 1, (char *)bp, i);
+	      bp--;
+	      size--;
+	    }
+	  if (i > 5)
+	    bcopy((char *)bp + 5, (char *)bp, i - 5);
+	  bp--;
+	  i -= 4;
+	  size -= 5;
+	}
+    }
   (*D_processinput)(buf, size);
 }
 
@@ -2786,6 +3100,7 @@ struct event *ev;
 char *data;
 {
   display = (struct display *)data;
+  debug1("disp_status_fn for display %x\n", (int)display);
   if (D_status)
     RemoveStatus();
 }
