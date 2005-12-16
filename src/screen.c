@@ -1061,6 +1061,10 @@ char **av;
 	  Attacher();
 	  /* NOTREACHED */
 	}
+#ifdef MULTIUSER
+      if (multiattach)
+	Panic(0, "Can't create sessions of other users.");
+#endif
       debug("screen -r: backend not responding -- still crying\n");
     }
   else if (dflag && !mflag)

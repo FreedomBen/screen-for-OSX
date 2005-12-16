@@ -464,11 +464,13 @@
  *                     'U+' prefix in digraph command. LOADAV_TYPE
  *                     detection fixed.
  *                     -- DISTRIBUTED
+ *  4.09.01 -- 3.09.10 '-R' security fix. Fixed array in MScrollV().
+ *                     -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 9
-#define PATCHLEVEL 9
-#define DATE "25-May-01"
+#define PATCHLEVEL 10
+#define DATE "4-Sep-01"
 #define STATE "" 

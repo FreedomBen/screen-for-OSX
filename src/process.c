@@ -4738,7 +4738,7 @@ char *data;	/* dummy */
     {
       if (ch < ' ' || ch == '\177')
 	return;
-      if (len >= 1 && (*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X')))
+      if (len >= 1 && ((*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X'))))
 	{
 	  if (len == 1)
 	    return;
@@ -4770,7 +4770,7 @@ char *data;	/* dummy */
   len++;
   if (len < 2)
     return;
-  if (len >= 1 && (*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X')))
+  if (len >= 1 && ((*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X'))))
     {
       x = 0;
       for (i = 2; i < len; i++)

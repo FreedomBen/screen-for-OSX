@@ -2220,7 +2220,7 @@ struct win *p;
 int n, ys, ye, bce;
 {
   int i, cnt1, cnt2;
-  struct mline *tmp[256];
+  struct mline tmp[256];
   struct mline *ml;
 
   if (n == 0)
