@@ -236,6 +236,7 @@ struct win
   int	 w_histheight;		/* always 0 */
 #endif
   int	 w_pid;			/* process at the other end of ptyfd */	
+  int	 w_deadpid;		/* saved w_pid of a process that closed the ptyfd to us */	
 
   char  *w_cmdargs[MAXARGS];	/* command line argument vector */
   char	*w_dir;			/* directory for chdir */

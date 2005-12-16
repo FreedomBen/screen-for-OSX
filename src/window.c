@@ -50,7 +50,7 @@ extern char **NewEnv;
 extern int visual_bell, maxwin;
 extern struct event logflushev;
 extern int log_flush, logtstamp_after;
-extern int ZombieKey_destroy, ZombieKey_resurrect;
+extern int ZombieKey_destroy, ZombieKey_resurrect, ZombieKey_onerror;
 extern struct layer *flayer;
 extern int maxusercount;
 extern int pty_preopen;
@@ -728,6 +728,7 @@ struct NewWindow *newwin;
       display = d;
     }
 
+  p->w_deadpid = 0;
   p->w_pid = 0;
 #ifdef PSEUDOS
   p->w_pwin = 0;
@@ -860,6 +861,7 @@ struct win *p;
       display = d;
     }
 
+  p->w_deadpid = 0;
   p->w_pid = 0;
 #ifdef BUILTIN_TELNET
   if (p->w_type == W_TYPE_TELNET)
@@ -1807,13 +1809,13 @@ char *data;
 	return;
 #endif
       debug2("Window %d: read error (errno %d) - killing window\n", p->w_number, errno);
-      WindowDied(p);
+      WindowDied(p, 0, 0);
       return;
     }
   if (len == 0)
     {
       debug1("Window %d: EOF - killing window\n", p->w_number);
-      WindowDied(p);
+      WindowDied(p, 0, 0);
       return;
     }
   debug1(" -> %d bytes\n", len);

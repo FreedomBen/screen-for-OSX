@@ -214,7 +214,7 @@ char HostName[MAXSTR];
 int MasterPid;
 int real_uid, real_gid, eff_uid, eff_gid;
 int default_startup;
-int ZombieKey_destroy, ZombieKey_resurrect;
+int ZombieKey_destroy, ZombieKey_resurrect, ZombieKey_onerror;
 char *preselect = NULL;		/* only used in Attach() */
 
 #ifdef UTF8
@@ -1365,13 +1365,37 @@ char **av;
 }
 
 void
-WindowDied(p)
+WindowDied(p, wstat, wstat_valid)
 struct win *p;
+int wstat;
+int wstat_valid;
 {
-  if (ZombieKey_destroy)
+  int killit = 0;
+
+  if (ZombieKey_destroy && ZombieKey_onerror && wstat_valid &&
+      WIFEXITED(wstat) && WEXITSTATUS(wstat) == 0)
+	killit = 1;
+
+  if (ZombieKey_destroy && !killit)
     {
-      char buf[100], *s;
+      char buf[100], *s, reason[100];
       time_t now;
+
+      if (wstat_valid) {
+	if (WIFEXITED(wstat))
+	  if (WEXITSTATUS(wstat))
+            sprintf(reason, "terminated with exit status %d", WEXITSTATUS(wstat));
+	  else
+            sprintf(reason, "terminated normally");
+	else if (WIFSIGNALED(wstat))
+          sprintf(reason, "terminated with signal %d%s", WTERMSIG(wstat),
+#ifdef WCOREDUMP
+			  WCOREDUMP(wstat) ? " (core file generated)" : "");
+#else
+			  "");
+#endif
+      } else
+	sprintf(reason, "detached from window");
 
       (void) time(&now);
       s = ctime(&now);
@@ -1388,11 +1412,12 @@ struct win *p;
 #endif
       CloseDevice(p);
 
+      p->w_deadpid = p->w_pid;
       p->w_pid = 0;
       ResetWindow(p);
       /* p->w_y = p->w_bot; */
       p->w_y = MFindUsedLine(p, p->w_bot, 1);
-      sprintf(buf, "\n\r=== Window terminated (%s) ===", s ? s : "?");
+      sprintf(buf, "\n\r=== Command %s (%s) ===", reason, s ? s : "?");
       WriteString(p, buf, strlen(buf));
       WindowChanged(p, 'f');
     }
@@ -1555,12 +1580,16 @@ DoWait()
       for (p = windows; p; p = next)
 	{
 	  next = p->w_next;
-	  if (pid == p->w_pid)
+	  if (  (p->w_pid     && pid == p->w_pid) ||
+		(p->w_deadpid && pid == p->w_deadpid) )
 	    {
+	      /* child has ceased to exist */
+	      p->w_pid = 0;
+		
 #ifdef BSDJOBS
 	      if (WIFSTOPPED(wstat))
 		{
-		  debug3("Window %d pid %d: WIFSTOPPED (sig %d)\n", p->w_number, p->w_pid, WSTOPSIG(wstat));
+		  debug3("Window %d pid %d: WIFSTOPPED (sig %d)\n", p->w_number, pid, WSTOPSIG(wstat));
 #ifdef SIGTTIN
 		  if (WSTOPSIG(wstat) == SIGTTIN)
 		    {
@@ -1577,13 +1606,13 @@ DoWait()
 #endif
 		  /* Try to restart process */
 		  Msg(0, "Child has been stopped, restarting.");
-		  if (killpg(p->w_pid, SIGCONT))
-		    kill(p->w_pid, SIGCONT);
+		  if (killpg(pid, SIGCONT))
+		    kill(pid, SIGCONT);
 		}
 	      else
 #endif
 		{
-		  WindowDied(p);
+		  WindowDied(p, wstat, 1);
 		}
 	      break;
 	    }

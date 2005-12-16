@@ -71,6 +71,7 @@ extern int defobuflimit;
 extern int defnonblock;
 extern int ZombieKey_destroy;
 extern int ZombieKey_resurrect;
+extern int ZombieKey_onerror;
 #ifdef AUTO_NUKE
 extern int defautonuke;
 #endif
@@ -1307,6 +1308,17 @@ int key;
 	    Msg(0, "%s:zombie: one or two characters expected.", rc_name);
 	    break;
 	  }
+	if (args[1])
+	  {
+	    if (!strcmp(args[1], "onerror"))
+	      {
+		ZombieKey_onerror = 1;
+	      } else {
+		Msg(0, "usage: zombie [keys [onerror]]");
+	    	break;
+	      }
+	  } else
+	    ZombieKey_onerror = 0;
         ZombieKey_destroy = args[0][0];
         ZombieKey_resurrect = *argl == 2 ? args[0][1] : 0;
       }

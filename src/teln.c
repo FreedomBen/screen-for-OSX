@@ -90,7 +90,7 @@ char *data;
       strncpy(buf + 1, strerror(errno), sizeof(buf) - 2);
       buf[sizeof(buf) - 1] = 0;
       WriteString(p, buf, strlen(buf));
-      WindowDied(p);
+      WindowDied(p, 0, 0);
       return;
     }
   WriteString(p, "connected.\r\n", 12);
