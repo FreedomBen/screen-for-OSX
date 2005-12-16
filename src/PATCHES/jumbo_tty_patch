@@ -1,0 +1,14 @@
+>Well, it happens here too, it seems, that SunOS 4.1.x does sometimes not
+>notice that only background-processes are using a pty, then it stays open...
+>It happens with Jobcontrol-ing shells (csh, tcsh, zsh, bash,...)
+>and especially often on 'iScreen'. We could only kill those background
+>processes, then edit (with a tool named utmp) /etc/utmp.
+
+You need to apply this patch:
+
+Patch-ID# 100513-02
+Keywords: ALM2, serial port, hangs, printer hangs, XON, XOFF, TIOCCONS re-direct
+ion security console pty dialin dialout drops DTR NULL, panic Bad Trap TIOCSTI
+Synopsis: SunOS 4.1.1;4.1.2;4.1.3: Jumbo tty patch
+Date: 02/Dec/92
+

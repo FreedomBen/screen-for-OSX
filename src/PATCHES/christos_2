@@ -1,0 +1,428 @@
+From christos@guillemin.EE.CORNELL.EDU Wed Feb 19 10:05:57 1992
+Received: from GUILLEMIN.EE.CORNELL.EDU by immd4.informatik.uni-erlangen.de  with SMTP (5.64+/7.3a-FAU)
+	id AA27455; Wed, 19 Feb 92 10:05:25 +0100
+Received: by guillemin.EE.CORNELL.EDU (5.65+IDA-1.3.5+christos-1/1.6.10+n-y-Cornell-Electrical-Engineering)
+	id AA25478; Wed, 19 Feb 92 04:04:59 -0500
+Message-Id: <9202190904.AA25478@guillemin.EE.CORNELL.EDU>
+From: christos@EE.CORNELL.EDU (Christos S. Zoulas)
+Date: Wed, 19 Feb 1992 04:04:59 -0500
+In-Reply-To: "Juergen Weigert (Inf4 - hiwi)" <jnweiger@immd4.informatik.uni-erlangen.de>
+       "Re: Gcc messages while compiling screen" (Feb  7,  8:36pm)
+Reply-To: Christos S. Zoulas <christos@ee.cornell.edu>
+Organization: Cornell University, Electrical Engineering, Ithaca NY 14853
+X-Address: 389 Engineering and Theory Center
+X-Phone: (607) 255 0302
+X-Fax: (607) 255 9072
+X-Face:  %jL.CVv-*"-d?@xSu)#i[QzHK3,c?Qx,G.u#bZ;O'qSg"$LmB})v;&A"6r&;#2NRahSRwYl
+ D9Y8"L97FX^O7oBy?'hA6-1AQA`L(c[yqZySfl/t&4;gHT1|X\ElkgxMV<G<Wl4Bw[Y^/8]X@>NUjM
+ /A)InAN\hPuhymGG{1&&ay2c"[4z_*Gb?{gbnv5+?terjcRFl`(^3vO-^Mw%\Cfk`p{@!a3&/NR#*p
+ <c]7@{DT)R_*g4#M@G98-f$hN#J<pnDfR:xx<ph,7HcR3TeE|G~&}*>fH0rostE1
+X-Mailer: Mail User's Shell (7.2.3 5/22/91)
+To: "Juergen Weigert (Inf4 - hiwi)" <jnweiger@immd4.informatik.uni-erlangen.de>
+Subject: Goofed a little
+Status: OR
+
+Missed a couple of things in the previous patch... 
+
+[These are all my patches against the original source
+ Now screen compiles with 1 warning under acc]
+
+1. Some of the chmod's did not work, so now we have NFSchmod.
+2. I fixed NFSunlink and NFSchmod the way I suggested.
+3. Added strdup declared flag, since the sunos ansi headers get it wrong!
+4. Sun has int argument to signal [according to the sun __STDC__ headers]
+5. The previous BSDI and SHADOWPW fixes.
+6. Sun's ansi stdio cheats and declares the third agrument to vprintf void *
+   so that it does not have to include <stdarg.h> Arghh....
+7. This config file works correctly under sunos with:
+   gcc, occ, cc, acc 
+8. Sun's acc gets confused about trigraphs :-( I changed the error message.
+
+*** extern.h.dist	Sun Feb  2 20:27:41 1992
+--- extern.h	Wed Feb 19 03:26:09 1992
+***************
+*** 140,150 ****
+--- 140,154 ----
+  #endif
+  
+  extern char *Filename __P((char *));
++ extern int NFSunlink __P((char *));
++ extern int NFSchmod __P((char *, int));
+  extern char *MakeTermcap __P((int));
+  extern char *ProcessInput __P((char *, int *, char *, int *, int));
+  extern char *SaveStr __P((char *));
+  extern char *findcap __P((char *, char **, int));
++ #ifndef STRDUP_DECLARED
+  extern char *strdup __P((const char *));
++ #endif /* STRDUP_DECLARED */
+  extern int ChangeScrollback __P((struct win *, int, int));
+  extern int ChangeWindowSize __P((struct win *, int, int));
+  extern int CompileKeys __P((char *, char *));
+*** mark.c.dist	Sun Feb  2 20:27:59 1992
+--- mark.c	Fri Feb  7 12:59:04 1992
+***************
+*** 37,43 ****
+  
+  #include <sys/types.h>
+  
+! #ifdef BSD
+  # include <sys/signal.h>
+  #endif /* BSDI */
+  
+--- 37,43 ----
+  
+  #include <sys/types.h>
+  
+! #ifdef BSDI
+  # include <sys/signal.h>
+  #endif /* BSDI */
+  
+*** screen.c.dist	Sun Feb  2 20:28:12 1992
+--- screen.c	Wed Feb 19 03:18:48 1992
+***************
+*** 1643,1649 ****
+    if (ServerSocket != -1)
+      {
+        debug1("we unlink(%s)\n", SockPath);
+!       (void) unlink(SockPath);
+      }
+    Kill(AttacherPid, SIG_BYE);
+    exit(i);
+--- 1643,1649 ----
+    if (ServerSocket != -1)
+      {
+        debug1("we unlink(%s)\n", SockPath);
+!       (void) NFSunlink(SockPath);
+      }
+    Kill(AttacherPid, SIG_BYE);
+    exit(i);
+***************
+*** 1659,1665 ****
+    if (ServerSocket != -1)
+      {
+        debug1("we unlink(%s)\n", SockPath);
+!       (void) unlink(SockPath);
+      }
+    exit(e);
+  }
+--- 1659,1665 ----
+    if (ServerSocket != -1)
+      {
+        debug1("we unlink(%s)\n", SockPath);
+!       (void) NFSunlink(SockPath);
+      }
+    exit(e);
+  }
+***************
+*** 3640,3646 ****
+--- 3640,3648 ----
+      }
+  #endif
+    pass = ppp->pw_passwd;
++ #ifdef SHADOWPW
+  realpw:
++ #endif
+    for (t = 0; t < 13; t++)
+      {
+        c = pass[t];
+***************
+*** 3808,3814 ****
+    RestoreLoginSlot();
+  #endif
+    freetty();
+!   (void) chmod(SockPath, /* S_IFSOCK | */ 0600); /* Flag detached-ness */
+      /*
+       * tell father to father what to do. We do that after we
+       * freed the tty, thus getty feels more comfortable on hpux
+--- 3810,3817 ----
+    RestoreLoginSlot();
+  #endif
+    freetty();
+! 
+!   (void) NFSchmod(SockPath, /* S_IFSOCK | */ 0600); /* Flag detached-ness */
+      /*
+       * tell father to father what to do. We do that after we
+       * freed the tty, thus getty feels more comfortable on hpux
+***************
+*** 4010,4012 ****
+--- 4013,4064 ----
+    return buf;
+  }
+  
++ /* 
++  * NFSunlink(), and NFSchmod are used to remove, or chmod the sockets. 
++  * This needs to be done when the sockets are on NFS filesystems where
++  * root maps to nobody.
++  */ 
++ int 
++ NFSunlink(fname)
++   char *fname;
++ {
++   int ret;
++ 
++ #ifdef NFS_HACK
++   int restore = 0;
++ 
++   if (eff_uid == geteuid()) {
++     (void) setreuid(eff_uid, real_uid);
++     restore = 1;
++   }
++ #endif
++   ret = unlink(fname);
++ #ifdef NFS_HACK
++   if (restore)
++     (void) setreuid(real_uid, eff_uid);
++ #endif
++   return ret;
++ }
++ 
++ int 
++ NFSchmod(fname, mode)
++   char *fname;
++   int mode;
++ {
++   int ret;
++ 
++ #ifdef NFS_HACK
++   int restore = 0;
++ 
++   if (eff_uid == geteuid()) {
++     (void) setreuid(eff_uid, real_uid);
++     restore = 1;
++   }
++ #endif
++   ret = chmod(fname, mode);
++ #ifdef NFS_HACK
++   if (restore)
++     (void) setreuid(real_uid, eff_uid);
++ #endif
++   return ret;
++ }
+*** screen.h.dist	Tue Feb  4 15:38:26 1992
+--- screen.h	Wed Feb 19 03:35:29 1992
+***************
+*** 163,169 ****
+  # endif
+  #endif /* SIG_T_DEFINED */
+  
+! #if defined(SVR4) || (defined(SYSV) && defined(ISC))
+  # define SIGPROTOARG   (int)
+  # define SIGDEFARG     int sigsig
+  # define SIGARG        0
+--- 163,169 ----
+  # endif
+  #endif /* SIG_T_DEFINED */
+  
+! #if defined(SVR4) || (defined(SYSV) && defined(ISC)) || defined(sun)
+  # define SIGPROTOARG   (int)
+  # define SIGDEFARG     int sigsig
+  # define SIGARG        0
+*** socket.c.dist	Sun Feb  2 20:28:20 1992
+--- socket.c	Wed Feb 19 03:44:17 1992
+***************
+*** 123,129 ****
+  {
+    int s = 0, d;
+  
+!   (void) unlink(SockPath);
+    s = MakeServerSocket();
+    if (s != ServerSocket)
+      {
+--- 123,129 ----
+  {
+    int s = 0, d;
+  
+!   (void) NFSunlink(SockPath);
+    s = MakeServerSocket();
+    if (s != ServerSocket)
+      {
+***************
+*** 138,144 ****
+  	}
+      }
+    if (Detached)
+!     (void) chmod(SockPath, /* S_IFSOCK | */ 0600); /* Flag detached-ness */
+    return 1;
+  }
+  
+--- 138,144 ----
+  	}
+      }
+    if (Detached)
+!     (void) NFSchmod(SockPath, /* S_IFSOCK | */ 0600); /* Flag detached-ness */
+    return 1;
+  }
+  
+***************
+*** 176,181 ****
+--- 176,183 ----
+  	l = NAME_MAX;
+  #endif
+      }
++   else
++     l = 0;
+  
+  #ifdef NFS_HACK
+    setreuid(eff_uid, real_uid);
+***************
+*** 272,278 ****
+  	    {
+                strcpy(SockNamePtr, foundsock[s].name);
+  	      debug1("wiping '%d'\n", SockPath);
+! 	      if (unlink(SockPath) == 0)
+  	        {
+  		  foundsock[s].mode = -2;
+  	          wipecount++;
+--- 274,280 ----
+  	    {
+                strcpy(SockNamePtr, foundsock[s].name);
+  	      debug1("wiping '%d'\n", SockPath);
+! 	      if (NFSunlink(SockPath) == 0)
+  	        {
+  		  foundsock[s].mode = -2;
+  	          wipecount++;
+***************
+*** 355,365 ****
+  	      printf("\t%s\t(Detached)\n", foundsock[s].name);
+  	      break;
+  	    case -1:
+! #if defined(__STDC__) || defined(_AIX)
+! 	      printf("\t%s\t(Dead ??\?)\n", foundsock[s].name);
+! #else
+! 	      printf("\t%s\t(Dead ???)\n", foundsock[s].name);
+! #endif
+  	      break;
+  	    case -2:
+  	      printf("\t%s\t(Removed)\n", foundsock[s].name);
+--- 357,363 ----
+  	      printf("\t%s\t(Detached)\n", foundsock[s].name);
+  	      break;
+  	    case -1:
+! 	      printf("\t%s\t(Dead/could not unlink)\n", foundsock[s].name);
+  	      break;
+  	    case -2:
+  	      printf("\t%s\t(Removed)\n", foundsock[s].name);
+***************
+*** 441,447 ****
+  	Msg(0, "It is not detached.");
+        /* NOTREACHED */
+      }
+!   (void) unlink(SockPath);
+    if (UserContext() > 0)
+      {
+  #if defined(_POSIX_SOURCE) && defined(ISC)
+--- 439,445 ----
+  	Msg(0, "It is not detached.");
+        /* NOTREACHED */
+      }
+!   (void) NFSunlink(SockPath);
+    if (UserContext() > 0)
+      {
+  #if defined(_POSIX_SOURCE) && defined(ISC)
+***************
+*** 545,551 ****
+  	Msg(0, "It is not detached.");
+        /* NOTREACHED */
+      }
+!   (void) unlink(SockPath);
+  #ifndef NOREUID
+    setreuid(eff_uid, real_uid);
+    setregid(eff_gid, real_gid);
+--- 543,549 ----
+  	Msg(0, "It is not detached.");
+        /* NOTREACHED */
+      }
+!   (void) NFSunlink(SockPath);
+  #ifndef NOREUID
+    setreuid(eff_uid, real_uid);
+    setregid(eff_gid, real_gid);
+***************
+*** 552,558 ****
+  #endif
+    if (bind(s, (struct sockaddr *) & a, strlen(SockPath) + 2) == -1)
+      Msg(errno, "bind");
+!   (void) chmod(SockPath, /* S_IFSOCK | */ 0700);
+  #ifdef NOREUID
+    chown(SockPath, real_uid, real_gid);
+  #else
+--- 550,556 ----
+  #endif
+    if (bind(s, (struct sockaddr *) & a, strlen(SockPath) + 2) == -1)
+      Msg(errno, "bind");
+!   (void) NFSchmod(SockPath, /* S_IFSOCK | */ 0700);
+  #ifdef NOREUID
+    chown(SockPath, real_uid, real_gid);
+  #else
+***************
+*** 973,979 ****
+  	if (wtab[i]->slot != (slot_t) -1)
+  	  SetUtmp(wtab[i], i);
+  #endif
+!       (void) chmod(SockPath, /* S_IFSOCK | */ 0700);
+        Detached = 0;
+  #ifdef BSDJOBS
+        Suspended = 0;
+--- 971,977 ----
+  	if (wtab[i]->slot != (slot_t) -1)
+  	  SetUtmp(wtab[i], i);
+  #endif
+!       (void) NFSchmod(SockPath, /* S_IFSOCK | */ 0700);
+        Detached = 0;
+  #ifdef BSDJOBS
+        Suspended = 0;
+*** config/config.sunos41.dist	Sun Feb  2 20:31:24 1992
+--- config/config.sunos41	Wed Feb 19 03:31:23 1992
+***************
+*** 23,30 ****
+  #define LOADAV_3LONGS
+  #undef  LOADAV_4LONGS
+  #undef GETTTYENT
+! #undef NFS_HACK
+! #define LOCALSOCKDIR
+  
+  #ifdef LOCALSOCKDIR
+  # ifndef TMPTEST
+--- 23,30 ----
+  #define LOADAV_3LONGS
+  #undef  LOADAV_4LONGS
+  #undef GETTTYENT
+! #define NFS_HACK
+! #undef LOCALSOCKDIR
+  
+  #ifdef LOCALSOCKDIR
+  # ifndef TMPTEST
+***************
+*** 35,41 ****
+  #endif
+  #undef USEBCOPY
+  #undef TOPSTAT
+! #undef USEVARARGS
+  #define NAMEDPIPE
+  #define LOCK
+  #define PASSWORD
+--- 35,41 ----
+  #endif
+  #undef USEBCOPY
+  #undef TOPSTAT
+! #define USEVARARGS
+  #define NAMEDPIPE
+  #define LOCK
+  #define PASSWORD
+***************
+*** 43,46 ****
+  #define REMOTE_DETACH
+  #define POW_DETACH
+  #define NETHACK
+! #define ETCSCREENRC "/local/etc/screenrc"
+--- 43,52 ----
+  #define REMOTE_DETACH
+  #define POW_DETACH
+  #define NETHACK
+! #define ETCSCREENRC "/usr/local/etc/screenrc"
+! 
+! #if defined(__STDC__) && !defined(__GNUC__)
+! /* for sun's acc which defines __STDC__ == 0 */
+! # define STRDUP_DECLARED
+! # define VPRNT_DECLARED
+! #endif /* __STDC__ && ! __GNUC__ */
+

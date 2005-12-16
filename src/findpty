@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# describe this machines ptys by an orthogonal superset in
+# p0 and p1
+
+files='/dev/pty??'
+
+all=`echo $files`
+set -f
+
+if [ "$all" = "$files" ]; then
+  echo "$files: no match"
+  exit 0
+fi
+set -- $all
+echo "$# ptys found."
+p0=`echo $all '' | sed -e 's/\/dev\/pty\(.\)./\1/g' | tr ' ' '\012' | sort -u | sed -n -e H -e g -e 's/\n//g' -e '$p'`
+p1=`echo $all '' | sed -e 's/\/dev\/pty.\(.\)/\1/g' | tr ' ' '\012' | sort -u | sed -n -e H -e g -e 's/\n//g' -e '$p'`
+echo "PTYRANGE0=$p0"
+echo "PTYRANGE1=$p1"
+

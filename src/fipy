@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# describe this machines ptys by an orthogonal superset in
+# p0 and p1
+
+echo checking for ptyranges
+if test -d /dev/ptym ; then
+pdir='/dev/ptym'
+else
+pdir='/dev'
+fi
+ptys=`echo $pdir/pty??`
+if test "$ptys" != "$pdir/pty??" ; then
+p0=`echo $ptys | tr ' ' '\012' | sed -e 's/^.*\(.\).$/\1/g' | tr ' ' '\012' | sort -u | sed -n -e H -e g -e 's/\n//g' -e '$p'`
+p1=`echo $ptys | tr ' ' '\012' | sed -e 's/^.*\(.\)$/\1/g' | tr ' ' '\012' | sort -u | sed -n -e H -e g -e 's/\n//g' -e '$p'`
+echo "PTYRANGE0=$p0"
+echo "PTYRANGE1=$p1"
+fi
+

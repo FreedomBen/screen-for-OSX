@@ -1,0 +1,1959 @@
+From djm@eng.umd.edu Sun May  3 12:19:14 1992
+Received: from frob.eng.umd.edu by immd4.informatik.uni-erlangen.de with SMTP;
+	id AA23574 (5.61++/7.3m-FAU); Sun, 3 May 92 12:19:09 +0200
+Received: by frob.eng.umd.edu (5.65c/IDA-1.4.4)
+	id AA05895; Sun, 3 May 1992 06:19:02 -0400
+	Rcpt to:mailed to jnweiger@immd4.informatik.uni-erlangen.de
+Date: Sun, 3 May 1992 06:19:02 -0400
+From: "David J. MacKenzie" <djm@eng.umd.edu>
+Message-Id: <199205031019.AA05895@frob.eng.umd.edu>
+To: jnweiger@immd4.informatik.uni-erlangen.de
+Subject: on autoconf
+Status: OR
+
+One warning -- if you get Autoconf, you'll need GNU m4 too.
+
+From djm@eng.umd.edu Sun May  3 11:12:42 1992
+Received: from frob.eng.umd.edu by immd4.informatik.uni-erlangen.de with SMTP;
+	id AA22627 (5.61++/7.3m-FAU); Sun, 3 May 92 11:12:08 +0200
+Received: by frob.eng.umd.edu (5.65c/IDA-1.4.4)
+	id AA05803; Sun, 3 May 1992 05:12:01 -0400
+	Rcpt to:mailed to jnweiger@immd4.informatik.uni-erlangen.de
+Date: Sun, 3 May 1992 05:12:01 -0400
+From: "David J. MacKenzie" <djm@eng.umd.edu>
+Message-Id: <199205030912.AA05803@frob.eng.umd.edu>
+To: jnweiger@immd4.informatik.uni-erlangen.de
+Cc: djm@eng.umd.edu
+Subject: screen 3.2 new files
+Status: OR
+
+Here are the new files.  The old 'config' directory is no longer
+needed at all.  If you have any questions about how this system works,
+just ask!
+
+
+#! /bin/sh
+# This is a shell archive.  Remove anything before this line, then feed it
+# into a shell via "sh file" or similar.  To overwrite existing files,
+# type "sh file -c".
+# The tool that generated this appeared in the comp.sources.unix newsgroup;
+# send mail to comp-sources-unix@uunet.uu.net if you want that tool.
+# Contents:  INSTALL Makefile.in config.h.in configure configure.in
+# Wrapped by djm@frob.eng.umd.edu on Sun May  3 05:04:56 1992
+PATH=/bin:/usr/bin:/usr/ucb ; export PATH
+echo If this archive is complete, you will see the following message:
+echo '          "shar: End of archive."'
+if test -f 'INSTALL' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'INSTALL'\"
+else
+  echo shar: Extracting \"'INSTALL'\" \(4119 characters\)
+  sed "s/^X//" >'INSTALL' <<'END_OF_FILE'
+XThis is a generic INSTALL file for utilities distributions.
+XIf this package does not come with, e.g., installable documentation or
+Xdata files, please ignore the references to them below.
+X
+XTo compile this package:
+X
+X1.  Configure the package for your system.  In the directory that this
+Xfile is in, type `./configure'.  If you're using `csh' on an old
+Xversion of System V, you might need to type `sh configure' instead to
+Xprevent `csh' from trying to execute `configure' itself.
+X
+XThe `configure' shell script attempts to guess correct values for
+Xvarious system-dependent variables used during compilation, and
+Xcreates the Makefile(s) (one in each subdirectory of the source
+Xdirectory).  In some packages it creates a C header file containing
+Xsystem-dependent definitions.  It also creates a file `config.status'
+Xthat you can run in the future to recreate the current configuration.
+XRunning `configure' takes a minute or two.
+X
+XTo compile the package in a different directory from the one
+Xcontaining the source code, you must use GNU make.  `cd' to the
+Xdirectory where you want the object files and executables to go and
+Xrun `configure' with the option `--srcdir=DIR', where DIR is the
+Xdirectory that contains the source code.  Using this option is
+Xactually unnecessary if the source code is in the parent directory of
+Xthe one in which you are compiling; `configure' automatically checks
+Xfor the source code in `..' if it does not find it in the current
+Xdirectory.
+X
+XBy default, `make install' will install the package's files in
+X/usr/local/bin, /usr/local/lib, /usr/local/man, etc.  You can specify
+Xan installation prefix other than /usr/local by giving `configure' the
+Xoption `--prefix=PATH'.  Alternately, you can do so by changing the
+X`prefix' variable in the Makefile that `configure' creates (the
+XMakefile in the top-level directory, if the package contains
+Xsubdirectories).
+X
+XYou can specify separate installation prefixes for machine-specific
+Xfiles and machine-independent files.  If you give `configure' the
+Xoption `--exec_prefix=PATH', the package will use PATH as the prefix
+Xfor installing programs and libraries.  Normally, all files are
+Xinstalled using the same prefix.
+X
+X`configure' ignores any other arguments that you give it.
+X
+XIf your system requires unusual options for compilation or linking
+Xthat `configure' doesn't know about, you can give `configure' initial
+Xvalues for some variables by setting them in the environment.  In
+XBourne-compatible shells, you can do that on the command line like
+Xthis:
+X	CC='gcc -traditional' DEFS=-D_POSIX_SOURCE ./configure
+X
+XThe `make' variables that you might want to override with environment
+Xvariables when running `configure' are:
+X
+X(For these variables, any value given in the environment overrides the
+Xvalue that `configure' would choose:)
+XCC		C compiler program.
+X		Default is `cc', or `gcc' if `gcc' is in your PATH.
+XINSTALL		Program to use to install files.
+X		Default is `install' if you have it, `cp' otherwise.
+XINCLUDEDIR	Directory for `configure' to search for include files.
+X		Default is /usr/include.
+X
+X(For these variables, any value given in the environment is added to
+Xthe value that `configure' chooses:)
+XDEFS		Configuration options, in the form '-Dfoo -Dbar ...'
+XLIBS		Libraries to link with, in the form '-lfoo -lbar ...'
+X
+XIf you need to do unusual things to compile the package, we encourage
+Xyou to teach `configure' how to do them and mail the diffs to the
+Xaddress given in the README so we can include them in the next
+Xrelease.
+X
+X2.  Type `make' to compile the package.
+X
+X3.  Type `make install' to install programs, data files, and
+Xdocumentation.
+X
+X4.  You can remove the program binaries and object files from the
+Xsource directory by typing `make clean'.  To also remove the
+XMakefile(s), the header file containing system-dependent definitions
+X(if the package uses one), and `config.status' (all the files that
+X`configure' created), type `make distclean'.
+X
+XThe file `configure.in' is used as a template to create `configure' by
+Xa program called `autoconf'.  You will only need it if you want to
+Xregenerate `configure' using a newer version of `autoconf'.
+END_OF_FILE
+  if test 4119 -ne `wc -c <'INSTALL'`; then
+    echo shar: \"'INSTALL'\" unpacked with wrong size!
+  fi
+  # end of 'INSTALL'
+fi
+if test -f 'Makefile.in' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'Makefile.in'\"
+else
+  echo shar: Extracting \"'Makefile.in'\" \(1970 characters\)
+  sed "s/^X//" >'Makefile.in' <<'END_OF_FILE'
+X#
+X# Makefile template for screen
+X#
+X# See config.h.in for configuration options.
+X#
+X
+XSHELL = /bin/sh
+X
+Xsrcdir = @srcdir@
+X@VPATH@
+X
+X# Where to install screen.
+X
+Xprefix = /usr/local
+Xexec_prefix = $(prefix)
+X
+Xbindir = $(exec_prefix)/bin
+Xdatadir = $(prefix)/lib
+Xmandir = $(prefix)/man/man1
+X
+XETCSCREENRC = $(datadir)/iscreenrc
+X
+XCC = @CC@
+XCFLAGS = -I. $(DEFS)
+XDEFS = 
+XLDFLAGS = -s
+XLIBS = @LIBS@
+X
+XINSTALL = @INSTALL@
+XINSTALL_PROGRAM = @INSTALL_PROGRAM@
+XINSTALL_DATA = @INSTALL_DATA@
+X
+XCFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c putenv.c
+XOFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o @LIBOBJS@
+X
+Xall: screen
+X
+Xinstall: all
+X	$(INSTALL_DATA) etcscreenrc $(datadir)/iscreenrc
+X	sed 's,/local/etc/screenrc,$(ETCSCREENRC),g' screen.1 > $(mandir)/iscreen.1
+X	$(INSTALL_PROGRAM) screen $(bindir)/iscreen
+X	chown root $(bindir)/iscreen
+X	chmod 4755 $(bindir)/iscreen
+X
+Xscreen: $(OFILES)
+X	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OFILES) $(LIBS)
+X
+Xscreen.o: screen.c screen.h config.h patchlevel.h extern.h
+X	$(CC) $(CFLAGS) -DETCSCREENRC=\"$(ETCSCREENRC)\" -c $(srcdir)/screen.c
+X
+Xhelp.o: help.c screen.h config.h ansi.h extern.h patchlevel.h
+X	$(CC) $(CFLAGS) -c $(srcdir)/help.c
+X
+Xfileio.o: fileio.c screen.h config.h extern.h
+X	$(CC) $(CFLAGS) -c $(srcdir)/fileio.c
+X
+Xansi.o: ansi.c screen.h config.h ansi.h extern.h
+X	$(CC) $(CFLAGS) -c $(srcdir)/ansi.c
+X
+Xmark.o: mark.c screen.h config.h ansi.h extern.h
+X	$(CC) $(CFLAGS) -c $(srcdir)/mark.c
+X
+Xwindow.o: window.c config.h screen.h  extern.h
+X	$(CC) $(CFLAGS) -c $(srcdir)/window.c
+X
+Xsocket.o: socket.c config.h screen.h  extern.h
+X	$(CC) $(CFLAGS) -DETCSCREENRC=\"$(ETCSCREENRC)\" -c $(srcdir)/socket.c
+X
+Xputenv.o: putenv.c config.h
+X	$(CC) $(CFLAGS) -c $(srcdir)/putenv.c
+X
+Xclean:
+X	rm -f $(OFILES) screen
+X
+Xmostlyclean: clean
+X
+Xdistclean: clean
+X	rm -f Makefile config.h config.status
+X
+Xrealclean: distclean
+X	rm -f TAGS
+X
+XTAGS: $(CFILES)
+X	etags $(CFILES)
+X
+Xlint:
+X	lint -I. $(CFILES)
+X
+Xsaber:
+X	#load $(CFLAGS) screen.c ansi.c $(LIBS)
+END_OF_FILE
+  if test 1970 -ne `wc -c <'Makefile.in'`; then
+    echo shar: \"'Makefile.in'\" unpacked with wrong size!
+  fi
+  # end of 'Makefile.in'
+fi
+if test -f 'config.h.in' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'config.h.in'\"
+else
+  echo shar: Extracting \"'config.h.in'\" \(10321 characters\)
+  sed "s/^X//" >'config.h.in' <<'END_OF_FILE'
+X/* Template configuration file for screen.  -*- C -*-
+X * Copyright (c) 1991
+X *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+X *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
+X * Copyright (c) 1987 Oliver Laumann
+X *
+X * This program is free software; you can redistribute it and/or modify
+X * it under the terms of the GNU General Public License as published by
+X * the Free Software Foundation; either version 1, or (at your option)
+X * any later version.
+X *
+X * This program is distributed in the hope that it will be useful,
+X * but WITHOUT ANY WARRANTY; without even the implied warranty of
+X * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+X * GNU General Public License for more details.
+X *
+X * You should have received a copy of the GNU General Public License
+X * along with this program (see the file COPYING); if not, write to the
+X * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+X *
+X * Noteworthy contributors to screen's design and implementation:
+X *	Wayne Davison (davison@borland.com)
+X *	Patrick Wolfe (pat@kai.com, kailand!pat)
+X *	Bart Schaefer (schaefer@cse.ogi.edu)
+X *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
+X *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
+X *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
+X *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
+X *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
+X *	Marc Boucher (marc@CAM.ORG)
+X *
+X ****************************************************************
+X * $Id$ FAU
+X */
+X
+X/*
+X * This file has two parts:
+X * 1.  Site configuration.  Preferences that depend on your tastes
+X *     or on details of your individual installation.
+X *     You should check these values by hand.
+X *
+X * 2.  O.S. configuration.  Variables that depend on what kind of
+X *     operating system you are running.
+X *     The configure script tries to set these correctly automatically
+X *     when it creates config.h from config.h.in.
+X *     If it messes up, you can set them by hand.
+X */
+X
+X
+X/*
+X *		Site Configuration Section
+X */
+X
+X
+X/*
+X * First, decide whether to install screen set-uid to root.
+X * This isn't necessary to use screen, but it allows the pseudo-ttys
+X * to be set to their proper owner (for security purposes), /etc/utmp to be
+X * updated, and /dev/kmem to be accessed to read the load average values.
+X *
+X * Failing to install it suid root (e.g. if you fear a trojan horse) doesn't
+X * have any major disadvantages, except that w(1) and some other utilities
+X * will display only "screen" as the current process, and the pseudo ttys
+X * (ptys) used for the virtual terminals won't have their owners set.  Screen
+X * can provide you some pty security by opening the ptys exclusively, but
+X * this has the unfortunate side-effect of keeping your own subprocesses from
+X * being able to open /dev/tty.
+X *
+X * An alternative to installing screen set-uid root is to install it set-gid
+X * utmp (with the file /etc/utmp installed to be group-utmp writable) or
+X * set-gid kmem (with /dev/kmem set to be group-kmem readable) or some other
+X * custom group to give you both.  The final alternative is to omit /etc/utmp
+X * updating and the /dev/kmem reading (see the following defines) and simply
+X * run screen as a regular program -- its major functions will be unaffected.
+X *
+X * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
+X */
+X#define SUIDROOT
+X
+X/*
+X * If screen is installed with permissions to update /etc/utmp (such as if
+X * it is installed set-uid root), define UTMPOK.  Set LOGINDEFAULT to one (1)
+X * if you want entries added to /etc/utmp by default, else set it to zero (0).
+X */
+X#define UTMPOK
+X#define LOGINDEFAULT	1
+X
+X/*
+X * If UTMPOK is defined and your system (incorrectly) counts logins by
+X * counting non-null entries in /etc/utmp (instead of counting non-null
+X * entries with no hostname that are not on a pseudo tty), define USRLIMIT
+X * to have screen put an upper-limit on the number of entries to write
+X * into /etc/utmp.  This helps to keep you from exceeding a limited-user
+X * license.
+X */
+X#undef USRLIMIT
+X
+X/*
+X * If screen is NOT installed set-uid root, screen can provide tty security
+X * by exclusively locking the ptys.  While this keeps other users from
+X * opening your ptys, it also keeps your own subprocesses from being able
+X * to open /dev/tty.  Define LOCKPTY to add this exclusive locking.
+X */
+X#undef LOCKPTY
+X
+X/*
+X * If your version of NFS supports named sockets and you install screen
+X * suid root, you may need to define NFS_HACK for screen to be able to
+X * open the sockets.
+X */
+X#undef NFS_HACK
+X
+X/*
+X * By default screen will create a directory named ".screen" in the user's
+X * HOME directory to contain the named sockets.  If this causes you problems
+X * (e.g. some user's HOME directories are NFS-mounted and don't support
+X * named sockets) you can have screen create the socket directories in a
+X * common subdirectory, such as /tmp or /usr/tmp.  It makes things a little
+X * more secure if you choose a directory where the "sticky" bit is on, but
+X * this isn't required.  Screen will name the subdirectories "S-$USER"
+X * (e.g /tmp/S-davison).
+X * Do not define TMPTEST unless it's for debugging purpose.
+X * If you want to have your socket directory in "/tmp/screens" then
+X * define LOCALSOCKDIR and change the definition of SOCKDIR below.
+X */
+X#define LOCALSOCKDIR
+X
+X#ifdef LOCALSOCKDIR
+X# ifndef TMPTEST
+X#  define SOCKDIR "/tmp/screens"
+X# else
+X#  define SOCKDIR "/tmp/testscreens"
+X# endif
+X#endif
+X
+X/*
+X * If you'd rather see the status line on the first line of your
+X * terminal rather than the last, define TOPSTAT.
+X * This should really be screenrc-settable, not a compile option.
+X */
+X#undef TOPSTAT
+X
+X/*
+X * define LOCK if you want to use a lock program for a screenlock.
+X * define PASSWORD for secure reattach of your screen.
+X * define COPY_PASTE to use the famous hacker's treasure zoo.
+X * define POW_DETACH to have a detach_and_logout key.
+X * define REMOTE_DETACH (-d option) to move screen between terminals.
+X */
+X#define LOCK
+X#define PASSWORD
+X#define COPY_PASTE
+X#define REMOTE_DETACH
+X#define POW_DETACH
+X
+X/*
+X * As error messages are mostly meaningless to the user, we
+X * try to throw out phrases that are somewhat more familiar
+X * to ...well, at least familiar to us NetHack players.
+X */
+X#define NETHACK
+X
+X
+X/*
+X *		O.S. Configuration Section
+X *		configure defines these symbols if appropriate
+X */
+X
+X
+X/*
+X * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
+X */
+X#undef POSIX
+X
+X/*
+X * Define BSDJOBS if you have BSD-style job control (both process
+X * groups and a tty that deals correctly with them).
+X */
+X#undef BSDJOBS
+X
+X/*
+X * Define TERMIO if you have struct termio instead of struct sgttyb.
+X * This is usually the case for SVID systems, where BSD uses sgttyb.
+X * POSIX systems should define this anyway, even though they use
+X * struct termios.
+X */
+X#undef TERMIO
+X
+X/*
+X * Define TERMINFO if your machine emulates the termcap routines
+X * with the terminfo database.
+X * Thus the .screenrc file is parsed for
+X * the command 'terminfo' and not 'termcap'.
+X */
+X#undef TERMINFO
+X
+X/*
+X * Define SYSV if your machine is SYSV complient (Sys V, HPUX, A/UX)
+X */
+X#undef SYSV
+X
+X/*
+X * Define SIGVOID if your signal handlers return void.  On older
+X * systems, signal returns int, but on newer ones, it returns void.
+X */
+X#undef SIGVOID 
+X
+X/*
+X * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
+X */
+X#undef DIRENT
+X
+X/*
+X * If your system has getutent(), pututline(), etc. to write to the
+X * utmp file, define GETUTENT.
+X */
+X#undef GETUTENT
+X
+X/*
+X * Define UTHOST if the utmp file has a host field.
+X */
+X#undef UTHOST
+X
+X/*
+X * If ttyslot() breaks getlogin() by returning indexes to utmp entries of
+X * type DEAD_PROCESS, then our getlogin() replacement should be selected by
+X * defining BUGGYGETLOGIN.  This is only known to happen on SVR4.
+X * This is only used if UTMPOK is defined.
+X */
+X#undef BUGGYGETLOGIN
+X
+X/*
+X * If your system does not have the calls setreuid() and setregid(), define
+X * NOREUID to force screen to use a forked process to safely create output
+X * files without retaining any special privileges.  (Output logging will be
+X * disabled, however.)
+X */
+X#undef NOREUID
+X
+X/*
+X * If you want the "time" command to display the current load average
+X * you must install screen with the needed privileges to read /dev/kmem
+X * and have a load average format that screen understands.  We handle the
+X * following formats:  3 doubles (BSD), 3 longs (sun), and 4 longs (alliant).
+X */
+X#undef LOADAV_3DOUBLES
+X#undef LOADAV_3LONGS
+X#undef LOADAV_4LONGS
+X
+X/*
+X * If your system has the new format /etc/ttys (like 4.3 BSD) and the
+X * getttyent(3) library functions, define GETTTYENT.
+X */
+X#undef GETTTYENT
+X
+X/*
+X * Define USEBCOPY if the bcopy() from your system's C library supports the
+X * overlapping of source and destination blocks.  When undefined, screen
+X * uses its own (probably slower) version of bcopy().
+X */
+X#undef USEBCOPY
+X
+X/*
+X * If your system has vsprintf() and requires the use of the macros in
+X * "varargs.h" to use functions with variable arguments,
+X * define USEVARARGS.
+X */
+X#undef USEVARARGS
+X
+X/*
+X * Define this if your system supports named pipes.
+X */
+X#undef NAMEDPIPE
+X
+X/*
+X * if your system does not come with a putenv()/getenv() functions, 
+X * you may bring in our own code by defining NEEDSETENV *and* adding 
+X * putenv.c to your Makefile.
+X */
+X#undef NEEDSETENV
+X
+X/*
+X * Define if you have shadow passwords and <shadow.h>.
+X */
+X#undef SHADOWPW
+X
+X/*
+X * Define if you are not SYSV, POSIX, apollo, or sysV68,
+X * yet your headers define pid_t.
+X */
+X#undef PID_T_DEFINED
+X
+X/*
+X * Define if your headers define sig_t.
+X */
+X#undef SIG_T_DEFINED
+X
+X/*
+X * Define each of these if the appropriate function is declared in
+X * your system header files.
+X */
+X#undef CRYPT_DECLARED
+X#undef GETHOSTNAME_DECLARED
+X#undef KILLSTUFF_DECLARED /* kill and maybe killpg */
+X#undef MEMFUNCS_DECLARED /* bzero, bcopy or memset */
+X#undef MKNOD_DECLARED /* in sys/stat.h */
+X#undef NLIST_DECLARED
+X#undef PUTENV_DECLARED
+X#undef REUID_DECLARED /* setres?[ug]id */
+X#undef SETPGID_DECLARED /* in unistd.h */
+X#undef VPRNT_DECLARED /* vsprintf */
+X#undef WAITSTUFF_DECLARED /* wait3 */
+X
+X/*
+X * If you are on a SYS V machine that restricts filename length to 14 
+X * characters, you may need to enforce that by defining this to 14.
+X */
+X#ifndef NAME_MAX
+X#undef NAME_MAX
+X#endif
+END_OF_FILE
+  if test 10321 -ne `wc -c <'config.h.in'`; then
+    echo shar: \"'config.h.in'\" unpacked with wrong size!
+  fi
+  # end of 'config.h.in'
+fi
+if test -f 'configure' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'configure'\"
+else
+  echo shar: Extracting \"'configure'\" \(15056 characters\)
+  sed "s/^X//" >'configure' <<'END_OF_FILE'
+X#!/bin/sh
+X# Guess values for system-dependent variables and create Makefiles.
+X# Generated automatically using autoconf.
+X# Copyright (C) 1991, 1992 Free Software Foundation, Inc.
+X
+X# This program is free software; you can redistribute it and/or modify
+X# it under the terms of the GNU General Public License as published by
+X# the Free Software Foundation; either version 2, or (at your option)
+X# any later version.
+X
+X# This program is distributed in the hope that it will be useful,
+X# but WITHOUT ANY WARRANTY; without even the implied warranty of
+X# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+X# GNU General Public License for more details.
+X
+X# You should have received a copy of the GNU General Public License
+X# along with this program; if not, write to the Free Software
+X# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+X
+X# Usage: configure [--srcdir=DIR] [--host=HOST] [--gas] [--nfp]
+X#        [--prefix=PREFIX] [--exec_prefix=PREFIX] [--with-PROGRAM] [TARGET]
+X# Ignores all args except --srcdir, --prefix, and --exec_prefix.
+X
+Xtrap 'rm -f conftest* core; exit 1' 1 3 15
+X
+Xfor arg in $*; do
+X  # Handle --exec_prefix with a space before the argument.
+X  if test x$next_exec_prefix = xyes; then exec_prefix=$arg; next_exec_prefix=
+X  # Handle --host with a space before the argument.
+X  elif test x$next_host = xyes; then next_host=
+X  # Handle --prefix with a space before the argument.
+X  elif test x$next_prefix = xyes; then prefix=$arg; next_prefix=
+X  # Handle --srcdir with a space before the argument.
+X  elif test x$next_srcdir = xyes; then srcdir=$arg; next_srcdir=
+X  else
+X    case $arg in
+X     -exec_prefix=* | --exec_prefix=* | --exec_prefi=* | --exec_pref=* | --exec_pre=* | --exec_pr=* | --exec_p=* | --exec_=* | --exec=* | --exe=* | --ex=* | --e=*)
+X	exec_prefix=`echo $arg | sed 's/[-a-z_]*=//'` ;;
+X     -exec_prefix | --exec_prefix | --exec_prefi | --exec_pref | --exec_pre | --exec_pr | --exec_p | --exec_ | --exec | --exe | --ex | --e)
+X	next_exec_prefix=yes ;;
+X
+X     -gas | --gas | --ga | --g) ;;
+X
+X     -host=* | --host=* | --hos=* | --ho=* | --h=*) ;;
+X     -host | --host | --hos | --ho | --h)
+X	next_host=yes ;;
+X
+X     -nfp | --nfp | --nf | --n) ;;
+X
+X     -prefix=* | --prefix=* | --prefi=* | --pref=* | --pre=* | --pr=* | --p=*)
+X	prefix=`echo $arg | sed 's/[-a-z_]*=//'` ;;
+X     -prefix | --prefix | --prefi | --pref | --pre | --pr | --p)
+X	next_prefix=yes ;;
+X
+X     -srcdir=* | --srcdir=* | --srcdi=* | --srcd=* | --src=* | --sr=* | --s=*)
+X	srcdir=`echo $arg | sed 's/[-a-z_]*=//'` ;;
+X     -srcdir | --srcdir | --srcdi | --srcd | --src | --sr | --s)
+X	next_srcdir=yes ;;
+X
+X     -with-* | --with-*) ;;
+X
+X     *) ;;
+X    esac
+X  fi
+Xdone
+X
+Xtest -z "$exec_prefix" && exec_prefix='$(prefix)'
+X
+XINCLUDEDIR=${INCLUDEDIR-/usr/include}
+X
+Xrm -f conftest*
+Xcompile='${CC-cc} $DEFS conftest.c -o conftest $LIBS >/dev/null 2>&1'
+X
+X# A filename unique to this package, relative to the directory that
+X# configure is in, which we can look for to find out if srcdir is correct.
+Xunique_file=screen.c
+X
+X# Makefile rules whose targets are searched for in VPATH need to use $<.
+X# However, old makes do not support it, so we use a combination
+X# construction in Makefile.in: `$file<'.
+X# If srcdir is `.', we use sed to change that to `file' for old makes.
+X# Otherwise, we use sed to change it to `$<'.
+X# vpsub is the sed program, which changes `$file<' to one or the other.
+Xvpsub='s,\$\([-./a-zA-Z0-9_][-./a-zA-Z0-9_]*\)<,\1,g'
+X# srsub changes `@srcdir@' in Makefile.in into either `.' or the path
+X# of the top of the source tree for the package.
+Xsrsub='s,@srcdir@,.,'
+X
+X# Find the source files, if location was not specified.
+Xif test -z "$srcdir"; then
+X  srcdirdefaulted=yes; srcdir=.
+X  if test ! -r $unique_file; then srcdir=..; fi
+Xfi
+Xif test ! -r $srcdir/$unique_file; then
+X  if test x$srcdirdefaulted = xyes; then
+X    echo "configure: Can not find sources in \`.' or \`..'." 1>&2
+X  else
+X    echo "configure: Can not find sources in \`${srcdir}'." 1>&2
+X  fi
+X  exit 1
+Xfi
+Xif test $srcdir != .; then
+X  VPATH='VPATH = $(srcdir)'
+X  case $srcdir in
+X    /*|~*) ;;
+X    *) srcdir=`pwd`/$srcdir ;; # Make relative path absolute.
+X  esac
+X  vpsub='s,\$\([-./a-zA-Z0-9_][-./a-zA-Z0-9_]*\)<,\$<,g'
+X  srsub="s,@srcdir@,$srcdir,"
+Xfi
+X
+X
+X# The Bourne shell writes "command not found" to /dev/tty, so if we get
+X# a usage message on stderr, we have the program.
+X#
+X# ksh and zsh write "command not found" to stderr, but test -n does not
+X# want any output if there is no program.  So we use the `type' builtin
+X# instead for them (and bash).
+Xif test "$RANDOM" = "$RANDOM"; then
+X  checkfor='test -n "`$checkprog $checkargs 2>&1`"'
+Xelse
+X  checkfor='type $checkprog >/dev/null 2>&1'
+Xfi
+X
+X
+Xcompile='rm -f conftest.t;
+X  mv conftest.c conftest.t;
+X  echo "$DEFS" > conftest.c;
+X  cat conftest.t >> conftest.c;
+X  rm -f conftest.t;
+X  ${CC-cc} conftest.c -o conftest $LIBS >/dev/null 2>&1'
+X
+X
+Xecho checking for gcc
+Xcheckprog=gcc checkargs=''
+Xtest -z "$CC" && eval $checkfor && CC='gcc '
+XCC=${CC-cc}
+X
+X# Find out if we are using GNU C, under whatever name.
+Xcat <<EOF > conftest.c
+Xmain() {
+X#ifdef __GNUC__
+X  exit(0);
+X#else
+X  exit(1);
+X#endif
+X}
+XEOF
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  GCC=1 # For later tests.
+X  CC="$CC -O"
+Xelse
+X  :
+Xfi
+Xrm -f conftest*
+X
+Xif test -n "$GCC"; then
+X  echo checking whether -traditional is needed
+X  if test -f $INCLUDEDIR/termio.h; then
+X    prog='#include <sys/types.h>
+X#include <termio.h>
+Xmain() {
+X  struct termio t;
+X  exit(ioctl(0, TCGETA, &t) == 0);
+X}'
+X  elif test -f $INCLUDEDIR/sgtty.h; then
+X    prog='#include <sys/types.h>
+X#include <sgtty.h>
+Xmain() {
+X  struct sgttyb t;
+X  exit(ioctl(0, TIOCGETP, &t) == 0);
+X}'
+X  else
+X    prog='main() { exit(1); }'
+X  fi
+X  cat <<EOF > conftest.c
+X$prog
+XEOF
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  CC="$CC -traditional"
+Xelse
+X  :
+Xfi
+Xrm -f conftest*
+X
+Xfi
+X
+Xecho checking for install
+X# Make sure to not get the incompatible SysV /etc/install and
+X# /usr/sbin/install, which might be in PATH before a BSD-like install.
+Xif test -z "$INSTALL"; then
+X  saveifs="$IFS"; IFS="$IFS:"
+X  for dir in $PATH; do
+X    test -z "$dir" && dir=.
+X    case $dir in
+X    /etc|/usr/sbin) ;;
+X    *)
+X      if test -f $dir/install; then
+X	INSTALL="$dir/install -c"
+X	INSTALL_PROGRAM='$(INSTALL)'
+X	INSTALL_DATA='$(INSTALL) -m 644'
+X	break
+X      fi
+X      ;;
+X    esac
+X  done
+X  IFS="$saveifs"
+Xfi
+XINSTALL=${INSTALL-cp}
+XINSTALL_PROGRAM=${INSTALL_PROGRAM-'$(INSTALL)'}
+XINSTALL_DATA=${INSTALL_DATA-'$(INSTALL)'}
+X
+X
+Xecho checking for POSIXized ISC
+Xif test -d /etc/conf/kconfig.d &&
+X  grep _POSIX_VERSION /usr/include/sys/unistd.h >/dev/null 2>&1
+Xthen
+X  ISC=1 # If later tests want to check for ISC.
+X  DEFS="${DEFS}#define _POSIX_SOURCE 1
+X"
+X  if test -n "$GCC"; then
+X    CC="$CC -posix"
+X  else
+X    CC="$CC -Xp"
+X  fi
+Xfi
+X
+Xif test -n "$ISC"; then
+X  DEFS="${DEFS}#define ISC 1
+X" LIBS="$LIBS -linet"
+Xfi
+X
+Xecho checking for RiscOS
+Xif test -f /lib/libmld.a; then # RiscOS.
+X  test -z "$GCC" && CC="$CC -systype bsd43"
+X  DEFS="${DEFS}#define MIPS 1
+X" LIBS="$LIBS -lmld" # for loadavg.
+Xfi
+X
+Xecho checking for Ultrix
+Xcat <<EOF > conftest.c
+Xmain() {
+X#if defined(ultrix) || defined(__ultrix) || defined(__ultrix)
+X  exit(0);
+X#else
+X  exit(1);
+X#endif
+X}
+XEOF
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  ULTRIX=1
+Xelse
+X  :
+Xfi
+Xrm -f conftest*
+X
+X
+Xif test -n "$ULTRIX"; then
+X  test -z "$GCC" && CC="$CC -YBSD"
+Xelse
+X  # POSIX termios is broken on Ultrix so don't look for it.
+Xecho checking for POSIX.1
+Xcat <<EOF > conftest.c
+X#include <sys/types.h>
+X#include <unistd.h>
+Xmain () {
+X#ifdef _POSIX_VERSION
+X  exit(0);
+X#else
+X  exit(1);
+X#endif
+X}
+XEOF
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  DEFS="${DEFS}#define POSIX 1
+X"
+Xelse
+X  :
+Xfi
+Xrm -f conftest*
+X
+Xfi
+X
+Xecho checking for BSD job control
+Xecho "#include <sys/types.h>
+X#include <sys/ioctl.h>
+Xmain() { exit(0); } t() { int x = TIOCNOTTY; }" > conftest.c
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  DEFS="${DEFS}#define BSDJOBS 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for termio or termios
+Xif test -f $INCLUDEDIR/termio.h || test -f $INCLUDEDIR/termios.h; then
+X  DEFS="${DEFS}#define TERMIO 1
+X"
+Xfi
+X
+Xecho checking for termcap or terminfo
+Xif test ! -f /etc/termcap && test ! -f /usr/share/lib/termcap; then
+X  DEFS="${DEFS}#define TERMINFO 1
+X" LIBS="$LIBS -lcurses"
+Xelse
+X  LIBS="$LIBS -ltermcap"
+Xfi
+X
+Xecho checking for shadow.h
+Xtest -f $INCLUDEDIR/shadow.h && DEFS="${DEFS}#define SHADOWPW 1
+X"
+X
+X
+Xecho checking for System V
+Xecho "#include <sys/types.h>
+X#include <signal.h>
+X#include <fcntl.h>
+Xmain() { exit(0); } t() { int x = SIGCHLD | FNDELAY; }" > conftest.c
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then :
+Xelse
+X  DEFS="${DEFS}#define SYSV 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for signal handler type
+Xpattern='(void|sighandler_t).*signal'
+Xif egrep "$pattern" $INCLUDEDIR/signal.h >/dev/null 2>&1 ||
+X  egrep "$pattern" $INCLUDEDIR/sys/signal.h >/dev/null 2>&1; then
+X  DEFS="${DEFS}#define SIGVOID 1
+X"
+Xfi
+X
+Xecho checking for directory library header
+Xdirheader=sys/dir.h
+Xif test -f $INCLUDEDIR/dirent.h; then
+X  DEFS="${DEFS}#define DIRENT 1
+X" dirheader=dirent.h
+Xelif test -f $INCLUDEDIR/sys/ndir.h; then
+X  DEFS="${DEFS}#define SYSNDIR 1
+X" dirheader=sys/ndir.h
+Xfi
+Xecho checking for "void.*closedir" in "$dirheader"
+Xgrep 'void.*closedir' $INCLUDEDIR/$dirheader >/dev/null 2>&1 && VOID_CLOSEDIR
+X
+X
+Xecho checking for getutent
+Xecho "#include <utmp.h>
+Xmain() { exit(0); } t() { int x = DEAD_PROCESS; getutent(); }" > conftest.c
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  DEFS="${DEFS}#define GETUTENT 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for mknod declaration
+Xcat <<EOF > conftest.c
+X#include <sys/types.h>
+X#include <sys/stat.h>
+Xchar *mknod(short); main() {}
+XEOF
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  :
+Xelse
+X  DEFS="${DEFS}#define MKNOD_DECLARED 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for setpgid declaration
+Xcat <<EOF > conftest.c
+X#include <sys/types.h>
+X#include <unistd.h>
+Xchar *setpgid(short); main() {}
+XEOF
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  :
+Xelse
+X  DEFS="${DEFS}#define SETPGID_DECLARED 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for setreuid
+Xecho "
+Xmain() { exit(0); } t() { setreuid(); }" > conftest.c
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then :
+Xelse
+X  DEFS="${DEFS}#define NOREUID 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for getttyent
+Xecho "
+Xmain() { exit(0); } t() { getttyent(); }" > conftest.c
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  DEFS="${DEFS}#define GETTTYENT 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking whether bcopy handles overlapping arguments
+Xcat <<EOF > conftest.c
+Xmain() {
+X  char buf[10];
+X  strcpy(buf, "abcdefghi");
+X  bcopy(buf, buf + 2, 3);
+X  if (!strncmp(buf, "ababcd", 6))
+X    exit(0); /* libc version works properly.  */
+X  else
+X    exit(1);
+X}
+XEOF
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  DEFS="${DEFS}#define USEBCOPY 1
+X"
+Xelse
+X  :
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for vsprintf
+Xecho "#include <varargs.h>
+X#include <stdio.h>
+Xmain() { exit(0); } t() { vsprintf(); }" > conftest.c
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  DEFS="${DEFS}#define USEVARARGS 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for putenv
+Xecho "
+Xmain() { exit(0); } t() { putenv(); }" > conftest.c
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then :
+Xelse
+X  DEFS="${DEFS}#define NEEDSETENV 1
+X" LIBOBJS="$LIBOBJS putenv.o"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for "ut_host" in "utmp.h"
+Xgrep 'ut_host' $INCLUDEDIR/utmp.h >/dev/null 2>&1 && DEFS="${DEFS}#define UTHOST 1
+X"
+X
+X
+Xecho checking for pid_t
+Xecho "#include <sys/types.h>
+Xmain() { exit(0); } t() { pid_t x; }" > conftest.c
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  DEFS="${DEFS}#define PID_T_DEFINED 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking for sig_t
+Xecho "#include <sys/types.h>
+X#include <signal.h>
+Xmain() { exit(0); } t() { sig_t x; }" > conftest.c
+Xeval $compile
+Xif test -s conftest && (./conftest) 2>/dev/null; then
+X  DEFS="${DEFS}#define SIG_T_DEFINED 1
+X"
+Xfi
+Xrm -f conftest*
+X
+X
+Xecho checking load average type
+Xif test -f /bin/sun; then DEFS="${DEFS}#define LOADAV_3LONGS 1
+X"
+Xelif test -f /bin/alliant; then DEFS="${DEFS}#define LOADAV_4LONGS 1
+X"
+Xelif test -f /vmunix; then DEFS="${DEFS}#define LOADAV_3DOUBLES 1
+X"
+Xfi
+X
+Xecho checking for long file names
+X(echo 1 > conftest9012345) 2>/dev/null
+X(echo 2 > conftest9012346) 2>/dev/null
+Xval=`cat conftest9012345 2>/dev/null`
+Xif test -f conftest9012345 && test "$val" = 1; then :
+Xelse DEFS="${DEFS}#define NAME_MAX 14
+X"
+Xfi
+Xrm -f conftest9012345 conftest9012346
+X
+Xecho checking for "S_I.*FIFO" in "sys/stat.h"
+Xgrep 'S_I.*FIFO' $INCLUDEDIR/sys/stat.h >/dev/null 2>&1 && DEFS="${DEFS}#define NAMEDPIPE 1
+X"
+X
+X
+Xecho checking for SVR4 elf library
+Xif test -f /usr/ucblib/libucb.a; then # SVR4
+X  DEFS="${DEFS}#define SVR4 1
+X" DEFS="${DEFS}#define BUGGYGETLOGIN 1
+X" LIBS="$LIBS -lelf"
+Xfi
+X
+Xecho checking for SCO crypt library
+Xtest -f /lib/libcrypt_d.a && LIBS="$LIBS -lcrypt_d" # SCO UNIX
+Xtest -f /lib/libcrypt.a && LIBS="$LIBS -lcrypt" # SCO UNIX
+X
+Xecho checking for IRIX sun library
+Xtest -f /lib/libsun.a && LIBS="$LIBS -lsun" # SGI
+X
+Xecho checking for Xenix
+Xif test -f /xenix; then
+X  DEFS="${DEFS}#define VOID_CLOSEDIR 1
+X"
+X  LIBS="$LIBS -lx"
+X  case "$DEFS" in
+X  *SYSNDIR*) ;;
+X  *) LIBS="-ldir $LIBS" ;; # Make sure -ldir precedes any -lx.
+X  esac
+Xfi
+X
+X
+Xtrap 'rm -f Makefile config.status config.h; exit 1' 1 3 15
+X
+Xif test -n "$prefix"; then
+X  prsub="s,^prefix[ 	]*=.*$,prefix = $prefix,
+Xs,^exec_prefix[ 	]*=.*$,exec_prefix = $exec_prefix,"
+Xfi
+X
+Xfor file in Makefile; do
+X  # Not all systems have dirname.
+X  dir=`echo $file|sed 's,/[^/][^/]*$,,'`
+X  test "$dir" != "$file" && test ! -d $dir && mkdir $dir
+X  echo creating $file
+X  echo "# Generated automatically from `basename $file`.in by configure." > $file
+X  sed -e "
+X$vpsub
+X$srsub
+Xs,@VPATH@,$VPATH,
+X$prsub
+Xs,@CC@,$CC,
+Xs,@INSTALL@,$INSTALL,
+Xs,@INSTALL_PROGRAM@,$INSTALL_PROGRAM,
+Xs,@INSTALL_DATA@,$INSTALL_DATA,
+Xs,@LIBOBJS@,$LIBOBJS,
+Xs,@LIBS@,$LIBS,
+X" $srcdir/${file}.in >> $file
+Xecho "
+X# Prevent GNU make v3 from overflowing arg limit on SysV.
+X.NOEXPORT:" >> $file
+Xdone
+X
+Xecho creating config.h
+Xecho "/* config.h.  Generated automatically by configure.  */" > config.h
+Xecho "$DEFS
+X/* END_OF_DEFS */" |
+Xawk '
+X# The escaped newlines are to work around a bug in GNU m4 0.99
+X# in quoting more than 2 arguments in a single line.
+XBEGIN { filenum = 1 }
+Xfilenum == 1 && $1 == "#define" \
+X{ defs[$2] = $3
+X  for (i = 4; i <= NF; i++)
+X    defs[$2] = defs[$2] " " $i
+X}
+X/END_OF_DEFS/ { filenum = 2; next }
+Xfilenum == 2 && $1 == "#define" && \
+Xdefs[$2] != "" {
+X  $3 = defs[$2]
+X  print; next
+X}
+Xfilenum == 2 && $1 == "#undef" && \
+Xdefs[$2] != "" {
+X  $1 = "#define"
+X  $2 = $2 " " defs[$2]
+X  print; next
+X}
+Xfilenum == 2 { print }
+X' - $srcdir/config.h.in >> config.h
+X
+Xecho creating config.status
+Xrm -f config.status
+Xecho "#!/bin/sh
+X# Generated automatically by configure.
+X# Run this file to recreate the current configuration.
+X$0 $*" > config.status
+Xchmod +x config.status
+X
+END_OF_FILE
+  if test 15056 -ne `wc -c <'configure'`; then
+    echo shar: \"'configure'\" unpacked with wrong size!
+  fi
+  chmod +x 'configure'
+  # end of 'configure'
+fi
+if test -f 'configure.in' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'configure.in'\"
+else
+  echo shar: Extracting \"'configure.in'\" \(4076 characters\)
+  sed "s/^X//" >'configure.in' <<'END_OF_FILE'
+Xdnl Process this file with autoconf to produce a configure script.
+XAC_INIT(screen.c)
+XAC_HEADER_FILE(config.h)
+X
+XAC_PROG_GCC
+XAC_GCC_TRADITIONAL
+XAC_PROG_INSTALL
+X
+XAC_ISC_POSIX
+Xif test -n "$ISC"; then
+X  AC_DEFINE(ISC) LIBS="$LIBS -linet"
+Xfi
+X
+Xecho checking for RiscOS
+Xif test -f /lib/libmld.a; then # RiscOS.
+X  test -z "$GCC" && CC="$CC -systype bsd43"
+X  AC_DEFINE(MIPS) LIBS="$LIBS -lmld" # for loadavg.
+Xfi
+X
+Xecho checking for Ultrix
+XAC_TEST_PROGRAM([main() {
+X#if defined(ultrix) || defined(__ultrix) || defined(__ultrix)
+X  exit(0);
+X#else
+X  exit(1);
+X#endif
+X}], ULTRIX=1, :)
+X
+Xif test -n "$ULTRIX"; then
+X  test -z "$GCC" && CC="$CC -YBSD"
+Xelse
+X  # POSIX termios is broken on Ultrix so don't look for it.
+Xecho checking for POSIX.1
+XAC_TEST_PROGRAM([#include <sys/types.h>
+X#include <unistd.h>
+Xmain () {
+X#ifdef _POSIX_VERSION
+X  exit(0);
+X#else
+X  exit(1);
+X#endif
+X}], AC_DEFINE(POSIX), :)
+Xfi
+X
+XAC_LIBTHING_PRESENT([BSD job control], 
+X[#include <sys/types.h>
+X#include <sys/ioctl.h>], [int x = TIOCNOTTY;], AC_DEFINE(BSDJOBS))
+X
+Xecho checking for termio or termios
+Xif test -f $INCLUDEDIR/termio.h || test -f $INCLUDEDIR/termios.h; then
+X  AC_DEFINE(TERMIO)
+Xfi
+X
+Xecho checking for termcap or terminfo
+Xif test ! -f /etc/termcap && test ! -f /usr/share/lib/termcap; then
+X  AC_DEFINE(TERMINFO) LIBS="$LIBS -lcurses"
+Xelse
+X  LIBS="$LIBS -ltermcap"
+Xfi
+X
+XAC_HEADER_PRESENT(shadow.h, AC_DEFINE(SHADOWPW))
+X
+XAC_LIBTHING_MISSING([System V],
+X[#include <sys/types.h>
+X#include <signal.h>
+X#include <fcntl.h>], [int x = SIGCHLD | FNDELAY;], AC_DEFINE(SYSV))
+X
+Xecho checking for signal handler type
+Xpattern='(void|sighandler_t).*signal'
+Xif egrep "$pattern" $INCLUDEDIR/signal.h >/dev/null 2>&1 ||
+X  egrep "$pattern" $INCLUDEDIR/sys/signal.h >/dev/null 2>&1; then
+X  AC_DEFINE(SIGVOID)
+Xfi
+X
+XAC_DIR_HEADER
+X
+XAC_LIBTHING_PRESENT(getutent, [#include <utmp.h>],
+X[int x = DEAD_PROCESS; getutent();], AC_DEFINE(GETUTENT))
+X
+Xecho checking for mknod declaration
+XAC_TEST_PROGRAM([#include <sys/types.h>
+X#include <sys/stat.h>
+Xchar *mknod(short); main() {}], :, AC_DEFINE(MKNOD_DECLARED))
+X
+Xecho checking for setpgid declaration
+XAC_TEST_PROGRAM([#include <sys/types.h>
+X#include <unistd.h>
+Xchar *setpgid(short); main() {}], :, AC_DEFINE(SETPGID_DECLARED))
+X
+XAC_LIBTHING_MISSING(setreuid, , [setreuid();], AC_DEFINE(NOREUID))
+X
+XAC_LIBTHING_PRESENT(getttyent, , [getttyent();], AC_DEFINE(GETTTYENT))
+X
+Xecho checking whether bcopy handles overlapping arguments
+XAC_TEST_PROGRAM([main() {
+X  char buf[10];
+X  strcpy(buf, "abcdefghi");
+X  bcopy(buf, buf + 2, 3);
+X  if (!strncmp(buf, "ababcd", 6))
+X    exit(0); /* libc version works properly.  */
+X  else
+X    exit(1);
+X}], AC_DEFINE(USEBCOPY), :)
+X
+XAC_LIBTHING_PRESENT(vsprintf, [#include <varargs.h>
+X#include <stdio.h>], [vsprintf();], AC_DEFINE(USEVARARGS))
+X
+XAC_LIBTHING_MISSING(putenv, , [putenv();], 
+XAC_DEFINE(NEEDSETENV) LIBOBJS="$LIBOBJS putenv.o")
+XAC_SUBST(LIBOBJS)dnl
+X
+XAC_IDENT_PRESENT(ut_host, utmp.h, AC_DEFINE(UTHOST))
+X
+XAC_LIBTHING_PRESENT([pid_t],
+X[#include <sys/types.h>], [pid_t x;],
+XAC_DEFINE(PID_T_DEFINED))
+X
+XAC_LIBTHING_PRESENT([sig_t],
+X[#include <sys/types.h>
+X#include <signal.h>], [sig_t x;],
+XAC_DEFINE(SIG_T_DEFINED))
+X
+Xecho checking load average type
+Xif test -f /bin/sun; then AC_DEFINE(LOADAV_3LONGS)
+Xelif test -f /bin/alliant; then AC_DEFINE(LOADAV_4LONGS)
+Xelif test -f /vmunix; then AC_DEFINE(LOADAV_3DOUBLES)
+Xfi
+X
+Xecho checking for long file names
+X(echo 1 > conftest9012345) 2>/dev/null
+X(echo 2 > conftest9012346) 2>/dev/null
+Xval=`cat conftest9012345 2>/dev/null`
+Xif test -f conftest9012345 && test "$val" = 1; then :
+Xelse AC_DEFINE(NAME_MAX, 14)
+Xfi
+Xrm -f conftest9012345 conftest9012346
+X
+XAC_IDENT_PRESENT(S_I.*FIFO, sys/stat.h, AC_DEFINE(NAMEDPIPE))
+X
+Xecho checking for SVR4 elf library
+Xif test -f /usr/ucblib/libucb.a; then # SVR4
+X  AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN) LIBS="$LIBS -lelf"
+Xfi
+X
+Xecho checking for SCO crypt library
+Xtest -f /lib/libcrypt_d.a && LIBS="$LIBS -lcrypt_d" # SCO UNIX
+Xtest -f /lib/libcrypt.a && LIBS="$LIBS -lcrypt" # SCO UNIX
+X
+Xecho checking for IRIX sun library
+Xtest -f /lib/libsun.a && LIBS="$LIBS -lsun" # SGI
+X
+XAC_XENIX_DIR
+X
+XAC_OUTPUT(Makefile)
+END_OF_FILE
+  if test 4076 -ne `wc -c <'configure.in'`; then
+    echo shar: \"'configure.in'\" unpacked with wrong size!
+  fi
+  # end of 'configure.in'
+fi
+echo shar: End of archive.
+exit 0
+
+From djm@eng.umd.edu Sun May  3 11:11:12 1992
+Received: from frob.eng.umd.edu by immd4.informatik.uni-erlangen.de with SMTP;
+	id AA22574 (5.61++/7.3m-FAU); Sun, 3 May 92 11:10:51 +0200
+Received: by frob.eng.umd.edu (5.65c/IDA-1.4.4)
+	id AA05800; Sun, 3 May 1992 05:10:32 -0400
+	Rcpt to:mailed to jnweiger@immd4.informatik.uni-erlangen.de
+Date: Sun, 3 May 1992 05:10:32 -0400
+From: "David J. MacKenzie" <djm@eng.umd.edu>
+Message-Id: <199205030910.AA05800@frob.eng.umd.edu>
+To: jnweiger@immd4.informatik.uni-erlangen.de
+Cc: djm@eng.umd.edu
+Subject: screen 3.2 configuration improvements
+Status: OR
+
+screen 3.2 is much easier to configure than 3.0, which I gave up on in
+disgust and confusion when it came out.  However, there is still much
+room for improvement.  I have rewritten its configuration system to
+conform to the GNU coding standards, in the process clearing up a lot
+of confusion.
+
+A general summary of what I did, followed by patches:
+
+1.  Rename readme to README, getting rid of the old README, which
+didn't contain much of value.  Having two of them was just confusing.
+
+2.  Fix some errors and omissions in screen.1.
+
+3.  Centralize where the pathname of the global screenrc is defined.
+It's now defined in just one place: Makefile.in.
+In 3.2, it has lots of values mentioned in various files; even screen.1
+mentions several different values in different places.
+
+4.  Organize config.h into two sections: one for site-dependent policy
+decisions and one for O.S.-dependent features.  It would be even
+cleaner to use two separate files.  Whether you compile in the NETHACK
+messages has nothing to do with whether you're using Xenix or SVR4.
+
+5.  Replace the config directory with a configure script generated by
+Autoconf.  This script figures out automatically which features the
+O.S. has.
+
+Autoconf is a tool I wrote to help generate configure scripts for GNU
+utilities.  Some other people are using it now, too, such as Ian
+Taylor (author of the GNU uucp).  I haven't officially released it
+yet, because I'm still working out a few more details, but it's in
+pretty good shape.  If you can ftp to the U.S., you can get the
+current test version from the "gnu" directory on host
+alpha.gnu.ai.mit.edu, in the file autoconf-0.108.tar.Z.
+
+Along with this, I added an install target to the Makefile, and the
+capability of compiling in a directory other than the source directory.
+This allows compiling for several architectures at once, from the same
+source tree.
+
+I also replaced the INSTALLATION file with an INSTALL file I wrote to
+be generic to small GNU utilities packages.
+
+The old file config/config.all is now called config.h.in.  I added a
+bunch of previously undocumented (but used) options to it.
+
+Among other advantages, this system eliminates having to keep a dozen
+Makefiles in sync.  I noticed lots of little differences between the
+ones distributed with 3.2.
+
+6.  Remove some silly defaults from the global screenrc.  Really,
+turning vbell and Woof Woof on by default is not a good idea.
+
+7.  Fix a few misc. bugs.  Example: screen didn't compile if UTMPOK
+wasn't defined, because stripdev didn't get compiled in, but screen.c
+used it unconditionally.  So I moved stripdev outside of the #ifdef UTMPOK.
+
+I have compiled screen 3.2 using my new configuration system on SunOS
+4.1.1, SVR4, HP-UX 7.0, and Ultrix 4.2, all only using gcc.  I'm sure
+it needs tweaking on some other kinds of systems.  I tried to include
+the various customizations from the config directory, but in some
+cases I don't have enough information to be sure that I got it exactly
+right.  Fixing what problems remain should be easy, though, for people
+who have those kinds of systems.
+
+For most of the *_DECLARED macros, I'm not sure in which header file
+to look to see whether they're declared.  If someone can tell me, I
+will be able to account for them in configure.  I only did the ones
+that caused me problems on the systems that I tested.
+
+Here are my changes.  I think they make screen much easier to compile
+and install.  In a second mail message I will send you the new files I
+added.
+
+diff +unif=2 iscreen-3.2.dist/CHANGES iscreen-3.2/CHANGES
+--- iscreen-3.2.dist/CHANGES	Sun Oct  6 10:26:10 1991
++++ iscreen-3.2/CHANGES	Sat May  2 23:09:17 1992
+@@ -6,5 +6,5 @@
+ command line option -A. $LINES, $COLUMNS improved.
+ 
+-C-A : vbell_wait <sec>
++C-A : vbellwait <sec>
+ 
+ XENIX support (Ronald Khoo)
+Only in iscreen-3.2: INSTALL
+Only in iscreen-3.2.dist: INSTALLATION
+Only in iscreen-3.2.dist: Makefile
+Only in iscreen-3.2: Makefile.in
+diff +unif=2 iscreen-3.2.dist/README iscreen-3.2/README
+--- iscreen-3.2.dist/README	Sun Sep  8 19:28:38 1991
++++ iscreen-3.2/README	Sun May  3 02:28:12 1992
+@@ -1,86 +1,55 @@
++"screen" is a window manager that allows you to handle several independent
++screens (UNIX ttys) on a single physical terminal; each screen has its own
++set of processes connected to it (typically interactive shells).  Each
++virtual terminal created by "screen" emulates a DEC VT100 plus several ANSI
++X3.64 and ISO 2022 functions (including DEC VT102 features such as line and
++character deletion and insertion).
++
++Since "screen" uses pseudo-ttys, the select system call, and UNIX-domain
++sockets, it will not run under a system that does not include these
++features of 4.2 and 4.3 BSD UNIX.
++
++To compile and install screen:
++
++Read through the "Site Configuration" section of config.h.in, and edit
++it to suit your site.  Each define is well commented to help you decide
++what to choose.  Then follow the instructions in the file INSTALL.
++
++
++If you want to get a quick idea how "screen" works but don't want to read
++the entire manual, do the following:
++ 
++     -  call "screen" without arguments
++     -  wait for the shell prompt; execute some commands
++     -  type ^A ^C (Control-A followed by Control-C)
++     -  wait for the shell prompt; do something in the new window
++     -  type ^A ^A repeatedly to switch between the two windows
++     -  terminate the first shell ("screen" switches to the other window)
++     -  terminate the second shell
++
++If you have "vttest" (the VT100 test program from mod.sources) you
++may want to run it from within "screen" to verify that it correctly
++emulates a VT100 on your terminal (except for things your terminal is
++incapable of handling, like 132 column mode and double width/height
++characters, of course).
++
++By the way, "screen" can be used to compensate for certain bugs of "real"
++VT100 terminals.  For instance, our 4.2 BSD version of mille(6) garbles
++the display on terminals of the VT100 family, but it works quite fine
++when it is invoked from within "screen".  In addition, "screen" enables
++you to use EMACS on terminals that are unable to generate Control-S and
++Control-Q from the keyboard or that require flow control using Control-S
++and Control-Q.  This is the reason why I have an alias like
++
++     alias emacs "screen emacs"
++
++in my .cshrc file.  Users who run EMACS on terminals which normally have no
++trouble with Control-S and Control-Q will probably want to run screen with
++the -fn or -fa options, or put the line "flow off" or "flow auto" in their
++.screenrc file.
+ 
+-Short introduction to screen (Version 3.0.7)                  jw 7.9.91
++Send your questions, comments and bug reports for screen to:
+ 
+-screen 
+-  provides you with an ansi/vt100 terminal emulator, which can multiplex
+-  up to 10 pseudo-terminals. On startup, it executes $SHELL in window 0.
+-  Then it reads $HOME/.screenrc to learn configuration, keybindings, 
+-  and may open more windows.
++           Juergen Weigert 
+ 
+-  C-A C		Create new windows.
+-
+-  C-A SPACE	Advance from window to window (with wraparound)
+-
+-  C-A C-A	Toggle between two windows.
+-
+-  C-A 0
+-   ...
+-  C-A 9		Switch to window nr. 0 ... 9.
+-
+-  C-A w		Show a list of windows in the Statusline.
+-
+-  C-A a		(Think of goto-start-of-line in emacs or tcsh).
+-  C-A s		(Think of i-search in emacs).
+-  C-A q		Send a literal C-A/C-S/C-Q to the process in the window.
+-
+-  C-A l		Redraw this window.
+-
+-  C-A W		Toggle between 80 & 132 columns mode. 
+-
+-  C-A L		Try to toggle the utmp-slot for this window.
+-
+-  C-A A		Prompt for a new name for this window. (see C-A w).
+-
+-  C-A z		Suspend the whole screen.
+-
+-  C-A x		Execute /usr/bin/lock or $LOCKCMD or a builtin terminallock.
+-
+-  C-A C-[	Start copy&paste mode. Move cursor with h,j,k,l. Set 2 marks
+-		with SPACE or y. Abort with ESC. Note that "C-[" is ESC.
+-		NOTE: there is a userdefined amount of scrollback history.
+-                The history buffer is entered, when the cursor hits the top
+-		of the window.
+-
+-  C-A C-]	paste in current window's stdin. see C-A C-[.
+-
+-  C-A <
+-  C-A >		Read or write the copybuffer from/to the exchange file.
+-		Multiple screen users on the same host may thus transfer text.
+-
+-  C-A d		Detach screen. All processes continue and may spool output
+-		to their pty's, but screen disconnects from your terminal.
+-		reattach with "screen -r".
+-
+-  C-A D D	Power detach. Disconnect like C-A d and kill the parent shell.
+-
+-  C-A K		Kill a window and send SIGHUP to its processgroup. Per default
+-		this would be C-A C-k. But it is redefined in the demo .screenrc
+-		(think of killing a whole line in emacs).
+-
+-  C-A :set all  Show all keybindings. The above list is not at all complete and
+-		may even be wrong, as keys can be redefined in .screenrc or
+-		with "C-A :bind 'X' keyname [arguments]".
+-
+-  C-A : ....  Online configuration change.
+-
+-
+-screen -r [host.tty]
+-  Reattach a detached screen session. The terminal emulator reconfigures
+-  according to your $TERMCAP or $TERM settings. '-R' brings up a detached
+-  session or (if none) creates a new session. You should specify a socket
+-  when there you have multiple screens detached. 
+-
+-screen -d [host.tty]
+-  Detach a screen session from remote. Has the same effect as typing 'C-A d'
+-  on the controlling terminal. '-D' will power-detach.
+-
+-screen -list
+-screen -ls
+-  Show all available sockets. If there are (DEAD???) sockets, you may consider 
+-  removing them. If there are sockets missing, you may send a SIGCHLD to its
+-  process 'SCREEN' and the process will re-establish the socket. (think of 
+-  someone cleaning /tmp thoroughly).
+-
+-screen -h 200
+-  Starts a new screen session and sets the number of lines in the scrollback
+-  buffer to 200. The default is 50 lines.
++	   jnweiger@immd4.informatik.uni-erlangen.de
+Only in iscreen-3.2.dist: config
+Only in iscreen-3.2.dist: config.h
+Only in iscreen-3.2: config.h.in
+Only in iscreen-3.2: configure
+Only in iscreen-3.2: configure.in
+diff +unif=2 iscreen-3.2.dist/etcscreenrc iscreen-3.2/etcscreenrc
+--- iscreen-3.2.dist/etcscreenrc	Tue Feb  4 16:24:49 1992
++++ iscreen-3.2/etcscreenrc	Sat May  2 23:49:44 1992
+@@ -1,7 +1,5 @@
+ # This is a global screenrc file
+-# Install this file as /usr/local/etc/screenrc. See config.h
+ #
+ # Flaws of termcap and standard settings are done here.
+-# Note: This file should not be shared between different hosts.
+ #       The 'termcap' lines are written in termcap syntax.
+ #       The syntax for a terminfo based host is slightly different.
+@@ -15,17 +13,11 @@
+ #sleep 2
+ 
+-# startup_message off
++# Disable the big copyright notice.
++startup_message off
+ 
+-#flow on # will force iScreen to process ^S/^Q
++# Make utmp entries.
++login on
+ 
+-set vbell on
+-set login on
+-set autodetach off
+-
+-# 'vbell on' without the prepended 'set' keyword will change the default for 
+-# subsequently opened windows. With the 'set' keyword we would change
+-# the setting of the currently active window.
+-vbell on
+-set vbell_msg "   Wuff,  ----  Wuff!!  "
++autodetach on
+ 
+ # all termcap entries are now duplicated as terminfo entries.
+@@ -82,13 +74,2 @@
+ termcap wy75-42 xo
+ terminfo wy75-42 xo
+-
+-#remove some stupid / dangerous key bindings
+-bind '^k'
+-#bind 'L'
+-bind '^\'
+-#make them better
+-bind '\\' quit
+-bind 'K' kill
+-bind 'I' set login on
+-bind 'O' set login off
+-bind '}' history
+diff +unif=2 iscreen-3.2.dist/extern.h iscreen-3.2/extern.h
+--- iscreen-3.2.dist/extern.h	Sun Feb  2 20:27:41 1992
++++ iscreen-3.2/extern.h	Sat May  2 19:57:06 1992
+@@ -145,5 +145,7 @@
+ extern char *SaveStr __P((char *));
+ extern char *findcap __P((char *, char **, int));
++#if !__GNUC__
+ extern char *strdup __P((const char *));
++#endif
+ extern int ChangeScrollback __P((struct win *, int, int));
+ extern int ChangeWindowSize __P((struct win *, int, int));
+diff +unif=2 iscreen-3.2.dist/fileio.c iscreen-3.2/fileio.c
+--- iscreen-3.2.dist/fileio.c	Tue Feb  4 15:41:18 1992
++++ iscreen-3.2/fileio.c	Sun May  3 04:12:58 1992
+@@ -1935,24 +1935,4 @@
+ }
+ 
+-char *
+-stripdev(nam)
+-char *nam;
+-{
+-#ifdef apollo
+-  char *p;
+-
+-  if (nam == NULL)
+-    return NULL;
+-  if (p = strstr(nam,"/dev/"))
+-    return p + 5;
+-#else
+-  if (nam == NULL)
+-    return NULL;
+-  if (strncmp(nam, "/dev/", 5) == 0)
+-    return nam + 5;
+-#endif
+-  return nam;
+-}
+-
+ static slot_t TtyNameSlot(nam)
+ char *nam;
+@@ -2293,4 +2273,24 @@
+ #endif	/* UTMPOK */
+ 
++char *
++stripdev(nam)
++char *nam;
++{
++#ifdef apollo
++  char *p;
++
++  if (nam == NULL)
++    return NULL;
++  if (p = strstr(nam,"/dev/"))
++    return p + 5;
++#else
++  if (nam == NULL)
++    return NULL;
++  if (strncmp(nam, "/dev/", 5) == 0)
++    return nam + 5;
++#endif
++  return nam;
++}
++
+ #if !defined(GETTTYENT) && !defined(GETUTENT)
+ 
+@@ -2542,5 +2542,5 @@
+ }
+ 
+-#ifdef BUGGYGETLOGIN
++#if defined(BUGGYGETLOGIN) && defined(UTMPOK)
+ char *
+ getlogin()
+Only in iscreen-3.2.dist: readme
+diff +unif=2 iscreen-3.2.dist/screen.1 iscreen-3.2/screen.1
+--- iscreen-3.2.dist/screen.1	Tue Feb  4 15:49:07 1992
++++ iscreen-3.2/screen.1	Sat May  2 23:33:22 1992
+@@ -1,2 +1,3 @@
++.\" -*- nroff -*-
+ .if n .ds Q \&"
+ .if n .ds U \&"
+@@ -184,5 +185,5 @@
+ Create a new window with a shell and switch to that window.
+ .IP "\fBC-a C\fP   (clear)"
+-Clear the screen.
++Clear the screen (saves image to scrollback buffer).
+ .IP "\fBC-a d\fP  or  \fBC-a C-d\fP   (detach)"
+ Detach
+@@ -196,5 +197,5 @@
+ .B \-r
+ option. (See also section \*QCOMMAND-LINE OPTIONS\*U.)
+-.IP "\fBC-a D D\fP   (pow_detach)"
++.IP "\fBC-a D\fP   (pow_detach)"
+ Power detach. Mainly the same as above, but also sends a HANGUP signal to
+ the parent process of
+@@ -229,6 +230,6 @@
+ like in \*U(80,24)+50\*U, various flag settings (flow-control, insert mode,
+ origin
+-mode, wrap mode, application-keypad mode, output logging, and activity
+-monitoring (`+' indicates enabled, `-' not)),
++mode, wrap mode, application-keypad mode, output logging, activity
++monitoring, and redraw (`+' indicates enabled, `-' not)),
+ the currently active character set (\fIG0\fP, \fIG1\fP, \fIG2\fP,
+ or \fIG3\fP), and in square brackets the terminal character sets that are
+@@ -472,4 +473,9 @@
+ must redraw parts of the display in order to implement a function.
+ .TP 5
++.B \-A
++Adapt the sizes of all windows to the size of the display.  By default,
++.I screen
++may try to restore its old window sizes.
++.TP 5
+ .B "\-c \fIfile\fP"
+ override the default configuration file from \*Q$HOME/.screenrc\*U
+@@ -524,6 +530,9 @@
+ `dead' should be thoroughly checked and removed. Ask your system administrator
+ if you are not sure. Remove sessions with the \fB-wipe\fP option.
++.IP 5
++.B "\-m"
++disables looking in environment variable $STY for an alternate socket name.
+ .TP 5
+-.B "\-t \fIname\fP"
++.B "\-t \fIname\fP or \fB\-k\fP \fIname\fP"
+ sets the title (a.\|k.\|a.) for the default shell or specified program.
+ See also the \*Qshellaka\*U .screenrc command.
+@@ -794,5 +803,5 @@
+ .I screen
+ users with a 'message of the
+-day'. Typically installed in a global /usr/local/etc/screenrc. See also
++day'. Typically installed in a global /local/etc/screenrc. See also
+ \*Qsleep\*U.
+ Echo is also useful for online checking of environment variables.
+@@ -867,17 +876,12 @@
+ .PP
+ .ne 3
+-.B "nethack on\fP|\fBoff"
++.B "monitor on\fP|\fBoff\fP"
+ .sp
+-Changes the kind of error messages used by
+-.IR screen .
+-When you are familiar with the game \*Qnethack\*U, you may enjoy the
+-nethack-style messages which will often blur the facts a little, but are
+-much funnier to read. Anyway, standard messages often tend to be unclear as
+-well.
+-.br
+-This option is only 
+-available, if screen was compiled with the NETHACK flag defined. The
+-default setting is then determined by the presence of the environment 
+-variable $NETHACKOPTIONS.
++Toggles activity monitoring of windows.
++When monitoring is turned on and an affected window is switched into the
++background, you will receive the activity notification message in the
++status line at the first sign of output and the window will also be marked
++with an `@' in the window-status display.
++Monitoring is initially off for all windows.
+ .PP
+ .ne 3
+@@ -896,4 +900,19 @@
+ .PP
+ .ne 3
++.B "nethack on\fP|\fBoff"
++.sp
++Changes the kind of error messages used by
++.IR screen .
++When you are familiar with the game \*Qnethack\*U, you may enjoy the
++nethack-style messages which will often blur the facts a little, but are
++much funnier to read. Anyway, standard messages often tend to be unclear as
++well.
++.br
++This option is only 
++available if screen was compiled with the NETHACK flag defined. The
++default setting is then determined by the presence of the environment 
++variable $NETHACKOPTIONS.
++.PP
++.ne 3
+ .B "password \fP[\fIcrypted_pw\fP]"
+ .sp
+@@ -934,13 +953,15 @@
+ .sp
+ .I screen
+-creates a shell window (in window #1), a window with a TELNET connection
++creates a shell window (in window #1) and a window with a TELNET connection
+ to the machine foobar (with no flow-control using the a.\|k.\|a. \*Qfoobar\*U
+-in window #2), and finally, a second shell window
+-(the default window) which gets a window number of zero.
++in window #2).  If you do not include any
++.I screen
++commands in your \*Q.screenrc\*U file, then
++.I screen
++defaults to creating a single shell window, number zero.
+ When the initialization is completed,
+ .I screen
+ switches to the last window specified in your .screenrc file or, if none, it
+-opens a default window #0 that would be displayed in this
+-case.
++opens default window #0.
+ .PP
+ .ne 3
+@@ -994,4 +1015,11 @@
+ .PP
+ .ne 3
++.B "startup_message on\fP|\fBoff\fP"
++.sp
++Select whether to display the copyright notice when
++.I screen
++starts up.
++.PP
++.ne 3
+ .B "term \fIterm\fP"
+ .sp
+@@ -998,7 +1026,7 @@
+ In each window's environment
+ .I screen
+-opens, it sets the $TERM variable to \*Qscreen\*U by default. 
+-But when no description for \*Qscreen\*U is installed in the local termcap
+-or terminfo data base, you can pretend that the terminal emulator is - say -
++opens, it sets the $TERM variable to \*Qscreen\*U by default, unless
++no description for \*Qscreen\*U is installed in the local termcap
++or terminfo data base.  In that case it pretends that the terminal emulator is
+ \*Qvt100\*U. This won't do much harm, as 
+ .I screen
+@@ -1260,5 +1288,5 @@
+ .fi
+ .sp
+-This file would start two shells (one specified, one default) using
++This file would start a shell using
+ the given shellaka.
+ The a.\|k.\|a. specified is an auto-aka that would expect the prompt and
+@@ -1670,4 +1698,35 @@
+ (A)	Stop relay to printer (ANSI Media Copy)
+ .fi
++.SH ENVIRONMENT
++.IP COLUMNS
++Number of columns on the terminal (overrides termcap entry).
++.IP HOME
++Directory in which to look for .screenrc.
++.IP ISCREENRC
++Alternate user screenrc file.
++.IP LINES
++Number of lines on the terminal (overrides termcap entry).
++.IP LOCKPRG
++Screen lock program.
++.IP NETHACKOPTIONS
++Turns on nethack option.
++.IP PATH
++Used for locating programs to run.
++.IP SCREENCAP
++For customizing a terminal's TERMCAP value.
++.IP SCREENDIR
++Alternate socket directory.
++.IP SCREENRC
++Alternate user screenrc file.
++.IP SHELL
++Default shell program for opening windows (default \*Q/bin/sh\*U).
++.IP STY
++Alternate socket name.
++.IP SYSSCREENRC
++Alternate system screenrc file.
++.IP TERM
++Terminal name.
++.IP TERMCAP
++Terminal description.
+ .SH FILES
+ .nf
+@@ -1683,5 +1742,5 @@
+ $HOME/.iscreenrc
+ .br
+-$HOME/.screenrc	  Read in after /usr/local/etc/screenrc
++$HOME/.screenrc	  Read in after /local/etc/screenrc
+ .br
+ $ISCREENDIR/S-<login>
+diff +unif=2 iscreen-3.2.dist/screen.c iscreen-3.2/screen.c
+--- iscreen-3.2.dist/screen.c	Sun Feb  2 20:28:12 1992
++++ iscreen-3.2/screen.c	Sun May  3 03:54:55 1992
+@@ -73,4 +73,7 @@
+ 
+ #include <signal.h>
++#if defined(SVR4) && !defined(NSIG)
++#define NSIG 32
++#endif
+ 
+ #include "config.h"
+diff +unif=2 iscreen-3.2.dist/socket.c iscreen-3.2/socket.c
+--- iscreen-3.2.dist/socket.c	Sun Feb  2 20:28:20 1992
++++ iscreen-3.2/socket.c	Sun May  3 04:30:18 1992
+@@ -107,5 +107,9 @@
+ 
+ char *strdup(str)
++#ifdef hpux
++char *str;
++#else
+ const char *str;
++#endif
+ {
+   char *ret;
+Common subdirectories: iscreen-3.2.dist/terminfo and iscreen-3.2/terminfo
+
+
+

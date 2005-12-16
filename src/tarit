@@ -1,0 +1,11 @@
+#!/bin/csh
+sed -e '1,$s/^startup/# startup/' < ~/.iscreenrc > .iscreenrc
+sed -e '1,$s/^startup/# startup/' < /local/etc/screenrc > ./etcscreenrc
+mv Makefile ,Makefile
+cp config/Makefile.all Makefile
+(cd ../../;tar cvf screen/3.2/screen32.tar screen/3.2/*.[ch1]\
+screen/3.2/terminfo screen/3.2/.iscreenrc screen/3.2/readme.quick\
+screen/3.2/Makefile* screen/3.2/*.sh screen/3.2/INSTALLATION\
+screen/3.2/CHANGES screen/3.2/COPYING screen/3.2/poster\
+screen/3.2/config/config* screen/3.2/config/Makefile* screen/3.2/etcscreenrc)
+cp ,Makefile Makefile

@@ -1,0 +1,338 @@
+From davidb@mcis.washington.edu Tue Apr  7 00:56:45 1992
+Received: from junior.mcis.washington.edu by immd4.informatik.uni-erlangen.de with SMTP;
+	id AA25600 (5.61++/7.3m-FAU); Tue, 7 Apr 92 00:56:32 +0200
+Received: by junior.mcis.washington.edu
+	(5.57/UW-NDC Revision: 2.21 ) id AA19199; Mon, 6 Apr 92 15:57:34 -0700
+Date: Mon, 6 Apr 92 15:57:34 -0700
+From: David Barr <davidb@mcis.washington.edu>
+Message-Id: <9204062257.AA19199@junior.mcis.washington.edu>
+To: jnweiger@immd4.informatik.uni-erlangen.de
+Subject: insert command
+Status: OR
+
+I added an 'insert' command to screen.  The command takes one
+argument: the string to be pasted.  I did this so that I can write
+macros.  For example, if I type:
+
+bind "!" insert "davidb@mcis.washington.edu^m"
+
+then I can use ^a! to type my e-mail address really fast.
+
+I'm sending you the diffs that can be applied to screen 3.2.  The
+files which I changed were fileio.c, screen.c and screen.h.  Let me
+know what you think.  I know that the code could be made a little bit
+cleaner, but what I did works for me, so I'm happy :).
+
+David
+
+---cut below this line---
+*** fileio.c	Mon Apr  6 14:19:42 1992
+--- ../3.2/fileio.c	Tue Feb  4 12:41:18 1992
+***************
+*** 176,189 ****
+  #ifdef COPY_PASTE
+  extern char *copybuffer;
+  extern copylen;
+- int pastelen;
+- char *pastebuffer;
+  #endif
+  
+  static char *CatExtra __P((char *, char *));
+  static char **SaveArgs __P((int, char **));
+  static int Parse __P((char *, char *[]));
+! char *ParseChar __P((char *, char *));
+  static void ParseNum __P((int, char *[], int*));
+  static void ParseOnOff __P((int, char *[], int*));
+  static void ParseSaveStr __P((int, char *[], char **, char *));
+--- 176,187 ----
+  #ifdef COPY_PASTE
+  extern char *copybuffer;
+  extern copylen;
+  #endif
+  
+  static char *CatExtra __P((char *, char *));
+  static char **SaveArgs __P((int, char **));
+  static int Parse __P((char *, char *[]));
+! static char *ParseChar __P((char *, char *));
+  static void ParseNum __P((int, char *[], int*));
+  static void ParseOnOff __P((int, char *[], int*));
+  static void ParseSaveStr __P((int, char *[], char **, char *));
+***************
+*** 213,222 ****
+    "select0", "select1", "select2", "select3", "select4",
+    "select5", "select6", "select7", "select8", "select9",
+    "aka", "clear", "colon", "copy", "detach", "flow",
+!   "hardcopy", "help", "histnext", "history", "info", "insert", "kill",
+!   "lastmsg", "license", "lockscreen", "log", "login", "monitor", "next",
+!   "other", "paste", "pow_detach", "prev", "quit", "readbuf", "redisplay",
+!   "removebuf", "reset", "set", "shell", "suspend", "termcap", "time", "vbell",
+    "version", "width", "windows", "wrap", "writebuf", "xoff", "xon",
+    0,
+  };
+--- 211,221 ----
+    "select0", "select1", "select2", "select3", "select4",
+    "select5", "select6", "select7", "select8", "select9",
+    "aka", "clear", "colon", "copy", "detach", "flow",
+!   "hardcopy", "help", "histnext", "history", "info", "kill", "lastmsg",
+!   "license",
+!   "lockscreen", "log", "login", "monitor", "next", "other", "paste",
+!   "pow_detach", "prev", "quit", "readbuf", "redisplay", "removebuf",
+!   "reset", "set", "shell", "suspend", "termcap", "time", "vbell",
+    "version", "width", "windows", "wrap", "writebuf", "xoff", "xon",
+    0,
+  };
+***************
+*** 227,237 ****
+  char *RCNames[] =
+  {
+    "activity", "all", "autodetach", "bell", "bind", "bufferfile", "chdir",
+!   "crlf", "echo", "escape", "flow", "hardcopy_append", "hardstatus", "insert",
+!   "login", "markkeys", "mode", "monitor", "msgminwait", "msgwait", "nethack",
+!   "password", "pow_detach_msg", "redraw", "refresh", "screen", "scrollback",
+!   "shell", "shellaka", "sleep", "slowpaste", "startup_message", "term",
+!   "termcap", "terminfo", "vbell", "vbell_msg", "vbellwait", "visualbell",
+    "visualbell_msg", "wrap",
+  };
+  
+--- 226,236 ----
+  char *RCNames[] =
+  {
+    "activity", "all", "autodetach", "bell", "bind", "bufferfile", "chdir",
+!   "crlf", "echo", "escape", "flow", "hardcopy_append", "hardstatus", "login", 
+!   "markkeys", "mode", "monitor", "msgminwait", "msgwait", "nethack", "password",
+!   "pow_detach_msg", "redraw", "refresh", "screen", "scrollback", "shell", 
+!   "shellaka", "sleep", "slowpaste", "startup_message", "term", "termcap",
+!   "terminfo", "vbell", "vbell_msg", "vbellwait", "visualbell",
+    "visualbell_msg", "wrap",
+  };
+  
+***************
+*** 250,256 ****
+    RC_FLOW,
+    RC_HARDCOPY_APP,
+    RC_HARDSTATUS,
+-   RC_INSERT,
+    RC_LOGIN,
+    RC_MARKKEYS,
+    RC_MODE,
+--- 249,254 ----
+***************
+*** 472,478 ****
+    rc_name = "";
+  }
+  
+! char *
+  ParseChar(p, cp)
+  char *p, *cp;
+  {
+--- 470,476 ----
+    rc_name = "";
+  }
+  
+! static char *
+  ParseChar(p, cp)
+  char *p, *cp;
+  {
+***************
+*** 840,864 ****
+        return;
+      case RC_POW_DETACH_MSG:
+        ParseSaveStr(argc, ap, &PowDetachString, "pow_detach");
+-       return;
+-     case RC_INSERT:
+-       if (argc != 2)
+- 	{
+- 	  DeadlyMsg = 0; 
+- 	  Msg(0, "%s: one argument required for insert.", rc_name);
+- 	  return;
+- 	}
+-       else
+- 	{
+- 	  char *p2;
+- 	  
+- 	  pastelen = strlen(p = ap[1]);
+- 	  p2 = pastebuffer = (char *)malloc(pastelen + 1);
+- 	  while(*p) {
+- 	    p = ParseChar(p, p2);
+- 	    *++p2 = '\0';
+- 	  }
+- 	}
+        return;
+      case RC_LOGIN:
+  #ifdef UTMPOK
+--- 838,843 ----
+
+*** screen.c	Mon Apr  6 14:18:34 1992
+--- ../3.2/screen.c	Sun Feb  2 17:28:12 1992
+***************
+*** 143,149 ****
+  extern int status, HS;
+  extern char *Z0, *WS, *LastMsg;
+  extern time_t TimeDisplayed;
+- extern char *ParseChar();
+  int BellDisplayed;
+  int VBellWait, MsgWait, MsgMinWait;
+  
+--- 143,148 ----
+***************
+*** 199,206 ****
+  #endif
+  
+  #ifdef COPY_PASTE
+! int pastelen;
+! char *pastebuffer;
+  #endif
+  #ifdef PASSWORD
+  extern char Password[];
+--- 198,205 ----
+  #endif
+  
+  #ifdef COPY_PASTE
+! static pastelen;
+! static char *pastebuffer;
+  #endif
+  #ifdef PASSWORD
+  extern char Password[];
+***************
+*** 1899,1916 ****
+  		    break;
+  		  case KEY_LOGIN:
+  		    SlotToggle(0);
+- 		    break;
+- 		  case KEY_INSERT:
+- 		    {
+- 		      char *p2;
+- 		      
+- 		      pastelen = strlen(p = ktab[*s].args[0]);
+- 		      p2 = pastebuffer = (char *)malloc(pastelen + 1);
+- 		      while(*p) {
+- 			p = ParseChar(p, p2);
+- 			*++p2 = '\0';
+- 		      }
+- 		    }
+  		    break;
+  		  case KEY_AKA:
+  		    if (!ktab[*s].args)
+--- 1898,1903 ----
+
+*** config.h	Fri Apr  3 11:50:12 1992
+--- ../3.2/config.h	Sun Feb  2 17:31:33 1992
+***************
+*** 1,8 ****
+! /*
+!  *  this config.ultrix41 was submitted by John D Fa'atuai (frotz@dri.com)
+!  *  changed for build under BSD environment by Marc Boucher (marc@CAM.ORG)
+   ****************************************************************
+!  * $Id$ FAU
+   */
+  #undef POSIX
+  #define BSDJOBS
+--- 1,8 ----
+! /* Copyright (c) 1991
+!  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+!  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
+   ****************************************************************
+!  * $Id$ FAU
+   */
+  #undef POSIX
+  #define BSDJOBS
+***************
+*** 9,16 ****
+  #undef TERMIO
+  #undef TERMINFO
+  #undef SYSV
+! #define SIGVOID 
+! #define DIRENT
+  #define SUIDROOT
+  #define UTMPOK
+  #define LOGINDEFAULT	1
+--- 9,16 ----
+  #undef TERMIO
+  #undef TERMINFO
+  #undef SYSV
+! #undef SIGVOID 
+! #undef DIRENT
+  #define SUIDROOT
+  #define UTMPOK
+  #define LOGINDEFAULT	1
+***************
+*** 19,42 ****
+  #undef USRLIMIT
+  #undef LOCKPTY
+  #undef NOREUID
+! #define  LOADAV_3DOUBLES
+! #undef LOADAV_3LONGS
+  #undef  LOADAV_4LONGS
+! #define GETTTYENT
+  #undef NFS_HACK
+! #undef LOCALSOCKDIR
+! #undef TMPTEST
+  #ifdef LOCALSOCKDIR
+  # ifndef TMPTEST
+! #  define SOCKDIR "/tmp/screens"
+  # else
+! #  define SOCKDIR "/tmp/testscreens"
+  # endif
+  #endif
+! #define USEBCOPY
+  #undef TOPSTAT
+! #define USEVARARGS
+! #define NAMEDPIPE
+  #define LOCK
+  #define PASSWORD
+  #define COPY_PASTE
+--- 19,41 ----
+  #undef USRLIMIT
+  #undef LOCKPTY
+  #undef NOREUID
+! #undef  LOADAV_3DOUBLES
+! #define LOADAV_3LONGS
+  #undef  LOADAV_4LONGS
+! #undef GETTTYENT
+  #undef NFS_HACK
+! #define LOCALSOCKDIR
+  #ifdef LOCALSOCKDIR
+  # ifndef TMPTEST
+! #  define SOCKDIR "/local/screens"
+  # else
+! #  define SOCKDIR "/tmp/screens"
+  # endif
+  #endif
+! #undef USEBCOPY
+  #undef TOPSTAT
+! #undef USEVARARGS
+! #undef NAMEDPIPE
+  #define LOCK
+  #define PASSWORD
+  #define COPY_PASTE
+***************
+*** 43,52 ****
+  #define REMOTE_DETACH
+  #define POW_DETACH
+  #define NETHACK
+! #undef ETCSCREENRC "/usr2/local/bin/screenrc"
+! 
+! /* These get seen in screen.h, extern.h and other places to avoid conflicts
+!  * with the definitions and declarations in /usr/include/...
+!  */
+! 
+! #define PID_T_DEFINED
+--- 42,45 ----
+  #define REMOTE_DETACH
+  #define POW_DETACH
+  #define NETHACK
+! #define ETCSCREENRC "/local/etc/screenrc"
+
+*** screen.h	Mon Apr  6 12:44:44 1992
+--- ../3.2/screen.h	Tue Feb  4 12:38:26 1992
+***************
+*** 473,479 ****
+    KEY_HISTNEXT,
+    KEY_HISTORY,
+    KEY_INFO,
+-   KEY_INSERT,
+    KEY_KILL,
+    KEY_LASTMSG,
+    KEY_LICENSE,
+--- 473,478 ----
+

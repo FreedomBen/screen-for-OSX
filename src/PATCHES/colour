@@ -1,0 +1,1876 @@
+From gjh@ukc.ac.uk Thu May 21 21:08:54 1992
+Received: from unido.Germany.EU.net by immd4.informatik.uni-erlangen.de with SMTP;
+	id AA15533 (5.61++/7.3m-FAU); Thu, 21 May 92 21:00:23 +0200
+Message-Id: <9205211900.AA28655@mail.Germany.EU.net>
+Received: from eros.uknet.ac.uk 
+	by mail.Germany.EU.net with SMTP (5.65+/UNIDO-2.1.0.b)
+	via EUnet for immd4.informatik.uni-erlangen.de
+	id AA28655; Thu, 21 May 92 21:00:31 +0200
+Received: from ukc.ac.uk by eros.uknet.ac.uk via JANET with NIFTP (PP) 
+          id <24966-0@eros.uknet.ac.uk>; Thu, 21 May 1992 19:49:58 +0100
+Received: from eagle by mercury.ukc.ac.uk with UKC POP3+ id aa26812;
+          21 May 92 19:49 BST
+To: "Juergen Weigert (Inf4 - hiwi)" <jnweiger@immd4.informatik.uni-erlangen.de>
+Subject: Re: Modifications to Screen v3.2
+In-Reply-To: Your message of "Thu, 21 May 92 20:10:41 +0700." <9205211810.AA14920@faui43.informatik.uni-erlangen.de>
+Date: Thu, 21 May 92 19:49:30 +0100
+From: gjh@ukc.ac.uk
+Status: OR
+
+>> Hi
+>> 
+>> I made some mods to screen 3.02.00 (FAU) 1/31/92  which might be
+
+OK, diffs are attached. As a matter of fact its the first time I used
+diff to make a patch, so I'll be pleased if it works :-)
+
+I don't think I'll be doing any more, the program's not in my style.
+I don't comment stuff, but I use rather long variable names, too many
+functions and the default configuration of indent... :-)
+
+SOme suggestions:
+
+Like I said, two pages on one screen would be nice.
+I don't use vi, so the copy mode is abominable.
+How about letting us use arrow keys for that? :-)
+Maybe we're spoiled but the vast majority of terminals here are
+some derivation of vt100...
+A hardcopy command environmental, eg ">hardcopy.%n" or "|lpr"
+
+And it needs to write to /etc/loctmp on the suns. I gave my system
+manager a nasty shock by being logged in from 4 places on campus at
+once when in fact screen just hadn't set the location information.
+
+Cheers and thanks for an indisposable program,
+Greg
+
+-----------
+
+diff -c -r screen3.2/ansi.c screen3.3/ansi.c
+*** screen3.2/ansi.c	Thu May 21 19:20:26 1992
+--- screen3.3/ansi.c	Thu May 21 14:54:29 1992
+***************
+*** 53,58 ****
+--- 53,60 ----
+  extern int BellDisplayed;
+  extern int MsgMinWait;
+  extern int all_norefresh;
++ extern char *copybuffer;
++ extern int copylen;
+  
+  int TermcapROWS, TermcapCOLS;	/* defaults that we learned from termcap */
+  int default_width, default_height;	/* width/height a new window will get */
+***************
+*** 67,72 ****
+--- 69,75 ----
+  int screenx, screeny;		/* cursor position */
+  char GlobalAttr;		/* current attributes */
+  char GlobalCharset;		/* current font */
++ char GlobalColours;		/* current colours */
+  int insert;			/* insert mode */
+  int keypad;			/* application keypad */
+  int flow = 1;			/* flow control */
+***************
+*** 80,90 ****
+  int visual_bell = 0, termcapHS, use_hardstatus = 1;
+  char *Termcap, *extra_incap, *extra_outcap;
+  static int Termcaplen;
+! char *blank, *null, *LastMsg;
+  char Term[MAXSTR+5];	/* +5: "TERM=" */
+  char screenterm[20] = "screen";
+  char *Z0, *Z1;
+! int ISO2022, HS;
+  time_t TimeDisplayed, time();
+  
+  /*
+--- 83,93 ----
+  int visual_bell = 0, termcapHS, use_hardstatus = 1;
+  char *Termcap, *extra_incap, *extra_outcap;
+  static int Termcaplen;
+! char *blank, *whiteonblack, *null, *LastMsg;
+  char Term[MAXSTR+5];	/* +5: "TERM=" */
+  char screenterm[20] = "screen";
+  char *Z0, *Z1;
+! int ISO2022, ANSIColour, HS;
+  time_t TimeDisplayed, time();
+  
+  /*
+***************
+*** 141,147 ****
+  static void ASetMode __P((int));
+  static void SelectRendition __P((void));
+  static void FillWithEs __P((void));
+! static void RedisplayLine __P((char *, char *, char *, int, int, int ));
+  static void FindAKA __P((void));
+  static void SetCurr __P((struct win *));
+  static void inpRedisplayLine __P((int, int, int, int));
+--- 144,150 ----
+  static void ASetMode __P((int));
+  static void SelectRendition __P((void));
+  static void FillWithEs __P((void));
+! static void RedisplayLine __P((char *, char *, char *, char *, int, int, int ));
+  static void FindAKA __P((void));
+  static void SetCurr __P((struct win *));
+  static void inpRedisplayLine __P((int, int, int, int));
+***************
+*** 177,183 ****
+  /*
+   */
+  static screencap = 0;
+! char *OldImage, *OldAttr, *OldFont;
+  static struct win *curr;
+  static display = 1;
+  static StrCost;
+--- 180,186 ----
+  /*
+   */
+  static screencap = 0;
+! char *OldImage, *OldAttr, *OldFont, *OldColours;
+  static struct win *curr;
+  static display = 1;
+  static StrCost;
+***************
+*** 379,384 ****
+--- 382,389 ----
+    if (KE == 0)
+      KS = 0;
+    ISO2022 = e_tgetflag("G0");
++   ANSIColour = e_tgetflag("Rg");
++   debug1("ANSIColour = %d\n",ANSIColour);
+    if (ISO2022)
+      {
+        if ((S0 = e_tgetstr("S0", &tp)) == NULL)
+***************
+*** 493,499 ****
+    KeypadMode(0);
+    ResizeScreen((struct win *)0);
+    ChangeScrollRegion(0, screenheight - 1);
+!   SaveSetAttr(0, ASCII);
+    screenx = screeny = -1;
+    GotoPos(0, screenheight - 1);
+    PutStr(TE);
+--- 498,504 ----
+    KeypadMode(0);
+    ResizeScreen((struct win *)0);
+    ChangeScrollRegion(0, screenheight - 1);
+!   SaveSetAttr(0, 7, ASCII);
+    screenx = screeny = -1;
+    GotoPos(0, screenheight - 1);
+    PutStr(TE);
+***************
+*** 657,662 ****
+--- 662,669 ----
+      AddCap("ke=\\E>:");
+    if (ISO2022)
+      AddCap("G0:");
++   if (ANSIColour)
++     AddCap("RGB:");
+    if (PO)
+      {
+        AddCap("po=\\E[5i:");
+***************
+*** 764,769 ****
+--- 771,777 ----
+    p->bot = p->height - 1;
+    p->saved = 0;
+    p->LocalAttr = 0;
++   p->LocalColours = 7;
+    p->x = p->y = 0;
+    p->state = LIT;
+    p->StringType = NONE;
+***************
+*** 895,900 ****
+--- 903,920 ----
+  		  if (!*curr->string)
+  		    curr->autoaka = curr->y + 1;
+  		  break;
++ 		case COPYBUFSTRING:
++                   if(copybuffer != NULL)
++ 		    Free(copybuffer);
++ 		    copylen=strlen(curr->string);
++ 		    copybuffer=malloc(copylen);
++ 		    if(copybuffer == NULL) {
++ 		      copylen=0;
++ 		      Msg(0, "Not enough memory, sorry!");
++ 		    } else {
++ 		      strcpy(copybuffer, curr->string);
++ 		    }
++                   break;
+  		default:
+  		  break;
+  		}
+***************
+*** 942,947 ****
+--- 962,970 ----
+  	    case 'k':
+  	      StartString(AKA);
+  	      break;
++ 	    case 'b':
++ 	      StartString(COPYBUFSTRING);
++ 	      break;
+  	    default:
+  	      if (Special(c))
+  		break;
+***************
+*** 1011,1017 ****
+  		  curr->state = ESC;
+  		  if (display && lp_missing && (CIC || IC || IM))
+  		    {
+! 		      RedisplayLine(blank, null, null, screenbot,
+  				    cols - 2, cols - 1);
+  		      GotoPos(curr->x, curr->y);
+  		    }
+--- 1034,1040 ----
+  		  curr->state = ESC;
+  		  if (display && lp_missing && (CIC || IC || IM))
+  		    {
+! 		      RedisplayLine(blank, null, whiteonblack, null, screenbot,
+  				    cols - 2, cols - 1);
+  		      GotoPos(curr->x, curr->y);
+  		    }
+***************
+*** 1023,1028 ****
+--- 1046,1052 ----
+  	      else
+  		{
+  		  NewRendition(curr->LocalAttr);
++ 		  NewColours(curr->LocalColours);
+  		  NewCharset(curr->charsets[(curr->ss) ? curr->ss :
+  					     curr->LocalCharset]);
+  		  if (curr->x < cols - 1)
+***************
+*** 1549,1554 ****
+--- 1573,1579 ----
+  
+    p->image[p->y][p->x] = c;
+    p->attr[p->y][p->x] = p->LocalAttr;
++   p->colours[p->y][p->x] = p->LocalColours;
+    p->font[p->y][p->x] = p->charsets[p->ss ? p->ss : p->LocalCharset];
+  }
+  
+***************
+*** 1680,1685 ****
+--- 1705,1711 ----
+    curr->Saved_x = curr->x;
+    curr->Saved_y = curr->y;
+    curr->SavedLocalAttr = curr->LocalAttr;
++   curr->SavedLocalColours = curr->LocalColours;
+    curr->SavedLocalCharset = curr->LocalCharset;
+    bcopy((char *) curr->charsets, (char *) curr->SavedCharsets,
+  	4 * sizeof(int));
+***************
+*** 1693,1698 ****
+--- 1719,1725 ----
+        curr->x = curr->Saved_x;
+        curr->y = curr->Saved_y;
+        curr->LocalAttr = curr->SavedLocalAttr;
++       curr->LocalColours = curr->SavedLocalColours;
+        NewRendition(curr->LocalAttr);
+        bcopy((char *) curr->SavedCharsets, (char *) curr->charsets,
+  	    4 * sizeof(int));
+***************
+*** 1915,1924 ****
+  int y, x1, x2, doit;
+  {
+    register int cost, dx;
+!   register char *p, *f, *i;
+  
+    if (x1 == x2)
+      return(0);
+    if (in_ovl)
+      {
+        if (ovl_Rewrite == 0)
+--- 1942,1952 ----
+  int y, x1, x2, doit;
+  {
+    register int cost, dx;
+!   register char *p, *c, *f, *i;
+  
+    if (x1 == x2)
+      return(0);
++ 
+    if (in_ovl)
+      {
+        if (ovl_Rewrite == 0)
+***************
+*** 1936,1941 ****
+--- 1964,1970 ----
+      }
+    p = curr->attr[y] + x1;
+    f = curr->font[y] + x1;
++   c = curr->colours[y] + x1;
+  
+    cost = dx = x2 - x1;
+    if (insert)
+***************
+*** 1942,1948 ****
+      cost += EIcost + IMcost;
+    while(dx-- > 0)
+      {
+!       if (*p++ != GlobalAttr || *f++ != GlobalCharset)
+  	return EXPENSIVE;
+      }
+    return cost;
+--- 1971,1977 ----
+      cost += EIcost + IMcost;
+    while(dx-- > 0)
+      {
+!       if (*p++ != GlobalAttr || *f++ != GlobalCharset || *c++ != GlobalColours)
+  	return EXPENSIVE;
+      }
+    return cost;
+***************
+*** 2020,2028 ****
+--- 2049,2059 ----
+      x--;
+    bcopy(curr->image[y], OldImage, cols);
+    bcopy(curr->attr[y], OldAttr, cols);
++   bcopy(curr->colours[y], OldColours, cols);
+    bcopy(curr->font[y], OldFont, cols);
+    bcopy(curr->image[y] + x, curr->image[y] + x + 1, cols - x - 1);
+    bcopy(curr->attr[y] + x, curr->attr[y] + x + 1, cols - x - 1);
++   bcopy(curr->colours[y] + x, curr->colours[y] + x + 1, cols - x - 1);
+    bcopy(curr->font[y] + x, curr->font[y] + x + 1, cols - x - 1);
+    SetChar(c);
+    if (!display)
+***************
+*** 2036,2042 ****
+      }
+    else
+      {
+!       RedisplayLine(OldImage, OldAttr, OldFont, y, x, cols - 1);
+        GotoPos(++x, y);
+      }
+  }
+--- 2067,2073 ----
+      }
+    else
+      {
+!       RedisplayLine(OldImage, OldAttr, OldColours, OldFont, y, x, cols - 1);
+        GotoPos(++x, y);
+      }
+  }
+***************
+*** 2065,2075 ****
+--- 2096,2108 ----
+      --x;
+    bcopy(curr->image[y], OldImage, cols);
+    bcopy(curr->attr[y], OldAttr, cols);
++   bcopy(curr->colours[y], OldColours, cols);
+    bcopy(curr->font[y], OldFont, cols);
+    if (n > cols - x)
+      n = cols - x;
+    bcopy(curr->image[y] + x, curr->image[y] + x + n, cols - x - n);
+    bcopy(curr->attr[y] + x, curr->attr[y] + x + n, cols - x - n);
++   bcopy(curr->colours[y] + x, curr->colours[y] + x + n, cols - x - n);
+    bcopy(curr->font[y] + x, curr->font[y] + x + n, cols - x - n);
+    ClearInLine(0, y, x, x + n - 1);
+    if (!display)
+***************
+*** 2098,2104 ****
+      }
+    else
+      {
+!       RedisplayLine(OldImage, OldAttr, OldFont, y, x, cols - 1);
+        GotoPos(x, y);
+      }
+  }
+--- 2131,2137 ----
+      }
+    else
+      {
+!       RedisplayLine(OldImage, OldAttr, OldColours, OldFont, y, x, cols - 1);
+        GotoPos(x, y);
+      }
+  }
+***************
+*** 2112,2122 ****
+--- 2145,2157 ----
+      --x;
+    bcopy(curr->image[y], OldImage, cols);
+    bcopy(curr->attr[y], OldAttr, cols);
++   bcopy(curr->colours[y], OldColours, cols);
+    bcopy(curr->font[y], OldFont, cols);
+    if (n > cols - x)
+      n = cols - x;
+    bcopy(curr->image[y] + x + n, curr->image[y] + x, cols - x - n);
+    bcopy(curr->attr[y] + x + n, curr->attr[y] + x, cols - x - n);
++   bcopy(curr->colours[y] + x + n, curr->colours[y] + x, cols - x - n);
+    bcopy(curr->font[y] + x + n, curr->font[y] + x, cols - x - n);
+    ClearInLine(0, y, cols - n, cols - 1);
+    if (!display)
+***************
+*** 2142,2148 ****
+      }
+    else
+      {
+!       RedisplayLine(OldImage, OldAttr, OldFont, y, x, cols - 1);
+        GotoPos(x, y);
+      }
+  }
+--- 2177,2183 ----
+      }
+    else
+      {
+!       RedisplayLine(OldImage, OldAttr, OldColours, OldFont, y, x, cols - 1);
+        GotoPos(x, y);
+      }
+  }
+***************
+*** 2240,2246 ****
+      {
+        /* Can't use FixLP */
+        GotoPos(screenwidth-1, oldbot);
+!       SaveSetAttr(curr->attr[missy][screenwidth-1], curr->font[missy][screenwidth-1]);
+        PUTCHAR(curr->image[missy][screenwidth-1]);
+        RestoreAttr();
+        lp_missing = 0;
+--- 2275,2281 ----
+      {
+        /* Can't use FixLP */
+        GotoPos(screenwidth-1, oldbot);
+!       SaveSetAttr(curr->attr[missy][screenwidth-1], curr->colours[missy][screenwidth-1], curr->font[missy][screenwidth-1]);
+        PUTCHAR(curr->image[missy][screenwidth-1]);
+        RestoreAttr();
+        lp_missing = 0;
+***************
+*** 2304,2315 ****
+      FixLP(screenwidth-1, missy);
+  }
+  
+  static void ScrollUpMap(n)
+  int n;
+  {
+    char tmp[256 * sizeof(char *)];
+    register int ii, i, cnt1, cnt2;
+!   register char **ppi, **ppa, **ppf;
+  
+    i = curr->top + n;
+    cnt1 = n * sizeof(char *);
+--- 2339,2360 ----
+      FixLP(screenwidth-1, missy);
+  }
+  
++ void
++ bset(start,length,value)
++ char *start;
++ int length;
++ char value;
++ {
++   char *i;
++   for( i = start + length; i != start; *(--i) = value );
++ }
++ 
+  static void ScrollUpMap(n)
+  int n;
+  {
+    char tmp[256 * sizeof(char *)];
+    register int ii, i, cnt1, cnt2;
+!   register char **ppi, **ppa, **ppc, **ppf;
+  
+    i = curr->top + n;
+    cnt1 = n * sizeof(char *);
+***************
+*** 2316,2332 ****
+    cnt2 = (curr->bot - i + 1) * sizeof(char *);
+    ppi = curr->image + i;
+    ppa = curr->attr + i;
+    ppf = curr->font + i;
+    for(ii = curr->top; ii < i; ii++)
+!      AddLineToHist(curr, &curr->image[ii], &curr->attr[ii], &curr->font[ii]);
+    for (i = n; i; --i)
+      {
+!       bclear(*--ppi, cols);
+!       bzero(*--ppa, cols);
+!       bzero(*--ppf, cols);
+      }
+    Scroll((char *) ppi, cnt1, cnt2, tmp);
+    Scroll((char *) ppa, cnt1, cnt2, tmp);
+    Scroll((char *) ppf, cnt1, cnt2, tmp);
+  }
+  
+--- 2361,2380 ----
+    cnt2 = (curr->bot - i + 1) * sizeof(char *);
+    ppi = curr->image + i;
+    ppa = curr->attr + i;
++   ppc = curr->colours + i;
+    ppf = curr->font + i;
+    for(ii = curr->top; ii < i; ii++)
+!      AddLineToHist(curr, &curr->image[ii], &curr->attr[ii], &curr->colours[ii], &curr->font[ii]);
+    for (i = n; i; --i)
+      {
+!       bset(*--ppi, cols, ' ');
+!       bset(*--ppa, cols, 0);
+!       bset(*--ppc, cols, curr->LocalColours);
+!       bset(*--ppf, cols, 0);
+      }
+    Scroll((char *) ppi, cnt1, cnt2, tmp);
+    Scroll((char *) ppa, cnt1, cnt2, tmp);
++   Scroll((char *) ppc, cnt1, cnt2, tmp);
+    Scroll((char *) ppf, cnt1, cnt2, tmp);
+  }
+  
+***************
+*** 2335,2341 ****
+  {
+    char tmp[256 * sizeof(char *)];
+    register int i, cnt1, cnt2;
+!   register char **ppi, **ppa, **ppf;
+  
+    i = curr->top;
+    cnt1 = (curr->bot - i - n + 1) * sizeof(char *);
+--- 2383,2389 ----
+  {
+    char tmp[256 * sizeof(char *)];
+    register int i, cnt1, cnt2;
+!   register char **ppi, **ppa, **ppc, **ppf;
+  
+    i = curr->top;
+    cnt1 = (curr->bot - i - n + 1) * sizeof(char *);
+***************
+*** 2342,2353 ****
+    cnt2 = n * sizeof(char *);
+    Scroll((char *) (ppi = curr->image + i), cnt1, cnt2, tmp);
+    Scroll((char *) (ppa = curr->attr + i), cnt1, cnt2, tmp);
+    Scroll((char *) (ppf = curr->font + i), cnt1, cnt2, tmp);
+    for (i = n; i; --i)
+      {
+!       bclear(*ppi++, cols);
+!       bzero(*ppa++, cols);
+!       bzero(*ppf++, cols);
+      }
+  }
+  
+--- 2390,2403 ----
+    cnt2 = n * sizeof(char *);
+    Scroll((char *) (ppi = curr->image + i), cnt1, cnt2, tmp);
+    Scroll((char *) (ppa = curr->attr + i), cnt1, cnt2, tmp);
++   Scroll((char *) (ppc = curr->colours + i), cnt1, cnt2, tmp);
+    Scroll((char *) (ppf = curr->font + i), cnt1, cnt2, tmp);
+    for (i = n; i; --i)
+      {
+!       bset(*ppi++, cols, ' ');
+!       bset(*ppa++, cols, 0);
+!       bset(*ppc++, cols, curr->LocalColours);
+!       bset(*ppf++, cols, 0);
+      }
+  }
+  
+***************
+*** 2403,2417 ****
+  static void ClearScreen()
+  {
+    register int i;
+!   register char **ppi = curr->image, **ppa = curr->attr, **ppf = curr->font;
+  
+    for (i = 0; i < rows; ++i)
+      {
+!       AddLineToHist(curr, ppi, ppa, ppf);
+!       bclear(*ppi++, cols);
+!       bzero(*ppa++, cols);
+!       bzero(*ppf++, cols);
+      }
+    if (display)
+      {
+        PutStr(CL);
+--- 2453,2469 ----
+  static void ClearScreen()
+  {
+    register int i;
+!   register char **ppi = curr->image, **ppa = curr->attr, **ppc = curr->colours, **ppf = curr->font;
+  
+    for (i = 0; i < rows; ++i)
+      {
+!       AddLineToHist(curr, ppi, ppa, ppc, ppf);
+!       bset(*ppi++, cols, ' ');
+!       bset(*ppa++, cols, 0);
+!       bset(*ppc++, cols, curr->LocalColours);
+!       bset(*ppf++, cols, 0);
+      }
++ 
+    if (display)
+      {
+        PutStr(CL);
+***************
+*** 2500,2513 ****
+  		lp_missing = 0;
+  	    }
+  	  else
+! 	    DisplayLine(curr->image[y], curr->attr[y], curr->font[y],
+! 			blank, null, null, y, x1, x2);
+  	}
+        if (curr)
+  	{
+!           bclear(curr->image[y] + x1, n);
+!           bzero(curr->attr[y] + x1, n);
+!           bzero(curr->font[y] + x1, n);
+  	}
+      }
+  }
+--- 2552,2566 ----
+  		lp_missing = 0;
+  	    }
+  	  else
+! 	    DisplayLine(curr->image[y], curr->attr[y], curr->colours[y], curr->font[y],
+! 			blank, null, null, null, y, x1, x2);
+  	}
+        if (curr)
+  	{
+!           bset(curr->image[y] + x1, n, ' ');
+!           bset(curr->attr[y] + x1, n, 0);
+!           bset(curr->colours[y] + x1, n, curr->LocalColours);
+!           bset(curr->font[y] + x1, n, 0);
+  	}
+      }
+  }
+***************
+*** 2582,2591 ****
+  
+  static void SelectRendition()
+  {
+!   register int i = 0, a = curr->LocalAttr;
+  
+    do
+      {
+        switch (curr->args[i])
+  	{
+  	case 0:
+--- 2635,2645 ----
+  
+  static void SelectRendition()
+  {
+!   register int i = 0, a = curr->LocalAttr, c = curr->LocalColours;
+  
+    do
+      {
++      if(curr->args[i] < 30) {
+        switch (curr->args[i])
+  	{
+  	case 0:
+***************
+*** 2625,2632 ****
+--- 2679,2694 ----
+  	  a &= ~A_RV;
+  	  break;
+  	}
++      } else {
++ 	if(curr->args[i] >= 30 && curr->args[i] <= 37) {
++ 		c = (c & 112) | ((curr->args[i]-30));
++ 	} else if(curr->args[i] >= 40 && curr->args[i] <= 47) {
++ 		c = (c & 7) | ((curr->args[i]-40) << 4);
++ 	}
++      }
+      } while (++i < curr->NumArgs);
+    NewRendition(curr->LocalAttr = a);
++   NewColours(curr->LocalColours = c);
+  }
+  
+  void
+***************
+*** 2675,2684 ****
+  }
+  
+  void
+! SaveSetAttr(newattr, newcharset)
+! int newattr, newcharset;
+  {
+    NewRendition(newattr);
+    NewCharset(newcharset);
+  }
+  
+--- 2737,2770 ----
+  }
+  
+  void
+! NewColours(new)
+! register int new;
+  {
++   register old = GlobalColours;
++   char ptstr[10];
++   if (!display || !ANSIColour || old == new) {
++     return;
++   }
++ 
++   GlobalColours = new;
++ 
++   if((new & 15) != (old & 15)) {
++     sprintf(ptstr,"\033[%dm",30 + (new & 7));
++     PutStr(ptstr);
++   }
++ 
++   if((new & 112) != (old & 112)) {
++     sprintf(ptstr, "\033[%dm", 40 + (char) (((unsigned char) new & (unsigned char) 112) >> 4));
++     PutStr(ptstr);
++   }
++ }
++ 
++ void
++ SaveSetAttr(newattr, newcolours, newcharset)
++ int newattr, newcolours, newcharset;
++ {
+    NewRendition(newattr);
++   NewColours(newcolours);
+    NewCharset(newcharset);
+  }
+  
+***************
+*** 2687,2692 ****
+--- 2773,2779 ----
+  {
+    NewRendition(curr->LocalAttr);
+    NewCharset(curr->charsets[curr->LocalCharset]);
++   NewColours(curr->LocalColours);
+  }
+  
+  static void FillWithEs()
+***************
+*** 2698,2703 ****
+--- 2785,2791 ----
+    for (i = 0; i < rows; ++i)
+      {
+        bzero(curr->attr[i], cols);
++       bset(curr->colours[i], cols, 7);
+        bzero(curr->font[i], cols);
+        p = curr->image[i];
+        ep = p + cols;
+***************
+*** 2731,2751 ****
+        if (in_ovl)
+  	(*ovl_RedisplayLine)(i, 0, cols - 1, 1);
+        else
+!         DisplayLine(blank, null, null, curr->image[i], curr->attr[i],
+! 		    curr->font[i], i, 0, cols - 1);
+      }
+    if (!in_ovl)
+      {
+        GotoPos(curr->x, curr->y);
+        NewRendition(curr->LocalAttr);
+        NewCharset(curr->charsets[curr->LocalCharset]);
+      }
+  }
+  
+  void
+! DisplayLine(os, oa, of, s, as, fs, y, from, to)
+  int from, to, y;
+! register char *os, *oa, *of, *s, *as, *fs;
+  {
+    register int x;
+    int last2flag = 0, delete_lp = 0;
+--- 2819,2840 ----
+        if (in_ovl)
+  	(*ovl_RedisplayLine)(i, 0, cols - 1, 1);
+        else
+!         DisplayLine(blank, null, whiteonblack, null, curr->image[i], curr->attr[i],
+! 		    curr->colours[i], curr->font[i], i, 0, cols - 1);
+      }
+    if (!in_ovl)
+      {
+        GotoPos(curr->x, curr->y);
+        NewRendition(curr->LocalAttr);
++       NewColours(curr->LocalColours);
+        NewCharset(curr->charsets[curr->LocalCharset]);
+      }
+  }
+  
+  void
+! DisplayLine(os, oa, oc, of, s, as, cs, fs, y, from, to)
+  int from, to, y;
+! register char *os, *oa, *oc, *of, *s, *as, *cs, *fs;
+  {
+    register int x;
+    int last2flag = 0, delete_lp = 0;
+***************
+*** 2752,2758 ****
+  
+    if (!LP && y == screenbot && to == cols - 1)
+      if (lp_missing
+! 	|| s[to] != os[to] || as[to] != oa[to] || of[to] != fs[to])
+        {
+  	if ((IC || IM) && (from < to || !in_ovl))
+  	  {
+--- 2841,2847 ----
+  
+    if (!LP && y == screenbot && to == cols - 1)
+      if (lp_missing
+! 	|| s[to] != os[to] || as[to] != oa[to] || cs[to] != oc[to] || of[to] != fs[to])
+        {
+  	if ((IC || IM) && (from < to || !in_ovl))
+  	  {
+***************
+*** 2765,2771 ****
+  	  {
+  	    to--;
+  	    delete_lp = (CE || DC || CDC);
+! 	    lp_missing = (s[to] != ' ' || as[to] || fs[to]);
+  	  }
+        }
+      else
+--- 2854,2860 ----
+  	  {
+  	    to--;
+  	    delete_lp = (CE || DC || CDC);
+! 	    lp_missing = (s[to] != ' ' || as[to] || (cs[to] & 112) || fs[to]);
+  	  }
+        }
+      else
+***************
+*** 2772,2781 ****
+        to--;
+    for (x = from; x <= to; ++x)
+      {
+!       if (s[x] == os[x] && as[x] == oa[x] && of[x] == fs[x])
+  	continue;
+        GotoPos(x, y);
+        NewRendition(as[x]);
+        NewCharset(fs[x]);
+        PUTCHAR(s[x]);
+      }
+--- 2861,2871 ----
+        to--;
+    for (x = from; x <= to; ++x)
+      {
+!       if (s[x] == os[x] && as[x] == oa[x] && cs[x] == oc[x] && of[x] == fs[x])
+  	continue;
+        GotoPos(x, y);
+        NewRendition(as[x]);
++       NewColours(cs[x]);
+        NewCharset(fs[x]);
+        PUTCHAR(s[x]);
+      }
+***************
+*** 2783,2792 ****
+--- 2873,2884 ----
+      {
+        GotoPos(x, y);
+        NewRendition(as[x + 1]);
++       NewColours(cs[x + 1]);
+        NewCharset(fs[x + 1]);
+        PUTCHAR(s[x + 1]);
+        GotoPos(x, y);
+        NewRendition(as[x]);
++       NewColours(cs[x]);
+        NewCharset(fs[x]);
+        INSERTCHAR(s[x]);
+      }
+***************
+*** 2816,2832 ****
+    if (in_ovl)
+      (*ovl_RedisplayLine)(y, from, to, (oi == blank));
+    else
+!     DisplayLine(oi, null, null, curr->image[y], curr->attr[y],
+!                 curr->font[y], y, from, to);
+  }
+  
+! static void RedisplayLine(os, oa, of, y, from, to)
+  int from, to, y;
+! char *os, *oa, *of;
+  {
+!   DisplayLine(os, oa, of, curr->image[y], curr->attr[y],
+! 	      curr->font[y], y, from, to);
+    NewRendition(curr->LocalAttr);
+    NewCharset(curr->charsets[curr->LocalCharset]);
+  }
+  
+--- 2908,2925 ----
+    if (in_ovl)
+      (*ovl_RedisplayLine)(y, from, to, (oi == blank));
+    else
+!     DisplayLine(oi, null, whiteonblack, null, curr->image[y], curr->attr[y],
+!               curr->colours[y], curr->font[y], y, from, to);
+  }
+  
+! static void RedisplayLine(os, oa, oc, of, y, from, to)
+  int from, to, y;
+! char *os, *oa, *oc, *of;
+  {
+!   DisplayLine(os, oa, oc, of, curr->image[y], curr->attr[y],
+! 	      curr->colours[y], curr->font[y], y, from, to);
+    NewRendition(curr->LocalAttr);
++   NewColours(curr->LocalColours);
+    NewCharset(curr->charsets[curr->LocalCharset]);
+  }
+  
+***************
+*** 2837,2843 ****
+    register struct win *p = curr;
+  
+    GotoPos(x2, y2);
+!   SaveSetAttr(p->attr[y2][x2], p->font[y2][x2]);
+    PUTCHAR(p->image[y2][x2]);
+    RestoreAttr();
+    lp_missing = 0;
+--- 2930,2936 ----
+    register struct win *p = curr;
+  
+    GotoPos(x2, y2);
+!   SaveSetAttr(p->attr[y2][x2], p->colours[y2][x2], p->font[y2][x2]);
+    PUTCHAR(p->image[y2][x2]);
+    RestoreAttr();
+    lp_missing = 0;
+***************
+*** 2848,2870 ****
+  char n_ch;
+  {
+    register int y = screenbot, x = cols - 1;
+!   register char n_at, n_fo, o_ch, o_at, o_fo;
+  
+    o_ch = curr->image[y][x];
+    o_at = curr->attr[y][x];
+    o_fo = curr->font[y][x];
+  
+    n_at = curr->LocalAttr;
+    n_fo = curr->charsets[curr->LocalCharset];
+  
+    lp_missing = 0;
+!   if (n_ch == o_ch && n_at == o_at && n_fo == o_fo)
+      {
+        return;
+      }
+!   if (n_ch != ' ' || n_at || n_fo)
+      lp_missing = 1;
+!   if (o_ch != ' ' || o_at || o_fo)
+      {
+        if (DC)
+  	PutStr(DC);
+--- 2941,2965 ----
+  char n_ch;
+  {
+    register int y = screenbot, x = cols - 1;
+!   register char n_at, n_colours, n_fo, o_ch, o_at, o_colours, o_fo;
+  
+    o_ch = curr->image[y][x];
+    o_at = curr->attr[y][x];
++   o_colours = curr->colours[y][x];
+    o_fo = curr->font[y][x];
+  
+    n_at = curr->LocalAttr;
++   n_colours = curr->LocalColours;
+    n_fo = curr->charsets[curr->LocalCharset];
+  
+    lp_missing = 0;
+!   if (n_ch == o_ch && n_at == o_at && n_colours == o_colours && n_fo == o_fo)
+      {
+        return;
+      }
+!   if (n_ch != ' ' || n_at || n_fo || (n_colours & 112))
+      lp_missing = 1;
+!   if (o_ch != ' ' || o_at || o_fo || (o_colours & 112))
+      {
+        if (DC)
+  	PutStr(DC);
+***************
+*** 2972,2979 ****
+    else
+      {
+        DisplayLine(curr->image[screeny], curr->attr[screeny],
+! 		  curr->font[screeny],
+! 		  blank, null, null, screeny, 0, cols - 1);
+      }
+    inpRedisplayLine(STATLINE, 0, inpstringlen - 1, 0);
+    GotoPos(inpstringlen, STATLINE);
+--- 3067,3074 ----
+    else
+      {
+        DisplayLine(curr->image[screeny], curr->attr[screeny],
+! 		  curr->colours[screeny], curr->font[screeny],
+! 		  blank, null, whiteonblack, null, screeny, 0, cols - 1);
+      }
+    inpRedisplayLine(STATLINE, 0, inpstringlen - 1, 0);
+    GotoPos(inpstringlen, STATLINE);
+***************
+*** 3004,3010 ****
+  	{
+  	  inpbuf[inplen++] = ch;
+    	  GotoPos(x, STATLINE);
+! 	  SaveSetAttr(A_SO, ASCII);
+  	  PUTCHAR(ch);
+  	  x++;
+  	}
+--- 3099,3105 ----
+  	{
+  	  inpbuf[inplen++] = ch;
+    	  GotoPos(x, STATLINE);
+! 	  SaveSetAttr(A_SO, 7, ASCII);
+  	  PUTCHAR(ch);
+  	  x++;
+  	}
+***************
+*** 3013,3019 ****
+  	  inplen--;
+  	  x--;
+    	  GotoPos(x, STATLINE);
+! 	  SaveSetAttr(0, ASCII);
+  	  PUTCHAR(' ');
+    	  GotoPos(x, STATLINE);
+  	}
+--- 3108,3114 ----
+  	  inplen--;
+  	  x--;
+    	  GotoPos(x, STATLINE);
+! 	  SaveSetAttr(0, 7, ASCII);
+  	  PUTCHAR(' ');
+    	  GotoPos(x, STATLINE);
+  	}
+***************
+*** 3055,3061 ****
+    r = inpstringlen;
+    if (v > 0 && q < r)
+      {
+!       SaveSetAttr(A_SO, ASCII);
+        l = v;
+        if (l > r-q)
+  	l = r-q;
+--- 3150,3156 ----
+    r = inpstringlen;
+    if (v > 0 && q < r)
+      {
+!       SaveSetAttr(A_SO, 7, ASCII);
+        l = v;
+        if (l > r-q)
+  	l = r-q;
+***************
+*** 3067,3073 ****
+    r += inplen;
+    if (v > 0 && q < r)
+      {
+!       SaveSetAttr(A_SO, ASCII);
+        l = v;
+        if (l > r-q)
+  	l = r-q;
+--- 3162,3168 ----
+    r += inplen;
+    if (v > 0 && q < r)
+      {
+!       SaveSetAttr(A_SO, 7, ASCII);
+        l = v;
+        if (l > r-q)
+  	l = r-q;
+***************
+*** 3079,3085 ****
+    r = screenwidth;
+    if (!isblank && v > 0 && q < r)
+      {
+!       SaveSetAttr(0, ASCII);
+        l = v;
+        if (l > r-q)
+  	l = r-q;
+--- 3174,3180 ----
+    r = screenwidth;
+    if (!isblank && v > 0 && q < r)
+      {
+!       SaveSetAttr(0, 7, ASCII);
+        l = v;
+        if (l > r-q)
+  	l = r-q;
+***************
+*** 3173,3179 ****
+        if (!HS)
+  	{
+  	  GotoPos(0, STATLINE);
+!           SaveSetAttr(A_SO, ASCII);
+  	  InsertMode(0);
+  	  printf("%s", msg);
+            screenx = -1;
+--- 3268,3274 ----
+        if (!HS)
+  	{
+  	  GotoPos(0, STATLINE);
+!           SaveSetAttr(A_SO, 7, ASCII);
+  	  InsertMode(0);
+  	  printf("%s", msg);
+            screenx = -1;
+***************
+*** 3181,3187 ****
+        else
+  	{
+  	  debug("HS:");
+!           SaveSetAttr(0, ASCII);
+  	  InsertMode(0);
+  	  CPutStr(TS, 0);
+  	  printf("%s", msg);
+--- 3276,3282 ----
+        else
+  	{
+  	  debug("HS:");
+!           SaveSetAttr(0, 7, ASCII);
+  	  InsertMode(0);
+  	  CPutStr(TS, 0);
+  	  printf("%s", msg);
+***************
+*** 3207,3218 ****
+        if (in_ovl)
+  	(*ovl_RedisplayLine)(STATLINE, 0, StatLen - 1, 0);
+        else
+! 	RedisplayLine(null, null, null, STATLINE, 0, StatLen - 1);
+        GotoPos(status_lastx, status_lasty);
+      }
+    else
+      {
+!       SaveSetAttr(0, ASCII);
+        PutStr(DS);
+      }
+  }
+--- 3302,3313 ----
+        if (in_ovl)
+  	(*ovl_RedisplayLine)(STATLINE, 0, StatLen - 1, 0);
+        else
+! 	RedisplayLine(null, null, null, null, STATLINE, 0, StatLen - 1);
+        GotoPos(status_lastx, status_lasty);
+      }
+    else
+      {
+!       SaveSetAttr(0, 7, ASCII);
+        PutStr(DS);
+      }
+  }
+***************
+*** 3268,3274 ****
+  SetOvlCurr()
+  {
+    SetCurr(fore);
+!   SaveSetAttr(0, ASCII);
+    InsertMode(0);
+    display = 1;
+  }
+--- 3363,3369 ----
+  SetOvlCurr()
+  {
+    SetCurr(fore);
+!   SaveSetAttr(0, 7, ASCII);
+    InsertMode(0);
+    display = 1;
+  }
+***************
+*** 3311,3326 ****
+  }
+  
+  
+! void AddLineToHist(wp, pi, pa, pf)
+  struct win *wp;
+! char **pi, **pa, **pf;
+  {
+    register char *q;
+- 
+    if (wp->histheight == 0)
+      return;
+    q = *pi; *pi = wp->ihist[wp->histidx]; wp->ihist[wp->histidx] = q;
+    q = *pa; *pa = wp->ahist[wp->histidx]; wp->ahist[wp->histidx] = q;
+    q = *pf; *pf = wp->fhist[wp->histidx]; wp->fhist[wp->histidx] = q;
+    if (++wp->histidx >= wp->histheight)
+      wp->histidx = 0;
+--- 3406,3421 ----
+  }
+  
+  
+! void AddLineToHist(wp, pi, pa, pc, pf)
+  struct win *wp;
+! char **pi, **pa, **pc, **pf;
+  {
+    register char *q;
+    if (wp->histheight == 0)
+      return;
+    q = *pi; *pi = wp->ihist[wp->histidx]; wp->ihist[wp->histidx] = q;
+    q = *pa; *pa = wp->ahist[wp->histidx]; wp->ahist[wp->histidx] = q;
++   q = *pc; *pc = wp->chist[wp->histidx]; wp->chist[wp->histidx] = q;
+    q = *pf; *pf = wp->fhist[wp->histidx]; wp->fhist[wp->histidx] = q;
+    if (++wp->histidx >= wp->histheight)
+      wp->histidx = 0;
+diff -c -r screen3.2/ansi.h screen3.3/ansi.h
+*** screen3.2/ansi.h	Thu May 21 19:20:26 1992
+--- screen3.3/ansi.h	Sun May 17 20:30:33 1992
+***************
+*** 32,39 ****
+   * $Id$ FAU
+   */
+  
+- #define NATTR		6
+- 
+  #define ATTR_DI		0	/* Dim mode */
+  #define ATTR_US		1	/* Underscore mode */
+  #define ATTR_BD		2	/* Bold mode */
+--- 32,37 ----
+***************
+*** 40,45 ****
+--- 38,44 ----
+  #define ATTR_RV		3	/* Reverse mode */
+  #define ATTR_SO		4	/* Standout mode */
+  #define ATTR_BL		5	/* Blinking */
++ #define NATTR		6
+  
+  #define A_DI	(1<<ATTR_DI)
+  #define A_US	(1<<ATTR_US)
+Only in screen3.2: config
+Only in screen3.3: config.h
+Only in screen3.2: etcscreenrc
+diff -c -r screen3.2/extern.h screen3.3/extern.h
+*** screen3.2/extern.h	Thu May 21 19:20:27 1992
+--- screen3.3/extern.h	Sun May 17 20:18:47 1992
+***************
+*** 204,209 ****
+--- 204,210 ----
+  extern void NewAutoFlow __P((struct win *, int));
+  extern void NewCharset __P((int));
+  extern void NewRendition __P(());
++ extern void NewColours __P(());
+  extern void PUTCHAR __P((int));
+  extern void INSERTCHAR __P((int));
+  extern void PutChar __P((int));
+diff -c -r screen3.2/help.c screen3.3/help.c
+*** screen3.2/help.c	Thu May 21 19:20:29 1992
+--- screen3.3/help.c	Mon May 18 12:58:41 1992
+***************
+*** 54,60 ****
+  extern char *KeyNames[];
+  extern struct key ktab[];
+  extern int screenwidth, screenheight;
+! extern char *blank, *null, *CE;
+  extern struct win *fore;
+  
+  static void centerline __P((char *));
+--- 54,60 ----
+  extern char *KeyNames[];
+  extern struct key ktab[];
+  extern int screenwidth, screenheight;
+! extern char *blank, *whiteonblack, *null, *CE;
+  extern struct win *fore;
+  
+  static void centerline __P((char *));
+***************
+*** 353,359 ****
+        PutStr(CE);
+        return;
+      }
+!   DisplayLine(null, null, null, blank, null, null, y, xs, xe);
+  }
+  
+  /*
+--- 353,359 ----
+        PutStr(CE);
+        return;
+      }
+!   DisplayLine(null, null, null, null, blank, null, null, null, y, xs, xe);
+  }
+  
+  /*
+diff -c -r screen3.2/mark.c screen3.3/mark.c
+*** screen3.2/mark.c	Thu May 21 19:20:30 1992
+--- screen3.3/mark.c	Thu May 21 14:37:49 1992
+***************
+*** 65,75 ****
+  extern struct win *fore, *wtab[];
+  extern int screenwidth, screenheight;
+  extern int screentop, screenbot;
+! extern char GlobalAttr, GlobalCharset;
+  extern int in_ovl;
+  extern int HS;
+  extern int LP;
+! extern char *null, *blank;
+  
+  #ifdef NETHACK
+  extern nethackflag;
+--- 65,75 ----
+  extern struct win *fore, *wtab[];
+  extern int screenwidth, screenheight;
+  extern int screentop, screenbot;
+! extern char GlobalAttr, GlobalColours, GlobalCharset;
+  extern int in_ovl;
+  extern int HS;
+  extern int LP;
+! extern char *null, *blank, *whiteonblack;
+  
+  #ifdef NETHACK
+  extern nethackflag;
+***************
+*** 114,119 ****
+--- 114,121 ----
+  		% fore->histheight] : fore->image[y - fore->histheight])
+  #define aWIN(y) ((y < fore->histheight) ? fore->ahist[(fore->histidx + y)\
+  		% fore->histheight] : fore->attr[y - fore->histheight])
++ #define cWIN(y) ((y < fore->histheight) ? fore->chist[(fore->histidx + y)\
++ 		% fore->histheight] : fore->colours[y - fore->histheight])
+  #define fWIN(y) ((y < fore->histheight) ? fore->fhist[(fore->histidx + y)\
+  		% fore->histheight] : fore->font[y - fore->histheight])
+  /*
+***************
+*** 959,967 ****
+  	{
+  	  GotoPos(x, W2D(y));
+  	  if (t >= revst && t <= reven)
+! 	    SaveSetAttr(A_SO, ASCII);
+  	  else
+! 	    SaveSetAttr(aWIN(y)[x], fWIN(y)[x]);
+  	  PUTCHAR(iWIN(y)[x]);
+  	}
+      }
+--- 961,969 ----
+  	{
+  	  GotoPos(x, W2D(y));
+  	  if (t >= revst && t <= reven)
+! 	    SaveSetAttr(A_SO, 7, ASCII);
+  	  else
+! 	    SaveSetAttr(aWIN(y)[x], cWIN(y)[x], fWIN(y)[x]);
+  	  PUTCHAR(iWIN(y)[x]);
+  	}
+      }
+***************
+*** 1000,1017 ****
+  {
+    int x, i, rm;
+    int sta, sto, cp; /* NOTE: these 3 are in WINDOW coords system */
+!   char *wi, *wa, *wf, *oldi;
+   
+    InsertMode(0); /* Not done in DisplayLine() */
+  
+    wi = iWIN(D2W(y));
+    wa = aWIN(D2W(y));
+    wf = fWIN(D2W(y));
+    oldi = isblank ? blank : null;
+   
+    if (second == 0)
+      {
+!       DisplayLine(oldi, null, null, wi, wa, wf, y, xs, xe);
+        return;
+      }
+   
+--- 1002,1020 ----
+  {
+    int x, i, rm;
+    int sta, sto, cp; /* NOTE: these 3 are in WINDOW coords system */
+!   char *wi, *wa, *wc, *wf, *oldi;
+   
+    InsertMode(0); /* Not done in DisplayLine() */
+  
+    wi = iWIN(D2W(y));
+    wa = aWIN(D2W(y));
++   wc = cWIN(D2W(y));
+    wf = fWIN(D2W(y));
+    oldi = isblank ? blank : null;
+   
+    if (second == 0)
+      {
+!       DisplayLine(oldi, null, null, null, wi, wa, wc, wf, y, xs, xe);
+        return;
+      }
+   
+***************
+*** 1034,1050 ****
+      if (cp >= sta && x >= left_mar)
+        break;
+    if (x > xs)
+!     DisplayLine(oldi, null, null, wi, wa, wf, y, xs, x-1);
+    for (; x <= xe; x++, cp++)
+      {
+        if (cp > sto || x > rm || (!LP && x >= screenwidth-1 && y == screenbot))
+  	break;
+        GotoPos(x, y);
+!       SaveSetAttr(A_SO, ASCII);
+        PUTCHAR(wi[x]);
+      }
+    if (x<=xe)
+!     DisplayLine(oldi, null, null, wi, wa, wf, y, x, xe);
+  }
+  
+  
+--- 1037,1053 ----
+      if (cp >= sta && x >= left_mar)
+        break;
+    if (x > xs)
+!     DisplayLine(oldi, null, null, null, wi, wa, wc, wf, y, xs, x-1);
+    for (; x <= xe; x++, cp++)
+      {
+        if (cp > sto || x > rm || (!LP && x >= screenwidth-1 && y == screenbot))
+  	break;
+        GotoPos(x, y);
+!       SaveSetAttr(A_SO, 7, ASCII);
+        PUTCHAR(wi[x]);
+      }
+    if (x<=xe)
+!     DisplayLine(oldi, null, null, null, wi, wa, wc, wf, y, x, xe);
+  }
+  
+  
+***************
+*** 1053,1059 ****
+  int ry, xs, xe, doit;
+  {
+    int dx, x, y, st, en, t, rm;
+!   char *a, *f, *i;
+  
+    y = D2W(ry);
+    dx = xe - xs;
+--- 1056,1062 ----
+  int ry, xs, xe, doit;
+  {
+    int dx, x, y, st, en, t, rm;
+!   char *a, *c, *f, *i;
+  
+    y = D2W(ry);
+    dx = xe - xs;
+***************
+*** 1066,1071 ****
+--- 1069,1075 ----
+      }
+    
+    a = aWIN(y) + xs,
++   c = cWIN(y) + xs,
+    f = fWIN(y) + xs;
+    if (second == 0)
+      st = en = -1;
+***************
+*** 1089,1103 ****
+      {
+        if (t >= st && t <= en && x >= left_mar && x <= rm)
+          {
+! 	  if (GlobalAttr != A_SO || GlobalCharset != ASCII)
+  	    return(EXPENSIVE);
+          }
+        else
+          {
+! 	  if (GlobalAttr != *a || GlobalCharset != *f)
+  	    return(EXPENSIVE);
+          }
+!       a++, f++, t++, x++;
+      }
+    return(xe - xs);
+  }
+--- 1093,1107 ----
+      {
+        if (t >= st && t <= en && x >= left_mar && x <= rm)
+          {
+! 	  if (GlobalAttr != A_SO || GlobalCharset != ASCII || GlobalColours != 7)
+  	    return(EXPENSIVE);
+          }
+        else
+          {
+! 	  if (GlobalAttr != *a || GlobalCharset != *f || GlobalColours != *c)
+  	    return(EXPENSIVE);
+          }
+!       a++, c++, f++, t++, x++;
+      }
+    return(xe - xs);
+  }
+diff -c -r screen3.2/patchlevel.h screen3.3/patchlevel.h
+*** screen3.2/patchlevel.h	Thu May 21 19:20:30 1992
+--- screen3.3/patchlevel.h	Sun May 17 23:10:45 1992
+***************
+*** 27,32 ****
+--- 27,33 ----
+   *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
+   *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
+   *	Marc Boucher (marc@CAM.ORG)
++  *	Greg Harewood (gjh@ukc.ac.uk)
+   *
+   ****************************************************************
+   */
+***************
+*** 65,70 ****
+--- 66,72 ----
+   *                     SockName. sysvish 14 character restriction considered.
+   * 31.01.92 -- 3.02.00 Ultrix port, Irix 3.3 SGI port, shadow pw support,
+   *                     data loss on stdin overflow fixed. "refresh off".
++  * 17.05.92 -- 3.02.01 Colour Support in ANSI
+   */
+  
+  #define ORIGIN "FAU"
+diff -c -r screen3.2/screen.1 screen3.3/screen.1
+*** screen3.2/screen.1	Thu May 21 19:20:32 1992
+--- screen3.3/screen.1	Thu May 21 19:31:49 1992
+***************
+*** 1495,1500 ****
+--- 1495,1504 ----
+  	Outputs a string directly to the host
+  	terminal without interpretation.
+  .TP 20
++ .B "ESC b"
++ 	Copy Buffer contents
++ 	Specified string goes into copy buffer
++ .TP 20
+  .B "ESC _"
+  (A)	Application Program Command (not used)
+  .TP 20
+diff -c -r screen3.2/screen.c screen3.3/screen.c
+*** screen3.2/screen.c	Thu May 21 19:20:34 1992
+--- screen3.3/screen.c	Mon May 18 12:59:12 1992
+***************
+*** 129,135 ****
+  extern copylen;
+  #endif /* COPY_PASTE */
+  
+! extern char *blank, *null, Term[], screenterm[], **environ, *Termcap;
+  int force_vt = 1, assume_LP = 0;
+  extern int in_ovl;
+  extern int ovl_blockfore;
+--- 129,135 ----
+  extern copylen;
+  #endif /* COPY_PASTE */
+  
+! extern char *blank, *whiteonblack, *null, Term[], screenterm[], **environ, *Termcap;
+  int force_vt = 1, assume_LP = 0;
+  extern int in_ovl;
+  extern int ovl_blockfore;
+***************
+*** 140,145 ****
+--- 140,146 ----
+  extern int default_width, default_height;
+  extern int Z0width, Z1width;
+  extern int ISO2022;
++ extern int ANSIColour;
+  extern int status, HS;
+  extern char *Z0, *WS, *LastMsg;
+  extern time_t TimeDisplayed;
+diff -c -r screen3.2/screen.h screen3.3/screen.h
+*** screen3.2/screen.h	Thu May 21 19:20:34 1992
+--- screen3.3/screen.h	Thu May 21 15:05:49 1992
+***************
+*** 244,253 ****
+    OSC,				/* Operating system command */
+    APC,				/* Application program command */
+    PM,				/* Privacy message */
+!   AKA				/* a.k.a. for current screen */
+  };
+  
+! #define MAXSTR		256
+  #define MAXARGS 	64
+  #define MSGWAIT 	5
+  #define MSGMINWAIT 	1
+--- 244,254 ----
+    OSC,				/* Operating system command */
+    APC,				/* Application program command */
+    PM,				/* Privacy message */
+!   AKA,				/* a.k.a. for current screen */
+!   COPYBUFSTRING			/* copy buffer insertion */
+  };
+  
+! #define MAXSTR		5000   /* was 256 but now cut buffer too (oops) */
+  #define MAXARGS 	64
+  #define MSGWAIT 	5
+  #define MSGMINWAIT 	1
+***************
+*** 284,289 ****
+--- 285,291 ----
+    char **image;
+    char **attr;
+    char **font;
++   char **colours;
+    int LocalCharset;
+    int charsets[4];
+    int ss;
+***************
+*** 290,298 ****
+--- 292,302 ----
+    int active;
+    int x, y;
+    char LocalAttr;
++   char LocalColours;
+    int saved;
+    int Saved_x, Saved_y;
+    char SavedLocalAttr;
++   char SavedLocalColours;
+    int SavedLocalCharset;
+    int SavedCharsets[4];
+    int top, bot;
+***************
+*** 305,310 ****
+--- 309,315 ----
+    int histidx;          /* 0= < histidx < histheight; where we insert lines */
+    char **ihist; 	/* the history buffer  image */
+    char **ahist; 	/* attributes */
++   char **chist;		/* colours */
+    char **fhist; 	/* fonts */
+    enum state_t state;
+    enum string_t StringType;
+diff -c -r screen3.2/sselection.c screen3.3/sselection.c
+*** screen3.2/sselection.c	Thu May 21 19:41:02 1992
+--- screen3.3/sselection.c	Thu May 21 19:27:28 1992
+***************
+*** 0 ****
+--- 1,34 ----
++ #include <stdio.h>
++ 
++ /* Places the given file or standard input into the iScreen
++  * copy buffer. I would be nice to use a syntax compatible
++  * with Richard Hesketh's (rlh2@ukc.as.uk) xselection, but this
++  * is nice and concise :-)
++  * Also, screen itself could be modified to take an extra parameter
++  * ESC,"b",Pn,string,ESC,"\"  where Pn is for append or whatever too.
++  * And to be able to examine the contents of the copybuffer using this
++  * program too. Oh well. One day.
++  */
++ 
++ main(argc, argv)
++ 	int             argc;
++ 	char           *argv[];
++ {
++ 	int             ch;
++ 	FILE *op;
++ 
++ 	if ((op=fopen("/dev/tty","w"))<=0) {
++ 		fprintf(stderr,"Cannot open output file %d\n",op);
++ 		exit(1);
++ 	}
++ 	if (argc > 1 && !freopen(stdin, argv[1], "r")) {
++ 		fprintf(stderr,"Cannot open input file\n");
++ 		exit(1);
++ 	}
++ 	
++ 	fprintf(op,"\033b");
++ 	while ((ch = getchar()) != EOF)
++ 		putc(ch,op);
++ 	fprintf(op,"\033\\");
++ 	exit(0);
++ }
+Only in screen3.2: terminfo
+diff -c -r screen3.2/window.c screen3.3/window.c
+*** screen3.2/window.c	Thu May 21 19:20:36 1992
+--- screen3.3/window.c	Mon May 18 12:57:55 1992
+***************
+*** 61,74 ****
+  
+  static void FreeScrollback __P((struct win *));
+  
+! static int ResizeHistArray __P((struct win *, char ***, int, int, int));
+! static int ResizeScreenArray __P((struct win *, char ***, int, int, int));
+  static void FreeArray __P((char ***, int));
+  
+  extern TermcapCOLS, TermcapROWS;
+  extern int maxwidth;
+  extern int default_width, default_height, screenwidth, screenheight;
+! extern char *blank, *null, *OldImage, *OldAttr;
+  extern char *OldFont, *LastMsg;
+  extern struct win *wtab[], *fore;
+  extern int WinList, ForeNum;
+--- 61,74 ----
+  
+  static void FreeScrollback __P((struct win *));
+  
+! static int ResizeHistArray __P((struct win *, char ***, int, int, char));
+! static int ResizeScreenArray __P((struct win *, char ***, int, int, char));
+  static void FreeArray __P((char ***, int));
+  
+  extern TermcapCOLS, TermcapROWS;
+  extern int maxwidth;
+  extern int default_width, default_height, screenwidth, screenheight;
+! extern char *blank, *whiteonblack, *null, *OldImage, *OldAttr, *OldColours;
+  extern char *OldFont, *LastMsg;
+  extern struct win *wtab[], *fore;
+  extern int WinList, ForeNum;
+***************
+*** 219,226 ****
+        return 0;
+      }
+  
+!   if (ResizeHistArray(p, &p->ihist, histwidth, histheight, 1)
+        || ResizeHistArray(p, &p->ahist, histwidth, histheight, 0)
+        || ResizeHistArray(p, &p->fhist, histwidth, histheight, 0))
+      {
+        debug("   failed, removing all histbuf\n");
+--- 219,227 ----
+        return 0;
+      }
+  
+!   if (ResizeHistArray(p, &p->ihist, histwidth, histheight, ' ')
+        || ResizeHistArray(p, &p->ahist, histwidth, histheight, 0)
++       || ResizeHistArray(p, &p->chist, histwidth, histheight, 7)
+        || ResizeHistArray(p, &p->fhist, histwidth, histheight, 0))
+      {
+        debug("   failed, removing all histbuf\n");
+***************
+*** 240,254 ****
+  {
+    FreeArray(&p->ihist, p->histheight);
+    FreeArray(&p->ahist, p->histheight);
+    FreeArray(&p->fhist, p->histheight);
+    p->histheight = 0;
+  }
+  
+  static int
+! ResizeHistArray(p, arr, wi, hi, fillblank)
+  struct win *p;
+! char ***arr;
+! int wi, hi, fillblank;
+  {
+    char **narr, **np, **onp, **onpe;
+    int t, x, first;
+--- 241,256 ----
+  {
+    FreeArray(&p->ihist, p->histheight);
+    FreeArray(&p->ahist, p->histheight);
++   FreeArray(&p->chist, p->histheight);
+    FreeArray(&p->fhist, p->histheight);
+    p->histheight = 0;
+  }
+  
+  static int
+! ResizeHistArray(p, arr, wi, hi, fillwith)
+  struct win *p;
+! char ***arr, fillwith;
+! int wi, hi;
+  {
+    char **narr, **np, **onp, **onpe;
+    int t, x, first;
+***************
+*** 302,309 ****
+  	}
+        if (x<wi)
+  	{
+! 	  if (fillblank)
+! 	    bclear(*np+x, wi-x);
+  	  else
+  	    bzero(*np+x, wi-x);
+  	}
+--- 304,311 ----
+  	}
+        if (x<wi)
+  	{
+! 	  if (fillwith != '\0')
+! 	    bset(*np+x, wi-x, fillwith);
+  	  else
+  	    bzero(*np+x, wi-x);
+  	}
+***************
+*** 314,323 ****
+        
+  
+  static int
+! ResizeScreenArray(p, arr, wi, hi, fillblank)
+  struct win *p;
+! char ***arr;
+! int wi, hi, fillblank;
+  {
+    int minr;
+    char **cp;
+--- 316,325 ----
+        
+  
+  static int
+! ResizeScreenArray(p, arr, wi, hi, fillwith)
+  struct win *p;
+! char ***arr, fillwith;
+! int wi, hi;
+  {
+    int minr;
+    char **cp;
+***************
+*** 347,354 ****
+  	  }
+  	if (wi > p->width)
+  	  {
+! 	    if (fillblank)
+! 	      bclear(*cp + p->width, wi - p->width);
+  	    else
+  	      bzero(*cp + p->width, wi - p->width);
+  	  }
+--- 349,356 ----
+  	  }
+  	if (wi > p->width)
+  	  {
+! 	    if (fillwith != '\0')
+! 	      bset(*cp + p->width, wi - p->width, fillwith);
+  	    else
+  	      bzero(*cp + p->width, wi - p->width);
+  	  }
+***************
+*** 368,375 ****
+  	  Free(*arr);
+            return(-1);
+  	}
+!       if (fillblank)
+! 	bclear(*cp, wi);
+        else
+  	bzero(*cp, wi);
+      }
+--- 370,377 ----
+  	  Free(*arr);
+            return(-1);
+  	}
+!       if (fillwith != '\0')
+! 	bset(*cp, wi, fillwith);
+        else
+  	bzero(*cp, wi);
+      }
+***************
+*** 408,413 ****
+--- 410,419 ----
+          blank = malloc((unsigned) maxwidth);
+        else
+          blank = xrealloc(blank, (unsigned) maxwidth);
++       if (whiteonblack == 0)
++         whiteonblack = malloc((unsigned) maxwidth);
++       else
++         whiteonblack = xrealloc(whiteonblack, (unsigned) maxwidth);
+        if (null == 0)
+          null = malloc((unsigned) maxwidth);
+        else
+***************
+*** 420,425 ****
+--- 426,435 ----
+          OldAttr = malloc((unsigned) maxwidth);
+        else
+          OldAttr = xrealloc(OldAttr, (unsigned) maxwidth);
++       if (OldColours == 0)
++         OldColours = malloc((unsigned) maxwidth);
++       else
++         OldColours = xrealloc(OldColours, (unsigned) maxwidth);
+        if (OldFont == 0)
+          OldFont = malloc((unsigned) maxwidth);
+        else
+***************
+*** 432,438 ****
+        else
+          LastMsg = xrealloc(LastMsg, (unsigned) maxwidth + 1);
+        LastMsg[maxwidth]=0;
+!       if (!(blank && null && OldImage && OldAttr && OldFont && LastMsg))
+  	{
+  nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) 
+  	    ;
+--- 442,448 ----
+        else
+          LastMsg = xrealloc(LastMsg, (unsigned) maxwidth + 1);
+        LastMsg[maxwidth]=0;
+!       if (!(blank && null && OldImage && OldAttr && OldColours && OldFont && LastMsg))
+  	{
+  nomem:	  for (t = WinList; t != -1 && wtab[t] != p; t = p->WinLink) 
+  	    ;
+***************
+*** 442,447 ****
+--- 452,458 ----
+  	  return(-1);
+  	}
+        MakeBlankLine(blank, maxwidth);
++       bset(whiteonblack, maxwidth, 7);
+        bzero(null, maxwidth);
+      }
+    
+***************
+*** 458,463 ****
+--- 469,475 ----
+      {
+        FreeArray(&p->image, p->height);
+        FreeArray(&p->attr, p->height);
++       FreeArray(&p->colours, p->height);
+        FreeArray(&p->font, p->height);
+        if (p->tabs)
+  	Free(p->tabs);
+***************
+*** 472,480 ****
+    if (scr < 0)
+      scr = 0;
+    for (t = 0; t < scr; t++)
+!     AddLineToHist(p, p->image+t, p->attr+t, p->font+t); 
+!   if (ResizeScreenArray(p, &p->image, width, height, 1)
+        || ResizeScreenArray(p, &p->attr, width, height, 0)
+        || ResizeScreenArray(p, &p->font, width, height, 0))
+      {
+        goto nomem;
+--- 484,493 ----
+    if (scr < 0)
+      scr = 0;
+    for (t = 0; t < scr; t++)
+!     AddLineToHist(p, p->image+t, p->attr+t, p->colours+t, p->font+t); 
+!   if (ResizeScreenArray(p, &p->image, width, height, ' ')
+        || ResizeScreenArray(p, &p->attr, width, height, 0)
++       || ResizeScreenArray(p, &p->colours, width, height, 7)
+        || ResizeScreenArray(p, &p->font, width, height, 0))
+      {
+        goto nomem;
+

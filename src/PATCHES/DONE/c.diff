@@ -1,0 +1,506 @@
+diff +unif=2 iscreen-3.2.dist/CHANGES iscreen-3.2/CHANGES
+--- iscreen-3.2.dist/CHANGES	Sun Oct  6 10:26:10 1991
++++ iscreen-3.2/CHANGES	Sat May  2 23:09:17 1992
+@@ -6,5 +6,5 @@
+ command line option -A. $LINES, $COLUMNS improved.
+ 
+-C-A : vbell_wait <sec>
++C-A : vbellwait <sec>
+ 
+ XENIX support (Ronald Khoo)
+Only in iscreen-3.2: INSTALL
+Only in iscreen-3.2.dist: INSTALLATION
+Only in iscreen-3.2.dist: Makefile
+Only in iscreen-3.2: Makefile.in
+diff +unif=2 iscreen-3.2.dist/README iscreen-3.2/README
+--- iscreen-3.2.dist/README	Sun Sep  8 19:28:38 1991
++++ iscreen-3.2/README	Sun May  3 02:28:12 1992
+@@ -1,86 +1,55 @@
++"screen" is a window manager that allows you to handle several independent
++screens (UNIX ttys) on a single physical terminal; each screen has its own
++set of processes connected to it (typically interactive shells).  Each
++virtual terminal created by "screen" emulates a DEC VT100 plus several ANSI
++X3.64 and ISO 2022 functions (including DEC VT102 features such as line and
++character deletion and insertion).
++
++Since "screen" uses pseudo-ttys, the select system call, and UNIX-domain
++sockets, it will not run under a system that does not include these
++features of 4.2 and 4.3 BSD UNIX.
++
++To compile and install screen:
++
++Read through the "Site Configuration" section of config.h.in, and edit
++it to suit your site.  Each define is well commented to help you decide
++what to choose.  Then follow the instructions in the file INSTALL.
++
++
++If you want to get a quick idea how "screen" works but don't want to read
++the entire manual, do the following:
++ 
++     -  call "screen" without arguments
++     -  wait for the shell prompt; execute some commands
++     -  type ^A ^C (Control-A followed by Control-C)
++     -  wait for the shell prompt; do something in the new window
++     -  type ^A ^A repeatedly to switch between the two windows
++     -  terminate the first shell ("screen" switches to the other window)
++     -  terminate the second shell
++
++If you have "vttest" (the VT100 test program from mod.sources) you
++may want to run it from within "screen" to verify that it correctly
++emulates a VT100 on your terminal (except for things your terminal is
++incapable of handling, like 132 column mode and double width/height
++characters, of course).
++
++By the way, "screen" can be used to compensate for certain bugs of "real"
++VT100 terminals.  For instance, our 4.2 BSD version of mille(6) garbles
++the display on terminals of the VT100 family, but it works quite fine
++when it is invoked from within "screen".  In addition, "screen" enables
++you to use EMACS on terminals that are unable to generate Control-S and
++Control-Q from the keyboard or that require flow control using Control-S
++and Control-Q.  This is the reason why I have an alias like
++
++     alias emacs "screen emacs"
++
++in my .cshrc file.  Users who run EMACS on terminals which normally have no
++trouble with Control-S and Control-Q will probably want to run screen with
++the -fn or -fa options, or put the line "flow off" or "flow auto" in their
++.screenrc file.
+ 
+-Short introduction to screen (Version 3.0.7)                  jw 7.9.91
++Send your questions, comments and bug reports for screen to:
+ 
+-screen 
+-  provides you with an ansi/vt100 terminal emulator, which can multiplex
+-  up to 10 pseudo-terminals. On startup, it executes $SHELL in window 0.
+-  Then it reads $HOME/.screenrc to learn configuration, keybindings, 
+-  and may open more windows.
++           Juergen Weigert 
+ 
+-  C-A C		Create new windows.
+-
+-  C-A SPACE	Advance from window to window (with wraparound)
+-
+-  C-A C-A	Toggle between two windows.
+-
+-  C-A 0
+-   ...
+-  C-A 9		Switch to window nr. 0 ... 9.
+-
+-  C-A w		Show a list of windows in the Statusline.
+-
+-  C-A a		(Think of goto-start-of-line in emacs or tcsh).
+-  C-A s		(Think of i-search in emacs).
+-  C-A q		Send a literal C-A/C-S/C-Q to the process in the window.
+-
+-  C-A l		Redraw this window.
+-
+-  C-A W		Toggle between 80 & 132 columns mode. 
+-
+-  C-A L		Try to toggle the utmp-slot for this window.
+-
+-  C-A A		Prompt for a new name for this window. (see C-A w).
+-
+-  C-A z		Suspend the whole screen.
+-
+-  C-A x		Execute /usr/bin/lock or $LOCKCMD or a builtin terminallock.
+-
+-  C-A C-[	Start copy&paste mode. Move cursor with h,j,k,l. Set 2 marks
+-		with SPACE or y. Abort with ESC. Note that "C-[" is ESC.
+-		NOTE: there is a userdefined amount of scrollback history.
+-                The history buffer is entered, when the cursor hits the top
+-		of the window.
+-
+-  C-A C-]	paste in current window's stdin. see C-A C-[.
+-
+-  C-A <
+-  C-A >		Read or write the copybuffer from/to the exchange file.
+-		Multiple screen users on the same host may thus transfer text.
+-
+-  C-A d		Detach screen. All processes continue and may spool output
+-		to their pty's, but screen disconnects from your terminal.
+-		reattach with "screen -r".
+-
+-  C-A D D	Power detach. Disconnect like C-A d and kill the parent shell.
+-
+-  C-A K		Kill a window and send SIGHUP to its processgroup. Per default
+-		this would be C-A C-k. But it is redefined in the demo .screenrc
+-		(think of killing a whole line in emacs).
+-
+-  C-A :set all  Show all keybindings. The above list is not at all complete and
+-		may even be wrong, as keys can be redefined in .screenrc or
+-		with "C-A :bind 'X' keyname [arguments]".
+-
+-  C-A : ....  Online configuration change.
+-
+-
+-screen -r [host.tty]
+-  Reattach a detached screen session. The terminal emulator reconfigures
+-  according to your $TERMCAP or $TERM settings. '-R' brings up a detached
+-  session or (if none) creates a new session. You should specify a socket
+-  when there you have multiple screens detached. 
+-
+-screen -d [host.tty]
+-  Detach a screen session from remote. Has the same effect as typing 'C-A d'
+-  on the controlling terminal. '-D' will power-detach.
+-
+-screen -list
+-screen -ls
+-  Show all available sockets. If there are (DEAD???) sockets, you may consider 
+-  removing them. If there are sockets missing, you may send a SIGCHLD to its
+-  process 'SCREEN' and the process will re-establish the socket. (think of 
+-  someone cleaning /tmp thoroughly).
+-
+-screen -h 200
+-  Starts a new screen session and sets the number of lines in the scrollback
+-  buffer to 200. The default is 50 lines.
++	   jnweiger@immd4.informatik.uni-erlangen.de
+Only in iscreen-3.2.dist: config
+Only in iscreen-3.2.dist: config.h
+Only in iscreen-3.2: config.h.in
+Only in iscreen-3.2: configure
+Only in iscreen-3.2: configure.in
+diff +unif=2 iscreen-3.2.dist/etcscreenrc iscreen-3.2/etcscreenrc
+--- iscreen-3.2.dist/etcscreenrc	Tue Feb  4 16:24:49 1992
++++ iscreen-3.2/etcscreenrc	Sat May  2 23:49:44 1992
+@@ -1,7 +1,5 @@
+ # This is a global screenrc file
+-# Install this file as /usr/local/etc/screenrc. See config.h
+ #
+ # Flaws of termcap and standard settings are done here.
+-# Note: This file should not be shared between different hosts.
+ #       The 'termcap' lines are written in termcap syntax.
+ #       The syntax for a terminfo based host is slightly different.
+@@ -15,17 +13,11 @@
+ #sleep 2
+ 
+-# startup_message off
++# Disable the big copyright notice.
++startup_message off
+ 
+-#flow on # will force iScreen to process ^S/^Q
++# Make utmp entries.
++login on
+ 
+-set vbell on
+-set login on
+-set autodetach off
+-
+-# 'vbell on' without the prepended 'set' keyword will change the default for 
+-# subsequently opened windows. With the 'set' keyword we would change
+-# the setting of the currently active window.
+-vbell on
+-set vbell_msg "   Wuff,  ----  Wuff!!  "
++autodetach on
+ 
+ # all termcap entries are now duplicated as terminfo entries.
+@@ -82,13 +74,2 @@
+ termcap wy75-42 xo
+ terminfo wy75-42 xo
+-
+-#remove some stupid / dangerous key bindings
+-bind '^k'
+-#bind 'L'
+-bind '^\'
+-#make them better
+-bind '\\' quit
+-bind 'K' kill
+-bind 'I' set login on
+-bind 'O' set login off
+-bind '}' history
+diff +unif=2 iscreen-3.2.dist/extern.h iscreen-3.2/extern.h
+--- iscreen-3.2.dist/extern.h	Sun Feb  2 20:27:41 1992
++++ iscreen-3.2/extern.h	Sat May  2 19:57:06 1992
+@@ -145,5 +145,7 @@
+ extern char *SaveStr __P((char *));
+ extern char *findcap __P((char *, char **, int));
++#if !__GNUC__
+ extern char *strdup __P((const char *));
++#endif
+ extern int ChangeScrollback __P((struct win *, int, int));
+ extern int ChangeWindowSize __P((struct win *, int, int));
+diff +unif=2 iscreen-3.2.dist/fileio.c iscreen-3.2/fileio.c
+--- iscreen-3.2.dist/fileio.c	Tue Feb  4 15:41:18 1992
++++ iscreen-3.2/fileio.c	Sun May  3 04:12:58 1992
+@@ -1935,24 +1935,4 @@
+ }
+ 
+-char *
+-stripdev(nam)
+-char *nam;
+-{
+-#ifdef apollo
+-  char *p;
+-
+-  if (nam == NULL)
+-    return NULL;
+-  if (p = strstr(nam,"/dev/"))
+-    return p + 5;
+-#else
+-  if (nam == NULL)
+-    return NULL;
+-  if (strncmp(nam, "/dev/", 5) == 0)
+-    return nam + 5;
+-#endif
+-  return nam;
+-}
+-
+ static slot_t TtyNameSlot(nam)
+ char *nam;
+@@ -2293,4 +2273,24 @@
+ #endif	/* UTMPOK */
+ 
++char *
++stripdev(nam)
++char *nam;
++{
++#ifdef apollo
++  char *p;
++
++  if (nam == NULL)
++    return NULL;
++  if (p = strstr(nam,"/dev/"))
++    return p + 5;
++#else
++  if (nam == NULL)
++    return NULL;
++  if (strncmp(nam, "/dev/", 5) == 0)
++    return nam + 5;
++#endif
++  return nam;
++}
++
+ #if !defined(GETTTYENT) && !defined(GETUTENT)
+ 
+@@ -2542,5 +2542,5 @@
+ }
+ 
+-#ifdef BUGGYGETLOGIN
++#if defined(BUGGYGETLOGIN) && defined(UTMPOK)
+ char *
+ getlogin()
+Only in iscreen-3.2.dist: readme
+diff +unif=2 iscreen-3.2.dist/screen.1 iscreen-3.2/screen.1
+--- iscreen-3.2.dist/screen.1	Tue Feb  4 15:49:07 1992
++++ iscreen-3.2/screen.1	Sat May  2 23:33:22 1992
+@@ -1,2 +1,3 @@
++.\" -*- nroff -*-
+ .if n .ds Q \&"
+ .if n .ds U \&"
+@@ -184,5 +185,5 @@
+ Create a new window with a shell and switch to that window.
+ .IP "\fBC-a C\fP   (clear)"
+-Clear the screen.
++Clear the screen (saves image to scrollback buffer).
+ .IP "\fBC-a d\fP  or  \fBC-a C-d\fP   (detach)"
+ Detach
+@@ -196,5 +197,5 @@
+ .B \-r
+ option. (See also section \*QCOMMAND-LINE OPTIONS\*U.)
+-.IP "\fBC-a D D\fP   (pow_detach)"
++.IP "\fBC-a D\fP   (pow_detach)"
+ Power detach. Mainly the same as above, but also sends a HANGUP signal to
+ the parent process of
+@@ -229,6 +230,6 @@
+ like in \*U(80,24)+50\*U, various flag settings (flow-control, insert mode,
+ origin
+-mode, wrap mode, application-keypad mode, output logging, and activity
+-monitoring (`+' indicates enabled, `-' not)),
++mode, wrap mode, application-keypad mode, output logging, activity
++monitoring, and redraw (`+' indicates enabled, `-' not)),
+ the currently active character set (\fIG0\fP, \fIG1\fP, \fIG2\fP,
+ or \fIG3\fP), and in square brackets the terminal character sets that are
+@@ -472,4 +473,9 @@
+ must redraw parts of the display in order to implement a function.
+ .TP 5
++.B \-A
++Adapt the sizes of all windows to the size of the display.  By default,
++.I screen
++may try to restore its old window sizes.
++.TP 5
+ .B "\-c \fIfile\fP"
+ override the default configuration file from \*Q$HOME/.screenrc\*U
+@@ -524,6 +530,9 @@
+ `dead' should be thoroughly checked and removed. Ask your system administrator
+ if you are not sure. Remove sessions with the \fB-wipe\fP option.
++.IP 5
++.B "\-m"
++disables looking in environment variable $STY for an alternate socket name.
+ .TP 5
+-.B "\-t \fIname\fP"
++.B "\-t \fIname\fP or \fB\-k\fP \fIname\fP"
+ sets the title (a.\|k.\|a.) for the default shell or specified program.
+ See also the \*Qshellaka\*U .screenrc command.
+@@ -794,5 +803,5 @@
+ .I screen
+ users with a 'message of the
+-day'. Typically installed in a global /usr/local/etc/screenrc. See also
++day'. Typically installed in a global /local/etc/screenrc. See also
+ \*Qsleep\*U.
+ Echo is also useful for online checking of environment variables.
+@@ -867,17 +876,12 @@
+ .PP
+ .ne 3
+-.B "nethack on\fP|\fBoff"
++.B "monitor on\fP|\fBoff\fP"
+ .sp
+-Changes the kind of error messages used by
+-.IR screen .
+-When you are familiar with the game \*Qnethack\*U, you may enjoy the
+-nethack-style messages which will often blur the facts a little, but are
+-much funnier to read. Anyway, standard messages often tend to be unclear as
+-well.
+-.br
+-This option is only 
+-available, if screen was compiled with the NETHACK flag defined. The
+-default setting is then determined by the presence of the environment 
+-variable $NETHACKOPTIONS.
++Toggles activity monitoring of windows.
++When monitoring is turned on and an affected window is switched into the
++background, you will receive the activity notification message in the
++status line at the first sign of output and the window will also be marked
++with an `@' in the window-status display.
++Monitoring is initially off for all windows.
+ .PP
+ .ne 3
+@@ -896,4 +900,19 @@
+ .PP
+ .ne 3
++.B "nethack on\fP|\fBoff"
++.sp
++Changes the kind of error messages used by
++.IR screen .
++When you are familiar with the game \*Qnethack\*U, you may enjoy the
++nethack-style messages which will often blur the facts a little, but are
++much funnier to read. Anyway, standard messages often tend to be unclear as
++well.
++.br
++This option is only 
++available if screen was compiled with the NETHACK flag defined. The
++default setting is then determined by the presence of the environment 
++variable $NETHACKOPTIONS.
++.PP
++.ne 3
+ .B "password \fP[\fIcrypted_pw\fP]"
+ .sp
+@@ -934,13 +953,15 @@
+ .sp
+ .I screen
+-creates a shell window (in window #1), a window with a TELNET connection
++creates a shell window (in window #1) and a window with a TELNET connection
+ to the machine foobar (with no flow-control using the a.\|k.\|a. \*Qfoobar\*U
+-in window #2), and finally, a second shell window
+-(the default window) which gets a window number of zero.
++in window #2).  If you do not include any
++.I screen
++commands in your \*Q.screenrc\*U file, then
++.I screen
++defaults to creating a single shell window, number zero.
+ When the initialization is completed,
+ .I screen
+ switches to the last window specified in your .screenrc file or, if none, it
+-opens a default window #0 that would be displayed in this
+-case.
++opens default window #0.
+ .PP
+ .ne 3
+@@ -994,4 +1015,11 @@
+ .PP
+ .ne 3
++.B "startup_message on\fP|\fBoff\fP"
++.sp
++Select whether to display the copyright notice when
++.I screen
++starts up.
++.PP
++.ne 3
+ .B "term \fIterm\fP"
+ .sp
+@@ -998,7 +1026,7 @@
+ In each window's environment
+ .I screen
+-opens, it sets the $TERM variable to \*Qscreen\*U by default. 
+-But when no description for \*Qscreen\*U is installed in the local termcap
+-or terminfo data base, you can pretend that the terminal emulator is - say -
++opens, it sets the $TERM variable to \*Qscreen\*U by default, unless
++no description for \*Qscreen\*U is installed in the local termcap
++or terminfo data base.  In that case it pretends that the terminal emulator is
+ \*Qvt100\*U. This won't do much harm, as 
+ .I screen
+@@ -1260,5 +1288,5 @@
+ .fi
+ .sp
+-This file would start two shells (one specified, one default) using
++This file would start a shell using
+ the given shellaka.
+ The a.\|k.\|a. specified is an auto-aka that would expect the prompt and
+@@ -1670,4 +1698,35 @@
+ (A)	Stop relay to printer (ANSI Media Copy)
+ .fi
++.SH ENVIRONMENT
++.IP COLUMNS
++Number of columns on the terminal (overrides termcap entry).
++.IP HOME
++Directory in which to look for .screenrc.
++.IP ISCREENRC
++Alternate user screenrc file.
++.IP LINES
++Number of lines on the terminal (overrides termcap entry).
++.IP LOCKPRG
++Screen lock program.
++.IP NETHACKOPTIONS
++Turns on nethack option.
++.IP PATH
++Used for locating programs to run.
++.IP SCREENCAP
++For customizing a terminal's TERMCAP value.
++.IP SCREENDIR
++Alternate socket directory.
++.IP SCREENRC
++Alternate user screenrc file.
++.IP SHELL
++Default shell program for opening windows (default \*Q/bin/sh\*U).
++.IP STY
++Alternate socket name.
++.IP SYSSCREENRC
++Alternate system screenrc file.
++.IP TERM
++Terminal name.
++.IP TERMCAP
++Terminal description.
+ .SH FILES
+ .nf
+@@ -1683,5 +1742,5 @@
+ $HOME/.iscreenrc
+ .br
+-$HOME/.screenrc	  Read in after /usr/local/etc/screenrc
++$HOME/.screenrc	  Read in after /local/etc/screenrc
+ .br
+ $ISCREENDIR/S-<login>
+diff +unif=2 iscreen-3.2.dist/screen.c iscreen-3.2/screen.c
+--- iscreen-3.2.dist/screen.c	Sun Feb  2 20:28:12 1992
++++ iscreen-3.2/screen.c	Sun May  3 03:54:55 1992
+@@ -73,4 +73,7 @@
+ 
+ #include <signal.h>
++#if defined(SVR4) && !defined(NSIG)
++#define NSIG 32
++#endif
+ 
+ #include "config.h"
+diff +unif=2 iscreen-3.2.dist/socket.c iscreen-3.2/socket.c
+--- iscreen-3.2.dist/socket.c	Sun Feb  2 20:28:20 1992
++++ iscreen-3.2/socket.c	Sun May  3 04:30:18 1992
+@@ -107,5 +107,9 @@
+ 
+ char *strdup(str)
++#ifdef hpux
++char *str;
++#else
+ const char *str;
++#endif
+ {
+   char *ret;
+Common subdirectories: iscreen-3.2.dist/terminfo and iscreen-3.2/terminfo
+
+
+

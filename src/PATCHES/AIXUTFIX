@@ -1,0 +1,50 @@
+*** fileio.c.orig	Fri Feb 26 00:59:59 1993
+--- fileio.c	Fri Feb 26 01:09:04 1993
+***************
+*** 1828,1837 ****
+  # ifdef _SEQUENT_
+        if (ut_delete_user(slot, uu->ut_pid, 0, 0) == 0)
+  # else
+!       uu->ut_type = DEAD_PROCESS;
+!       uu->ut_exit.e_termination = 0;
+!       uu->ut_exit.e_exit= 0;
+!       if (pututline(uu) == 0)
+  # endif
+  #else
+        (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);
+--- 1828,1838 ----
+  # ifdef _SEQUENT_
+        if (ut_delete_user(slot, uu->ut_pid, 0, 0) == 0)
+  # else
+!       u = *uu;
+!       u.ut_type = DEAD_PROCESS;
+!       u.ut_exit.e_termination = 0;
+!       u.ut_exit.e_exit= 0;
+!       if (pututline(&u) == 0)
+  # endif
+  #else
+        (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);
+***************
+*** 2168,2177 ****
+  # ifdef _SEQUENT_
+    if (ut_delete_user(slot, uu->ut_pid, 0, 0) == 0)
+  # else
+!   uu->ut_type = DEAD_PROCESS;
+!   uu->ut_exit.e_termination = 0;
+!   uu->ut_exit.e_exit= 0;
+!   if (pututline(uu) == 0)
+  # endif
+  #else	/* GETUTENT */
+    (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);
+--- 2169,2179 ----
+  # ifdef _SEQUENT_
+    if (ut_delete_user(slot, uu->ut_pid, 0, 0) == 0)
+  # else
+!   u = *uu;
+!   u.ut_type = DEAD_PROCESS;
+!   u.ut_exit.e_termination = 0;
+!   u.ut_exit.e_exit= 0;
+!   if (pututline(&u) == 0)
+  # endif
+  #else	/* GETUTENT */
+    (void) lseek(utmpf, (off_t) (slot * sizeof u), 0);

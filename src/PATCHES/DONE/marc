@@ -1,0 +1,219 @@
+From marc@Altitude.CAM.ORG Mon Feb 24 10:51:38 1992
+Received: from Larry.McRCIM.McGill.EDU by immd4.informatik.uni-erlangen.de  with SMTP (5.64+/7.3a-FAU)
+	id AA02370; Mon, 24 Feb 92 10:51:12 +0100
+Received: by Larry.McRCIM.McGill.EDU (5.61)
+	id <9202240950.AA13542@Larry.McRCIM.McGill.EDU>; Mon, 24 Feb 92 04:50:43 -0500
+Received: by Altitude.CAM.ORG (5.65c8/IDA/mb)
+	id AA22136 for jnweiger@immd4.informatik.uni-erlangen.de; Mon, 24 Feb 1992 05:03:23 -0500
+From: Marc Boucher <marc@CAM.ORG>
+Message-Id: <199202241003.AA22136@Altitude.CAM.ORG>
+Subject: some new screen3.2 bugs
+To: jnweiger@immd4.informatik.uni-erlangen.de (Juergen Weigert)
+Date: Mon, 24 Feb 92 5:03:17 EST
+X-Mailer: ELM [version 2.3 PL11]
+Status: OR
+
+Hallo
+
+I've stumbled on two relatively serious iScreen 3.2 bugs that escaped my/our
+previous zealous testing (ouch).
+
+Under SYSV (including SVR4 when signal() is used) a signal handler is reset to
+SIG_DFL prior to calling the handler function, which must take care of
+re-installing itself. Screen does this relatively well right now.
+However, signals are not normally blocked before delivery, so there is a slight
+window of opportunity for the SIG_DFL action to occur if a new identical signal
+is sent after entering the handler but before re-installation. Screen's
+front-end has died several times on me when SIGINT's were sent too fast (in "-i"
+mode). Unfortunately, this problem can not be totally solved for SYSV's other
+than R4, because they don't have reliable signals. The best we can do is set
+the handler back as soon as possible, in order to minimize the window. For R4,
+calling sigset() instead of signal() is the answer.
+
+The second bug: value 0377 chosen to disable interpretation of certain
+special tty characters (c_cc's) is wrong on some systems, notably those who
+follow POSIX where the value of define _POSIX_VDISABLE (usually 0) should be
+used.
+
+Other minor thingie: a trailing comma was forgotten in the last entry of
+enum keytype (screen.h): SGI's ANSI compiler doesn't like it.
+
+I'd like to see a publicly distributed patch (soon) that corrects those problems
+and others that you have encountered or were reported. If you are against the
+idea or hold the opinion that it is too soon, please give me permission to
+post my diffs unofficially in SVR4-circles. (I am mostly concerned by the
+reliable signal problem, which has very irritating intermittent symptoms!)
+
+MArc.
+-- 
+^@-------~~--**----/ --- - Marc Boucher
+marc@CAM.ORG \----?	":
+/-----_--  -    ----_|| +1 514 466 8932 - &-
+
+
+--- 1.1	1992/02/04 02:45:53
++++ screen.h	1992/02/04 02:46:57
+@@ -447,7 +447,7 @@
+ #endif
+ 
+ /* the key definitions are used in screen.c and help.c */
+-/* keep this list synchronus with the names given in fileio.c */
++/* keep this list synchronous with the names given in fileio.c */
+ enum keytype
+ {
+   KEY_IGNORE, /* Keep these first 2 at the start */
+@@ -502,7 +502,7 @@
+   KEY_EXTEND,
+   KEY_X_WINDOWS,
+   KEY_BONUSWINDOW,
+-  KEY_CREATE,
++  KEY_CREATE
+ };
+ 
+ struct key 
+--- 1.1	1992/02/24 06:13:42
++++ screen.c	1992/02/24 09:29:19
+@@ -1472,8 +1472,8 @@
+ static sig_t 
+ AttacherSigInt(SIGDEFARG)
+ {
+-  Kill(MasterPid, SIGINT);
+   signal(SIGINT, AttacherSigInt);
++  Kill(MasterPid, SIGINT);
+ # ifndef SIGVOID
+   return (sig_t) 0;
+ # endif
+@@ -1496,9 +1496,11 @@
+   if (fore && !in_ovl)
+     write(fore->ptyfd, buf, 1);
+ #else
++#ifdef SYSV
++  signal(SIGINT, SigInt);
++#endif /* SYSV */
+   debug("SigInt() careful\n");
+   InterruptPlease = 1;
+-  signal(SIGINT, SigInt);
+ #endif
+ #ifndef SIGVOID
+   return((sig_t) 0);
+@@ -1508,6 +1510,9 @@
+ static sig_t CoreDump(sig)
+ int sig;
+ {
++#ifdef SYSV
++  signal(sig, SIG_IGN);
++#endif /* SYSV */
+   setgid(getgid());
+   setuid(getuid());
+   unlink("core");
+@@ -2997,6 +3002,13 @@
+ {
+   *np = *op;
+ 
++#ifndef VDISABLE
++# ifdef _POSIX_VDISABLE
++#  define VDISABLE _POSIX_VDISABLE
++# else
++#  define VDISABLE 0377
++# endif /* _POSIX_VDISABLE */
++#endif /* VDISABLE */
+ #if defined(TERMIO) || defined(POSIX)
+   np->tio.c_iflag &= ~ICRNL;
+ # ifdef ONLCR
+@@ -3029,33 +3041,33 @@
+   if (iflag)
+     intrc = op->tio.c_cc[VINTR];
+   else
+-    intrc = np->tio.c_cc[VINTR] = 0377;
+-  np->tio.c_cc[VQUIT] = 0377;
++    intrc = np->tio.c_cc[VINTR] = VDISABLE;
++  np->tio.c_cc[VQUIT] = VDISABLE;
+   if (flow == 0)
+     {
+-      np->tio.c_cc[VINTR] = 0377;
++      np->tio.c_cc[VINTR] = VDISABLE;
+ #ifdef VSTART
+-      np->tio.c_cc[VSTART] = 0377;
++      np->tio.c_cc[VSTART] = VDISABLE;
+ #endif
+ #ifdef VSTOP
+-      np->tio.c_cc[VSTOP] = 0377;
++      np->tio.c_cc[VSTOP] = VDISABLE;
+ #endif
+       np->tio.c_iflag &= ~IXON;
+     }
+ #ifdef VDISCARD
+-  np->tio.c_cc[VDISCARD] = 0377;
++  np->tio.c_cc[VDISCARD] = VDISABLE;
+ #endif
+ #ifdef VSUSP
+-  np->tio.c_cc[VSUSP] = 0377;
++  np->tio.c_cc[VSUSP] = VDISABLE;
+ #endif
+ # ifdef hpux
+-  np->m_ltchars.t_suspc = 0377;
+-  np->m_ltchars.t_dsuspc = 0377;
+-  np->m_ltchars.t_flushc = 0377;
+-  np->m_ltchars.t_lnextc = 0377;
++  np->m_ltchars.t_suspc = VDISABLE;
++  np->m_ltchars.t_dsuspc = VDISABLE;
++  np->m_ltchars.t_flushc = VDISABLE;
++  np->m_ltchars.t_lnextc = VDISABLE;
+ # else
+ #  ifdef VDSUSP
+-  np->tio.c_cc[VDSUSP] = 0377;
++  np->tio.c_cc[VDSUSP] = VDISABLE;
+ #  endif
+ # endif
+ #else
+@@ -3101,12 +3113,12 @@
+     }
+   else
+     {
+-      NewMode.tio.c_cc[VINTR] = 0377;
++      NewMode.tio.c_cc[VINTR] = VDISABLE;
+ #ifdef VSTART
+-      NewMode.tio.c_cc[VSTART] = 0377;
++      NewMode.tio.c_cc[VSTART] = VDISABLE;
+ #endif
+ #ifdef VSTOP
+-      NewMode.tio.c_cc[VSTOP] = 0377;
++      NewMode.tio.c_cc[VSTOP] = VDISABLE;
+ #endif
+       NewMode.tio.c_iflag &= ~IXON;
+     }
+@@ -3286,10 +3298,10 @@
+ 
+ static sig_t trysendfail(SIGDEFARG)
+ {
+-  trysendstat = -1;
+ # ifdef SYSV
+   signal(SIG_PW_FAIL, trysendfail);
+ # endif /* SYSV */
++  trysendstat = -1;
+ }
+ 
+ static char screenpw[9];
+@@ -3404,10 +3416,10 @@
+ static sig_t DoLock(SIGDEFARG)
+ {
+   debug("DoLock()\n");
+-  LockPlease = 1;
+ # ifdef SYSV
+   signal(SIG_LOCK, DoLock);
+ # endif
++  LockPlease = 1;
+ # ifndef SIGVOID
+   return((sig_t) 0);
+ # endif
+--- 1.1	1992/02/04 02:59:04
++++ config/config.svr4	1992/02/24 09:05:08
+@@ -39,6 +39,7 @@
+ #endif
+ #define USEBCOPY
+ #define bcopy(s, d, l) memmove(d, s, l) /* special SVR4 entry */
++#define signal	sigset			/* for reliable signals */
+ #undef TOPSTAT
+ #define USEVARARGS
+ #define NAMEDPIPE
+

@@ -1,59 +1,253 @@
+# Generated automatically from Makefile.in by configure.
 #
-# Makefile for screen
+# Makefile template for screen 
 #
-# See config.h for configuration options.
+# See machine dependant config.h for more configuration options.
 #
 
-# If you choose to compile with the tried and true:
-CC= cc
-CFLAGS= -O
-#CFLAGS= -g -DTMPTEST -DDEBUG
+srcdir = .
+VPATH = .
+
+# Where to install screen.
+
+prefix = /local
+exec_prefix = $(prefix)
+
+bindir  = $(exec_prefix)/bin
+mandir  = $(prefix)/man
+
+VERSION = 3.3.00
+
+ETCSCREENRC = `sed < config.h -n -e '/^.define ETCSCREENRC/s/^.*"\([^"]*\)"/\1/p'`
+
+CC = gcc
+CFLAGS = -g
+LDFLAGS =
+LIBS = -ltermcap -lc -lsocket -linet -lsec -lseq
+
+CPP_DEPEND=/lib/cpp -MM
+
+INSTALL = cp
+INSTALL_PROGRAM = $(INSTALL)
+INSTALL_DATA = $(INSTALL)
+
+AWK = nawk
+
+### If you choose to compile with the tried and true:
+#CC= cc
+#CFLAGS= -O
 #CFLAGS= -g 
-LDFLAGS=
-
-# If you're using GNU C, be sure to use the -traditional flag:
+### gcc specific CFLAGS:
 #CC= gcc
-#CFLAGS = -O -fstrength-reduce -fcombine-regs -finline-functions #-Wall
-#CFLAGS= -traditional -O
-#CFLAGS= -g -traditional -DTMPTEST
-#CFLAGS= -g -traditional -DTMPTEST -DDEBUG
-#LDFLAGS= -s
+# If your system include files are bad, don't use -Wall
+#CFLAGS= -O6 -g #-Wall 
+#CFLAGS = -g -fstrength-reduce -fcombine-regs -finline-functions #-Wall
 
-#LIBS= nmalloc.o -ltermcap 
-LIBS= -ltermcap 
+### On some machines special CFLAGS are required:
+#M_CFLAGS=
+#M_CFLAGS= -Dapollo -A cpu,mathchip -A nansi	# Apollo DN3000/4000/4500
+#M_CFLAGS= -DBSDI				# bsd386
+#M_CFLAGS= -DISC -D_POSIX_SOURCE		# isc
+#M_CFLAGS= -systype bsd43 -DMIPS		# mips
+#M_CFLAGS= -fforce-mem -fforce-addr\
+# -fomit-frame-pointer -finline-functions -bsd 	# NeXT
+#M_CFLAGS= -qlanglvl=ansi			# RS6000/AIX
+#M_CFLAGS= -qlanglvl=ansi -D_AIX32		# RS6000/AIX 3.2
+#M_CFLAGS= -ansi				# sgi/IRIX 3.x ansi 
+#M_CFLAGS= -xansi				# sgi/IRIX 4.x ext ansi 
+#M_CFLAGS= -YBSD				# Ultrix 4.x
+#M_CFLAGS= -DSVR4=1	# Bob Kline rvk@blink.att.com 80386 Unix SVR4.0
 
-CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c
-OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o
+### Choose one of the LIBS setting below:
+#LIBS= -ltermcap -lc -lsocket -linet -lsec -lseq	# Sequent/ptx
+#LIBS= -ltermcap 			# SunOS, Linux, Apollo,
+#					  gould_np1, NeXT, Ultrix
+#LIBS= -ltermcap -lelf			# SVR4
+#LIBS= -ltermlib -linet -lcposix	# isc
+#LIBS= -ltermcap -lmld			# mips (nlist is in mld)
+#LIBS= -ltermlib -lsun -lmld #-lc_s	# sgi/IRIX
+#LIBS= -lcurses				# RS6000/AIX
+#LIBS= -lcrypt_d -ltinfo		# sco32
+#LIBS= -lcrypt_i -ltinfo		# sco32
+#LIBS= -lcrypt -lsec			# sco322 (msilano@sra.com)
+#LIBS= -ltermcap -lcrypt.o -ldir -lx	# SCO XENIX 2.3.4
+#LIBS= -ltermcap -lcrypt -ldir -l2.3 -lx	# SCO UNIX XENIX cross dev.
+#LIBS= -ltermcap -lelf -lcrypt -lsocket -lnet -lnsl	# Bob Kline SVR4
+
+### Chose some configuration options:
+# -DHOMESOCKDIR
+#	In case you want the sockets/pipes to reside in $HOME/.screen directory.
+#	Not recommended where home directories come over NFS.
+# -DDEBUG
+#	Turn on really heavy debug output. This is written to 
+#	/tmp/debug/screen.{front,back} Look at these files and quote 
+#	questionable sections when sending bug-reports to the author.
+# -DTMPTEST
+#	Change the socket directory to a location that does not interfere
+#	with the (suid-root) installed screen version. Use that in
+#	combination with -DDEBUG
+# -DTOPSTAT
+#	If you'd rather see the status line on the first line of 
+#	your terminal rather than the last.
+# -DSIMPLESCREEN
+#	Disable the 'screenlock' feature, disable the security mechanism,
+#	disable the copy and paste feature, disable 'remote detach' (-d) and 
+#	'pow_detach' (instant logout). See your config.h for more details.
+# -DNONETHACK
+#	Do not even use the funny and fuzzy messages if user has
+#	$NETHACKOPTIONS set in his environment.
+OPTIONS=
+#OPTIONS= -DDEBUG -DTMPTEST
+
+SHELL=/bin/sh
+
+CFILES=	screen.c ansi.c help.c fileio.c mark.c misc.c window.c \
+	socket.c search.c tty.c term.c exec.c utmp.c loadav.c putenv.c \
+	termcap.c input.c attacher.c pty.c process.c display.c comm.c
+OFILES=	screen.o ansi.o help.o fileio.o mark.o misc.o window.o \
+	socket.o search.o tty.o term.o exec.o utmp.o loadav.o putenv.o \
+	termcap.o input.o attacher.o pty.o process.o display.o comm.o
+
+all:	screen
 
 screen: $(OFILES)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o screen $(OFILES) $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OFILES) $(LIBS)
 
-screen.o: screen.c screen.h config.h patchlevel.h extern.h
-	$(CC) $(CFLAGS) -c screen.c
+.c.o:
+	$(CC) -c $(CFLAGS) $(M_CFLAGS) $(DEFS) $(OPTIONS) $<
 
-help.o: help.c screen.h config.h ansi.h extern.h
-	$(CC) $(CFLAGS) -c help.c
+install_bin: screen
+	$(INSTALL_PROGRAM) screen $(bindir)/screen-$(VERSION)
+	-chown root $(bindir)/screen-$(VERSION)
+	-chmod 4755 $(bindir)/screen-$(VERSION)
+	-if [ -f $(bindir)/screen ] && [ ! -f $(bindir)/screen.old ]; then mv $(bindir)/screen $(bindir)/screen.old; fi
+	rm -f $(bindir)/screen
+	ln -s $(bindir)/screen-$(VERSION) $(bindir)/screen
 
-fileio.o: fileio.c screen.h config.h extern.h
-	$(CC) $(CFLAGS) -c fileio.c
+install: install_bin
+	-$(INSTALL_DATA) etcscreenrc $(ETCSCREENRC)
+	-$(INSTALL_DATA) screen.1 $(mandir)/man1/screen.1
+	-tic terminfo/screeninfo.src
+# Better do this by hand. E.g. under RCS...
+#	cat terminfo/screencap >> /etc/termcap
 
-ansi.o: ansi.c screen.h config.h ansi.h extern.h
-	$(CC) $(CFLAGS) -c ansi.c
+uninstall:
+	rm -f $(bindir)/screen-$(VERSION)
+	rm -f $(bindir)/screen
+	mv $(bindir)/screen.old $(bindir)/screen
+	rm -f $(ETCSCREENRC)
+	rm -f $(mandir)/man1/screen.1
 
-mark.o: mark.c screen.h config.h ansi.h extern.h
-	$(CC) $(CFLAGS) -c mark.c
+term.h: term.c term.sh
+	AWK=$(AWK) ; sh ./term.sh
 
-window.o: window.c config.h screen.h  extern.h
-	$(CC) $(CFLAGS) -c window.c
+tty.c:	tty.sh 
+	sh tty.sh tty.c
 
-socket.o: socket.c config.h screen.h  extern.h
-	$(CC) $(CFLAGS) -c socket.c
+comm.h: comm.c comm.sh config.h
+	AWK=$(AWK) ; sh ./comm.sh
 
 clean:
+	rm -f $(OFILES) tty.c term.h comm.h screen
+
+# Delete all files from the current directory that are created by 
+# configuring or building the program.
+# building of term.h/comm.h requires awk. Keep it in the distribution
+distclean:	mostlyclean
+	rm -f screen-$(VERSION).tar screen-$(VERSION).TZ
+	rm -f config.h config.status Makefile
+
+# Delete everything from the current directory that can be
+# reconstructed with this Makefile.
+realclean:	distclean
+
+mostlyclean:
 	rm -f $(OFILES) screen
+
+TAGS: $(CFILES)
+	ctags $(CFILES) *.h
+	ctags -e $(CFILES) *.h
+
+dist: screen-$(VERSION).tar screen-$(VERSION).TZ
+
+screen-$(VERSION).tar: term.h comm.h tty.c
+	-rm -rf dist
+	mkdir dist
+	mkdir dist/screen-$(VERSION)
+	ln ansi.h display.h extern.h mark.h os.h overlay.h \
+	   patchlevel.h rcs.h screen.h window.h \
+	   term.sh tty.sh comm.sh newsyntax \
+	   ansi.c attacher.c comm.c display.c exec.c fileio.c help.c \
+	   input.c loadav.c mark.c misc.c process.c pty.c putenv.c \
+	   screen.c search.c socket.c term.c termcap.c utmp.c window.c \
+	   screen.1 ChangeLog COPYING INSTALLATION readme.quick \
+	   dist/screen-$(VERSION)
+	ln Makefile.in config.h.in configure.in configure dist/screen-$(VERSION)
+	ln term.h dist/screen-$(VERSION)/term.h.dist
+	ln comm.h dist/screen-$(VERSION)/comm.h.dist
+	ln tty.c dist/screen-$(VERSION)/tty.c.dist
+#	mkdir dist/screen-$(VERSION)/config
+#	ln config/config* dist/screen-$(VERSION)/config
+	mkdir dist/screen-$(VERSION)/terminfo
+	ln terminfo/* dist/screen-$(VERSION)/terminfo
+	sed -e 's/^startup/#startup/' < $(ETCSCREENRC) > dist/screen-$(VERSION)/etcscreenrc 
+	cp $(HOME)/.iscreenrc dist/screen-$(VERSION)/.iscreenrc
+	cd dist; tar chf ../screen-$(VERSION).tar screen-$(VERSION)
+	rm -rf dist
+
+screen-$(VERSION).TZ: screen-$(VERSION).tar
+	compress < screen-$(VERSION).tar > screen-$(VERSION).TZ
+	rm screen-$(VERSION).tar
+
+# Perform self-tests (if any).
+check:
 
 lint:
 	lint -I. $(CFILES)
 
 saber:
 	#load $(CFLAGS) screen.c ansi.c $(LIBS)
+
+mdepend: $(CFILES) term.h
+	@rm -f DEPEND ; \
+	for i in ${CFILES} ; do \
+	  echo "$$i" ; \
+	  echo `echo "$$i" | sed -e 's/.c$$/.o/'`": $$i" `\
+            cc -E $$i |\
+            grep '^# .*"\./.*\.h"' |\
+            sort -t'"' -u +1 -2 |\
+            sed -e 's/.*"\.\/\(.*\)".*/\1/'\
+          ` >> DEPEND ; \
+	done
+
+
+depend: $(CFILES) term.h
+	cp Makefile Makefile~
+	sed -e '/\#\#\# Dependencies/q' < Makefile > tmp_make
+	for i in $(CFILES); do echo $$i; $(CPP_DEPEND) $$i >> tmp_make; done 
+	mv tmp_make Makefile
+
+
+### Dependencies:
+screen.o: screen.c ansi.h comm.h config.h display.h extern.h os.h overlay.h patchlevel.h rcs.h screen.h term.h window.h
+ansi.o: ansi.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+help.o: help.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+fileio.o: fileio.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+mark.o: mark.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h mark.h
+misc.o: misc.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+window.o: window.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+socket.o: socket.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+search.o: search.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h mark.h
+tty.o: tty.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+term.o: term.c rcs.h term.h
+exec.o: exec.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+utmp.o: utmp.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+loadav.o: loadav.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+putenv.o: putenv.c config.h rcs.h
+termcap.o: termcap.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+input.o: input.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+attacher.o: attacher.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+pty.o: pty.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+process.o: process.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+display.o: display.c ansi.h comm.h config.h display.h extern.h os.h overlay.h rcs.h screen.h term.h window.h
+comm.o: comm.c comm.h config.h rcs.h

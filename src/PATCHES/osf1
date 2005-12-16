@@ -1,0 +1,926 @@
+From rsalz@osf.org Tue May  5 22:45:54 1992
+Received: from postman.osf.org by immd4.informatik.uni-erlangen.de with SMTP;
+	id AA09486 (5.64+/7.3m-FAU); Tue, 5 May 92 22:45:01 +0200
+Received: from earth.osf.org by postman.osf.org (5.64+/OSF 1.0)
+	id AA00952; Tue, 5 May 92 16:44:37 -0400
+Received: by earth.osf.org (5.64/4.7) id AA08004; Tue, 5 May 92 16:44:34 -0400
+Date: Tue, 5 May 92 16:44:34 -0400
+From: rsalz@osf.org
+Message-Id: <9205052044.AA08004@earth.osf.org>
+To: jnweiger@immd4.informatik.uni-erlangen.de
+Subject: screen3.1 fixes and changes
+Status: OR
+
+I got screen3.1 to compile on OSF/1.  The shar, below, has
+    -	A much cleaner Makefile.  Throw out all your other Makefiles
+	and ship only this one.
+    -	A config.osf1.  This needs the bugfix mentioned below.
+    -	Bugfix:  you use the sig_t typedef, and that's reserved.  I made
+	a global change that changed sig_t to SCR_SIG_T.
+    -	I think this is a bug:  screen.c needs <sys/time.h> in order to
+	get "struct timeval".
+
+#! /bin/sh
+# This is a shell archive.  Remove anything before this line, then feed it
+# into a shell via "sh file" or similar.  To overwrite existing files,
+# type "sh file -c".
+# The tool that generated this appeared in the comp.sources.unix newsgroup;
+# send mail to comp-sources-unix@uunet.uu.net if you want that tool.
+# Contents:  Makefile config.osf1 extern.h.diff screen.c.diff
+#   screen.h.diff
+# Wrapped by rsalz@earth on Tue May  5 16:41:13 1992
+PATH=/bin:/usr/bin:/usr/ucb ; export PATH
+echo If this archive is complete, you will see the following message:
+echo '          "shar: End of archive."'
+if test -f 'Makefile' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'Makefile'\"
+else
+  echo shar: Extracting \"'Makefile'\" \(1495 characters\)
+  sed "s/^X//" >'Makefile' <<'END_OF_FILE'
+X##
+X##  Makefile for screen
+X##
+X
+X##  Put any -D, -I, etc., options here.  Most should be set in config.h
+X##	For SysVr4, add "-DNEEDSETENV"
+X#DEFS	= -DTMPTEST -DDEBUG
+XDEFS	=
+X##  Put any -O, -g, etc., options here.
+XOPTIM	= -O
+X
+X##  Put any libraries that you need to link in here.
+X##	For MIPS RiscOS 4.52, add "-mld"
+X##	For SysVr4, add "-lelf -lc -L/usr/ucblib -lucb"
+XLIBS= -ltermcap
+X
+X##  Pick your compiler here, cc or gcc.
+X#CC	= cc
+XCC	= gcc
+X##  If you are using GCC, make sure to use -traditional.
+X##  If you are not using GCC, comment this line out.
+X#GCCFLAGS = -traditional -fstrength-reduce -fcombine-regs -finline-functions
+XGCCFLAGS = -traditional
+X
+X##  The flags to use on your compiler; most are set from above, but:
+X##	For MIPS RiscOS 4.52, add "-systype bsd43 -DMIPS"
+XCFLAGS	= $(DEFS) $(OPTIM) $(GCCFLAGS)
+X
+X##  Put any extra flags your loader may need (like -s) here:
+XLDFLAGS	=
+X
+X##  If you don't need putenv, comment out these two lines
+XPUTc	= putenv.c
+XPUTo	= putenv.o
+X
+X##  END OF CONFIGURATION
+X
+XCFILES	= screen.c ansi.c help.c fileio.c mark.c window.c socket.c $(PUTc)
+XOFILES	= screen.o ansi.o help.o fileio.o mark.o window.o socket.o $(PUTo)
+X
+Xscreen: $& $(OFILES)
+X	$(CC) $(CFLAGS) $(LDFLAGS) -o screen $(OFILES) $(LIBS)
+X
+X$(OFILES): config.h
+Xansi.o mark.o: ansi.h
+Xscreen.o: patchlevel.h
+Xscreen.o help.o fileio.o ansi.o mark.o window.o socket.o: screen.h extern.h
+X
+Xclean:
+X	rm -f $(OFILES) screen
+X
+Xlint:	$(CFILES)
+X	lint $(DEFS) $(CFILES) >lint
+X
+Xsaber:
+X	#load $(CFLAGS) screen.c ansi.c $(LIBS)
+END_OF_FILE
+  if test 1495 -ne `wc -c <'Makefile'`; then
+    echo shar: \"'Makefile'\" unpacked with wrong size!
+  fi
+  # end of 'Makefile'
+fi
+if test -f 'config.osf1' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'config.osf1'\"
+else
+  echo shar: Extracting \"'config.osf1'\" \(7753 characters\)
+  sed "s/^X//" >'config.osf1' <<'END_OF_FILE'
+X/* Copyright (c) 1991 Juergen Weigert (jnweiger@immd4.uni-erlangen.de)
+X *                    Michael Schroeder (mlschroe@immd4.uni-erlangen.de)
+X * Copyright (c) 1987 Oliver Laumann
+X * All rights reserved.  Not derived from licensed software.
+X *
+X * Permission is granted to freely use, copy, modify, and redistribute
+X * this software, provided that no attempt is made to gain profit from it,
+X * the authors are not construed to be liable for any results of using the
+X * software, alterations are clearly marked as such, and this notice is
+X * not modified.
+X *
+X * Noteworthy contributors to screen's design and implementation:
+X *	Wayne Davison (davison@borland.com)
+X *	Patrick Wolfe (pat@kai.com, kailand!pat)
+X *	Bart Schaefer (schaefer@cse.ogi.edu)
+X *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
+X *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
+X *	Howard Chu (hyc@hanauma.jpl.nasa.gov)
+X *	Tim MacKenzie (tym@dibbler.cs.monash.edu.au)
+X *	Markku Jarvinen (mta@{cc,cs,ee}.tut.fi)
+X *	Marc Boucher (marc@CAM.ORG)
+X *
+X ****************************************************************
+X * $Id$ FAU
+X */
+X
+X
+X/*
+X *		Beginning of User Configuration Section
+X *
+X * First off, you should decide if you intend to install screen set-uid to
+X * root.  This isn't necessary to use screen, but it allows the pseudo-ttys
+X * to be set to their proper owner (for security purposes), /etc/utmp to be
+X * updated, and /dev/kmem to be accessed to read the load average values.
+X *
+X * An alternative to installing screen set-uid root is to install it set-gid
+X * utmp (with the file /etc/utmp installed to be group-utmp writable) or
+X * set-gid kmem (with /dev/kmem set to be group-kmem readable) or some other
+X * custom group to give you both.  The final alternative is to omit /etc/utmp
+X * updating and the /dev/kmem reading (see the following defines) and simply
+X * run screen as a regular program -- its major functions will be unaffected.
+X */
+X
+X
+X/*
+X * Define POSIX if your system supports IEEE Std 1003.1-1988 (POSIX).
+X */
+X#define POSIX
+X
+X/*
+X * Define BSDJOBS if you have BSD-style job control (both process
+X * groups and a tty that deals correctly with them).
+X */
+X#define BSDJOBS
+X
+X/*
+X * Define TERMIO if you have struct termio instead of struct sgttyb.
+X * This is usually the case for SVID systems, where BSD uses sgttyb.
+X * POSIX systems should define this anyway, even though they use
+X * struct termios.
+X */
+X#define TERMIO
+X
+X/*
+X * Define TERMINFO if your machine emulates the termcap routines
+X * with the terminfo database.
+X * Thus the .screenrc file is parsed for
+X * the command 'terminfo' and not 'termcap'.
+X */
+X#undef TERMINFO
+X
+X/*
+X * Define SYSV if your machine is SYSV complient (Sys V, HPUX, A/UX)
+X */
+X#undef SYSV
+X
+X/*
+X * Define SIGVOID if your signal handlers return void.  On older
+X * systems, signal returns int, but on newer ones, it returns void.
+X */
+X#define SIGVOID 
+X
+X/*
+X * Define DIRENT if your system has <dirent.h> instead of <sys/dir.h>
+X */
+X#define DIRENT
+X
+X/*
+X * If screen is going to be installed set-uid root, you MUST define SUIDROOT.
+X */
+X/* #define SUIDROOT */
+X
+X/*
+X * If screen is installed with permissions to update /etc/utmp (such as if
+X * it is installed set-uid root), define UTMPOK.  Set LOGINDEFAULT to one (1)
+X * if you want entries added to /etc/utmp by default, else set it to zero (0).
+X */
+X#define UTMPOK
+X#define LOGINDEFAULT	1
+X
+X/*
+X * If your system has getutent(), pututline(), etc. to write to the
+X * utmp file, define GETUTENT.
+X */
+X#define GETUTENT
+X
+X/*
+X * Define UTHOST if the utmp file has a host field.
+X */
+X#define UTHOST
+X
+X/*
+X * If UTMPOK is defined and your system (incorrectly) counts logins by
+X * counting non-null entries in /etc/utmp (instead of counting non-null
+X * entries with no hostname that are not on a pseudo tty), define USRLIMIT
+X * to have screen put an upper-limit on the number of entries to write
+X * into /etc/utmp.  This helps to keep you from exceeding a limited-user
+X * license.
+X */
+X#undef USRLIMIT
+X
+X/*
+X * If screen is NOT installed set-uid root, screen can provide tty security
+X * by exclusively locking the ptys.  While this keeps other users from
+X * opening your ptys, it also keeps your own subprocesses from being able
+X * to open /dev/tty.  Define LOCKPTY to add this exclusive locking.
+X */
+X#undef LOCKPTY
+X
+X/*
+X * If your system does not have the calls setreuid() and setregid(), define
+X * NOREUID to force screen to use a forked process to safely create output
+X * files without retaining any special privileges.  (Output logging will be
+X * disabled, however.)
+X */
+X#undef NOREUID
+X
+X/*
+X * If you want the "time" command to display the current load average
+X * you must install screen with the needed privileges to read /dev/kmem
+X * and have a load average format that screen understands.  We handle the
+X * following formats:  3 doubles (BSD), 3 longs (sun), and 4 longs (alliant).
+X */
+X#undef  LOADAV_3DOUBLES
+X#undef  LOADAV_3LONGS
+X#undef  LOADAV_4LONGS
+X
+X/*
+X * If your system has the new format /etc/ttys (like 4.3 BSD) and the
+X * getttyent(3) library functions, define GETTTYENT.
+X */
+X#undef GETTTYENT
+X
+X/*
+X * If your version of NFS supports named sockets and you install screen
+X * suid root, you may need to define NFS_HACK for screen to be able to
+X * open the sockets.
+X */
+X#undef NFS_HACK
+X
+X/*
+X * By default screen will create a directory named ".screen" in the user's
+X * HOME directory to contain the named sockets.  If this causes you problems
+X * (e.g. some user's HOME directories are NFS-mounted and don't support
+X * named sockets) you can have screen create the socket directories in a
+X * common subdirectory, such as /tmp or /usr/tmp.  It makes things a little
+X * more secure if you choose a directory where the "sticky" bit is on, but
+X * this isn't required.  Screen will name the subdirectories "S-$USER"
+X * (e.g /tmp/S-davison).
+X * Do not define TMPTEST unless it's for debugging purpose.
+X * If you want to have your socket directory in "/tmp/screens" then
+X * define LOCALSOCKDIR and change the definition of SOCKDIR below.
+X */
+X/* #define LOCALSOCKDIR */
+X
+X#ifdef LOCALSOCKDIR
+X# ifndef TMPTEST
+X#  define SOCKDIR "/tmp"
+X# else
+X#  define SOCKDIR "/tmp/testscreens"
+X# endif
+X#endif
+X
+X/*
+X * Define USEBCOPY if the bcopy() from your system's C library supports the
+X * overlapping of source and destination blocks.  When undefined, screen
+X * uses its own (probably slower) version of bcopy().
+X */
+X#define USEBCOPY
+X
+X/*
+X * If you'd rather see the status line on the first line of your
+X * terminal rather than the last, define TOPSTAT.
+X */
+X#define TOPSTAT
+X
+X/*
+X * If your system has vsprintf() and requires the use of the macros in
+X * "varargs.h" to use functions with variable arguments,
+X * define USEVARARGS.
+X */
+X#define USEVARARGS
+X
+X/*
+X * Define this if your system supports named pipes.
+X */
+X#define NAMEDPIPE
+X
+X/*
+X * here come the erlangen extensions to screen:
+X * define LOCK if you want to use a lock program for a screenlock.
+X * define PASSWORD for secure reattach of your screen.
+X * define COPY_PASTE to use the famous hacker's treasure zoo.
+X * define POW_DETACH to have a detach_and_logout key.
+X * define REMOTE_DETACH (-d option) to move screen between terminals.
+X * (jw)
+X */
+X#define LOCK
+X#define PASSWORD
+X#define COPY_PASTE
+X#define REMOTE_DETACH
+X#define POW_DETACH
+X
+X/*
+X * As error messages are mostly meaningless to the user, we
+X * try to throw out phrases that are somewhat more familiar
+X * to ...well, at least familiar to us NetHack players.
+X */
+X/* #define NETHACK */
+X
+X/*
+X * and another sneaky feature: screen sources two startup files.
+X * first a global file with a path specified here, second
+X * your local $HOME/.screenrc
+X * Don't define this, if you don't want it.
+X */
+X/* #define ETCSCREENRC "/local/etc/screenrc" */
+X
+X/*
+X *	End of User Configuration Section
+X */
+END_OF_FILE
+  if test 7753 -ne `wc -c <'config.osf1'`; then
+    echo shar: \"'config.osf1'\" unpacked with wrong size!
+  fi
+  chmod +x 'config.osf1'
+  # end of 'config.osf1'
+fi
+if test -f 'extern.h.diff' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'extern.h.diff'\"
+else
+  echo shar: Extracting \"'extern.h.diff'\" \(1090 characters\)
+  sed "s/^X//" >'extern.h.diff' <<'END_OF_FILE'
+Xdiff -rc .orig/extern.h ./extern.h
+X*** .orig/extern.h	Mon Sep  9 07:30:43 1991
+X--- ./extern.h	Tue May  5 10:49:12 1992
+X***************
+X*** 64,70 ****
+X--- 64,73 ----
+X  #endif
+X  extern int _flsbuf __P((unsigned char, FILE *));
+X  #ifdef POSIX
+X+ #ifndef	OSF1
+X+     /* OSF/1, 1.0, has this as int in <unistd.h> */
+X  extern pid_t setsid __P((void));
+X+ #endif
+X  extern int setpgid __P((pid_t, int));
+X  extern int tcsetpgrp __P((int, pid_t));
+X  #endif
+X***************
+X*** 124,132 ****
+X  extern int UserStatus __P((void));
+X  extern int display_help __P((void));
+X  #ifdef DEBUG
+X! extern sig_t FEChld __P((void));
+X  #endif
+X! extern sig_t SigHup __P((void));
+X  extern void AbortRc __P((void));
+X  extern void Activate __P((void));
+X  extern void ChangeScreenSize __P((int, int, int));
+X--- 127,135 ----
+X  extern int UserStatus __P((void));
+X  extern int display_help __P((void));
+X  #ifdef DEBUG
+X! extern SCR_SIG_T FEChld __P((void));
+X  #endif
+X! extern SCR_SIG_T SigHup __P((void));
+X  extern void AbortRc __P((void));
+X  extern void Activate __P((void));
+X  extern void ChangeScreenSize __P((int, int, int));
+END_OF_FILE
+  if test 1090 -ne `wc -c <'extern.h.diff'`; then
+    echo shar: \"'extern.h.diff'\" unpacked with wrong size!
+  fi
+  # end of 'extern.h.diff'
+fi
+if test -f 'screen.c.diff' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'screen.c.diff'\"
+else
+  echo shar: Extracting \"'screen.c.diff'\" \(8058 characters\)
+  sed "s/^X//" >'screen.c.diff' <<'END_OF_FILE'
+Xdiff -rc .orig/screen.c ./screen.c
+X*** .orig/screen.c	Mon Sep  9 17:00:20 1991
+X--- ./screen.c	Tue May  5 10:51:10 1992
+X***************
+X*** 53,58 ****
+X--- 53,59 ----
+X  #ifndef sun
+X  # include <sys/ioctl.h>
+X  #endif /* sun */
+X+ #include <sys/time.h>
+X  
+X  #include "config.h"
+X  
+X***************
+X*** 126,136 ****
+X  static int Attach __P((int));
+X  static void Attacher __P((void));
+X  static void SigHandler __P((void));
+X! static sig_t SigChld __P((void));
+X! static sig_t SigInt __P((void));
+X! static sig_t CoreDump __P((int));
+X  static void DoWait __P((void));
+X! static sig_t Finit __P((int));
+X  static void InitKeytab __P((void));
+X  static void SetForeWindow __P((int));
+X  static int NextWindow __P((void));
+X--- 127,137 ----
+X  static int Attach __P((int));
+X  static void Attacher __P((void));
+X  static void SigHandler __P((void));
+X! static SCR_SIG_T SigChld __P((void));
+X! static SCR_SIG_T SigInt __P((void));
+X! static SCR_SIG_T CoreDump __P((int));
+X  static void DoWait __P((void));
+X! static SCR_SIG_T Finit __P((int));
+X  static void InitKeytab __P((void));
+X  static void SetForeWindow __P((int));
+X  static int NextWindow __P((void));
+X***************
+X*** 145,154 ****
+X  static int OpenPTY __P((void));
+X  static void trysend __P((int, struct msg *, char *));
+X  #if defined(SIGWINCH) && defined(TIOCGWINSZ)
+X! static sig_t SigAttWinch __P((void));
+X  #endif
+X  #if defined(LOCK)
+X! static sig_t DoLock __P((void));
+X  static void LockTerminal __P((void));
+X  #endif
+X  
+X--- 146,155 ----
+X  static int OpenPTY __P((void));
+X  static void trysend __P((int, struct msg *, char *));
+X  #if defined(SIGWINCH) && defined(TIOCGWINSZ)
+X! static SCR_SIG_T SigAttWinch __P((void));
+X  #endif
+X  #if defined(LOCK)
+X! static SCR_SIG_T DoLock __P((void));
+X  static void LockTerminal __P((void));
+X  #endif
+X  
+X***************
+X*** 1235,1259 ****
+X  #ifdef DEBUG
+X  int FEpanic;
+X  
+X! sig_t FEChld()
+X  {
+X    FEpanic=1;
+X  #ifndef SIGVOID
+X!   return((sig_t) 0);
+X  #endif
+X  }
+X  #endif
+X  
+X! static sig_t SigChld()
+X  {
+X    debug("SigChld()\n");
+X    GotSignal = 1;
+X  #ifndef SIGVOID
+X!   return((sig_t) 0);
+X  #endif
+X  }
+X  
+X! sig_t SigHup()
+X  {
+X    debug("SigHup()\n");
+X    if (auto_detach)
+X--- 1236,1260 ----
+X  #ifdef DEBUG
+X  int FEpanic;
+X  
+X! SCR_SIG_T FEChld()
+X  {
+X    FEpanic=1;
+X  #ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  #endif
+X  }
+X  #endif
+X  
+X! static SCR_SIG_T SigChld()
+X  {
+X    debug("SigChld()\n");
+X    GotSignal = 1;
+X  #ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  #endif
+X  }
+X  
+X! SCR_SIG_T SigHup()
+X  {
+X    debug("SigHup()\n");
+X    if (auto_detach)
+X***************
+X*** 1261,1271 ****
+X    else
+X      Finit(0);
+X  #ifndef SIGVOID
+X!   return((sig_t) 0);
+X  #endif
+X  }
+X  
+X! static sig_t SigInt()
+X  {
+X    char buf[1];
+X  
+X--- 1262,1272 ----
+X    else
+X      Finit(0);
+X  #ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  #endif
+X  }
+X  
+X! static SCR_SIG_T SigInt()
+X  {
+X    char buf[1];
+X  
+X***************
+X*** 1276,1286 ****
+X      write(fore->ptyfd, buf, 1);
+X    signal(SIGINT, SigInt);
+X  #ifndef SIGVOID
+X!   return((sig_t) 0);
+X  #endif
+X  }
+X  
+X! static sig_t CoreDump(sig)
+X  int sig;
+X  {
+X    setgid(getgid());
+X--- 1277,1287 ----
+X      write(fore->ptyfd, buf, 1);
+X    signal(SIGINT, SigInt);
+X  #ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  #endif
+X  }
+X  
+X! static SCR_SIG_T CoreDump(sig)
+X  int sig;
+X  {
+X    setgid(getgid());
+X***************
+X*** 1291,1297 ****
+X    Kill(AttacherPid, SIG_BYE);
+X    abort();
+X  #ifndef SIGVOID
+X!   return((sig_t) 0);
+X  #endif
+X  }
+X  
+X--- 1292,1298 ----
+X    Kill(AttacherPid, SIG_BYE);
+X    abort();
+X  #ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  #endif
+X  }
+X  
+X***************
+X*** 1376,1382 ****
+X      SwitchWindow(WinList);
+X  }
+X  
+X! static sig_t Finit(i)
+X  int i;
+X  {
+X    register int n, next;
+X--- 1377,1383 ----
+X      SwitchWindow(WinList);
+X  }
+X  
+X! static SCR_SIG_T Finit(i)
+X  int i;
+X  {
+X    register int n, next;
+X***************
+X*** 1408,1414 ****
+X    Kill(AttacherPid, SIG_BYE);
+X    exit(i);
+X  #ifndef SIGVOID
+X!   return((sig_t) 0);
+X  #endif
+X  }
+X  
+X--- 1409,1415 ----
+X    Kill(AttacherPid, SIG_BYE);
+X    exit(i);
+X  #ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  #endif
+X  }
+X  
+X***************
+X*** 2827,2838 ****
+X  
+X  static trysendstat;
+X  
+X! static sig_t trysendok()
+X  {
+X    trysendstat = 1;
+X  }
+X  
+X! static sig_t trysendfail()
+X  {
+X    trysendstat = -1;
+X  }
+X--- 2828,2839 ----
+X  
+X  static trysendstat;
+X  
+X! static SCR_SIG_T trysendok()
+X  {
+X    trysendstat = 1;
+X  }
+X  
+X! static SCR_SIG_T trysendfail()
+X  {
+X    trysendstat = -1;
+X  }
+X***************
+X*** 2845,2852 ****
+X  char *pwto;
+X  {
+X    char *npw = NULL;
+X!   sig_t (*sighup)();
+X!   sig_t (*sigusr1)();
+X  
+X    sigusr1 = signal(SIG_PW_OK, trysendok);
+X    sighup = signal(SIG_PW_FAIL, trysendfail);
+X--- 2846,2853 ----
+X  char *pwto;
+X  {
+X    char *npw = NULL;
+X!   SCR_SIG_T (*sighup)();
+X!   SCR_SIG_T (*sigusr1)();
+X  
+X    sigusr1 = signal(SIG_PW_OK, trysendok);
+X    sighup = signal(SIG_PW_FAIL, trysendfail);
+X***************
+X*** 2896,2902 ****
+X   * check, if the backend is already detached.
+X   */
+X  
+X! static sig_t AttacherFinit()
+X  {
+X    struct stat statb;
+X    struct msg m;
+X--- 2897,2903 ----
+X   * check, if the backend is already detached.
+X   */
+X  
+X! static SCR_SIG_T AttacherFinit()
+X  {
+X    struct stat statb;
+X    struct msg m;
+X***************
+X*** 2928,2939 ****
+X      }
+X    exit(0);
+X  #ifndef SIGVOID
+X!   return((sig_t) 0);
+X  #endif
+X  }
+X  
+X  #ifdef POW_DETACH
+X! static sig_t AttacherFinitBye()
+X  {
+X    int ppid;
+X    debug("AttacherFintBye()\n");
+X--- 2929,2940 ----
+X      }
+X    exit(0);
+X  #ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  #endif
+X  }
+X  
+X  #ifdef POW_DETACH
+X! static SCR_SIG_T AttacherFinitBye()
+X  {
+X    int ppid;
+X    debug("AttacherFintBye()\n");
+X***************
+X*** 2945,2951 ****
+X      Kill(ppid, SIGHUP);		/* carefully say good bye. jw. */
+X    exit(0);
+X  #ifndef SIGVOID
+X!   return((sig_t) 0);
+X  #endif
+X  }
+X  #endif
+X--- 2946,2952 ----
+X      Kill(ppid, SIGHUP);		/* carefully say good bye. jw. */
+X    exit(0);
+X  #ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  #endif
+X  }
+X  #endif
+X***************
+X*** 2952,2963 ****
+X  
+X  static SuspendPlease;
+X  
+X! static sig_t SigStop()
+X  {
+X    debug("SigStop()\n");
+X    SuspendPlease = 1;
+X  #ifndef SIGVOID
+X!   return((sig_t) 0);
+X  #endif
+X  }
+X  
+X--- 2953,2964 ----
+X  
+X  static SuspendPlease;
+X  
+X! static SCR_SIG_T SigStop()
+X  {
+X    debug("SigStop()\n");
+X    SuspendPlease = 1;
+X  #ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  #endif
+X  }
+X  
+X***************
+X*** 2964,2970 ****
+X  #ifdef LOCK
+X  static LockPlease;
+X  
+X! static sig_t DoLock()
+X  {
+X    debug("DoLock()\n");
+X    LockPlease = 1;
+X--- 2965,2971 ----
+X  #ifdef LOCK
+X  static LockPlease;
+X  
+X! static SCR_SIG_T DoLock()
+X  {
+X    debug("DoLock()\n");
+X    LockPlease = 1;
+X***************
+X*** 2972,2978 ****
+X    signal(SIG_LOCK, DoLock);
+X  # endif
+X  # ifndef SIGVOID
+X!   return((sig_t) 0);
+X  # endif
+X  }
+X  #endif
+X--- 2973,2979 ----
+X    signal(SIG_LOCK, DoLock);
+X  # endif
+X  # ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  # endif
+X  }
+X  #endif
+X***************
+X*** 2980,2991 ****
+X  #if defined(SIGWINCH) && defined(TIOCGWINSZ)
+X  static SigWinchPlease;
+X  
+X! static sig_t SigAttWinch()
+X  {
+X    debug("SigAttWinch()\n");
+X    SigWinchPlease = 1;
+X  # ifndef SIGVOID
+X!   return((sig_t) 0);
+X  # endif
+X  }
+X  #endif
+X--- 2981,2992 ----
+X  #if defined(SIGWINCH) && defined(TIOCGWINSZ)
+X  static SigWinchPlease;
+X  
+X! static SCR_SIG_T SigAttWinch()
+X  {
+X    debug("SigAttWinch()\n");
+X    SigWinchPlease = 1;
+X  # ifndef SIGVOID
+X!   return((SCR_SIG_T) 0);
+X  # endif
+X  }
+X  #endif
+X***************
+X*** 3083,3089 ****
+X  {
+X    char *prg;
+X    int sig, pid;
+X!   sig_t(*sigs[NSIG]) ();
+X  
+X    for (sig = 1; sig < NSIG; sig++)
+X      {
+X--- 3084,3090 ----
+X  {
+X    char *prg;
+X    int sig, pid;
+X!   SCR_SIG_T(*sigs[NSIG]) ();
+X  
+X    for (sig = 1; sig < NSIG; sig++)
+X      {
+X***************
+X*** 3165,3171 ****
+X    /* reset signals */
+X    for (sig = 1; sig < NSIG; sig++)
+X      {
+X!       if (sigs[sig] != (sig_t(*) ()) - 1)
+X  	signal(sig, sigs[sig]);
+X      }
+X  }				/* LockTerminal */
+X--- 3166,3172 ----
+X    /* reset signals */
+X    for (sig = 1; sig < NSIG; sig++)
+X      {
+X!       if (sigs[sig] != (SCR_SIG_T(*) ()) - 1)
+X  	signal(sig, sigs[sig]);
+X      }
+X  }				/* LockTerminal */
+END_OF_FILE
+  if test 8058 -ne `wc -c <'screen.c.diff'`; then
+    echo shar: \"'screen.c.diff'\" unpacked with wrong size!
+  fi
+  # end of 'screen.c.diff'
+fi
+if test -f 'screen.h.diff' -a "${1}" != "-c" ; then 
+  echo shar: Will not clobber existing file \"'screen.h.diff'\"
+else
+  echo shar: Extracting \"'screen.h.diff'\" \(1126 characters\)
+  sed "s/^X//" >'screen.h.diff' <<'END_OF_FILE'
+Xdiff -rc .orig/screen.h ./screen.h
+X*** .orig/screen.h	Mon Sep  9 07:30:06 1991
+X--- ./screen.h	Tue May  5 10:54:08 1992
+X***************
+X*** 30,35 ****
+X--- 30,36 ----
+X  
+X  #include <stdio.h>
+X  #include <errno.h>
+X+ #include <sys/types.h>
+X  #if defined(pyr)
+X  extern int errno;
+X  #endif
+X***************
+X*** 109,120 ****
+X  
+X  #ifdef SIGVOID
+X  # if defined(ultrix)
+X! #  define sig_t void
+X  # else /* nice compilers: */
+X!    typedef void sig_t;
+X  # endif
+X  #else
+X!    typedef int sig_t;
+X  #endif
+X  
+X  #if (!defined(SYSV) && !defined(POSIX)) || defined(sysV68)
+X--- 110,121 ----
+X  
+X  #ifdef SIGVOID
+X  # if defined(ultrix)
+X! #  define SCR_SIG_T void
+X  # else /* nice compilers: */
+X!    typedef void SCR_SIG_T;
+X  # endif
+X  #else
+X!    typedef int SCR_SIG_T;
+X  #endif
+X  
+X  #if (!defined(SYSV) && !defined(POSIX)) || defined(sysV68)
+X***************
+X*** 459,463 ****
+X  #endif
+X  
+X  #if !defined(SYSV) || defined(sun) || defined(RENO) || defined(xelos)
+X! # define BSDWAIT
+X  #endif
+X--- 460,466 ----
+X  #endif
+X  
+X  #if !defined(SYSV) || defined(sun) || defined(RENO) || defined(xelos)
+X! # if !defined(OSF1)
+X! #  define BSDWAIT
+X! # endif
+X  #endif
+END_OF_FILE
+  if test 1126 -ne `wc -c <'screen.h.diff'`; then
+    echo shar: \"'screen.h.diff'\" unpacked with wrong size!
+  fi
+  # end of 'screen.h.diff'
+fi
+echo shar: End of archive.
+exit 0
+

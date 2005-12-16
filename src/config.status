@@ -1,0 +1,191 @@
+#!/bin/sh
+# Generated automatically by configure.
+# Run this file to recreate the current configuration.
+# This directory was configured as follows,
+# on host medusa:
+#
+# configure 
+
+for arg
+do
+  case "$arg" in
+    -recheck | --recheck | --rechec | --reche | --rech | --rec | --re | --r)
+    exec /bin/sh configure  ;;
+    *) echo "Usage: config.status --recheck" 2>&1; exit 1 ;;
+  esac
+done
+
+trap 'rm -f Makefile config.h conftest*; exit 1' 1 3 15
+VERSION='3.3.00'
+CC='gcc'
+CPP='${CC-cc} -E'
+AWK='nawk'
+INSTALL='cp'
+INSTALL_PROGRAM='$(INSTALL)'
+INSTALL_DATA='$(INSTALL)'
+LIBS='-ltermcap -lc -lsocket -linet -lsec -lseq'
+srcdir='.'
+prefix=''
+exec_prefix=''
+prsub=''
+
+top_srcdir=$srcdir
+for file in .. Makefile; do if [ "x$file" != "x.." ]; then
+  srcdir=$top_srcdir
+  # Remove last slash and all that follows it.  Not all systems have dirname.
+  dir=`echo $file|sed 's%/[^/][^/]*$%%'`
+  if test "$dir" != "$file"; then
+    test "$top_srcdir" != . && srcdir=$top_srcdir/$dir
+    test ! -d $dir && mkdir $dir
+  fi
+  echo creating $file
+  rm -f $file
+  echo "# Generated automatically from `echo $file|sed 's|.*/||'`.in by configure." > $file
+  sed -e "
+$prsub
+s%@VERSION@%$VERSION%g
+s%@CC@%$CC%g
+s%@CPP@%$CPP%g
+s%@AWK@%$AWK%g
+s%@INSTALL@%$INSTALL%g
+s%@INSTALL_PROGRAM@%$INSTALL_PROGRAM%g
+s%@INSTALL_DATA@%$INSTALL_DATA%g
+s%@LIBS@%$LIBS%g
+s%@srcdir@%$srcdir%g
+s%@DEFS@%-DHAVE_CONFIG_H%" $top_srcdir/${file}.in >> $file
+fi; done
+
+echo creating config.h
+# These sed commands are put into SEDDEFS when defining a macro.
+# They are broken into pieces to make the sed script easier to manage.
+# They are passed to sed as "A NAME B NAME C VALUE D", where NAME
+# is the cpp macro being defined and VALUE is the value it is being given.
+# Each defining turns into a single global substitution command.
+#
+# SEDd sets the value in "#define NAME VALUE" lines.
+SEDdA='s@^\([ 	]*\)#\([ 	]*define[ 	][ 	]*\)'
+SEDdB='\([ 	][ 	]*\)[^ 	]*@\1#\2'
+SEDdC='\3'
+SEDdD='@g'
+# SEDu turns "#undef NAME" with trailing blanks into "#define NAME VALUE".
+SEDuA='s@^\([ 	]*\)#\([ 	]*\)undef\([ 	][ 	]*\)'
+SEDuB='\([ 	]\)@\1#\2define\3'
+SEDuC=' '
+SEDuD='\4@g'
+# SEDe turns "#undef NAME" without trailing blanks into "#define NAME VALUE".
+SEDeA='s@^\([ 	]*\)#\([ 	]*\)undef\([ 	][ 	]*\)'
+SEDeB='$@\1#\2define\3'
+SEDeC=' '
+SEDeD='@g'
+rm -f conftest.sed
+cat > conftest.sed <<CONFEOF
+${SEDdA}POSIX${SEDdB}POSIX${SEDdC}1${SEDdD}
+${SEDuA}POSIX${SEDuB}POSIX${SEDuC}1${SEDuD}
+${SEDeA}POSIX${SEDeB}POSIX${SEDeC}1${SEDeD}
+${SEDdA}SYSV${SEDdB}SYSV${SEDdC}1${SEDdD}
+${SEDuA}SYSV${SEDuB}SYSV${SEDuC}1${SEDuD}
+${SEDeA}SYSV${SEDeB}SYSV${SEDeC}1${SEDeD}
+${SEDdA}PUTENV_DECLARED${SEDdB}PUTENV_DECLARED${SEDdC}1${SEDdD}
+${SEDuA}PUTENV_DECLARED${SEDuB}PUTENV_DECLARED${SEDuC}1${SEDuD}
+${SEDeA}PUTENV_DECLARED${SEDeB}PUTENV_DECLARED${SEDeC}1${SEDeD}
+${SEDdA}WAITSTUFF_DECLARED${SEDdB}WAITSTUFF_DECLARED${SEDdC}1${SEDdD}
+${SEDuA}WAITSTUFF_DECLARED${SEDuB}WAITSTUFF_DECLARED${SEDuC}1${SEDuD}
+${SEDeA}WAITSTUFF_DECLARED${SEDeB}WAITSTUFF_DECLARED${SEDeC}1${SEDeD}
+${SEDdA}MEMFUNCS_DECLARED${SEDdB}MEMFUNCS_DECLARED${SEDdC}1${SEDdD}
+${SEDuA}MEMFUNCS_DECLARED${SEDuB}MEMFUNCS_DECLARED${SEDuC}1${SEDuD}
+${SEDeA}MEMFUNCS_DECLARED${SEDeB}MEMFUNCS_DECLARED${SEDeC}1${SEDeD}
+${SEDdA}SETPGID_DECLARED${SEDdB}SETPGID_DECLARED${SEDdC}1${SEDdD}
+${SEDuA}SETPGID_DECLARED${SEDuB}SETPGID_DECLARED${SEDuC}1${SEDuD}
+${SEDeA}SETPGID_DECLARED${SEDeB}SETPGID_DECLARED${SEDeC}1${SEDeD}
+${SEDdA}KILLSTUFF_DECLARED${SEDdB}KILLSTUFF_DECLARED${SEDdC}1${SEDdD}
+${SEDuA}KILLSTUFF_DECLARED${SEDuB}KILLSTUFF_DECLARED${SEDuC}1${SEDuD}
+${SEDeA}KILLSTUFF_DECLARED${SEDeB}KILLSTUFF_DECLARED${SEDeC}1${SEDeD}
+${SEDdA}PID_T_DEFINED${SEDdB}PID_T_DEFINED${SEDdC}1${SEDdD}
+${SEDuA}PID_T_DEFINED${SEDuB}PID_T_DEFINED${SEDuC}1${SEDuD}
+${SEDeA}PID_T_DEFINED${SEDeB}PID_T_DEFINED${SEDeC}1${SEDeD}
+${SEDdA}UID_T_DEFINED${SEDdB}UID_T_DEFINED${SEDdC}1${SEDdD}
+${SEDuA}UID_T_DEFINED${SEDuB}UID_T_DEFINED${SEDuC}1${SEDuD}
+${SEDeA}UID_T_DEFINED${SEDeB}UID_T_DEFINED${SEDeC}1${SEDeD}
+${SEDdA}BSDJOBS${SEDdB}BSDJOBS${SEDdC}1${SEDdD}
+${SEDuA}BSDJOBS${SEDuB}BSDJOBS${SEDuC}1${SEDuD}
+${SEDeA}BSDJOBS${SEDeB}BSDJOBS${SEDeC}1${SEDeD}
+${SEDdA}NOREUID${SEDdB}NOREUID${SEDdC}1${SEDdD}
+${SEDuA}NOREUID${SEDuB}NOREUID${SEDuC}1${SEDuD}
+${SEDeA}NOREUID${SEDeB}NOREUID${SEDeC}1${SEDeD}
+${SEDdA}BROKEN_PIPE${SEDdB}BROKEN_PIPE${SEDdC}1${SEDdD}
+${SEDuA}BROKEN_PIPE${SEDuB}BROKEN_PIPE${SEDuC}1${SEDuD}
+${SEDeA}BROKEN_PIPE${SEDeB}BROKEN_PIPE${SEDeC}1${SEDeD}
+${SEDdA}TERMINFO${SEDdB}TERMINFO${SEDdC}1${SEDdD}
+${SEDuA}TERMINFO${SEDuB}TERMINFO${SEDuC}1${SEDuD}
+${SEDeA}TERMINFO${SEDeB}TERMINFO${SEDeC}1${SEDeD}
+${SEDdA}GETUTENT${SEDdB}GETUTENT${SEDdC}1${SEDdD}
+${SEDuA}GETUTENT${SEDuB}GETUTENT${SEDuC}1${SEDuD}
+${SEDeA}GETUTENT${SEDeB}GETUTENT${SEDeC}1${SEDeD}
+${SEDdA}LOADAV_UNIX${SEDdB}LOADAV_UNIX${SEDdC}"/unix"${SEDdD}
+${SEDuA}LOADAV_UNIX${SEDuB}LOADAV_UNIX${SEDuC}"/unix"${SEDuD}
+${SEDeA}LOADAV_UNIX${SEDeB}LOADAV_UNIX${SEDeC}"/unix"${SEDeD}
+${SEDdA}NLIST_STRUCT${SEDdB}NLIST_STRUCT${SEDdC}1${SEDdD}
+${SEDuA}NLIST_STRUCT${SEDuB}NLIST_STRUCT${SEDuC}1${SEDuD}
+${SEDeA}NLIST_STRUCT${SEDeB}NLIST_STRUCT${SEDeC}1${SEDeD}
+${SEDdA}LOADAV_AVENRUN${SEDdB}LOADAV_AVENRUN${SEDdC}"avenrun"${SEDdD}
+${SEDuA}LOADAV_AVENRUN${SEDuB}LOADAV_AVENRUN${SEDuC}"avenrun"${SEDuD}
+${SEDeA}LOADAV_AVENRUN${SEDeB}LOADAV_AVENRUN${SEDeC}"avenrun"${SEDeD}
+${SEDdA}LOADAV${SEDdB}LOADAV${SEDdC}1${SEDdD}
+${SEDuA}LOADAV${SEDuB}LOADAV${SEDuC}1${SEDuD}
+${SEDeA}LOADAV${SEDeB}LOADAV${SEDeC}1${SEDeD}
+${SEDdA}LOADAV_TYPE${SEDdB}LOADAV_TYPE${SEDdC}long${SEDdD}
+${SEDuA}LOADAV_TYPE${SEDuB}LOADAV_TYPE${SEDuC}long${SEDuD}
+${SEDeA}LOADAV_TYPE${SEDeB}LOADAV_TYPE${SEDeC}long${SEDeD}
+${SEDdA}LOADAV_NUM${SEDdB}LOADAV_NUM${SEDdC}3${SEDdD}
+${SEDuA}LOADAV_NUM${SEDuB}LOADAV_NUM${SEDuC}3${SEDuD}
+${SEDeA}LOADAV_NUM${SEDeB}LOADAV_NUM${SEDeC}3${SEDeD}
+${SEDdA}LOADAV_SCALE${SEDdB}LOADAV_SCALE${SEDdC}1000${SEDdD}
+${SEDuA}LOADAV_SCALE${SEDuB}LOADAV_SCALE${SEDuC}1000${SEDuD}
+${SEDeA}LOADAV_SCALE${SEDeB}LOADAV_SCALE${SEDeC}1000${SEDeD}
+${SEDdA}SIGVOID${SEDdB}SIGVOID${SEDdC}1${SEDdD}
+${SEDuA}SIGVOID${SEDuB}SIGVOID${SEDuC}1${SEDuD}
+${SEDeA}SIGVOID${SEDeB}SIGVOID${SEDeC}1${SEDeD}
+${SEDdA}TERMIO${SEDdB}TERMIO${SEDdC}1${SEDdD}
+${SEDuA}TERMIO${SEDuB}TERMIO${SEDuC}1${SEDuD}
+${SEDeA}TERMIO${SEDeB}TERMIO${SEDeC}1${SEDeD}
+${SEDdA}SHADOWPW${SEDdB}SHADOWPW${SEDdC}1${SEDdD}
+${SEDuA}SHADOWPW${SEDuB}SHADOWPW${SEDuC}1${SEDuD}
+${SEDeA}SHADOWPW${SEDeB}SHADOWPW${SEDeC}1${SEDeD}
+${SEDdA}USEVARARGS${SEDdB}USEVARARGS${SEDdC}1${SEDdD}
+${SEDuA}USEVARARGS${SEDuB}USEVARARGS${SEDuC}1${SEDuD}
+${SEDeA}USEVARARGS${SEDeB}USEVARARGS${SEDeC}1${SEDeD}
+${SEDdA}DIRENT${SEDdB}DIRENT${SEDdC}1${SEDdD}
+${SEDuA}DIRENT${SEDuB}DIRENT${SEDuC}1${SEDuD}
+${SEDeA}DIRENT${SEDeB}DIRENT${SEDeC}1${SEDeD}
+${SEDdA}NEEDPUTENV${SEDdB}NEEDPUTENV${SEDdC}1${SEDdD}
+${SEDuA}NEEDPUTENV${SEDuB}NEEDPUTENV${SEDuC}1${SEDuD}
+${SEDeA}NEEDPUTENV${SEDeB}NEEDPUTENV${SEDeC}1${SEDeD}
+
+CONFEOF
+rm -f conftest.h
+# Break up the sed commands because old seds have small limits.
+cp $top_srcdir/config.h.in conftest.h1
+while :
+do
+  lines=`grep -c . conftest.sed`
+  if test -z "$lines" || test "$lines" -eq 0; then break; fi
+  rm -f conftest.s1 conftest.s2 conftest.h2
+  sed 30q conftest.sed > conftest.s1 # Like head -30.
+  sed 1,30d conftest.sed > conftest.s2 # Like tail +31.
+  sed -f conftest.s1 < conftest.h1 > conftest.h2
+  rm -f conftest.s1 conftest.h1 conftest.sed
+  mv conftest.h2 conftest.h1
+  mv conftest.s2 conftest.sed
+done
+rm -f conftest.sed conftest.h
+echo "/* config.h.  Generated automatically by configure.  */" > conftest.h
+cat conftest.h1 >> conftest.h
+rm -f conftest.h1
+if cmp -s config.h conftest.h 2>/dev/null; then
+  # The file exists and we would not be changing it.
+  rm -f conftest.h
+else
+  rm -f config.h
+  mv conftest.h config.h
+fi
+

@@ -1,0 +1,364 @@
+From dean%coplex.UUCP@uunet.UU.NET Wed Feb 12 21:42:33 1992
+Received: from relay2.UU.NET by immd4.informatik.uni-erlangen.de  with SMTP (5.64+/7.3a-FAU)
+	id AA19780; Wed, 12 Feb 92 21:41:24 +0100
+Received: from uunet.uu.net (via LOCALHOST.UU.NET) by relay2.UU.NET with SMTP 
+	(5.61/UUNET-internet-primary) id AA18014; Wed, 12 Feb 92 15:41:26 -0500
+Received: from coplex.UUCP by uunet.uu.net with UUCP/RMAIL
+	(queueing-rmail) id 154043.18285; Wed, 12 Feb 1992 15:40:43 EST
+Received: by coplex.com (/\==/\ Smail3.1.25.1 #25.1)
+	id <m0lEQkA-00000FC@coplex.com>; Wed, 12 Feb 92 15:39 EST
+Message-Id: <m0lEQkA-00000FC@coplex.com>
+From: dean@coplex.com (Dean Brooks)
+Subject: iScreen and Compressed-Width Mode
+To: jnweiger@immd4.informatik.uni-erlangen.de (Juergen Weigert)
+Date: Wed, 12 Feb 92 15:39:48 EST
+X-Mailer: ELM [version 2.3 PL11]
+Status: OR
+
+Hello,
+
+   I just wanted to let you know that iScreen 3.2 is working wonderfully!
+I love the fact that the pty's are now assigned on a per-pid basis,
+rather than per-terminal basis.  In addition, I am glad to see
+that su capability was added; it was a real pain to retrieve people's
+lost screens.
+
+   Anyway, I wanted a bit more functionality with the 132 column mode
+features of iScreen so I am sending you patches that I made.  I
+didn't know if you would be interested or not, so I thought "Why not?".
+
+   Anyway, the Z0/Z1 functionality is the same.  However, I added
+two new termcap mnemonics called ZW and ZH (for the compressed
+width and the compressed height).  This way, iScreen will support
+terminals with a normal screen of 80x24 and a compressed screen of,
+say, 132x43.  Its kinda neat, and appears to work well.
+
+   This patch is for iScreen 3.2 Patchlevel 0.  Thanks!   --Dean
+----------------------------------------------------------------------
+*** ansi.c	Wed Dec 31 19:00:00 1969
+--- ../3.2/ansi.c	Wed Feb 12 15:31:26 1992
+***************
+*** 59,65 ****
+  
+  int maxwidth;
+  
+! int Z0width, Z1width;		/* widths for Z0/Z1 switching */
+  
+  char display_tty[MAXPATH];
+  int screenwidth, screenheight;	/* width/height of the screen */
+--- 59,65 ----
+  
+  int maxwidth;
+  
+! int Zwidth, Zheight, Nwidth, Nheight;  /* widths/heights for Z0/Z1 switching */
+  
+  char display_tty[MAXPATH];
+  int screenwidth, screenheight;	/* width/height of the screen */
+***************
+*** 422,429 ****
+        && (Z1 = e_tgetstr("Z1", &tp)) == NULL)
+      Z0 = NULL;
+  
+!   Z0width = 132;
+!   Z1width = 80;
+  
+    CheckScreenSize(0);
+    if ((HS = e_tgetflag("hs")) != 0)
+--- 422,437 ----
+        && (Z1 = e_tgetstr("Z1", &tp)) == NULL)
+      Z0 = NULL;
+  
+!   if (Z0)
+!     if (((Zwidth = e_tgetnum("ZW")) < 0) ||
+! 	((Zheight = e_tgetnum("ZH")) < 0))
+!       {
+! 	Zwidth = 132;
+! 	Zheight = TermcapROWS;
+!       }
+!   
+!   Nwidth = TermcapCOLS;
+!   Nheight = TermcapROWS;
+  
+    CheckScreenSize(0);
+    if ((HS = e_tgetflag("hs")) != 0)
+***************
+*** 1350,1358 ****
+  	    a2 = curr->height;
+  	  if (WS == NULL)
+  	    {
+! 	      a2 = curr->height;
+! 	      if (Z0 == NULL || (a1 != Z0width && a1 != Z1width))
+! 	        a1 = curr->width;
+   	    }
+  	  if (a1 == curr->width && a2 == curr->height)
+  	    break;
+--- 1371,1380 ----
+  	    a2 = curr->height;
+  	  if (WS == NULL)
+  	    {
+! 	      if (Z0 == NULL || (a1 != Nwidth && a1 != Zwidth))
+! 		a1 = curr->width;
+! 	      if (Z0 == NULL || (a2 != Nheight && a2 != Zheight))
+! 	        a2 = curr->height;
+   	    }
+  	  if (a1 == curr->width && a2 == curr->height)
+  	    break;
+***************
+*** 1418,1431 ****
+        switch (a1)
+  	{
+  	case 3:
+! 	  i = (i ? Z0width : Z1width);
+! 	  if ((Z0 || WS) && curr->width != i)
+  	    {
+!               ChangeWindowSize(curr, i, curr->height);
+! 	      SetCurr(curr);
+! 	      if (display)
+! 		Activate(0);
+! 	    }
+  	  break;
+  	case 5:
+  	  if (i)
+--- 1440,1468 ----
+        switch (a1)
+  	{
+  	case 3:
+! 	  if (Z0 || WS)
+  	    {
+! 	    if (i)
+! 	      {
+! 		if ((curr->width != Zwidth) ||
+! 		    (curr->height != Zheight))
+! 		  {
+! 		    ChangeWindowSize(curr, Zwidth, Zheight);
+! 		    SetCurr(curr);
+! 		    if (display)
+! 		      Activate(0);
+! 		  }
+! 	      } else {
+! 		if ((curr->width != Nwidth) ||
+! 		    (curr->height != Nheight))
+! 		  {
+! 		    ChangeWindowSize(curr, Nwidth, Nheight);
+! 		    SetCurr(curr);
+! 		    if (display)
+! 		      Activate(0);
+! 		  }
+! 	      }
+! 	  }
+  	  break;
+  	case 5:
+  	  if (i)
+*** screen.c	Wed Dec 31 19:00:00 1969
+--- ../3.2/screen.c	Wed Feb 12 15:31:26 1992
+***************
+*** 138,144 ****
+  extern int screenwidth, screenheight;
+  extern char display_tty[];
+  extern int default_width, default_height;
+! extern int Z0width, Z1width;
+  extern int ISO2022;
+  extern int status, HS;
+  extern char *Z0, *WS, *LastMsg;
+--- 138,144 ----
+  extern int screenwidth, screenheight;
+  extern char display_tty[];
+  extern int default_width, default_height;
+! extern int Zwidth, Zheight, Nwidth, Nheight;
+  extern int ISO2022;
+  extern int status, HS;
+  extern char *Z0, *WS, *LastMsg;
+***************
+*** 1739,1745 ****
+    register enum keytype k;
+    register char *s, *p;
+    char buf[2];
+!   int newwidth;
+  
+    if (!obuf)
+      obuf_size = 0;
+--- 1739,1745 ----
+    register enum keytype k;
+    register char *s, *p;
+    char buf[2];
+!   int newwidth, newheight;
+  
+    if (!obuf)
+      obuf_size = 0;
+***************
+*** 1882,1896 ****
+  		  case KEY_WIDTH:
+  		    if (Z0 || WS)
+  		      {
+! 			if (fore->width == Z0width)
+! 			  newwidth = Z1width;
+! 			else if (fore->width == Z1width)
+! 			  newwidth = Z0width;
+! 			else if (fore->width > (Z0width+Z1width)/2)
+! 			  newwidth = Z0width;
+! 			else
+! 			  newwidth = Z1width;
+! 			ChangeWindowSize(fore, newwidth, fore->height);
+  			Activate(fore->norefresh);
+  		      }
+  		    else
+--- 1882,1903 ----
+  		  case KEY_WIDTH:
+  		    if (Z0 || WS)
+  		      {
+! 			if ((fore->width == Zwidth) &&
+! 			    (fore->height == Zheight)) {
+! 			    newwidth = Nwidth;
+! 			    newheight = Nheight;
+! 			  } else if ((fore->width == Nwidth) &&
+! 				 (fore->height == Nheight)) {
+! 			    newwidth = Zwidth;
+! 			    newheight = Zheight;
+! 			  } else if (fore->width > (Zwidth + Nwidth)/2) {
+! 			    newwidth = Zwidth;
+! 			    newheight = Zheight;
+! 			  } else {
+! 			    newwidth = Nwidth;
+! 			    newheight = Nheight;
+! 			  }
+! 			ChangeWindowSize(fore, newwidth, newheight);
+  			Activate(fore->norefresh);
+  		      }
+  		    else
+*** window.c	Wed Dec 31 19:00:00 1969
+--- ../3.2/window.c	Wed Feb 12 15:31:26 1992
+***************
+*** 73,79 ****
+  extern struct win *wtab[], *fore;
+  extern int WinList, ForeNum;
+  extern char *Z0, *Z1, *WS;
+! extern int Z0width, Z1width;
+  
+  extern int Detached;
+  
+--- 73,79 ----
+  extern struct win *wtab[], *fore;
+  extern int WinList, ForeNum;
+  extern char *Z0, *Z1, *WS;
+! extern int Zwidth, Zheight, Nwidth, Nheight;
+  
+  extern int Detached;
+  
+***************
+*** 149,155 ****
+  int change_fore;
+  {
+    struct win *p;
+!   int n, wwi;
+  
+    if (screenwidth == width && screenheight == height)
+      {
+--- 149,155 ----
+  int change_fore;
+  {
+    struct win *p;
+!   int n, wwi, wwj;
+  
+    if (screenwidth == width && screenheight == height)
+      {
+***************
+*** 167,178 ****
+      }
+    else
+      {
+!       if (Z0 && (width == Z0width || width == Z1width) &&
+!           (TermcapCOLS == Z0width || TermcapCOLS == Z1width))
+          default_width = TermcapCOLS;
+        else
+          default_width = width;
+!       default_height = height;
+      }
+    debug2("Default size: (%d,%d)\n",default_width, default_height);
+    if (change_fore)
+--- 167,183 ----
+      }
+    else
+      {
+!       if (Z0 && (width == Zwidth || width == Nwidth) &&
+!           (TermcapCOLS == Zwidth || TermcapCOLS == Nwidth))
+          default_width = TermcapCOLS;
+        else
+          default_width = width;
+!       
+!       if (Z0 && (height == Zheight || height == Nheight) &&
+! 	  (TermcapROWS == Zheight || TermcapROWS == Nheight))
+! 	default_height = TermcapROWS;
+!       else
+! 	default_height = height;
+      }
+    debug2("Default size: (%d,%d)\n",default_width, default_height);
+    if (change_fore)
+***************
+*** 191,205 ****
+            p = wtab[n];
+            debug1("Trying to change window %d.\n",n);
+            wwi = width;
+!           if (Z0 && (width==Z0width || width==Z1width))
+  	    {
+! 	      if (p->width > (Z0width + Z1width) / 2)
+! 		wwi = Z0width;
+! 	      else
+! 		wwi = Z1width;
+  	    }
+!           ChangeWindowSize(p, wwi, height);
+!         }
+      }
+  }
+  
+--- 196,214 ----
+            p = wtab[n];
+            debug1("Trying to change window %d.\n",n);
+            wwi = width;
+! 	  wwj = height;
+!           if (Z0 && (width==Zwidth || width==Nwidth))
+  	    {
+! 	      if (p->width > (Zwidth + Nwidth) / 2) {
+! 		wwi = Zwidth;
+! 		wwj = Zheight;
+! 	      } else {
+! 		wwi = Nwidth;
+! 		wwj = Nheight;
+! 	      }
+  	    }
+! 	  ChangeWindowSize(p, wwi, wwj);
+! 	}
+      }
+  }
+  
+***************
+*** 572,582 ****
+        WSresize(width, height);
+        ChangeScreenSize(width, height, 0);
+      }
+!   else if (Z0 && (width == Z0width || width == Z1width))
+      {
+        debug("ResizeScreen: using Z0/Z1\n");
+!       PutStr(width == Z0width ? Z0 : Z1);
+!       ChangeScreenSize(width, screenheight, 0);
+      }
+    if (screenwidth != width || screenheight != height)
+      {
+--- 581,591 ----
+        WSresize(width, height);
+        ChangeScreenSize(width, height, 0);
+      }
+!   else if (Z0 && (width == Zwidth || width == Nwidth))
+      {
+        debug("ResizeScreen: using Z0/Z1\n");
+!       PutStr(width == Zwidth ? Z0 : Z1);
+!       ChangeScreenSize(width, height, 0);
+      }
+    if (screenwidth != width || screenheight != height)
+      {
+
+----------------------------------------------------------------------
+--
+<><> Dean Brooks                             Internet:   dean@coplex.com
+<><> System Administrator / Postmaster       CompuServe: 70672,2405
+<><> Copper Electronics, Inc.
+
