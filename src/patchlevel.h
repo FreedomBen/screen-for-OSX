@@ -520,11 +520,12 @@
  *                     on ttys. fixed hardstatus line on blanked screen.
  *                     -- DISTRIBUTED
  * 11.10.2004, 4.00.03jw handle StartRc errors nonfatal if due to a msg.
+ * 12.10.2004, 4.00.03jw1 let docu of 'split' 'focus' 'remove' and 'only' refer to each other.
  */
 
 #define ORIGIN "FAU"
 #define REV 4
 #define VERS 0
 #define PATCHLEVEL 3
-#define DATE "11-Oct-04"
-#define STATE "jw"
+#define DATE "12-Oct-04"
+#define STATE "jw1"

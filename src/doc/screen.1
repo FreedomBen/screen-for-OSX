@@ -396,6 +396,7 @@ Switch to window number 0 \- 9, or to the blank window.
 .IP "\fBC-a tab\fP	(focus)"
 .PD
 Switch the input focus to the next region.
+See also \fIsplit, remove, only\fP.
 .IP "\fBC-a C-a\fP	(other)"
 Toggle to the window displayed previously.
 Note that this binding defaults to the command character typed twice,
@@ -492,6 +493,7 @@ Switch to the previous window (opposite of \fBC-a n\fP).
 Send a control-q to the current window.
 .IP "\fBC-a Q\fP	(only)"
 Delete all regions but the current one.
+See also \fIsplit, remove, focus\fP.
 .IP "\fBC-a r\fP"
 .PD 0
 .IP "\fBC-a C-r\fP	(wrap)"
@@ -505,6 +507,7 @@ automatic margins on and off).
 Send a control-s to the current window.
 .IP "\fBC-a S\fP	(split)"
 Split the current region into two new ones.
+See also \fIonly, remove, focus\fP.
 .IP "\fBC-a t\fP"
 .PD 0
 .IP "\fBC-a C-t\fP	(time)"
@@ -530,6 +533,7 @@ Toggle 80/132 columns.
 Lock this terminal.
 .IP "\fBC-a X\fP 	(remove)"
 Kill the current region.
+See also \fIsplit, only, focus\fP.
 .IP "\fBC-a z\fP"
 .PD 0
 .IP "\fBC-a C-z\fP	(suspend)"
@@ -1837,6 +1841,7 @@ region respectively. Useful bindings are (j and k as in vi)
     bind t focus top
     bind b focus bottom
 .fi
+Note that \fBk\fP is traditionally bound to the \fIkill\fP command.
 .sp
 .ne 3
 .BR "gr " [ on | off ]
@@ -2702,6 +2707,7 @@ Split the current region into two new ones. All regions on the
 display are resized to make room for the new region. The blank
 window is displayed on the new region. Use the \*Qremove\*U or the
 \*Qonly\*U command to delete regions.
+Use \*Qfocus\*U to toggle between regions.
 .sp
 .ne 3
 .B "startup_message on\fP|\fBoff"
