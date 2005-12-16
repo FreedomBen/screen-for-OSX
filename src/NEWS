@@ -1,4 +1,6 @@
 
+[ See patchlevel.h for the differences between every patchlevel ]
+
                   ----------------------------
                    What's new in screen-3.7 ?
                   ----------------------------
@@ -57,19 +59,19 @@
   It is obsoleted by '%n' and will vanish in future releases.
 
 * 'defhstatus' command to give every window a default
-   hardstatus line. '^E' is used as a string escape instead of '%'.
-   All the above substitution codes apply, but you must use ^E (octal
-   005) here, as '%' is likely to appear in automaticaly generated
-   hardstatus lines. Try 'defhstatus "Screen: window ^E (^Et)"'.
+  hardstatus line. '^E' is used as a string escape instead of '%'.
+  All the above substitution codes apply, but you must use ^E (octal
+  005) here, as '%' is likely to appear in automaticaly generated
+  hardstatus lines. Try 'defhstatus "Screen: window ^E (^Et)"'.
 
 * In screenrc files and colon command mode: Input parser changed to
   also understand caret notation ('^') to mean "Control-" (as in
   the ^E example above).
 
 * "logdir" command changed to "logfile". You can now specify the
-   filename instead of the directory. The same directives as
-   understood by the activity/bell messages can be used.
-   The default is "screenlog.%n".
+  filename instead of the directory. The same directives as
+  understood by the activity/bell messages can be used.
+  The default is "screenlog.%n".
 
 * Special terminfo workaround make delay processing work for
   the first time! If you had trouble with padding, then try again.
