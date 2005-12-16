@@ -257,7 +257,8 @@
 #undef USEVARARGS
 
 /*
- * Define this if your system supports named pipes.
+ * Define this if your system supports named pipes
+ * instead of sockets.
  */
 #undef NAMEDPIPE
 
@@ -283,6 +284,11 @@
  * Define if your headers define sig_t.
  */
 #undef SIG_T_DEFINED
+
+/*
+ * Define if you have nlist.h.  For getting the load average.
+ */
+#undef NLIST_STRUCT
 
 /*
  * Define each of these if the appropriate function is declared in

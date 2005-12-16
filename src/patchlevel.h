@@ -71,5 +71,5 @@
 #define REV 3
 #define VERS 2
 #define PATCHLEVEL 0
-#define DATE "10/22/92"
-#define STATE "a"
+#define DATE "10/28/92"
+#define STATE "b"

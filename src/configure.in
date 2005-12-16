@@ -67,7 +67,8 @@ AC_HEADER_EGREP([(void|sighandler_t).*signal], signal.h,
 
 AC_DIR_HEADER
 
-AC_COMPILE_CHECK(getutent, [#include <utmp.h>],
+AC_COMPILE_CHECK(getutent, [#include <time.h> /* to get time_t on SCO */
+#include <utmp.h>],
 [int x = DEAD_PROCESS; getutent();], AC_DEFINE(GETUTENT))
 
 AC_GETLOADAVG
@@ -124,19 +125,20 @@ else AC_DEFINE(NAME_MAX, 14)
 fi
 rm -f conftest9012345 conftest9012346
 
-AC_HEADER_EGREP(S_I.*FIFO, sys/stat.h, AC_DEFINE(NAMEDPIPE))
+AC_HEADER_CHECK(sys/socket.h, , AC_DEFINE(NAMEDPIPE))
 
 echo checking for SVR4 elf library
 if test -f /usr/ucblib/libucb.a; then # SVR4
   AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN) LIBS="$LIBS -lelf"
 fi
 
-echo checking for SCO crypt library
-test -f /lib/libcrypt_d.a && LIBS="$LIBS -lcrypt_d" # SCO UNIX
-test -f /lib/libcrypt.a && LIBS="$LIBS -lcrypt" # SCO UNIX
+echo checking for SCO crypt and sec libraries
+test -f /lib/libcrypt_d.a && LIBS="$LIBS -lcrypt_d"
+test -f /lib/libcrypt.a && LIBS="$LIBS -lcrypt"
+test -f /lib/libsec.a && LIBS="$LIBS -lsec"
 
 echo checking for IRIX sun library
-test -f /lib/libsun.a && LIBS="$LIBS -lsun" # SGI
+test -f /lib/libsun.a && LIBS="$LIBS -lsun"
 
 AC_XENIX_DIR
 

@@ -124,7 +124,7 @@
 #endif	/* Not FSCALE.  */
 
 
-#if !defined(NLIST_STRUCT) && (defined(MORE_BSD) || defined(sun) || defined(decstation) || defined(hpux) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4)) || defined(sony_news)
+#if !defined(NLIST_STRUCT) && (defined(MORE_BSD) || defined(sun) || defined(decstation) || defined(hpux) || defined(_SEQUENT_) || defined(sequent) || defined(sgi) || defined(SVR4)) || defined(sony_news)
 #define NLIST_STRUCT
 #endif
 
@@ -157,14 +157,14 @@
 
 #endif /* not emacs */
 
-#ifdef USG
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#if defined(USG) || defined(SYSV) || defined(_POSIX_VERSION)
 #include <fcntl.h>
 #else
 #include <sys/file.h>
-#endif
-
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
 #endif
 
 #ifdef TEST

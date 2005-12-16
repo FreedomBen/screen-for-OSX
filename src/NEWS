@@ -1,3 +1,10 @@
+3.2b (unofficial)
+-----------------
+
+Fix support for Sequents and SVR3 (SCO).
+
+
+
 3.2a (unofficial)
 -----------------
 Background: on 5 June 1992 in comp.unix.bsd, Oliver Laumann

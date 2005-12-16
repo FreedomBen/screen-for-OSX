@@ -14,6 +14,8 @@ To compile and install screen:
 Read through the "Site Configuration" section of config.h.in, and edit
 it to suit your site.  Each define is well commented to help you decide
 what to choose.  Then follow the instructions in the file INSTALL.
+A comment near the top of config.h.in explains why it's best to
+install screen setuid to root.
 
 
 If you want to get a quick idea how "screen" works but don't want to read
@@ -49,9 +51,6 @@ the -fn or -fa options, or put the line "flow off" or "flow auto" in their
 .screenrc file.
 
 Send your questions, comments and bug reports for screen to:
-
 	jnweiger@immd4.informatik.uni-erlangen.de (Juergen Weigert)
-
 and also to:
-
 	bug-gnu-utils@prep.ai.mit.edu

@@ -1011,27 +1011,14 @@ int s;
 	    }
 #endif
 	
-#if !defined(sequent) && !defined(MIPS)
 	  putenv(m.m.attach.envterm);
-#else
-	  setenv("TERM", m.m.attach.envterm + 5, 1);
-#endif
 	}
-#if !defined(sequent) && !defined(MIPS)
       sprintf(lbuf, "LINES=%d", m.m.attach.lines);
       if (m.m.attach.lines > 0 || getenv("LINES"))
         putenv(lbuf);
       sprintf(cbuf, "COLUMNS=%d", m.m.attach.columns);
       if (m.m.attach.columns > 0 || getenv("COLUMNS"))
         putenv(cbuf);
-#else
-      sprintf(lbuf, "%d", m.m.attach.lines);
-      if (m.m.attach.lines > 0 || getenv("LINES"))
-        setenv("LINES", lbuf, 1);
-      sprintf(cbuf, "%d", m.m.attach.columns);
-      if (m.m.attach.columns > 0 || getenv("COLUMNS"))
-        setenv("COLUMNS", cbuf, 1);
-#endif
       
       /*
        * We reboot our Terminal Emulator. Forget all we knew about

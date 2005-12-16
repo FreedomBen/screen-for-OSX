@@ -419,7 +419,8 @@ rm -f conftest*
 
 
 echo checking for getutent
-echo "#include <utmp.h>
+echo "#include <time.h> /* to get time_t on SCO */
+#include <utmp.h>
 main() { exit(0); } t() { int x = DEAD_PROCESS; getutent(); }" > conftest.c
 if eval $compile; then
   DEFS="${DEFS}#define GETUTENT 1
@@ -666,9 +667,15 @@ else DEFS="${DEFS}#define NAME_MAX 14
 fi
 rm -f conftest9012345 conftest9012346
 
-echo "${DEFS}#include <sys/stat.h>" > conftest.c
-eval "$CPP conftest.c > conftest.out 2>&1"
-if egrep "S_I.*FIFO" conftest.out >/dev/null 2>&1; then
+echo checking for sys/socket.h
+cat <<EOF > conftest.c
+$DEFS
+#include <sys/socket.h>
+EOF
+err=`eval "$CPP conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  :
+else
   DEFS="${DEFS}#define NAMEDPIPE 1
 "
 fi
@@ -682,12 +689,13 @@ if test -f /usr/ucblib/libucb.a; then # SVR4
 " LIBS="$LIBS -lelf"
 fi
 
-echo checking for SCO crypt library
-test -f /lib/libcrypt_d.a && LIBS="$LIBS -lcrypt_d" # SCO UNIX
-test -f /lib/libcrypt.a && LIBS="$LIBS -lcrypt" # SCO UNIX
+echo checking for SCO crypt and sec libraries
+test -f /lib/libcrypt_d.a && LIBS="$LIBS -lcrypt_d"
+test -f /lib/libcrypt.a && LIBS="$LIBS -lcrypt"
+test -f /lib/libsec.a && LIBS="$LIBS -lsec"
 
 echo checking for IRIX sun library
-test -f /lib/libsun.a && LIBS="$LIBS -lsun" # SGI
+test -f /lib/libsun.a && LIBS="$LIBS -lsun"
 
 echo checking for Xenix
 cat <<EOF > conftest.c

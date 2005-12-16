@@ -1,7 +1,8 @@
 #
 # Makefile template for screen
 #
-# See config.h.in for configuration options.
+# See config.h.in for configuration options and an explanation of why
+# it is best to install screen setuid to root.
 #
 
 #### Start of system configuration section. ####
@@ -39,7 +40,7 @@ CFILES=	screen.c ansi.c help.c fileio.c mark.c window.c socket.c \
 putenv.c getloadavg.c
 OFILES=	screen.o ansi.o help.o fileio.o mark.o window.o socket.o @LIBOBJS@
 HFILES= ansi.h extern.h patchlevel.h screen.h config.h.in
-MISCFILES = COPYING INSTALL Makefile.in NEWS README etcscreenrc \
+MISCFILES = COPYING ChangeLog INSTALL Makefile.in NEWS README etcscreenrc \
 	configure.in configure screen.1
 DISTFILES = $(CFILES) $(HFILES) $(MISCFILES)
 
@@ -95,7 +96,7 @@ saber:
 	#load $(CFLAGS) screen.c ansi.c $(LIBS)
 
 dist: $(DISTFILES)
-	echo screen-3.2a > .fname
+	echo screen-3.2b > .fname
 	rm -rf `cat .fname`
 	mkdir `cat .fname`
 	-ln $(DISTFILES) `cat .fname`
