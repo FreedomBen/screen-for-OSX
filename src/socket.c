@@ -207,7 +207,7 @@ char *match;
 #endif
 
       debug2("st.st_uid = %d, real_uid = %d\n", st.st_uid, real_uid);
-      if (st.st_uid != real_uid)
+      if ((int)st.st_uid != real_uid)
 	continue;
       mode = (int)st.st_mode & 0777;
       debug1("  has mode 0%03o\n", mode);
@@ -421,7 +421,7 @@ MakeServerSocket()
       Msg(0, "There is already a screen running on %s.", Filename(SockPath));
       if (stat(SockPath, &st) == -1)
 	Panic(errno, "stat");
-      if (st.st_uid != real_uid)
+      if ((int)st.st_uid != real_uid)
 	Panic(0, "Unfortunatelly you are not its owner.");
       if ((st.st_mode & 0700) == 0600)
 	Panic(0, "To resume it, use \"screen -r\"");
@@ -1090,7 +1090,7 @@ int
 RecoverSocket()
 {
   close(ServerSocket);
-  if (geteuid() != real_uid)
+  if ((int)geteuid() != real_uid)
     {
       if (UserContext() > 0)
 	UserReturn(unlink(SockPath));
@@ -1225,6 +1225,7 @@ struct msg *m;
 	}
     }
   Activate(0);
+  ResetIdle();
   if (!D_fore && !noshowwin)
     ShowWindows(-1);
   if (displays->d_next == 0 && console_window)
@@ -1328,7 +1329,7 @@ int ilen;
 	  l = 0;
 	  continue;
 	}
-      if (l < sizeof(pwdata->buf) - 1)
+      if (l < (int)sizeof(pwdata->buf) - 1)
 	pwdata->buf[l++] = c;
     }
   pwdata->l = l;
@@ -1340,7 +1341,8 @@ DoCommandMsg(mp)
 struct msg *mp;
 {
   char *args[MAXARGS];
-  int n;
+  int argl[MAXARGS];
+  int n, *lp;
   register char **pp = args, *p = mp->m.command.cmd;
   struct acluser *user;
 #ifdef MULTIUSER
@@ -1349,13 +1351,15 @@ struct msg *mp;
   extern struct acluser *users;			/* acls.c */
 #endif
 
+  lp = argl;
   n = mp->m.command.nargs;
   if (n > MAXARGS - 1)
     n = MAXARGS - 1;
   for (; n > 0; n--)
     {
       *pp++ = p;
-      p += strlen(p) + 1;
+      *lp = strlen(p);
+      p += *lp++ + 1;
     }
   *pp = 0;
 #ifdef MULTIUSER
@@ -1416,7 +1420,7 @@ struct msg *mp;
       flayer = fore ? &fore->w_layer : 0;
       if (fore && fore->w_savelayer && (fore->w_blocked || fore->w_savelayer->l_cvlist == 0))
 	flayer = fore->w_savelayer;
-      DoCommand(args);
+      DoCommand(args, argl);
       rc_name = oldrcname;
     }
 #ifdef MULTIUSER

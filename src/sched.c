@@ -41,7 +41,7 @@ static struct event *nextev;
 static int calctimeout;
 
 static struct event *calctimo __P((void));
-#if (defined(sgi) && defined(SVR4)) || defined(__osf__)
+#if (defined(sgi) && defined(SVR4)) || defined(__osf__) || defined(M_UNIX)
 static int sgihack __P((void));
 #endif
 
@@ -194,8 +194,8 @@ sched()
 	      if (errno == EIO && sgihack())
 		continue;
 #endif
-#ifdef __osf__
-	      /* OSF/1 3.x bug: EBADF */
+#if defined(__osf__) || defined(M_UNIX)
+	      /* OSF/1 3.x, SCO bug: EBADF */
 	      /* OSF/1 4.x bug: EIO */
 	      if ((errno == EIO || errno == EBADF) && sgihack())
 		continue;
@@ -258,7 +258,7 @@ int timo;
 }
 
 
-#if (defined(sgi) && defined(SVR4)) || defined(__osf__)
+#if (defined(sgi) && defined(SVR4)) || defined(__osf__) || defined(M_UNIX)
 
 extern struct display *display, *displays;
 static int sgihack()

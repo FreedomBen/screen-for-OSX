@@ -507,11 +507,16 @@
  *                     list ('=') added. Added %` string escape
  *                     and backtick command.
  *                     -- DISTRIBUTED
+ *             4.00.00 rewrote noblock command, added defnonblock.
+ *                     added zmodem support (catch & passthrough).
+ *                     added screenblanker.
+ *                     fixed a couple of GBK bugs.
+ *                     rewrote command parsing.
  */
 
 #define ORIGIN "FAU"
-#define REV 3
-#define VERS 9
-#define PATCHLEVEL 15
-#define DATE "13-Mar-03"
-#define STATE ""
+#define REV 4
+#define VERS 0
+#define PATCHLEVEL 0
+#define DATE "21-Jul-03"
+#define STATE "beta1"

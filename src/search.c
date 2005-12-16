@@ -274,7 +274,7 @@ char *data;	/* dummy */
       break;
     case '\023':	/* CTRL-S */
     case '\022': 	/* CTRL-R */
-      if (markdata->isistrl >= sizeof(markdata->isistr))
+      if (markdata->isistrl >= (int)sizeof(markdata->isistr))
 	return;
       dir = (*p == '\023') ? 1 : -1;
       pos += dir;
@@ -288,8 +288,8 @@ char *data;	/* dummy */
       markdata->isistr[markdata->isistrl++] = *p;
       break;
     default:
-      if (*p < ' ' || markdata->isistrl >= sizeof(markdata->isistr)
-	  || markdata->isstrl >= sizeof(markdata->isstr) - 1)
+      if (*p < ' ' || markdata->isistrl >= (int)sizeof(markdata->isistr)
+	  || markdata->isstrl >= (int)sizeof(markdata->isstr) - 1)
 	return;
       markdata->isstr[markdata->isstrl++] = *p;
       markdata->isistr[markdata->isistrl++] = *p;

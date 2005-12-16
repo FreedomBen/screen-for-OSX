@@ -44,6 +44,10 @@ extern struct mline mline_old;
 extern struct mchar mchar_blank;
 extern char *null, *blank;
 
+#ifdef HAVE_FDWALK
+static int close_func __P((void *, int));
+#endif
+
 char *
 SaveStr(str)
 register const char *str;
@@ -54,6 +58,23 @@ register const char *str;
     Panic(0, strnomem);
   else
     strcpy(cp, str);
+  return cp;
+}
+
+char *
+SaveStrn(str, n)
+register const char *str;
+int n;
+{
+  register char *cp;
+
+  if ((cp = malloc(n + 1)) == NULL)
+    Panic(0, strnomem);
+  else
+    {
+      bcopy(str, cp, n);
+      cp[n] = 0;
+    }
   return cp;
 }
 
@@ -252,7 +273,7 @@ int euid;
   oeuid = geteuid();
   if (oeuid == euid)
     return;
-  if (getuid() != euid)
+  if ((int)getuid() != euid)
     oeuid = getuid();
   if (setreuid(oeuid, euid))
     Panic(errno, "setreuid");
@@ -267,7 +288,7 @@ int egid;
   oegid = getegid();
   if (oegid == egid)
     return;
-  if (getgid() != egid)
+  if ((int)getgid() != egid)
     oegid = getgid();
   if (setregid(oegid, egid))
     Panic(errno, "setregid");
@@ -315,6 +336,32 @@ int pid, sig;
   (void) kill(pid, sig);
 }
 
+#ifdef HAVE_FDWALK
+/*
+ * Modern versions of Solaris include fdwalk(3c) which allows efficient
+ * implementation of closing open descriptors; this is helpful because
+ * the default file descriptor limit has risen to 65k.
+ */
+static int
+close_func(cb_data, fd)
+void *cb_data;
+int fd;
+{
+  int except = *(int *)cb_data;
+  if (fd > 2 && fd != except)
+    (void)close(fd);
+  return (0);
+}
+
+void
+closeallfiles(except)
+int except;
+{
+  (void)fdwalk(close_func, &except);
+}
+
+#else /* HAVE_FDWALK */
+
 void
 closeallfiles(except)
 int except;
@@ -337,6 +384,7 @@ int except;
       close(f);
 }
 
+#endif /* HAVE_FDWALK */
 
 
 /*
@@ -650,156 +698,6 @@ char *value;
 #endif /* USESETENV */
 }
 
-/*
- *     "$HOST blafoo"          -> "localhost blafoo"
- *     "${HOST}blafoo"         -> "localhostblafoo"
- *     "\$HOST blafoo"         -> "$HOST blafoo"
- *     "\\$HOST blafoo"        -> "\localhost blafoo"
- *     "'$HOST ${HOST}'"       -> "'$HOST ${HOST}'"
- *     "'\$HOST'"              -> "'\$HOST'"
- *     "\'$HOST' $HOST"        -> "'localhost' $HOST"
- *
- *     "$:termcapname:"        -> "termcapvalue"
- *     "$:terminfoname:"       -> "termcapvalue"
- *
- *     "\101"                  -> "A"
- *     "^a"                    -> "\001"
- *
- * display == NULL is valid here!
- */
-char *
-expand_vars(ss, d)
-char *ss;
-struct display *d;
-{
-  static char ebuf[2048];
-  int esize = sizeof(ebuf) - 1, vtype, quofl = 0;
-  register char *e = ebuf;
-  register char *s = ss;
-  register char *v;
-  char xbuf[11];
-  int i;
-
-  while (*s && *s != '\0' && *s != '\n' && esize > 0)
-    {
-      if (*s == '\'')
-	quofl ^= 1;
-      if (*s == '$' && !quofl)
-	{
-	  char *p, c;
-
-	  p = ++s;
-	  switch (*s)
-	    {
-	    case '{':
-	      p = ++s;
-	      while (*p != '}')
-		if (*p++ == '\0')
-		  return ss;
-	      vtype = 0;                /* env var */
-	      break;
-	    case ':':
-	      p = ++s;
-	      while (*p != ':')
-		if (*p++ == '\0')
-		  return ss;
-	      vtype = 1;                /* termcap string */
-	      break;
-	    default:
-	      while ((*p >='a' && *p <= 'z') || (*p >='A' && *p <= 'Z') || (*p >='0' && *p <= '9') || *p == '_')
-		p++;
-	      vtype = 0;                /* env var */
-	    }
-	  c = *p;
-	  debug1("exp: c='%c'\n", c);
-	  *p = '\0';
-	  if (vtype == 0)
-	    {
-	      v = xbuf;
-	      if (strcmp(s, "TERM") == 0)
-		v = d ? d->d_termname : "unknown";
-	      else if (strcmp(s, "COLUMNS") == 0)
-		sprintf(xbuf, "%d", d ? d->d_width : -1);
-	      else if (strcmp(s, "LINES") == 0)
-		sprintf(xbuf, "%d", d ? d->d_height : -1);
-	      else
-		v = getenv(s);
-	    }
-	  else
-	    v = gettermcapstring(s);
-	  if (v)
-	    {
-	      debug2("exp: $'%s'='%s'\n", s, v);
-	      while (*v && esize-- > 0)
-		*e++ = *v++;
-	    }
-	  else
-	    debug1("exp: '%s' not env\n", s);  /* '{'-: */
-	  if ((*p = c) == '}' || c == ':')
-	    p++;
-	  s = p;
-	}
-      else if (*s == '^' && !quofl)
-	{
-	  s++;
-	  i = *s++;
-	  if (i == '?')
-	    i = '\177';
-	  else
-	    i &= 0x1f;
-	  *e++ = i;
-	  esize--;
-	}
-      else
-	{
-	  /*
-	   * \$, \\$, \\, \\\, \012 are reduced here,
-	   * other sequences starting whith \ are passed through.
-	   */
-	  if (s[0] == '\\' && !quofl)
-	    {
-	      if (s[1] >= '0' && s[1] <= '7')
-		{
-		  s++;
-		  i = *s - '0';
-		  s++;
-		  if (*s >= '0' && *s <= '7')
-		    {
-		      i = i * 8 + *s - '0';
-		      s++;
-		      if (*s >= '0' && *s <= '7')
-			{
-			  i = i * 8 + *s - '0';
-			  s++;
-			}
-		    }
-		  debug2("expandvars: octal coded character %o (%d)\n", i, i);
-		  *e++ = i;
-		  esize--;
-		  continue;
-		}
-	      else
-		{
-		  if (s[1] == '$' ||
-		      (s[1] == '\\' && s[2] == '$') ||
-		      s[1] == '\'' ||
-		      (s[1] == '\\' && s[2] == '\'') ||
-		      s[1] == '^' ||
-		      (s[1] == '\\' && s[2] == '^'))
-		    s++;
-		}
-	    }
-	  *e++ = *s++;
-	  esize--;
-	}
-    }
-  if (esize <= 0)
-    Msg(0, "expand_vars: buffer overflow\n");
-  *e = '\0';
-  debug1("expand_var returns '%s'\n", ebuf);
-  return ebuf;
-}
-
 #ifdef TERMINFO
 /*
  * This is a replacement for the buggy _delay function from the termcap
@@ -816,7 +714,7 @@ int (*outc) __P((int));
     0,2000,1333,909,743,666,500,333,166,83,55,41,20,10,5,2,1,1
   };
 
-  if (ospeed <= 0 || ospeed >= sizeof(osp2pad)/sizeof(*osp2pad))
+  if (ospeed <= 0 || ospeed >= (int)(sizeof(osp2pad)/sizeof(*osp2pad)))
     return 0;
   pad =osp2pad[ospeed];
   delay = (delay + pad / 2) / pad;

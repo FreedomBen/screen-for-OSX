@@ -1,4 +1,4 @@
-This is screen.info, produced by makeinfo version 4.2 from
+This is screen.info, produced by makeinfo version 4.5 from
 ./screen.texinfo.
 
 INFO-DIR-SECTION General Commands
@@ -376,6 +376,7 @@ Invoking `Screen'
      the `-d' or `-r' option to tell screen to look only for attached
      or detached screen sessions. Note that this command doesn't work
      if the session is password protected.
+
 
 
 File: screen.info,  Node: Customization,  Next: Commands,  Prev: Invoking Screen,  Up: Top
@@ -920,6 +921,9 @@ Command Summary
 `defmonitor STATE'
      Select default activity monitoring behavior.  *Note Monitor::.
 
+`defnonblock STATE|NUMSECS'
+     Select default nonblock mode.  *Note Nonblock::.
+
 `defobuflimit LIMIT'
      Select default output buffer limit.  *Note Obuflimit::.
 
@@ -1086,8 +1090,9 @@ Command Summary
 `next'
      Switch to the next window.  *Note Selecting::.
 
-`nonblock STATE'
-     Disable flow control to the current display. *Note Nonblock::.
+`nonblock [STATE|NUMSECS]'
+     Disable flow control to the current display. *Note
+     Nonblock::.|NUMSECS]
 
 `number [N]'
      Change/display the current window's number.  *Note Number::.
@@ -1524,8 +1529,9 @@ efficiently as a console with 100 or more windows.
 
     `f'
           LFLOW. The remote host will send flow control information.
-          (Ignored at the moment.)  Additional flags for debugging are
-     `x', `t' and `n' (XDISPLOC, TSPEED and NEWENV).
+          (Ignored at the moment.)
+     Additional flags for debugging are `x', `t' and `n' (XDISPLOC,
+     TSPEED and NEWENV).
 
      For telnet windows, the command `break' sends the telnet code `IAC
      BREAK' (decimal 243) to the remote host.

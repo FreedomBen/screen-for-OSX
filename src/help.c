@@ -362,6 +362,7 @@ int x, y;
   char buf[256];
   int del, l;
   char *bp, *cp, **pp;
+  int *lp, ll;
   int fr;
   struct mchar mchar_dol;
 
@@ -381,18 +382,20 @@ int x, y;
   LPutChar(flayer, fr ? &mchar_blank : &mchar_dol, x++, y);
 
   pp = act->args;
+  lp = act->argl;
   while (pp && (cp = *pp) != NULL)
     {
       del = 0;
       bp = buf;
-      if (!*cp || (index(cp, ' ') != NULL))
+      ll = *lp++;
+      if (!ll || (index(cp, ' ') != NULL))
 	{
 	  if (index(cp, '\'') != NULL)
 	    *bp++ = del = '"';
 	  else
 	    *bp++ = del = '\'';
 	}
-      while (*cp && bp < buf + 250)
+      while (ll-- && bp < buf + 250)
 	bp += AddXChar(bp, *(unsigned char *)cp++);
       if (del)
 	*bp++ = del;
@@ -759,6 +762,7 @@ displayspage()
   char tbuf[80];
   struct display *d;
   struct win *w;
+  static char *blockstates[5] = {"nb", "NB", "Z<", "Z>", "BL"};
 
   LClearAll(flayer, 0);
 
@@ -775,8 +779,7 @@ displayspage()
       sprintf(tbuf, "%-10.10s%4dx%-4d%10.10s@%-16.16s%s",
 	      d->d_termname, d->d_width, d->d_height, d->d_user->u_name, 
 	      d->d_usertty, 
-	      d->d_nonblock ? ((( d->d_obufp - d->d_obuf) > d->d_obufmax) ?
-		"NB" : "nb") : "  ");
+	      (d->d_blocked || d->d_nonblock >= 0) && d->d_blocked <= 4 ? blockstates[d->d_blocked] : "  ");
 
       if (w)
 	{
@@ -1283,9 +1286,12 @@ InWList()
 
 #ifdef MAPKEYS
 
-extern char *kmap_extras[];
-extern int kmap_extras_fl[];
 extern struct term term[];
+extern struct kmap_ext *kmap_exts;
+extern int kmap_extn;
+extern struct action dmtab[];
+extern struct action mmtab[];
+
 
 static void BindkeyProcess __P((char **, int *));
 static void BindkeyAbort __P((void));
@@ -1335,7 +1341,7 @@ struct action *tab;
   bindkeydata->tab = tab;
   
   n = 0;
-  for (i = 0; i < KMAP_KEYS+KMAP_AKEYS+KMAP_EXT; i++)
+  for (i = 0; i < KMAP_KEYS+KMAP_AKEYS+kmap_extn; i++)
     {
       if (tab[i].nr != RC_ILLEGAL)
 	n++;
@@ -1361,8 +1367,9 @@ static void
 bindkeypage()
 {
   struct bindkeydata *bindkeydata;
+  struct kmap_ext *kme;
   char tbuf[256];
-  int del, i, ch, y;
+  int del, i, y, sl;
   struct action *act;
   char *xch, *s, *p;
 
@@ -1373,33 +1380,43 @@ bindkeypage()
   sprintf(tbuf, "%s key bindings, page %d of %d.", bindkeydata->title, bindkeydata->page, bindkeydata->pages);
   centerline(tbuf, 0);
   y = 2;
-  for (i = bindkeydata->pos; i < KMAP_KEYS+KMAP_AKEYS+KMAP_EXT && y < flayer->l_height - 3; i++)
+  for (i = bindkeydata->pos; i < KMAP_KEYS+KMAP_AKEYS+kmap_extn && y < flayer->l_height - 3; i++)
     {
       p = tbuf;
-      act = &bindkeydata->tab[i];
-      if (act->nr == RC_ILLEGAL)
-	continue;
       xch = "   ";
       if (i < KMAP_KEYS)
 	{
+	  act = &bindkeydata->tab[i];
+	  if (act->nr == RC_ILLEGAL)
+	    continue;
 	  del = *p++ = ':';
 	  s = term[i + T_CAPS].tcname;
+	  sl = s ? strlen(s) : 0;
 	}
       else if (i < KMAP_KEYS+KMAP_AKEYS)
 	{
+	  act = &bindkeydata->tab[i];
+	  if (act->nr == RC_ILLEGAL)
+	    continue;
 	  del = *p++ = ':';
 	  s = term[i + (T_CAPS - T_OCAPS + T_CURSOR)].tcname;
+	  sl = s ? strlen(s) : 0;
 	  xch = "[A]";
 	}
       else
 	{
+	  kme = kmap_exts + (i - (KMAP_KEYS+KMAP_AKEYS));
 	  del = 0;
-	  s = kmap_extras[i - (KMAP_KEYS+KMAP_AKEYS)];
-	  if (kmap_extras_fl[i - (KMAP_KEYS+KMAP_AKEYS)])
+	  s = kme->str;
+	  sl = kme->fl & ~KMAP_NOTIMEOUT;
+	  if ((kme->fl & KMAP_NOTIMEOUT) != 0)
 	    xch = "[T]";
+	  act = bindkeydata->tab == dmtab ? &kme->dm : bindkeydata->tab == mmtab ? &kme->mm : &kme->um;
+	  if (act->nr == RC_ILLEGAL)
+	    continue;
 	}
-      while ((ch = *(unsigned char *)s++))
-	p += AddXChar(p, ch);
+      while (sl-- > 0)
+	p += AddXChar(p, *(unsigned char *)s++);
       if (del)
 	*p++ = del;
       *p++ = ' ';
@@ -1477,6 +1494,60 @@ int y, xs, xe, isblank;
 #endif /* MAPKEYS */
 
 
+/*
+**
+**    The zmodem active page
+**
+*/
+
+#ifdef ZMODEM
+
+static void ZmodemRedisplayLine __P((int, int, int, int));
+static int  ZmodemResize __P((int, int));
+
+static struct LayFuncs ZmodemLf =
+{
+  DefProcess,
+  0,
+  ZmodemRedisplayLine,
+  DefClearLine,
+  DefRewrite,
+  ZmodemResize,
+  DefRestore
+};
+
+/*ARGSUSED*/
+static int
+ZmodemResize(wi, he)
+int wi, he; 
+{
+  flayer->l_width = wi;
+  flayer->l_height = he;
+  flayer->l_x = flayer->l_width > 32 ? 32 : 0;
+  return 0;
+}
+
+static void
+ZmodemRedisplayLine(y, xs, xe, isblank)
+int y, xs, xe, isblank;
+{
+  DefRedisplayLine(y, xs, xe, isblank);
+  if (y == 0 && xs == 0)
+    LPutStr(flayer, "Zmodem active on another display", flayer->l_width > 32 ? 32 : flayer->l_width, &mchar_blank, 0, 0);
+}
+
+void
+ZmodemPage()
+{
+  if (InitOverlayPage(1, &ZmodemLf, 1))
+    return;
+  LRefreshAll(flayer, 0);
+  flayer->l_x = flayer->l_width > 32 ? 32 : 0;
+  flayer->l_y = 0;
+}
+
+#endif
+
 
 
 static void
@@ -1493,4 +1564,3 @@ int n, x, y;
   if (l < n)
     LPutStr(flayer, blank, n - l, &mchar_blank, x + l, y);
 }
-

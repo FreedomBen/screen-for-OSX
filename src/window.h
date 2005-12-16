@@ -248,6 +248,8 @@ struct win
 
   char	 w_tty[MAXSTR];
 
+  int    w_zauto;
+  struct display *w_zdisplay;
 #ifdef BUILTIN_TELNET
   struct sockaddr_in w_telsa;
   char   w_telbuf[IOSIZE];

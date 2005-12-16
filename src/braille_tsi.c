@@ -281,13 +281,17 @@ struct key2rc *tab;
   if (tab[i].key != -1 && tab[i].nr != RC_ILLEGAL)
     {
       char *args[3];
+      int argl[2];
       
       struct action act;
       args[0] = tab[i].arg1;
       args[1] = tab[i].arg2;
       args[2] = 0;
+      argl[0] = args[0] ? strlen(args[0]) : 0;
+      argl[1] = args[1] ? strlen(args[1]) : 0;
       act.nr = tab[i].nr;
       act.args = args;
+      act.argl = argl;
       display = bd.bd_dpy;
       DoAction(&act, -2);
     }

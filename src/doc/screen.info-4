@@ -1,4 +1,4 @@
-This is screen.info, produced by makeinfo version 4.2 from
+This is screen.info, produced by makeinfo version 4.5 from
 ./screen.texinfo.
 
 INFO-DIR-SECTION General Commands
@@ -672,12 +672,21 @@ File: screen.info,  Node: Nonblock,  Next: Number,  Prev: Nethack,  Up: Miscella
 Nonblock
 ========
 
- - Command: nonblock STATE
-     Enable or disable flow control for the current  user  interface
-     (display). It is used to prevent a slow display from slowing down
-     the processing of data output by a window. This command may be
-     helpful when multiple displays show the same window.  `Nonblock'
-     is initially off for all displays.
+ - Command: nonblock [STATE|NUMSECS]
+     Tell screen how to deal with user interfaces (displays) that cease
+     to accept output. This can happen if a user presses ^S or a
+     TCP/modem connection gets cut but no hangup is received. If
+     nonblock is `off' (this is the default) screen waits until the
+     display restarts to accept the output. If nonblock is `on', screen
+     waits until the timeout is reached (`on' is treated as 1s). If the
+     display still doesn't receive characters, screen will consider it
+     "blocked" and stop sending characters to it. If at some time it
+     restarts to accept characters, screen will unblock the display and
+     redisplay the updated window contents.
+
+ - Command: defnonblock STATE|NUMSECS
+     Same as the `nonblock' command except that the default setting for
+     displays is changed. Initial setting is `off'.
 
 
 File: screen.info,  Node: Number,  Next: Silence,  Prev: Nonblock,  Up: Miscellaneous
@@ -1024,11 +1033,12 @@ instead.
 ``'
      Substitute with the output of a `backtick' command. The length
      qualifier is misused to identify one of the commands. *Note
-     Backtick::.  The `c' and `C' escape may be qualified with a `0' to
-make screen use zero instead of space as fill character.  The `n' and
-`=' escapes understand a length qualifier (e.g. `%3n'), `D' and `M' can
-be prefixed with `L' to generate long names, `w' and `W' also show the
-window flags if `L' is given.
+     Backtick::.
+   The `c' and `C' escape may be qualified with a `0' to make screen use
+zero instead of space as fill character.  The `n' and `=' escapes
+understand a length qualifier (e.g. `%3n'), `D' and `M' can be prefixed
+with `L' to generate long names, `w' and `W' also show the window flags
+if `L' is given.
 
    An attribute/color modifier is is used to change the attributes or
 the color settings. Its format is `[attribute modifier] [color
@@ -1045,9 +1055,9 @@ change types are known:
      invert the set in the current attributes
 
 `='
-     change the current attributes to the specified set The attribute
-set can either be specified as a hexadecimal number or a combination of
-the following letters:
+     change the current attributes to the specified set
+   The attribute set can either be specified as a hexadecimal number or
+a combination of the following letters:
 `d'
      dim
 
@@ -1064,9 +1074,10 @@ the following letters:
      standout
 
 `B'
-     blinking Colors are coded either as a hexadecimal number or two
-letters specifying the desired background and foreground color (in that
-order). The following colors are known:
+     blinking
+   Colors are coded either as a hexadecimal number or two letters
+specifying the desired background and foreground color (in that order).
+The following colors are known:
 `k'
      black
 
@@ -1095,9 +1106,10 @@ order). The following colors are known:
      default color
 
 `.'
-     leave color unchanged The capitalized versions of the letter
-specify bright colors. You can also use the pseudo-color `i' to set
-just the brightness and leave the color unchanged.
+     leave color unchanged
+   The capitalized versions of the letter specify bright colors. You
+can also use the pseudo-color `i' to set just the brightness and leave
+the color unchanged.
 
    A one digit/letter color description is treated as foreground or
 background color dependant on the current attributes: if reverse mode is
@@ -1448,48 +1460,4 @@ Check the compiler used in `Makefile', the prefix path where to install
 or `tty.c', then use `FILENAME.X.dist' instead.  For additional
 information about installation of `screen' refer to the file
 `INSTALLATION', coming with this package.
-
-
-File: screen.info,  Node: Concept Index,  Next: Command Index,  Prev: Installation,  Up: Top
-
-Concept Index
-*************
-
-* Menu:
-
-* .screenrc:                             Startup Files.
-* availability:                          Availability.
-* binding:                               Key Binding.
-* bug report:                            Reporting Bugs.
-* bugs:                                  Bugs.
-* capabilities:                          Special Capabilities.
-* command character:                     Command Character.
-* command line options:                  Invoking Screen.
-* command summary:                       Command Summary.
-* compiling screen:                      Compiling Screen.
-* control sequences:                     Control Sequences.
-* copy and paste:                        Copy and Paste.
-* customization:                         Customization.
-* environment:                           Environment.
-* escape character:                      Command Character.
-* files:                                 Files.
-* flow control:                          Flow Control.
-* input translation:                     Input Translation.
-* installation:                          Installation.
-* introduction:                          Getting Started.
-* invoking:                              Invoking Screen.
-* key binding:                           Key Binding.
-* marking:                               Copy.
-* message line:                          Message Line.
-* multiuser session:                     Multiuser Session.
-* options:                               Invoking Screen.
-* overview:                              Overview.
-* regions:                               Regions.
-* screenrc:                              Startup Files.
-* scrollback:                            Copy.
-* socket directory:                      Socket Directory.
-* string escapes:                        String Escapes.
-* terminal capabilities:                 Special Capabilities.
-* title:                                 Naming Windows.
-* window types:                          Window Types.
 

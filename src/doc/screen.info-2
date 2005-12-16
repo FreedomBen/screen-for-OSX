@@ -1,4 +1,4 @@
-This is screen.info, produced by makeinfo version 4.2 from
+This is screen.info, produced by makeinfo version 4.5 from
 ./screen.texinfo.
 
 INFO-DIR-SECTION General Commands
@@ -85,8 +85,11 @@ Select
      established, the lowest available number is assigned to this
      window.  Thus, the first window can be activated by `select 0';
      there can be no more than 10 windows present simultaneously
-     (unless screen is compiled with a higher MAXWIN setting).  The
-     special command `select -' switches to a blank window.
+     (unless screen is compiled with a higher MAXWIN setting).  There
+     are two special arguments, `select -' switches to the internal
+     blank window and `select .' switches to the current window. The
+     latter is useful if used with screen's `-X' option.
+
 
 
 File: screen.info,  Node: Windowlist,  Prev: Select,  Up: Selecting
@@ -171,7 +174,7 @@ Power Detach
 ============
 
  - Command: pow_detach
-     (`C-a D')
+     (`C-a D D')
      Mainly the same as `detach', but also sends a HANGUP signal to the
      parent process of `screen'.
      _Caution_: This will result in a logout if `screen' was started

@@ -660,7 +660,7 @@ LockTerminal()
   sigret_t (*sigs[NSIG])__P(SIGPROTOARG);
 
   for (sig = 1; sig < NSIG; sig++)
-    sigs[sig] = signal(sig, SIG_IGN);
+    sigs[sig] = signal(sig, sig == SIGCHLD ? SIG_DFL : SIG_IGN);
   signal(SIGHUP, LockHup);
   printf("\n");
 

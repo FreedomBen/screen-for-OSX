@@ -1,4 +1,4 @@
-This is screen.info, produced by makeinfo version 4.2 from
+This is screen.info, produced by makeinfo version 4.5 from
 ./screen.texinfo.
 
 INFO-DIR-SECTION General Commands
@@ -23,6 +23,50 @@ permission notice identical to this one.
 manual into another language, under the above conditions for modified
 versions, except that this permission notice may be stated in a
 translation approved by the Foundation.
+
+
+File: screen.info,  Node: Concept Index,  Next: Command Index,  Prev: Installation,  Up: Top
+
+Concept Index
+*************
+
+* Menu:
+
+* .screenrc:                             Startup Files.
+* availability:                          Availability.
+* binding:                               Key Binding.
+* bug report:                            Reporting Bugs.
+* bugs:                                  Bugs.
+* capabilities:                          Special Capabilities.
+* command character:                     Command Character.
+* command line options:                  Invoking Screen.
+* command summary:                       Command Summary.
+* compiling screen:                      Compiling Screen.
+* control sequences:                     Control Sequences.
+* copy and paste:                        Copy and Paste.
+* customization:                         Customization.
+* environment:                           Environment.
+* escape character:                      Command Character.
+* files:                                 Files.
+* flow control:                          Flow Control.
+* input translation:                     Input Translation.
+* installation:                          Installation.
+* introduction:                          Getting Started.
+* invoking:                              Invoking Screen.
+* key binding:                           Key Binding.
+* marking:                               Copy.
+* message line:                          Message Line.
+* multiuser session:                     Multiuser Session.
+* options:                               Invoking Screen.
+* overview:                              Overview.
+* regions:                               Regions.
+* screenrc:                              Startup Files.
+* scrollback:                            Copy.
+* socket directory:                      Socket Directory.
+* string escapes:                        String Escapes.
+* terminal capabilities:                 Special Capabilities.
+* title:                                 Naming Windows.
+* window types:                          Window Types.
 
 
 File: screen.info,  Node: Command Index,  Next: Keystroke Index,  Prev: Concept Index,  Up: Top
@@ -83,6 +127,7 @@ Command Index
 * deflogin:                              Login.
 * defmode:                               Mode.
 * defmonitor:                            Monitor.
+* defnonblock:                           Nonblock.
 * defobuflimit:                          Obuflimit.
 * defscrollback:                         Scrollback.
 * defshell:                              Shell.

@@ -57,6 +57,7 @@ struct action
 {
   int nr;
   char **args;
+  int *argl;
 };
 
 #define RC_ILLEGAL -1
