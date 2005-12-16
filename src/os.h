@@ -32,9 +32,9 @@
 # define hpux
 #endif
 
-#if defined(BSDI) || defined(__386BSD__) || defined(_CX_UX) || defined(hpux)
+#if defined(BSDI) || defined(__386BSD__) || defined(_CX_UX) || defined(hpux) || defined(_IBMR2)
 # include <signal.h>
-#endif /* BSDI || __386BSD__ || _CX_UX */
+#endif /* BSDI || __386BSD__ || _CX_UX || hpux || _IBMR2 */
 
 #ifdef ISC
 # ifdef ENAMETOOLONG
@@ -104,9 +104,10 @@ extern int errno;
 #endif
 #include <sys/time.h>
 
-#if (defined(TIOCGWINSZ) || defined(TIOCSWINSZ)) && defined(M_UNIX)
+#ifdef M_UNIX	/* SCO */
 # include <sys/stream.h>
 # include <sys/ptem.h>
+# define ftruncate(fd, s) chsize(fd, s)
 #endif
 
 #ifdef SYSV
@@ -116,7 +117,9 @@ extern int errno;
 # define bcmp memcmp
 # define killpg(pgrp,sig) kill( -(pgrp), sig)
 #else
-# define getcwd(b,l) getwd(b)
+# ifndef linux
+#   define getcwd(b,l) getwd(b)
+# endif
 #endif
 
 #ifndef USEBCOPY
@@ -204,6 +207,11 @@ extern int errno;
  */
 #if defined(sgi) || defined(DGUX) || defined(_IBMR2)
 # undef TIOCPKT
+#endif
+
+/* linux ncurses is broken, we have to use our own tputs */
+#ifdef linux
+# define tputs xtputs
 #endif
 
 
@@ -318,6 +326,9 @@ extern int errno;
 #if defined(S_IFDIR) && defined(S_IFMT) && !defined(S_ISDIR)
 #define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
 #endif
+#if defined(S_IFLNK) && defined(S_IFMT) && !defined(S_ISLNK)
+#define S_ISLNK(mode) (((mode) & S_IFMT) == S_IFLNK)
+#endif
 
 /*
  * SunOS 4.1.3: `man 2V open' has only one line that mentions O_NOBLOCK:
@@ -406,7 +417,7 @@ extern int errno;
  *    Wait stuff
  */
 
-#if (!defined(sysV68) && !defined(M_XENIX)) || defined(NeXT)
+#if (!defined(sysV68) && !defined(M_XENIX)) || defined(NeXT) || defined(M_UNIX)
 # include <sys/wait.h>
 #endif
 

@@ -38,7 +38,7 @@ RCS_ID("$Id$ FAU")
 #include "extern.h"
 
 #ifdef NETHACK
-extern nethackflag;
+extern int nethackflag;
 #endif
 
 extern struct display *display;
@@ -54,6 +54,7 @@ extern char *BufferFile;
 extern int hardcopy_append;
 extern char *hardcopydir;
 
+static char *findrcfile __P((char *));
 static char *CatExtra __P((char *, char *));
 
 
@@ -143,12 +144,13 @@ char *rcfilename;
 {
   register int argc, len;
   register char *p, *cp;
-  char buf[256];
+  char buf[2048];
   char *args[MAXARGS];
 
+  /* always fix termcap/info capabilities */
+  extra_incap = CatExtra("TF", extra_incap);
 
   /* Special settings for vt100 and others */
-
   if (display && (!strncmp(D_termname, "vt", 2) || !strncmp(D_termname, "xterm", 5)))
     extra_incap = CatExtra("xn:f0=\033Op:f1=\033Oq:f2=\033Or:f3=\033Os:f4=\033Ot:f5=\033Ou:f6=\033Ov:f7=\033Ow:f8=\033Ox:f9=\033Oy:f.=\033On:f,=\033Ol:fe=\033OM:f+=\033Ok:f-=\033Om:f*=\033Oj:f/=\033Oo:fq=\033OX", extra_incap);
 
@@ -248,7 +250,7 @@ void
 FinishRc(rcfilename)
 char *rcfilename;
 {
-  char buf[256];
+  char buf[2048];
 
   rc_name = findrcfile(rcfilename);
 
@@ -306,6 +308,18 @@ int dump;
   register FILE *f;
   char fn[1024];
   char *mode = "w";
+#ifdef COPY_PASTE
+  int public = 0;
+# ifdef _MODE_T
+  mode_t old_umask;
+# else
+  int old_umask;
+# endif
+# ifdef HAVE_LSTAT
+  struct stat stb, stb2;
+  int fd, exists = 0;
+# endif
+#endif
 
   switch (dump)
     {
@@ -328,7 +342,15 @@ int dump;
     case DUMP_EXCHANGE:
       strncpy(fn, BufferFile, sizeof(fn) - 1);
       fn[sizeof(fn) - 1] = 0;
-      umask(0);
+      public = !strcmp(fn, DEFAULT_BUFFERFILE);
+# ifdef HAVE_LSTAT
+      exists = !lstat(fn, &stb);
+      if (public && exists && (S_ISLNK(stb.st_mode) || stb.st_nlink > 1))
+	{
+	  Msg(0, "No write to links, please.");
+	  return;
+	}
+# endif
       break;
 #endif
     }
@@ -337,7 +359,36 @@ int dump;
   if (UserContext() > 0)
     {
       debug("Writefile: usercontext\n");
-      if ((f = fopen(fn, mode)) == NULL)
+#ifdef COPY_PASTE
+      if (dump == DUMP_EXCHANGE && public)
+	{
+          old_umask = umask(0);
+# ifdef HAVE_LSTAT
+	  if (exists)
+	    {
+	      if ((fd = open(fn, O_WRONLY, 0666)) >= 0)
+		{
+		  if (fstat(fd, &stb2) == 0 && stb.st_dev == stb2.st_dev && stb.st_ino == stb2.st_ino)
+		    ftruncate(fd, 0);
+		  else
+		    {
+		      close(fd);
+		      fd = -1;
+		    }
+		}
+	    }
+	  else
+	    fd = open(fn, O_WRONLY|O_CREAT|O_EXCL, 0666);
+	  f = fd >= 0 ? fdopen(fd, mode) : 0;
+# else
+          f = fopen(fn, mode);
+# endif
+          umask(old_umask);
+	}
+      else
+#endif /* COPY_PASTE */
+        f = fopen(fn, mode);
+      if (f == NULL)
 	{
 	  debug2("WriteFile: fopen(%s,\"%s\") failed\n", fn, mode);
 	  UserReturn(0);

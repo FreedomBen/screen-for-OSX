@@ -88,9 +88,10 @@ extern char *crypt __P((char *, char *));
 extern int   putenv __P((char *));
 
 extern int   tgetent __P((char *, char *));
+extern char *tgetstr __P((char *, char **));
 extern int   tgetnum __P((char *));
 extern int   tgetflag __P((char *));
-extern void  tputs __P((char *, int, void (*)(int)));
+extern void  tputs __P((char *, int, int (*)(int)));
 extern char *tgoto __P((char *, int, int));
 
 #ifdef POSIX
@@ -161,7 +162,9 @@ extern int   vsprintf __P((char *, char *, va_list));
 #endif
 struct timeval;		/* for select __P */
 extern int   select __P((int, fd_set *, fd_set *, fd_set *, struct timeval *));
+#ifdef HAVE_UTIMES
 extern int   utimes __P((char *, struct timeval *));
+#endif
 
 extern void  unsetenv __P((char *));
 

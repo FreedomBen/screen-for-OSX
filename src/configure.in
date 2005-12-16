@@ -35,6 +35,7 @@ pat=`sed < ${srcdir}/patchlevel.h -n -e '/#define PATCHLEVEL/s/#define PATCHLEVE
 VERSION="$rev.$vers.$pat"
 AC_NOTE(this is screen version $VERSION)
 AC_SUBST(VERSION)
+AC_PREFIX(screen)
 AC_PREFIX(gzip)
 
 AC_PROG_CC
@@ -79,9 +80,10 @@ if test -f /sysV68 ; then
 AC_DEFINE(sysV68)
 fi
 
-AC_CHECKING(for MIPS)
-if test -f /lib/libmld.a || test -f /usr/lib/libmld.a || test -f /usr/lib/cmplrs/cc/libmld.a; then
-test -f /bin/mx || LIBS="$LIBS -lmld" # for nlist. But not on alpha.
+oldlibs="$LIBS"
+LIBS="$LIBS -lmld"
+AC_COMPILE_CHECK(MIPS,,,
+test -f /bin/mx && LIBS="$oldlibs"	# not on alpha
 dnl djm@eng.umd.edu: "... for one thing, it doubles the size of the executable"
 dnl
 if test -r /dev/ptc; then
@@ -95,7 +97,7 @@ dnl Detect RISCOS if wait2 is present, but not wait3.
 AC_DEFINE(USE_WAIT2) LIBS="$LIBS -lbsd" ; CC="$CC -I/usr/include/bsd"
 ))
 fi
-fi
+,LIBS="$oldlibs")
 
 AC_CHECKING(for Ultrix)
 AC_PROGRAM_EGREP(yes,
@@ -155,6 +157,12 @@ AC_HEADER_CHECK(dwarf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN),
 AC_HEADER_CHECK(elf.h, AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN)))
 ,LIBS="$oldlibs")
 
+AC_CHECKING(for Solaris)
+AC_PROGRAM_EGREP(yes,
+[#if defined(sun) && defined(SVR4)
+  yes
+#endif
+], LIBS="$LIBS -lkstat")
 
 dnl
 dnl    ****  typedefs ****
@@ -552,7 +560,9 @@ LIBS="-ltermcap $olibs"
 AC_COMPILE_CHECK(libtermcap,,tgetent((char *)0, (char *)0);,,
 LIBS="-ltermlib $olibs"
 AC_COMPILE_CHECK(libtermlib,,tgetent((char *)0, (char *)0);,,
-AC_ERROR(!!! no tgetent - no screen))))
+LIBS="-lncurses $olibs"
+AC_COMPILE_CHECK(libncurses,,tgetent((char *)0, (char *)0);,,
+AC_ERROR(!!! no tgetent - no screen)))))
 
 AC_TEST_PROGRAM([
 main()
@@ -576,7 +586,12 @@ pdir='/dev/ptym'
 else
 pdir='/dev'
 fi
+dnl SCO uses ptyp%d
+if test -c /dev/ptyp19; then
+ptys=`echo /dev/ptyp??`
+else
 ptys=`echo $pdir/pty??`
+fi
 if test "$ptys" != "$pdir/pty??" ; then
 p0=`echo $ptys | tr ' ' '\012' | sed -e 's/^.*\(.\).$/\1/g' | sort -u | tr -d '\012'`
 p1=`echo $ptys | tr ' ' '\012' | sed -e 's/^.*\(.\)$/\1/g'  | sort -u | tr -d '\012'`
@@ -737,7 +752,7 @@ else
 #endif
 
 #ifdef __sgi
-# if _MIPS_SZLONG == 64
+# if _MIPS_SZLONG == 64 || (defined(_MIPS_ISA) && _MIPS_ISA > 2)
 #  define nlist nlist64
 # endif
 #endif
@@ -776,7 +791,7 @@ AC_PROGRAM_SOURCE([
 #include <sys/types.h>
 #include <sys/param.h>
 ],[
-#if ((defined(hp300) && !defined(__hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news) || defined(__alpha) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
+#if ((defined(hp300) && !defined(__hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || defined(SVR4) || defined(sony_news) || (!defined(__osf__) && defined(__alpha)) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
 loadtype=long
 # if defined(apollo) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX)
 loadscale=65536
@@ -890,6 +905,13 @@ test -f /lib/libcrypt.a || test -f /usr/lib/libcrypt.a && LIBS="$LIBS -lcrypt"
 test -f /lib/libsec.a || test -f /usr/lib/libsec.a && LIBS="$LIBS -lsec"
 test -f /lib/libshadow.a || test -f /usr/lib/libshadow.a && LIBS="$LIBS -lshadow"
 
+dnl SCO stuff
+AC_PROGRAM_EGREP(yes,
+[#ifdef M_UNIX
+  yes
+#endif
+], LIBS="$LIBS -lsocket -lcrypt_i -lc -lx")
+
 oldlibs="$LIBS"
 LIBS="$LIBS -lsun"
 AC_COMPILE_CHECK(IRIX sun library,,,,LIBS="$oldlibs")
@@ -978,8 +1000,7 @@ else AC_DEFINE(NAME_MAX, 14)
 fi
 rm -f /tmp/conftest*
 
-AC_COMPILE_CHECK(vsprintf, [
-#include <stdio.h>], [vsprintf(0,0,0);], AC_DEFINE(USEVARARGS))
+AC_COMPILE_CHECK(vsprintf, , [vsprintf(0,0,0);], AC_DEFINE(USEVARARGS))
 
 AC_DIR_HEADER
 AC_XENIX_DIR

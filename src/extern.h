@@ -47,7 +47,7 @@ extern void  Panic __P(());
 extern void  DisplaySleep __P((int));
 extern void  Finit __P((int));
 extern void  MakeNewEnv __P((void));
-extern char *MakeWinMsg __P((char *, struct win *, int));
+extern char *MakeWinMsg __P((char *, struct win *, int, int));
 
 /* ansi.c */
 extern void  Activate __P((int));
@@ -113,6 +113,7 @@ extern void  display_bindkey __P((char *, struct action *));
 extern int   MakeWindow __P((struct NewWindow *));
 extern int   RemakeWindow __P((struct win *));
 extern void  FreeWindow __P((struct win *));
+extern void  CloseDevice __P((struct win *));
 #ifdef PSEUDOS
 extern int   winexec __P((char **));
 extern void  FreePseudowin __P((struct win *));
@@ -253,7 +254,7 @@ extern int   MakeClientSocket __P((int));
 extern int   MakeServerSocket __P((void));
 extern int   RecoverSocket __P((void));
 extern int   chsock __P((void));
-extern void  ReceiveMsg __P(());
+extern void  ReceiveMsg __P((void));
 extern void  SendCreateMsg __P((char *, struct NewWindow *));
 #ifdef USEVARARGS
 extern void  SendErrorMsg __P((char *, ...))
@@ -267,6 +268,7 @@ extern void  SendErrorMsg __P(());
 
 /* misc.c */
 extern char *SaveStr __P((const char *));
+extern char *InStr __P((char *, const char *));
 #ifndef HAVE_STRERROR
 extern char *strerror __P((int));
 #endif
@@ -319,6 +321,7 @@ extern int   AclSetPerm __P((struct user *, struct user *, char *, char *));
 extern int   UsersAcl __P((struct user *, int, char **));
 extern void  AclWinSwap __P((int, int));
 extern int   NewWindowAcl __P((struct win *, struct user *));
+extern void  FreeWindowAcl __P((struct win *));
 #endif /* MULTIUSER */
 extern struct user **FindUserPtr __P((char *));
 extern int   UserAdd __P((char *, char *, struct user **));

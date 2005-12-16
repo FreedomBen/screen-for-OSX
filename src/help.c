@@ -460,7 +460,7 @@ static const char cpmsg[] = "\
 \n\
 Screen version %v\n\
 \n\
-Copyright (c) 1993 Juergen Weigert, Michael Schroeder\n\
+Copyright (c) 1993-1998 Juergen Weigert, Michael Schroeder\n\
 Copyright (c) 1987 Oliver Laumann\n\
 \n\
 This program is free software; you can redistribute it and/or \

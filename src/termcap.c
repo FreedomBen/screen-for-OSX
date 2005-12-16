@@ -29,24 +29,9 @@ RCS_ID("$Id$ FAU")
 #include "screen.h"
 #include "extern.h"
 
+
 extern struct display *display, *displays;
-
-static void  AddCap __P((char *));
-static void  MakeString __P((char *, char *, int, char *));
-static char *findcap __P((char *, char **, int));
-static int   copyarg __P((char **, char *));
-static char *e_tgetstr __P((char *, char **));
-static int   e_tgetflag __P((char *));
-static int   e_tgetnum __P((char *));
-#ifdef MAPKEYS
-static int   addmapseq __P((char *, int));
-static int   remmapseq __P((char *));
-#ifdef DEBUG
-static void  dumpmap __P((void));
-#endif
-#endif
-
-
+extern int real_uid, real_gid, eff_uid, eff_gid;
 extern struct term term[];	/* terminal capabilities */
 extern struct NewWindow nwin_undef, nwin_default, nwin_options;
 extern int force_vt, assume_LP;
@@ -59,6 +44,23 @@ extern char *kmap_extras[];
 extern int kmap_extras_fl[];
 extern int DefaultEsc;
 #endif
+
+static void  AddCap __P((char *));
+static void  MakeString __P((char *, char *, int, char *));
+static char *findcap __P((char *, char **, int));
+static int   copyarg __P((char **, char *));
+static int   e_tgetent __P((char *, char *));
+static char *e_tgetstr __P((char *, char **));
+static int   e_tgetflag __P((char *));
+static int   e_tgetnum __P((char *));
+#ifdef MAPKEYS
+static int   addmapseq __P((char *, int));
+static int   remmapseq __P((char *));
+#ifdef DEBUG
+static void  dumpmap __P((void));
+#endif
+#endif
+
 
 char Termcap[TERMCAP_BUFSIZE + 8];	/* new termcap +8:"TERMCAP=" */
 static int Termcaplen;
@@ -105,7 +107,7 @@ int he;
   ASSERT(display);
   bzero(tbuf, sizeof(tbuf));
   debug1("InitTermcap: looking for tgetent('%s')\n", D_termname);
-  if (*D_termname == 0 || tgetent(tbuf, D_termname) != 1)
+  if (*D_termname == 0 || e_tgetent(tbuf, D_termname) != 1)
     {
 #ifdef TERMINFO
       Msg(0, "Cannot find terminfo entry for '%s'.", D_termname);
@@ -183,12 +185,35 @@ int he;
   if (D_LI <= 0)
     D_LI = 24;
 
+  if (D_CTF)
+    {
+      /* standard fixes for xterms etc */
+      /* assume color if name doesn't begin with vt but it
+	 looks like a vt */
+      if (!D_CAF && D_ME && InStr(D_ME, "\033[m"))
+	{
+#ifdef TERMINFO
+	  D_CAF = "\033[3%p1%dm";
+	  D_CAB = "\033[4%p1%dm";
+#else
+	  D_CAF = "\033[3%dm";
+	  D_CAB = "\033[4%dm";
+#endif
+	}
+      if (D_OP && InStr(D_OP, "\033[39;49m"))
+	D_CAX = 1;
+      if (strcmp(D_termname, "xterm-color") == 0)
+	D_BE = 1;
+      /* ISO2022 */
+      if ((D_EA && InStr(D_EA, "\033(B")) || (D_AS && InStr(D_AS, "\033(0")))
+	D_CG0 = 1;
+    }
+
   if (nwin_options.flowflag == nwin_undef.flowflag)
     nwin_default.flowflag = D_CNF ? FLOW_NOW * 0 : 
 			    D_NX ? FLOW_NOW * 1 :
 			    FLOW_AUTOFLAG;
-  D_CLP |= (assume_LP || !D_AM || D_XV || D_XN ||
-	 (!extra_incap && !strncmp(D_termname, "vt", 2)));
+  D_CLP |= (assume_LP || !D_AM || D_XV || D_XN);
   if (!D_BL)
     D_BL = "\007";
   if (!D_BC)
@@ -290,6 +315,8 @@ int he;
       D_CAF = D_CSF;
       D_CAB = D_CSB;
     }
+  if (D_BE)	/* screen erased with background color */
+    D_UT = 1;
 
   if (!D_DO)
     D_DO = D_NL;
@@ -321,6 +348,7 @@ int he;
       if (D_CE0 == 0)
         D_CE0 = "\033(B";
       D_AC = 0;
+      D_EA = 0;
     }
   else if (D_AC || (D_AS && D_AE))	/* some kind of graphics */
     {
@@ -382,6 +410,10 @@ int he;
 	D_kanji = SJIS;
     }
 #endif
+  if (!D_tcs[T_NAVIGATE].str && D_tcs[T_NAVIGATE + 1].str)
+    D_tcs[T_NAVIGATE].str = D_tcs[T_NAVIGATE + 1].str;	/* kh = @1 */
+  if (!D_tcs[T_NAVIGATE + 2].str && D_tcs[T_NAVIGATE + 3].str)
+    D_tcs[T_NAVIGATE + 2].str = D_tcs[T_NAVIGATE + 3].str; /* kH = @7 */
 
   D_UPcost = CalcCost(D_UP);
   D_DOcost = CalcCost(D_DO);
@@ -696,17 +728,17 @@ int aflag;
       if (!aflag && strlen(screenterm) + strlen(tname) < MAXSTR-1)
 	{
 	  sprintf(p, "%s.%s", screenterm, tname);
-	  if (tgetent(buf, p) == 1)
+	  if (e_tgetent(buf, p) == 1)
 	    break;
 	}
       if (wi >= 132)
 	{
 	  sprintf(p, "%s-w", screenterm);
-          if (tgetent(buf, p) == 1)
+          if (e_tgetent(buf, p) == 1)
 	    break;
 	}
       strcpy(p, screenterm);
-      if (tgetent(buf, p) == 1)
+      if (e_tgetent(buf, p) == 1)
 	break;
       strcpy(p, "vt100");
     }
@@ -714,7 +746,7 @@ int aflag;
 
   /* check for compatibility problems, displays == 0 after fork */
   {
-    char *tgetstr(), xbuf[TERMCAP_BUFSIZE], *xbp = xbuf;
+    char xbuf[TERMCAP_BUFSIZE], *xbp = xbuf;
     if (tgetstr("im", &xbp) && tgetstr("ic", &xbp) && displays)
       {
 #ifdef TERMINFO
@@ -728,8 +760,7 @@ int aflag;
   tcLineLen = 100;	/* Force NL */
   if (strlen(Term) > TERMCAP_BUFSIZE - 40)
     strcpy(Term, "too_long");
-  sprintf(Termcap,
-	  "TERMCAP=SC|%s|VT 100/ANSI X3.64 virtual terminal", Term + 5);
+  sprintf(Termcap, "TERMCAP=SC|%s|VT 100/ANSI X3.64 virtual terminal:", Term + 5);
   Termcaplen = strlen(Termcap);
   debug1("MakeTermcap decided '%s'\n", p);
   if (extra_outcap && *extra_outcap)
@@ -1106,6 +1137,24 @@ char **pp, *s;
 **
 */
 
+static int
+e_tgetent(bp, name)
+char *bp, *name;
+{
+  int r;
+
+#ifdef USE_SETEUID
+  xseteuid(real_uid);
+  xsetegid(real_gid);
+#endif
+  r = tgetent(bp, name);
+#ifdef USE_SETEUID
+  xseteuid(eff_uid);
+  xsetegid(eff_gid);
+#endif
+  return r;
+}
+
 
 /* findcap:
  *   cap = capability we are looking for
@@ -1230,7 +1279,7 @@ e_tgetstr(cap, tepp)
 char *cap;
 char **tepp;
 {
-  char *tep, *tgetstr();
+  char *tep;
   if ((tep = findcap(cap, tepp, 0)))
     return (*tep == '@') ? 0 : tep;
   return tgetstr(cap, tepp);

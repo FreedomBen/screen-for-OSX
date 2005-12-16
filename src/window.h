@@ -108,6 +108,7 @@ struct pseudowin
 struct win 
 {
   struct win *w_next;		/* next window */
+  int    w_type;		/* type of window */
 #ifdef PSEUDOS
   struct pseudowin *w_pwin;	/* ptr to pseudo */
 #endif
@@ -130,7 +131,6 @@ struct win
   int	 w_autoaka;		/* autoaka hack */
   char	 w_akabuf[MAXSTR];	/* aka buffer */
   char	 w_tty[MAXSTR];
-  struct tty_attr w_t;
   int	 w_intermediate;	/* char used while parsing ESC-seq */
   int	 w_args[MAXARGS];
   int	 w_NumArgs;
@@ -204,6 +204,11 @@ struct win
   AclBits w_mon_notify;		/* whom to tell monitor statis */
 #endif
 };
+
+/* definitions for w_type */
+#define TTY_TYPE_PTY		0
+#define TTY_TYPE_PLAIN		1
+
 
 /* definitions for wlocktype */
 #define WLOCK_OFF	0	/* all who are in w_userbits can write */

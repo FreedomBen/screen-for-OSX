@@ -50,6 +50,9 @@ RCS_ID("$Id$ FAU")
 
 static int   CheckPid __P((int));
 static void  ExecCreate __P((struct msg *));
+#ifdef PASSWORD
+static int CheckPasswd __P((char *, int, char *));
+#endif
 #if defined(_SEQUENT_) && !defined(NAMEDPIPE)
 # define connect sconnect	/* _SEQUENT_ has braindamaged connect */
 static int   sconnect __P((int, struct sockaddr *, int));
@@ -64,7 +67,7 @@ extern struct display *display, *displays;
 extern struct win *fore, *wtab[], *console_window, *windows;
 extern struct NewWindow nwin_undef;
 #ifdef NETHACK
-extern nethackflag;
+extern int nethackflag;
 #endif
 #ifdef MULTIUSER
 extern char *multi;
@@ -359,6 +362,7 @@ char *match;
 	      break;
 	    case -3:
 	      printf("\t%s\t(Remote or dead)\n", sent->name);
+	      break;
 	    case -4:
 	      printf("\t%s\t(Private)\n", sent->name);
 	      break;
@@ -1115,11 +1119,11 @@ ReceiveMsg()
 	  /* try to get another window */
 #ifdef MULTIUSER
 	  for (wi = windows; wi; wi = wi->w_next)
-	    if (!wi->w_display && !AclCheckPermWin(D_user, ACL_WRITE, fore))
+	    if (!wi->w_display && !AclCheckPermWin(D_user, ACL_WRITE, wi))
 	      break;
 	  if (!wi)
 	    for (wi = windows; wi; wi = wi->w_next)
-	      if (!wi->w_display && !AclCheckPermWin(D_user, ACL_READ, fore))
+	      if (!wi->w_display && !AclCheckPermWin(D_user, ACL_READ, wi))
 	        break;
 	  if (!wi)
 #endif

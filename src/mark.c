@@ -53,9 +53,10 @@ extern struct display *display;
 extern char *null, *blank;
 extern struct mline mline_blank, mline_null;
 extern struct mchar mchar_so;
+extern int use_hardstatus;
 
 #ifdef NETHACK
-extern nethackflag;
+extern int nethackflag;
 #endif
 
 int pastefont = 1;
@@ -511,6 +512,9 @@ int *inlenp;
       return;
     }
  
+  if (D_status && !(use_hardstatus && D_HS))
+    RemoveStatus();
+
   GotoPos(markdata->cx, W2D(markdata->cy));
   inbuf= *inbufp;
   inlen= *inlenp;
@@ -990,6 +994,16 @@ int tx, ty, line;
     ty = fore->w_histheight + D_height - 1;
   
   fx = markdata->cx; fy = markdata->cy;
+
+#ifdef KANJI
+  /* don't just move inside of a kanji, the user wants to see something */
+  ml = WIN(ty);
+  if (ty == fy && fx + 1 == tx && badkanji(ml->font, tx) && tx < D_width - 1)
+    tx++;
+  if (ty == fy && fx - 1 == tx && badkanji(ml->font, fx) && tx)
+    tx--;
+#endif
+
   markdata->cx = tx; markdata->cy = ty;
  
   /*
@@ -1226,6 +1240,8 @@ int ry, xs, xe, doit;
 
   markdata = (struct markdata *)D_lay->l_data;
   fore = D_fore;
+  if (ry >= fore->w_height || xe > fore->w_width)
+    return EXPENSIVE;
   y = D2W(ry);
   ml = WIN(y);
   dx = xe - xs;
@@ -1261,11 +1277,13 @@ int ry, xs, xe, doit;
         {
 	  if (pastefont)
 	    mchar_marked.font = ml->font[x];
+	  D_rend.image = mchar_marked.image;
 	  if (!cmp_mchar(&D_rend, &mchar_marked))
 	    return EXPENSIVE;
         }
       else
         {
+	  D_rend.image = ml->image[x];
 	  if (!cmp_mchar_mline(&D_rend, ml, x))
 	    return EXPENSIVE;
         }

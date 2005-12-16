@@ -70,6 +70,7 @@ RCS_ID("$Id$ FAU")
 #include "screen.h"
 #include "extern.h"
 
+
 extern struct display *display, *displays;
 extern int iflag;
 
@@ -112,6 +113,13 @@ char *line;
       signal(SIGALRM, sigalrm);
       return -1;
     }
+  if (!isatty(f))
+    {
+      Msg(0, "'%s' is not a tty", line);
+      alarm(0);
+      signal(SIGALRM, sigalrm);
+      return -1;
+    }
 #ifdef I_POP
   debug("OpenTTY I_POP\n");
   while (ioctl(f, I_POP, (char *)0) >= 0)
@@ -146,7 +154,7 @@ char *line;
     {
       struct mode Mode;
 
-      InitTTY(&Mode, TTY_FLAG_PLAIN);
+      InitTTY(&Mode, TTY_TYPE_PLAIN);
 #ifdef DEBUG
       DebugTTY(&Mode);
 #endif
@@ -169,7 +177,7 @@ int intrc, origintrc = VDISABLE;        /* display? */
 #else
 int intrc, origintrc = -1;		/* display? */
 #endif
-static startc, stopc;                   /* display? */
+static int startc, stopc;		/* display? */
 
 
 void
@@ -187,7 +195,7 @@ IF{BRKINT}	m->tio.c_iflag |= BRKINT;
 IF{IGNPAR}	m->tio.c_iflag |= IGNPAR;
 IF{ISTRIP}	m->tio.c_iflag |= ISTRIP;
 IF{IXON}	m->tio.c_iflag |= IXON;
-IF{IMAXBEL}	m->tio.c_iflag |= IMAXBEL; 
+/* IF{IMAXBEL}	m->tio.c_iflag |= IMAXBEL; */
 
   if (!ttyflag)	/* may not even be good for ptys.. */
     {
@@ -241,14 +249,14 @@ XIF{VSTATUS}	m->tio.c_cc[VSTATUS]  = Ctrl('T');
       m->tio.c_cc[VMIN] = 1;
       m->tio.c_cc[VTIME] = 0;
     }
-# ifdef hpux
+# ifdef HPUX_LTCHARS_HACK
   m->m_ltchars.t_suspc =  Ctrl('Z');
   m->m_ltchars.t_dsuspc = Ctrl('Y');
   m->m_ltchars.t_rprntc = Ctrl('R');
   m->m_ltchars.t_flushc = Ctrl('O');
   m->m_ltchars.t_werasc = Ctrl('W');
   m->m_ltchars.t_lnextc = Ctrl('V');
-# endif /* hpux */
+# endif /* HPUX_LTCHARS_HACK */
 
 #else /* POSIX */
 
@@ -356,7 +364,7 @@ struct mode *mp;
   errno = 0;
 #ifdef POSIX
   tcsetattr(fd, TCSADRAIN, &mp->tio);
-# ifdef hpux
+# ifdef HPUX_LTCHARS_HACK
   ioctl(fd, TIOCSLTC, (char *)&mp->m_ltchars);
 # endif
 #else
@@ -395,7 +403,7 @@ struct mode *mp;
   errno = 0;
 #ifdef POSIX
   tcgetattr(fd, &mp->tio);
-# ifdef hpux
+# ifdef HPUX_LTCHARS_HACK
   ioctl(fd, TIOCGLTC, (char *)&mp->m_ltchars);
 # endif
 #else
@@ -444,6 +452,7 @@ struct mode *op, *np;
   np->tio.c_line = 0;
 # endif
 IF{ICRNL}  np->tio.c_iflag &= ~ICRNL;
+IF{ISTRIP}  np->tio.c_iflag &= ~ISTRIP;
 IF{ONLCR}  np->tio.c_oflag &= ~ONLCR;
   np->tio.c_lflag &= ~(ICANON | ECHO);
   /*
@@ -493,18 +502,18 @@ XIF{VSTATUS}	np->tio.c_cc[VSTATUS] = VDISABLE;
 XIF{VSUSP}	np->tio.c_cc[VSUSP] = VDISABLE;
 XIF{VERASE}	np->tio.c_cc[VERASE] = VDISABLE;
 XIF{VKILL}	np->tio.c_cc[VKILL] = VDISABLE;
-# ifdef hpux
+# ifdef HPUX_LTCHARS_HACK
   np->m_ltchars.t_suspc  = VDISABLE;
   np->m_ltchars.t_dsuspc = VDISABLE;
   np->m_ltchars.t_rprntc = VDISABLE;
   np->m_ltchars.t_flushc = VDISABLE;
   np->m_ltchars.t_werasc = VDISABLE;
   np->m_ltchars.t_lnextc = VDISABLE;
-# else /* hpux */
+# else /* HPUX_LTCHARS_HACK */
 XIF{VDSUSP}	np->tio.c_cc[VDSUSP] = VDISABLE;
 XIF{VREPRINT}	np->tio.c_cc[VREPRINT] = VDISABLE;
 XIF{VWERASE}	np->tio.c_cc[VWERASE] = VDISABLE;
-# endif /* hpux */
+# endif /* HPUX_LTCHARS_HACK */
 #else /* TERMIO || POSIX */
   startc = op->m_tchars.t_startc;
   stopc = op->m_tchars.t_stopc;
@@ -664,7 +673,7 @@ void SendBreak(wp, n, closeopen)
 struct win *wp;
 int n, closeopen;
 {
-  if ((wp->w_t.flags & TTY_FLAG_PLAIN) == 0)
+  if (wp->w_type != TTY_TYPE_PLAIN)
     return;
 
   debug3("break(%d, %d) fd %d\n", n, closeopen, wp->w_ptyfd);
@@ -745,25 +754,11 @@ int fd, on;
 char *rc_name;
 {
 #ifdef TIOCCONS
-  char *slave;
-  int sfd = -1, ret = 0;
   struct display *d;
+  int ret = 0;
+  int sfd = -1;
 
-  if (!on)
-    {
-      if ((fd = OpenPTY(&slave)) < 0)
-	{
-	  Msg(errno, "%s: could not open detach pty master", rc_name);
-	  return -1;
-	}
-      if ((sfd = open(slave, O_RDWR)) < 0)
-	{
-	  Msg(errno, "%s: could not open detach pty slave", rc_name);
-	  close(fd);
-	  return -1;
-	}
-    }
-  else
+  if (on)
     {
       if (displays == 0)
 	{
@@ -779,6 +774,22 @@ char *rc_name;
 	  return -1;
 	}
     }
+
+  if (!on)
+    {
+      char *slave;
+      if ((fd = OpenPTY(&slave)) < 0)
+	{
+	  Msg(errno, "%s: could not open detach pty master", rc_name);
+	  return -1;
+	}
+      if ((sfd = open(slave, O_RDWR)) < 0)
+	{
+	  Msg(errno, "%s: could not open detach pty slave", rc_name);
+	  close(fd);
+	  return -1;
+	}
+    }
   if (UserContext() == 1)
     UserReturn(ioctl(fd, TIOCCONS, (char *)&on));
   ret = UserStatus();
@@ -790,10 +801,11 @@ char *rc_name;
       close(fd);
     }
   return ret;
-#else /* TIOCCONS */
-  Msg(0, "%s: no TIOCCONS on this machine", rc_name);
+
+#else
+  Msg(0, "%s: don't know how to grab the console", rc_name);
   return -1;
-#endif /* TIOCCONS */
+#endif
 }
 
 
@@ -818,14 +830,14 @@ struct mode *m;
     {
       debug2("c_cc[%d] = %#x\n", i, m->tio.c_cc[i]);
     }
-# ifdef hpux
+# ifdef HPUX_LTCHARS_HACK
   debug1("suspc     = %#02x\n", m->m_ltchars.t_suspc);
   debug1("dsuspc    = %#02x\n", m->m_ltchars.t_dsuspc);
   debug1("rprntc    = %#02x\n", m->m_ltchars.t_rprntc);
   debug1("flushc    = %#02x\n", m->m_ltchars.t_flushc);
   debug1("werasc    = %#02x\n", m->m_ltchars.t_werasc);
   debug1("lnextc    = %#02x\n", m->m_ltchars.t_lnextc);
-# endif /* hpux */
+# endif /* HPUX_LTCHARS_HACK */
 #else /* POSIX */
 # ifdef TERMIO
   debug("struct termio tio:\n");

@@ -55,6 +55,19 @@ register const char *str;
   return cp;
 }
 
+/* cheap strstr replacement */
+char *
+InStr(str, pat)
+char *str;
+const char *pat;
+{
+  int npat = strlen(pat);
+  for (;*str; str++)
+    if (!strncmp(str, pat, npat))
+      return str;
+  return 0;
+}
+
 #ifndef HAVE_STRERROR
 char *
 strerror(err)
@@ -284,7 +297,7 @@ int except;
     f = rl.rlim_max;
   else
 #endif /* SVR4 */
-#if defined(SYSV) && !defined(ISC)
+#if defined(SYSV) && defined(NOFILE) && !defined(ISC)
   f = NOFILE;
 #else /* SYSV && !ISC */
   f = getdtablesize();
@@ -493,7 +506,7 @@ char *ss;
 struct display *d;
 {
   static char ebuf[2048];
-  register int esize = 2047, vtype, quofl = 0;
+  int esize = sizeof(ebuf) - 1, vtype, quofl = 0;
   register char *e = ebuf;
   register char *s = ss;
   register char *v;
@@ -627,7 +640,7 @@ struct display *d;
 int
 _delay(delay, outc)
 register int delay;
-int (*outc)();
+int (*outc) __P((int));
 {
   int pad;
   extern short ospeed;
@@ -643,6 +656,41 @@ int (*outc)();
     (*outc)(0);
   return 0;
 }
+
+
+# ifdef linux
+
+/* stupid stupid linux ncurses! It won't to padding with
+ * zeros but sleeps instead. This breaks CalcCost, of course.
+ * Also, the ncurses wait functions use a global variable
+ * to store the current outc function. Oh well...
+ */
+
+int (*save_outc) __P((int));
+
+#  undef tputs
+
+void
+xtputs(str, affcnt, outc)
+char *str;
+int affcnt;
+int (*outc) __P((int));
+{
+  extern int tputs __P((const char *, int, int (*)(int)));
+  save_outc = outc;
+  tputs(str, affcnt, outc);
+}
+
+int
+_nc_timed_wait(mode, ms, tlp)
+int mode, ms, *tlp;
+{
+  _delay(ms * 10, save_outc);
+  return 0;
+}
+
+# endif /* linux */
+
 #endif
 
 

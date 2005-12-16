@@ -89,22 +89,23 @@
  */
 #define MAXHISTHEIGHT		3000
 #define DEFAULTHISTHEIGHT	100
-#define DEFAULT_BUFFERFILE	"/tmp/screen-exchange"
+#ifdef NAME_MAX
+# define DEFAULT_BUFFERFILE	"/tmp/screen-xchg"
+#else
+# define DEFAULT_BUFFERFILE	"/tmp/screen-exchange"
+#endif
 
-#define	TTY_FLAG_PLAIN		0x01
-
-struct tty_attr
-{
-  int flags;			/* a PLAIN tty or a process behind */
-};
+#if defined(hpux) && !(defined(VSUSP) && defined(VDSUSP) && defined(VWERASE) && defined(VLNEXT))
+# define HPUX_LTCHARS_HACK
+#endif
 
 struct mode
 {
 #ifdef POSIX
   struct termios tio;
-# ifdef hpux
+# ifdef HPUX_LTCHARS_HACK
   struct ltchars m_ltchars;
-# endif /* hpux */
+# endif /* HPUX_LTCHARS_HACK */
 #else /* POSIX */
 # ifdef TERMIO
   struct termio tio;

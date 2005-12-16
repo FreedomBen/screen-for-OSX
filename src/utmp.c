@@ -51,8 +51,9 @@ RCS_ID("$Id$ FAU")
 extern struct display *display;
 extern struct win *fore;
 extern char *LoginName;
+extern int eff_uid;
 #ifdef NETHACK
-extern nethackflag;
+extern int nethackflag;
 #endif
 
 
@@ -175,6 +176,7 @@ void
 InitUtmp()
 {
   debug1("InitUtmp testing '%s'...\n", UtmpName);
+#if !(defined(sun) && defined(SVR4) && defined(GETUTENT))
   if ((utmpfd = open(UtmpName, O_RDWR)) == -1)
     {
       if (errno != EACCES)
@@ -183,10 +185,11 @@ InitUtmp()
       utmpok = 0;
       return;
     }
-#ifdef GETUTENT
+# ifdef GETUTENT
   close(utmpfd);	/* it was just a test */
   utmpfd = -1;
-#endif /* GETUTENT */
+# endif /* GETUTENT */
+#endif
   utmpok = 1;
 }
 
@@ -281,12 +284,14 @@ RemoveLoginSlot()
   u = *uu;
   /*
    * Ed Hill (ed-hill@uiowa.edu)   screen-3.5.2 under AIX 3.2.5
-   * when you are down to a single screen, and you log out of it (thus exiting
-   * screen), it leaves a stray entry in the utmp file. Seems better:
-   * u.ut_type = EMPTY;
+   * when you are down to a single screen, and you log out of it (thus
+   * exiting screen), it leaves a stray entry in the utmp file.
+   * Seems better: u.ut_type = EMPTY;
    */
   u.ut_type = DEAD_PROCESS;
-  u.ut_user[0] = '\0';	/* for Digital UNIX 3.2C, kilbi@rad.rwth-aachen.de */
+#  if !defined(sun) || !defined(SVR4)
+  u.ut_user[0] = '\0';	/* for Digital UNIX, kilbi@rad.rwth-aachen.de */
+#  endif
   u.ut_exit.e_termination = 0;
   u.ut_exit.e_exit= 0;
   if (pututline(&u) == 0)
@@ -298,7 +303,7 @@ RemoveLoginSlot()
   (void) lseek(utmpfd, (off_t) (D_loginslot * sizeof(u)), 0);
   if (read(utmpfd, (char *) &D_utmp_logintty, sizeof(u)) != sizeof(u))
     {
-      Msg(errno, "cannot read %s ??", UtmpName);
+      Msg(errno, "cannot read %s ?", UtmpName);
       sleep(1);
     }
 # ifdef UT_UNSORTED
@@ -316,11 +321,14 @@ RemoveLoginSlot()
 #endif /* GETUTENT */
 
     {
-#ifdef NETHACK
+#if defined(sun) && defined(SVR4) && defined(GETUTENT)
+      if (eff_uid == 0)	/* don't complain if not suid-root */
+#endif
+# ifdef NETHACK
       if (nethackflag)
 	Msg(errno, "%s is too hard to dig in", UtmpName); 
       else
-#endif /* NETHACK */
+# endif /* NETHACK */
       Msg(errno, "Could not write %s", UtmpName);
     }
 #ifdef UT_CLOSE
@@ -463,6 +471,7 @@ struct win *wi;
 	   * "faui45:s.0" or
 	   * "132.199.81.4:s.0" (even this may hurt..), but not
 	   * "faui45.informati"......:s.0
+	   * HPUX uses host:0.0, so chop at "." and ":" (Eric Backus)
 	   */
 	  for (p = host; *p; p++)
 	    if ((*p < '0' || *p > '9') && (*p != '.'))
@@ -470,7 +479,7 @@ struct win *wi;
 	  if (*p)
 	    {
 	      for (p = host; *p; p++)
-		if (*p == '.')
+		if (*p == '.' || (*p == ':' && p != host))
 		  {
 		    *p = '\0';
 		    break;
@@ -616,6 +625,9 @@ struct win *wi;
 # else /* _SEQUENT_ */
   u = *uu;
   u.ut_type = DEAD_PROCESS;
+#  if !defined(sun) || !defined(SVR4)
+  u.ut_user[0] = '\0';	/* for Digital UNIX, kilbi@rad.rwth-aachen.de */
+#  endif
   u.ut_exit.e_termination = 0;
   u.ut_exit.e_exit= 0;
   if (pututline(&u) == 0)
@@ -672,13 +684,13 @@ char *nam;
 {
   char *name;
   register slot_t slot;
-#ifdef UT_UNSORTED
+#ifndef GETUTENT
+# ifdef UT_UNSORTED
   struct utmp u;
-#else
-# ifndef GETUTENT
+# else
   register struct ttyent *tp;
-# endif /* GETUTENT */
-#endif /* UT_UNSORTED */
+# endif
+#endif
 
   debug1("TtyNameSlot(%s)\n", nam);
 #ifdef UT_CLOSE

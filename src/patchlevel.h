@@ -241,11 +241,34 @@
  *                     vsnprintf() support. exit -> _exit in window.c.
  *                     AddXChars now tolerates NULL string.
  *                     -- DISTRIBUTED
+ * 10.11.98 -- 3.07.05 Wayne's resize.c patch to keep the cursor
+ *                     onscreen. FindWindow corrected. AIX4 patch
+ *                     from robert@mayday.cix.co.uk.
+ *                     Fixed kanji am & markcursor bugs.
+ *                     SCO support (Gert Doering).
+ *                     Wayne's statusline extra space. New flag nospc
+ *                     for MakeWinMsg. New TF capability: add missing
+ *                     termcap/info caps. screen-exchange security
+ *                     fix. Use kstat for Solaris' loadavg.
+ *                     Check for mode 775 if screen runs setgid.
+ *                     Fixed typo in silence command.
+ *                     Allow detach with no tty. HPUX10.20 ltchars
+ *                     hack. Use @1/@7 as replacement for kh/kH.
+ *                     Use seteuid before calling tgetent.
+ *                     Check for displays in Msg().
+ *                     Linux ncurses hack: redefine _nc_timed_wait.
+ *                     Configure check for ncurses (sigh).
+ *                     ITOH Yasufumi: kanji fixes, osf support,
+ *                     bug fixes. More secure Rewrite().
+ *                     Increased line buffer size to 2048 bytes.
+ *                     SCO-5 Fixes (Brian L. Gentry).
+ * 25.11.98 -- 3.07.06 resize code now handles tabs correctly.
+ *                     -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 7
-#define PATCHLEVEL 4
-#define DATE "23-Jun-97"
+#define PATCHLEVEL 6
+#define DATE "25-Nov-98"
 #define STATE ""

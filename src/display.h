@@ -65,6 +65,7 @@ struct display
 #ifdef KANJI
   int   d_mbcs;			/* saved char for multibytes charset */
   int   d_kanji;		/* what kanji type the display is */
+  int   d_lp_mbcs;		/* mbcs part of lp_missing */
 #endif
   int	d_insert;		/* insert mode flag */
   int	d_keypad;		/* application keypad flag */
@@ -153,6 +154,7 @@ extern struct display TheDisplay;
 #define D_atyp		DISPLAY(d_atyp)
 #define D_mbcs		DISPLAY(d_mbcs)
 #define D_kanji		DISPLAY(d_kanji)
+#define D_lp_mbcs	DISPLAY(d_lp_mbcs)
 #define D_insert	DISPLAY(d_insert)
 #define D_keypad	DISPLAY(d_keypad)
 #define D_cursorkeys	DISPLAY(d_cursorkeys)

@@ -281,6 +281,8 @@ int y, x1, x2, doit;
 #endif
 
   fore = D_fore;
+  if (y >= fore->w_height || x2 > fore->w_width)
+    return EXPENSIVE;
   dx = x2 - x1;
   if (doit)
     {
@@ -293,6 +295,10 @@ int y, x1, x2, doit;
   f = fore->w_mlines[y].font + x1;
 #ifdef COLOR
   c = fore->w_mlines[y].color + x1;
+#endif
+#ifdef KANJI
+  if (D_rend.font == KANJI)
+    return EXPENSIVE;
 #endif
 
   cost = dx = x2 - x1;
@@ -755,8 +761,10 @@ skip:	      if (--len == 0)
 		  MakeStatus(curr->w_string);
 		  if (D_status && !(use_hardstatus && D_HS) && len > 1)
 		    {
+		      if (len > IOSIZE + 1)
+			len = IOSIZE + 1;
 		      curr->w_outlen = len - 1;
-		      bcopy(buf, curr->w_outbuf, curr->w_outlen);
+		      bcopy(buf, curr->w_outbuf, curr->w_outlen - 1);
 		      return;
 		    }
 		  break;
@@ -879,6 +887,10 @@ skip:	      if (--len == 0)
 	  break;
 	case LIT:
 	default:
+#ifdef KANJI
+	  if (c <= ' ' || c == 0x7f || (c >= 0x80 && c < 0xa0 && curr->w_c1))
+	      curr->w_mbcs = 0;
+#endif
 	  if (c < ' ')
 	    {
 	      if (c == '\033')
@@ -938,6 +950,8 @@ skip:	      if (--len == 0)
 		  break;
 		}
 	    }
+	  if (font == KANJI && c == ' ')
+	    font = curr->w_rend.font = 0;
 	  if (font == KANJI || curr->w_mbcs)
 	    {
 	      int t = c;
@@ -1051,6 +1065,10 @@ skip:	      if (--len == 0)
 		  if (display && D_AM && D_x != cols)	/* write char again */
 		    {
 		      SetRenditionMline(&curr->w_mlines[curr->w_y], cols - 1);
+#ifdef KANJI
+		      if (curr->w_y == D_bot)
+			D_mbcs = D_lp_mbcs;
+#endif
 		      RAW_PUTCHAR(curr->w_mlines[curr->w_y].image[cols - 1]);
 		      SetRendition(&curr->w_rend);
 		      if (curr->w_y == D_bot)
@@ -2355,6 +2373,10 @@ int n_ch;
 
   if (cmp_mchar_mline(&curr->w_rend, ml, x))
     return;
+#ifdef KANJI
+  D_lp_mbcs = D_mbcs;
+  D_mbcs = 0;
+#endif
   if (!cmp_mchar(&mchar_blank, &curr->w_rend))	/* is new not blank */
     D_lp_missing = 1;
   if (!cmp_mchar_mline(&mchar_blank, ml, x))	/* is old char not blank? */

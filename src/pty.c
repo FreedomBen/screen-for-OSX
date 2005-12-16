@@ -62,6 +62,11 @@ RCS_ID("$Id$ FAU")
 # define PTYRANGE1 "0123456789abcdef"
 #endif
 
+/* SVR4 pseudo ttys don't seem to work with SCO-5 */
+#ifdef M_UNIX
+# undef SVR4
+#endif
+
 extern int eff_uid;
 
 /* used for opening a new pty-pair: */
@@ -72,8 +77,13 @@ static char PtyName[32], TtyName[32];
 static char PtyProto[] = "/dev/ptym/ptyXY";
 static char TtyProto[] = "/dev/pty/ttyXY";
 # else
+#  ifdef M_UNIX
+static char PtyProto[] = "/dev/ptypXY";
+static char TtyProto[] = "/dev/ttypXY";
+#  else
 static char PtyProto[] = "/dev/ptyXY";
 static char TtyProto[] = "/dev/ttyXY";
+#  endif
 # endif /* hpux */
 #endif
 
@@ -154,7 +164,7 @@ OpenPTY(ttyn)
 char **ttyn;
 {
   int f;
-  char *name; 
+  char *name, *_getpty(); 
   sigret_t (*sigcld)__P(SIGPROTOARG);
 
   /*

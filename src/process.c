@@ -1807,7 +1807,7 @@ int key;
         {
 	  if (ParseNum(act, &i))
 	    break;
-	  n = i;
+	  n = i > 0;
 	}
       else if (ParseSwitch(act, &n))
         break;
@@ -1817,8 +1817,8 @@ int key;
 	  if (display)	/* we tell only this user */
 	    ACLBYTE(fore->w_lio_notify, D_user->u_id) |= ACLBIT(D_user->u_id);
 	  else
-	    for (i = 0; i < maxusercount; i++)
-	      ACLBYTE(fore->w_mon_notify, i) |= ACLBIT(i);
+	    for (n = 0; n < maxusercount; n++)
+	      ACLBYTE(fore->w_lio_notify, n) |= ACLBIT(n);
 	  if (!fore->w_tstamp.seconds)
 #endif
 	  fore->w_tstamp.lastio = time(0);
@@ -1841,8 +1841,8 @@ int key;
 	    ACLBYTE(fore->w_lio_notify, D_user->u_id) 
 	      &= ~ACLBIT(D_user->u_id);
 	  else
-	    for (i = 0; i < maxusercount; i++)
-	      ACLBYTE(fore->w_lio_notify, i) &= ~ACLBIT(i);
+	    for (n = 0; n < maxusercount; n++)
+	      ACLBYTE(fore->w_lio_notify, n) &= ~ACLBIT(n);
 	  for (i = maxusercount - 1; i >= 0; i--)
 	    if (ACLBYTE(fore->w_lio_notify, i))
 	      break;
@@ -3080,7 +3080,7 @@ int on;
 	Msg(0, "You are %s logging.", on ? "already" : "not");
       return;
     }
-  strncpy(buf, MakeWinMsg(screenlogfile, fore, '%'), 1023);
+  strncpy(buf, MakeWinMsg(screenlogfile, fore, '%', 1), 1023);
   buf[1023] = 0;
   if (fore->w_logfp != NULL)
     {
@@ -3178,7 +3178,6 @@ ShowWindows()
 	    p->w_monitor = MON_ON;
 	}
     }
-  *s++ = ' ';
   *s = '\0';
   if (ss - buf > D_width / 2)
     {
@@ -3587,12 +3586,17 @@ char *data;	/* dummy */
     }
   if (pp->buf)
     free(pp->buf);
-  if ((pp->buf = (char *)malloc(D_user->u_copylen)) == NULL)
+  pp->buf = 0;
+  pp->len = 0;
+  if (D_user->u_copylen)
     {
-      Msg(0, strnomem);
-      return;
+      if ((pp->buf = (char *)malloc(D_user->u_copylen)) == NULL)
+	{
+	  Msg(0, strnomem);
+	  return;
+	}
+      bcopy(D_user->u_copybuffer, pp->buf, D_user->u_copylen);
     }
-  bcopy(D_user->u_copybuffer, pp->buf, D_user->u_copylen);
   pp->len = D_user->u_copylen;
   Msg(0, "Copied %d characters into register %c", D_user->u_copylen, *buf);
 }

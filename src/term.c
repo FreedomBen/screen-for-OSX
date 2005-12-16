@@ -117,6 +117,8 @@ struct term term[T_N] =
   { "AB", T_STR  },
   { "Sf", T_STR  },
   { "Sb", T_STR  },
+  { "op", T_STR  },
+  { "be", T_FLG  },
   { "AX", T_FLG  },
 
 /* keypad/cursorkeys */
@@ -156,6 +158,7 @@ struct term term[T_N] =
   { "KJ", T_STR  },
   { "VR", T_STR  },
   { "VN", T_STR  },
+  { "TF", T_FLG  },
 
 /* d_font setting */
   { "G0", T_FLG  },
@@ -194,8 +197,7 @@ struct term term[T_N] =
   { "F9", T_STR  },
   { "FA", T_STR  },
 
-  { "kb", T_STR  }, KMAPDEF("\010")
-  { "kh", T_STR  }, KMAPDEF("\033[1~") KMAPMDEF("\201")
+  { "kb", T_STR  },
   { "K1", T_STR  },
   { "K2", T_STR  },
   { "K3", T_STR  },
@@ -206,21 +208,26 @@ struct term term[T_N] =
   { "ka", T_STR  },
   { "kB", T_STR  },
   { "kC", T_STR  },
-  { "kD", T_STR  }, KMAPDEF("\033[3~")
   { "kE", T_STR  },
   { "kF", T_STR  },                    KMAPMDEF("\004")
-  { "kH", T_STR  }, KMAPDEF("\033[4~") KMAPMDEF("\205")
-  { "kI", T_STR  }, KMAPDEF("\033[2~")
   { "kL", T_STR  },
   { "kM", T_STR  },
-  { "kN", T_STR  }, KMAPDEF("\033[6~") KMAPMDEF("\006")
-  { "kP", T_STR  }, KMAPDEF("\033[5~") KMAPMDEF("\002")
   { "kR", T_STR  },                    KMAPMDEF("\025")
   { "kS", T_STR  },
   { "kT", T_STR  },
   { "kt", T_STR  },
+
+/* keys above the cursor */
+/* define T_NAVIGATE */
+  { "kh", T_STR  }, KMAPDEF("\033[1~") KMAPMDEF("\201")
   { "@1", T_STR  },
+  { "kH", T_STR  }, KMAPDEF("\033[4~") KMAPMDEF("\205")
   { "@7", T_STR  },
+  { "kN", T_STR  }, KMAPDEF("\033[6~") KMAPMDEF("\006")
+  { "kP", T_STR  }, KMAPDEF("\033[5~") KMAPMDEF("\002")
+  { "kI", T_STR  }, KMAPDEF("\033[2~")
+  { "kD", T_STR  }, KMAPDEF("\033[3~")
+
 /* keys that can have two bindings */
 /* define T_CURSOR */
   { "ku", T_STR  }, KMAPDEF("\033[A") KMAPADEF("\033OA") KMAPMDEF("\220")

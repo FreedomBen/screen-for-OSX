@@ -124,7 +124,8 @@ static sigret_t CoreDump __P(SIGPROTOARG);
 static sigret_t FinitHandler __P(SIGPROTOARG);
 static void  DoWait __P((void));
 static void  WindowDied __P((struct win *));
-
+static void  mkfdsets __P((fd_set *, fd_set *));
+static int   IsSymbol __P((register char *, register char *));
 
 int nversion;	/* numerical version, used for secondary DA */
 
@@ -277,7 +278,7 @@ fd_set *rp, *wp;
       if (p->w_lay->l_block)
 	continue;
     /* 
-     * Don't accept input from window or pseudowin if there is to much 
+     * Don't accept input from window or pseudowin if there is too much 
      * output pending on display .
      */
       if (p->w_active && (D_obufp - D_obuf) > D_obufmax)
@@ -845,7 +846,8 @@ pw_try_again:
   if (strlen(home) > MAXPATHLEN - 25)
     Panic(0, "$HOME too long - sorry.");
 
-  if (!detached && !lsflag)
+  attach_tty = "";
+  if (!detached && !lsflag && !(dflag && !mflag && !rflag && !xflag))
     {
       /* ttyname implies isatty */
       if (!(attach_tty = ttyname(0)))
@@ -949,7 +951,9 @@ pw_try_again:
 		Panic(0, "'%s' must be a directory.", SockDir);
               if (eff_uid == 0 && st.st_uid != eff_uid)
 		Panic(0, "Directory '%s' must be owned by root.", SockDir);
-	      n = eff_uid ? 0777 : 0755;
+	      n = (eff_uid == 0) ? 0755 :
+	          (eff_gid == st.st_gid && eff_gid != real_gid) ? 0775 :
+		  0777;
 	      if ((st.st_mode & 0777) != n)
 		Panic(0, "Directory '%s' must have mode %03o.", SockDir, n);
 	    }
@@ -1383,11 +1387,16 @@ pw_try_again:
       if ((nsel = select(FD_SETSIZE, &r, &w, (fd_set *)0, (tv.tv_sec || tv.tv_usec) ? &tv : (struct timeval *) 0)) < 0)
 	{
 	  debug1("Bad select - errno %d\n", errno);
-#if defined(sgi) && defined(SVR4)
+#if (defined(sgi) && defined(SVR4)) || defined(__osf__)
 	  /* Ugly workaround for braindead IRIX5.2 select.
 	   * read() should return EIO, not select()!
 	   */
+# ifdef __osf__
+	  if (errno == EBADF	/* OSF/1 3.x bug */
+	      || errno == EIO)	/* OSF/1 4.x bug */
+# else
 	  if (errno == EIO)
+# endif
 	    {
 	      debug("IRIX5.2 workaround: searching for bad display\n");
 	      for (display = displays; display; )
@@ -1750,7 +1759,7 @@ pw_try_again:
 		      break;	/* so we just break */
 		    }
 #ifdef TIOCPKT
-		  if ((p->w_t.flags & TTY_FLAG_PLAIN) == 0)
+		  if (p->w_type == TTY_TYPE_PTY)
 		    {
 		      if (buf[0])
 			{
@@ -1796,7 +1805,7 @@ pw_try_again:
 	    {
 	      p->w_bell = BELL_MSG;
 	      for (display = displays; display; display = display->d_next)
-	        Msg(0, "%s", MakeWinMsg(BellString, p, '%'));
+	        Msg(0, "%s", MakeWinMsg(BellString, p, '%', 0));
 	      if (p->w_monitor == MON_FOUND)
 		p->w_monitor = MON_DONE;
 	    }
@@ -1818,7 +1827,7 @@ pw_try_again:
 	    {
 	      p->w_monitor = MON_MSG;
 	      for (display = displays; display; display = display->d_next)
-	        Msg(0, "%s", MakeWinMsg(ActivityString, p, '%'));
+	        Msg(0, "%s", MakeWinMsg(ActivityString, p, '%', 0));
 	    }
 	}
 #if defined(DEBUG) && !defined(SELECT_BROKEN)
@@ -1850,15 +1859,10 @@ struct win *p;
 	  RemoveUtmp(p);
 	  p->w_slot = 0;	/* "detached" */
 	}
-#endif
-      (void) chmod(p->w_tty, 0666);
-      (void) chown(p->w_tty, 0, 0);
-      close(p->w_ptyfd);
-      p->w_ptyfd = -1;
-#ifdef UTMPOK
       /* zap saved utmp as the slot may change */
       bzero((char *)&p->w_savut, sizeof(p->w_savut));
 #endif
+      CloseDevice(p);
       p->w_pid = 0;
       ResetWindow(p);
       p->w_y = p->w_bot;
@@ -2321,7 +2325,6 @@ MakeNewEnv()
 
   for (op = environ; *op; ++op)
     {
-debug1("MakeNewEnv: %s\n", *op);
       if (!IsSymbol(*op, "TERM") && !IsSymbol(*op, "TERMCAP")
 	  && !IsSymbol(*op, "STY") && !IsSymbol(*op, "WINDOW")
 	  && !IsSymbol(*op, "SCREENCAP") && !IsSymbol(*op, "SHELL")
@@ -2373,7 +2376,7 @@ unsigned long p1, p2, p3, p4, p5, p6;
       sprintf(p, ": %s", strerror(err));
     }
   debug2("Msg('%s') (%#x);\n", buf, (unsigned int)display);
-  if (display)
+  if (display && displays)
     MakeStatus(buf);
   else if (displays)
     {
@@ -2474,10 +2477,11 @@ static const char days[]   = "SunMonTueWedThuFriSat";
 static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
 
 char *
-MakeWinMsg(s, win, esc)
+MakeWinMsg(s, win, esc, nospc)
 register char *s;
 struct win *win;
 int esc;
+int nospc;
 {
   static char buf[MAXSTR];
   register char *p = buf;
@@ -2564,10 +2568,10 @@ int esc;
 	      sprintf(p, "%02d", tm->tm_sec);
 	      break;
 	    case 'w':
-	      sprintf(p, "%2d:%02d", tm->tm_hour, tm->tm_min);
+	      sprintf(p, nospc ? "%02d:%02d" : "%2d:%02d", tm->tm_hour, tm->tm_min);
 	      break;
 	    case 'W':
-	      sprintf(p, "%2d:%02d", (tm->tm_hour + 11) % 12 + 1, tm->tm_min);
+	      sprintf(p, nospc ? "%02d:%02d" : "%2d:%02d", (tm->tm_hour + 11) % 12 + 1, tm->tm_min);
 	      break;
 	    default:
 	      break;

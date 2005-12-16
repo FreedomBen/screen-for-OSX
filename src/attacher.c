@@ -26,6 +26,9 @@ RCS_ID("$Id$ FAU")
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#if !defined(sun) || defined(SUNOS3)
+#include <sys/ioctl.h>
+#endif
 #include <fcntl.h>
 #include <signal.h>
 #include "config.h"
@@ -317,7 +320,7 @@ int how;
 
 #ifdef PASSWORD
 
-static trysendstatok, trysendstatfail;
+static int trysendstatok, trysendstatfail;
 
 static sigret_t
 trysendok SIGDEFARG

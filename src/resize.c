@@ -44,6 +44,7 @@ static void CheckMaxSize __P((int));
 static void FreeMline  __P((struct mline *));
 static int  AllocMline __P((struct mline *ml, int));
 static void MakeBlankLine __P((char *, int));
+static int  BcopyMline __P((struct mline *, int, struct mline *, int, int, int));
 
 extern struct display *display, *displays;
 extern char *blank, *null;
@@ -445,6 +446,7 @@ int wi, he, hi;
   struct mline *mlf = 0, *mlt = 0, *ml, *nmlines, *nhlines;
   int fy, ty, l, lx, lf, lt, yy, oty, addone;
   int ncx, ncy, naka, t;
+  int y, shift;
 
   if (wi == 0)
     he = hi = 0;
@@ -519,6 +521,38 @@ int wi, he, hi;
       p->w_x--;
     }
 
+  /* handle the cursor and autoaka lines now if the widths are equal */
+  if (p->w_width == wi)
+    {
+      ncx = p->w_x + addone;
+      ncy = p->w_y + he - p->w_height;
+      /* never lose sight of the line with the cursor on it */
+      shift = -ncy;
+      for (yy = p->w_y + p->w_histheight - 1; yy >= 0 && ncy + shift < he; yy--)
+	{
+	  ml = OLDWIN(yy);
+	  if (ml->image[p->w_width] == ' ')
+	    break;
+	  shift++;
+	}
+      if (shift < 0)
+	shift = 0;
+      else
+	debug1("resize: cursor out of bounds, shifting %d\n", shift);
+      ncy += shift;
+      if (p->w_autoaka > 0)
+	{
+	  naka = p->w_autoaka + he - p->w_height + shift;
+	  if (naka < 1 || naka > he)
+	    naka = 0;
+	}
+      while (shift-- > 0)
+	{
+	  ml = OLDWIN(fy);
+	  FreeMline(ml);
+	  fy--;
+	}
+    }
   debug2("fy %d ty %d\n", fy, ty);
   if (fy >= 0)
     mlf = OLDWIN(fy);
@@ -532,13 +566,6 @@ int wi, he, hi;
 	  /* here is a simple shortcut: just copy over */
 	  *mlt = *mlf;
           *mlf = mline_zero;
-	  if (fy == p->w_y + p->w_histheight)
-	    {
-	      ncx = p->w_x + addone;
-	      ncy = ty - hi >= 0 ? ty - hi : 0;
-	    }
-	  if (p->w_autoaka > 0 && fy == p->w_autoaka - 1 + p->w_histheight)
-	    naka = ty - hi >= 0 ? 1 + ty - hi : 0;
 	  if (--fy >= 0)
 	    mlf = OLDWIN(fy);
 	  if (--ty >= 0)
@@ -584,7 +611,30 @@ int wi, he, hi;
 	  if (fy == p->w_y + p->w_histheight && lf - lx <= p->w_x && lf > p->w_x)
 	    {
 	      ncx = p->w_x + lt - lf + addone;
-	      ncy = ty - hi >= 0 ? ty - hi : 0;
+	      ncy = ty - hi;
+	      shift = wi ? -ncy + (l - lx) / wi : 0;
+	      if (ty + shift > hi + he - 1)
+		shift = hi + he - 1 - ty;
+	      if (shift > 0)
+		{
+	          debug3("resize: cursor out of bounds, shifting %d [%d/%d]\n", shift, lt - lx, wi);
+		  for (y = hi + he - 1; y >= ty; y--)
+		    {
+		      mlt = NEWWIN(y);
+		      FreeMline(mlt);
+		      if (y - shift < ty)
+			continue;
+		      ml  = NEWWIN(y - shift);
+		      *mlt = *ml;
+		      *ml = mline_zero;
+		    }
+		  ncy += shift;
+		  ty += shift;
+		  mlt = NEWWIN(ty);
+		  if (naka > 0)
+		    naka = naka + shift > he ? 0 : naka + shift;
+		}
+	      ASSERT(ncy >= 0);
 	    }
 	  /* did we copy autoaka line ? */
 	  if (p->w_autoaka > 0 && fy == p->w_autoaka - 1 + p->w_histheight && lf - lx <= 0)
@@ -652,7 +702,7 @@ int wi, he, hi;
 	    {
 	      /* tabs get wi+1 because 0 <= x <= wi */
 	      p->w_tabs = malloc((unsigned) wi + 1);
-	      t = 8;
+	      t = 0;
 	    }
 	  else
 	    {
@@ -680,8 +730,9 @@ int wi, he, hi;
 	      Msg(0, strnomem);
 	      return -1;
 	    }
-	  for (t = (t + 7) & 8; t < wi; t += 8)
-	    p->w_tabs[t] = 1; 
+	  for (; t < wi; t++)
+	    p->w_tabs[t] = t && !(t & 7) ? 1 : 0; 
+	  p->w_tabs[wi] = 0; 
 	}
       else
 	{

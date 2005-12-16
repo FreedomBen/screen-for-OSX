@@ -117,9 +117,8 @@ struct NewWindow *newwin;
 {
   register struct win **pp, *p;
   register int n, i;
-  int f = -1;
+  int type, f = -1;
   struct NewWindow nwin;
-  int ttyflag;
   char *TtyName;
 #ifdef MULTIUSER
   extern struct user *users;
@@ -161,16 +160,16 @@ struct NewWindow *newwin;
   n = pp - wtab;
   debug1("Makewin creating %d\n", n);
 
-  if ((f = OpenDevice(nwin.args[0], nwin.lflag, &ttyflag, &TtyName)) < 0)
+  if ((f = OpenDevice(nwin.args[0], nwin.lflag, &type, &TtyName)) < 0)
     return -1;
-
-  if ((p = (struct win *) malloc(sizeof(struct win))) == 0)
+  if ((p = (struct win *)malloc(sizeof(struct win))) == 0)
     {
       close(f);
       Msg(0, strnomem);
       return -1;
     }
-  bzero((char *) p, (int) sizeof(struct win)); /* looks like a calloc above */
+  bzero((char *)p, (int)sizeof(struct win));
+  p->w_type = type;
 
   /* save the command line so that zombies can be resurrected */
   for (i = 0; nwin.args[i] && i < MAXARGS - 1; i++)
@@ -240,12 +239,7 @@ struct NewWindow *newwin;
   if (nwin.charset)
     SetCharsets(p, nwin.charset);
 
-  if (ttyflag == TTY_FLAG_PLAIN)
-    {
-      p->w_t.flags |= TTY_FLAG_PLAIN;
-      p->w_pid = 0;
-    }
-  else
+  if (p->w_type == TTY_TYPE_PTY)
     {
       debug("forking...\n");
 #ifdef PSEUDOS
@@ -296,21 +290,18 @@ int
 RemakeWindow(p)
 struct win *p;
 {
-  int ttyflag;
   char *TtyName;
   int lflag, f;
 
   lflag = nwin_default.lflag;
-  if ((f = OpenDevice(p->w_cmdargs[0], lflag, &ttyflag, &TtyName)) < 0)
+  if ((f = OpenDevice(p->w_cmdargs[0], lflag, &p->w_type, &TtyName)) < 0)
     return -1;
 
   strncpy(p->w_tty, *TtyName ? TtyName : p->w_title, MAXSTR - 1);
   p->w_ptyfd = f;
 
-  p->w_t.flags &= ~TTY_FLAG_PLAIN;
-  if (ttyflag == TTY_FLAG_PLAIN)
+  if (p->w_type == TTY_TYPE_PLAIN)
     {
-      p->w_t.flags |= TTY_FLAG_PLAIN;	/* Just in case... */
       WriteString(p, p->w_cmdargs[0], strlen(p->w_cmdargs[0]));
       WriteString(p, ": ", 2);
       WriteString(p, p->w_title, strlen(p->w_title));
@@ -339,6 +330,22 @@ struct win *p;
 }
 
 void
+CloseDevice(wp)
+struct win *wp;
+{
+  if (wp->w_ptyfd < 0)
+    return;	/* already closed */
+  if (wp->w_type == TTY_TYPE_PTY)
+    {
+      (void)chmod(wp->w_tty, 0666);
+      (void)chown(wp->w_tty, 0, 0);
+    }
+  close(wp->w_ptyfd);
+  wp->w_ptyfd = -1;
+  wp->w_tty[0] = 0;
+}
+
+void
 FreeWindow(wp)
 struct win *wp;
 {
@@ -352,13 +359,7 @@ struct win *wp;
 #ifdef UTMPOK
   RemoveUtmp(wp);
 #endif
-  if (wp->w_ptyfd >= 0)
-    {
-      (void) chmod(wp->w_tty, 0666);
-      (void) chown(wp->w_tty, 0, 0);
-      close(wp->w_ptyfd);
-      wp->w_ptyfd = -1;
-    }
+  CloseDevice(wp);
   if (wp == console_window)
     console_window = 0;
   if (wp->w_logfp != NULL)
@@ -372,8 +373,7 @@ struct win *wp;
     if (d->d_other == wp)
       d->d_other = 0;
 #ifdef MULTIUSER
-  for (i = 0; i < ACL_BITS_PER_WIN; i++)
-    free((char *)wp->w_userbits[i]);
+  FreeWindowAcl(wp);
 #endif
   free((char *)wp);
 }
@@ -398,12 +398,13 @@ char **namep;
       debug("OpenDevice: OpenTTY\n");
       if ((f = OpenTTY(arg)) < 0)
 	return -1;
-      *typep = TTY_FLAG_PLAIN;
+      lflag = 0;
+      *typep = TTY_TYPE_PLAIN;
       *namep = arg;
     }
   else
     {
-      *typep = 0;    /* for now we hope it is a program */
+      *typep = TTY_TYPE_PTY;	/* for now we hope it is a program */
       f = OpenPTY(namep);
       if (f == -1)
 	{
@@ -441,6 +442,10 @@ char **namep;
    */
   tcflush(f, TCIOFLUSH);
 #endif
+
+  if (*typep != TTY_TYPE_PTY)
+    return f;
+
 #ifdef PTYGROUP
   (void) chown(*namep, real_uid, PTYGROUP);
 #else
@@ -617,7 +622,7 @@ struct win *win;
       if (newfd >= 0)
 	{
 	  struct mode fakemode, *modep;
-#if defined(SVR4) && !defined(sgi)
+#if defined(SVR4) && !defined(sgi) && !defined(M_UNIX)
 	  if (ioctl(newfd, I_PUSH, "ptem"))
 	    {
 	      SendErrorMsg("Cannot I_PUSH ptem %s %s", ttyn, strerror(errno));
@@ -795,6 +800,7 @@ char **av;
   extern struct display *display;
   extern struct win *windows;
   struct pseudowin *pwin;
+  int type;
   
   if ((w = display ? fore : windows) == NULL)
     return -1;
@@ -880,14 +886,14 @@ char **av;
   *--t = '\0';
   debug1("%s\n", pwin->p_cmd);
   
-  if ((pwin->p_ptyfd = OpenDevice(av[0], 0, &l, &t)) < 0)
+  if ((pwin->p_ptyfd = OpenDevice(av[0], 0, &type, &t)) < 0)
     {
       free((char *)pwin);
       return -1;
     }
   strncpy(pwin->p_tty, t, MAXSTR - 1);
   w->w_pwin = pwin;
-  if (l == TTY_FLAG_PLAIN)
+  if (type == TTY_TYPE_PLAIN)
     {
       FreePseudowin(w);
       Msg(0, "Cannot handle a TTY as a pseudo win.");
@@ -920,8 +926,9 @@ struct win *w;
   ASSERT(pwin);
   if (fcntl(w->w_ptyfd, F_SETFL, FNBLOCK))
     Msg(errno, "Warning: FreePseudowin: NBLOCK fcntl failed");
-  (void) chmod(pwin->p_tty, 0666);
-  (void) chown(pwin->p_tty, 0, 0);
+  /* should be able to use CloseDevice() here */
+  (void)chmod(pwin->p_tty, 0666);
+  (void)chown(pwin->p_tty, 0, 0);
   if (pwin->p_ptyfd >= 0)
     close(pwin->p_ptyfd);
   free((char *)pwin);

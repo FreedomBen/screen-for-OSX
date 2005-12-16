@@ -156,6 +156,84 @@ GetLoadav()
 
 /***************************************************************/
 
+#if defined(sun) && defined(SVR4) && !defined(LOADAV_DONE)
+#define LOADAV_DONE
+
+#include <kstat.h>
+
+static kstat_ctl_t *kc;
+
+void
+InitLoadav()
+{
+  loadok = (kc = kstat_open()) != 0;
+}
+
+static int
+GetLoadav()
+{
+  kstat_t *ks;
+  kstat_named_t *avgs[3];
+  int i;
+
+  kstat_chain_update(kc);
+  if ((ks = kstat_lookup(kc, "unix", -1, "system_misc")) == 0 || kstat_read(kc, ks, (void *)0) == -1)
+    return (loadok = 0);
+  avgs[0] = kstat_data_lookup(ks, "avenrun_1min");
+  avgs[1] = kstat_data_lookup(ks, "avenrun_5min");
+  avgs[2] = kstat_data_lookup(ks, "avenrun_15min");
+  for (i = 0; i < 3; i++)
+    {
+      if (avgs[i] == 0 || avgs[i]->data_type != KSTAT_DATA_ULONG)
+        return (loadok = 0);
+      loadav[i] = avgs[i]->value.ul;
+    }
+  return 3;
+}
+
+#endif
+
+/***************************************************************/
+
+#if defined(__osf__) && defined(__alpha) && !defined(LOADAV_DONE)
+#define LOADAV_DONE
+
+struct rtentry; struct mbuf;	/* shut up gcc on OSF/1 4.0 */
+#include <sys/table.h>
+
+void
+InitLoadav()
+{
+  loadok = 1;
+}
+
+static int
+GetLoadav()
+{
+  struct tbl_loadavg tbl;
+  int i;
+
+  if (table(TBL_LOADAVG, 0, &tbl, 1, sizeof(struct tbl_loadavg)) != 1)
+    return 0;
+
+  if (tbl.tl_lscale)
+    {
+      /* in long */
+      for (i = 0; i < LOADAV_NUM; i++)
+        loadav[i] = (double) tbl.tl_avenrun.l[i] / tbl.tl_lscale;
+    }
+  else
+    {
+      /* in double */
+      for (i = 0; i < LOADAV_NUM; i++)
+        loadav[i] = tbl.tl_avenrun.d[i];
+    }
+  return LOADAV_NUM;
+}
+#endif
+
+/***************************************************************/
+
 #if !defined(LOADAV_DONE)
 /*
  * The old fashion way: open kernel and read avenrun
@@ -173,7 +251,7 @@ extern int nlist __P((char *, struct nlist *));
 # endif
 
 #ifdef __sgi
-# if _MIPS_SZLONG == 64
+# if _MIPS_SZLONG == 64 || (defined(_MIPS_ISA) && _MIPS_ISA > 2)
 #  define nlist nlist64
 # endif
 #endif

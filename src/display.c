@@ -32,8 +32,8 @@ RCS_ID("$Id$ FAU")
 #include "screen.h"
 #include "extern.h"
 
-static void CountChars __P((int));
-static void PutChar __P((int));
+static int  CountChars __P((int));
+static int  PutChar __P((int));
 static int  BlankResize __P((int, int));
 
 
@@ -443,6 +443,10 @@ int c;
     }
   D_lp_missing = 1;
   D_rend.image = c;
+#ifdef KANJI
+  D_lp_mbcs = D_mbcs;
+  D_mbcs = 0;
+#endif
   D_lpchar = D_rend;
 }
 
@@ -520,12 +524,13 @@ int c;
 #endif
 }
 
-static void
+static int
 PutChar(c)
 int c;
 {
   /* this PutChar for ESC-sequences only (AddChar is a macro) */
   AddChar(c);
+  return c;
 }
 
 void
@@ -644,11 +649,12 @@ int v;
 static int StrCost;
 
 /* ARGSUSED */
-static void
+static int
 CountChars(c)
 int c;
 {
   StrCost++;
+  return c;
 }
 
 int
@@ -1168,6 +1174,7 @@ register int new;
     {
       char *tparm();
       SetFont(ASCII);
+      ospeed = D_dospeed;
       tputs(tparm(D_SA, new & A_SO, new & A_US, new & A_RV, new & A_BL,
 			new & A_DI, new & A_BD, 0         , 0         ,
 			0), 1, PutChar);
@@ -1385,9 +1392,23 @@ char *msg;
 	{
 	  debug1("using STATLINE %d\n", STATLINE);
 	  GotoPos(0, STATLINE);
-          SetRendition(&mchar_so);
+	  SetRendition(&mchar_so);
 	  InsertMode(0);
 	  AddStr(msg);
+	  if (D_status_len < max)
+	    {
+	      /* Wayne Davison: add extra space for readability */
+	      D_status_len++;
+	      SetRendition(&mchar_null);
+	      AddChar(' ');
+	      if (D_status_len < max)
+		{
+	          D_status_len++;
+	          AddChar(' ');
+	          AddChar('\b');
+		}
+	      AddChar('\b');
+	    }
           D_x = -1;
 	}
       else
@@ -1473,7 +1494,7 @@ RefreshStatus()
         PutStr(D_DS);
       if (D_fore && D_fore->w_hstatus)
 	{
-	  buf = MakeWinMsg(D_fore->w_hstatus, D_fore, '\005');
+	  buf = MakeWinMsg(D_fore->w_hstatus, D_fore, '\005', 0);
 	  CPutStr(D_TS, 0);
 	  if (strlen(buf) > D_WS)
 	    AddStrn(buf, D_WS);
@@ -1485,7 +1506,7 @@ RefreshStatus()
     }
   else if (D_fore && D_fore->w_hstatus)
     {
-      buf = MakeWinMsg(D_fore->w_hstatus, D_fore, '\005');
+      buf = MakeWinMsg(D_fore->w_hstatus, D_fore, '\005', 0);
       Msg(0, "%s", buf);
     }
 }
@@ -1516,6 +1537,10 @@ register int x2, y2;
 
   ASSERT(display);
   oldrend = D_rend;
+#ifdef KANJI
+  if (D_lpchar.font == KANJI && (D_mbcs = D_lp_mbcs) != 0)
+    x2--;
+#endif
   GotoPos(x2, y2);
   SetRendition(&D_lpchar);
   PUTCHAR(D_lpchar.image);
@@ -1577,7 +1602,7 @@ int from, to, y;
 	PUTCHAR(ml->image[++x]);
 #endif
     }
-  if (to == D_width - 1 && y < D_height - 1 && ml->image[to + 1] == ' ')
+  if (to == D_width - 1 && y < D_height - 1 && D_x == D_width && ml->image[to + 1] == ' ')
     GotoPos(0, y + 1);
   if (last2flag)
     {
@@ -1933,11 +1958,13 @@ char *f;
 int x;
 {
   int i, j;
-  if (f[x] != KANJI)
+
+  f += x;
+  if (*f-- != KANJI)
     return 0;
-  for (i = j = 0; i < x; i++)
-    if (*f++ == KANJI)
-      j ^= 1;
+  for (j = 0, i = x - 1; i >= 0; i--, j ^= 1)
+    if (*f-- != KANJI)
+      break;
   return j;
 }
 #endif
