@@ -1,27 +1,27 @@
-/* screen -- screen manager with VT100/ANSI terminal emulation
- * Copyright (C) 1987 Oliver Laumann
+/* Copyright (c) 1987-1990 Oliver Laumann and Wayne Davison.
+ * All rights reserved.  Not derived from licensed software.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 1, or (at your option)
- * any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Permission is granted to freely use, copy, modify, and redistribute
+ * this software, provided that no attempt is made to gain profit from it,
+ * the authors are not construed to be liable for any results of using the
+ * software, alterations are clearly marked as such, and this notice is
+ * not modified.
+ *
+ * Noteworthy contributors to screen's design and implementation:
+ *	Patrick Wolfe (pat@kai.com, kailand!pat)
+ *	Bart Schaefer (schaefer@cse.ogi.edu)
+ *	Nathan Glasser (nathan@brokaw.lcs.mit.edu)
+ *	Larry W. Virden (lwv27%cas.BITNET@CUNYVM.CUNY.Edu)
  */
 
+static char ScreenVersion[] = "screen 2.3-PreRelease7 19-Jun-90";
+
 #include <stdio.h>
+#include <strings.h>
 #include <sgtty.h>
 #include <signal.h>
 #include <errno.h>
 #include <ctype.h>
-#include <utmp.h>
 #include <pwd.h>
 #include <nlist.h>
 #include <fcntl.h>
@@ -32,12 +32,24 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
-#include <sys/dir.h>
-#ifdef SUNLOADAV
-#include <sys/param.h>
-#endif
-#include "screen.h"
+#include <sys/ioctl.h>
+#include "config.h"
 
+#ifdef UTMPOK
+#   include <utmp.h>
+#endif
+#ifdef USEVARARGS
+#   include <varargs.h>
+#endif
+#ifdef sun
+#   include <sys/resource.h>
+#   include <sys/param.h>
+#   include <dirent.h>
+    typedef struct dirent DIRENT;
+#else
+#   include <sys/dir.h>
+    typedef struct direct DIRENT;
+#endif
 #ifdef GETTTYENT
 #   include <ttyent.h>
 #else
@@ -48,35 +60,49 @@
     static char ttys[] = "/etc/ttys";
 #endif
 
+#include "screen.h"
+
 #define MAXWIN     10
 #define MSGWAIT     5
 
+
+#ifdef USRLIMIT
+    struct utmp utmpbuf;
+    int UserCount;
+#endif
+
 #define Ctrl(c) ((c)&037)
 
-int mypid;
-char *myterm;
-
-extern char *blank, Term[], **environ;
+extern char *blank, *null, Term[], **environ, *extra_incap, *extra_outcap;
+int    force_vt = 1, assume_LP = 0, help_page = 0;
 extern rows, cols;
+extern maxwidth, minwidth, default_width;
 extern ISO2022;
-extern status;
-extern time_t TimeDisplayed;
+extern status, HS;
+extern char *Z0, *LastMsg;
+extern time_t TimeDisplayed, time();
+extern char AnsiVersion[];
 extern short ospeed;
-extern flowctl;
+extern flowctl, wrap;
 extern errno;
 extern sys_nerr;
-extern char *lastmsg;
 extern char *sys_errlist[];
-extern char *index(), *rindex(), *malloc(), *getenv(), *MakeTermcap();
-extern char *getlogin(), *ttyname();
-static AttacherFinit(), Finit(), SigHup(), SigChld();
-static char *MakeBellMsg(), *Filename(), **SaveArgs(), *GetTtyName();
+
+extern off_t lseek();
+extern void exit();
+extern char *getwd(), *malloc(), *realloc(), *getenv(), *MakeTermcap();
+extern char *getlogin(), *ttyname(), *ParseChar();
+static char *MakeWinMsg(), *Filename(), **SaveArgs(), *GetTtyName();
+static char *ProcessInput(), *SaveStr(), *CatStr();
+static sig_t AttacherFinit(), Finit(), SigHup(), SigChld(), SigInt();
+static sig_t SigHandler(), SigStop();
 
 static char PtyName[32], TtyName[32];
 static char *ShellProg;
 static char *ShellArgs[2];
-static char inbuf[IOSIZE];
-static inlen;
+static char inbuf[MAXWIN][IOSIZE];
+static inlen[MAXWIN];
+static inbuf_ct;
 static ESCseen;
 static GotSignal;
 static char DefaultShell[] = "/bin/sh";
@@ -85,25 +111,36 @@ static char PtyProto[] = "/dev/ptyXY";
 static char TtyProto[] = "/dev/ttyXY";
 static int TtyMode = 0622;
 static char SockPath[512];
+#ifdef SOCKDIR
+static char SockDir[] = SOCKDIR;
+#else
 static char SockDir[] = ".screen";
+#endif
+static char *RcFileName = NULL;
 static char *SockNamePtr, *SockName;
 static ServerSocket;
-static char *NewEnv[MAXARGS];
+static char **NewEnv;
 static char Esc = Ctrl('a');
 static char MetaEsc = 'a';
 static char *home;
 static HasWindow;
-static utmp, utmpf;
-static char UtmpName[] = "/etc/utmp";
+#ifdef UTMPOK
+    static utmp, utmpf;
+    static char UtmpName[] = "/etc/utmp";
+#endif
 static char *LoginName;
 static char *BellString = "Bell in window %";
-static mflag, nflag, fflag, rflag;
+static char *ActivityString = "Activity in window %";
+static auto_detach = 1;
+static iflag, mflag, rflag;
+static loginflag = LOGINDEFAULT;
+static intrc, startc, stopc;
 static char HostName[MAXSTR];
-static Detached;
+static Detached, Suspended;
+static command_search, command_bindings = 0;
 static AttacherPid;	/* Non-Zero in child if we have an attacher */
+static real_uid, real_gid, eff_uid, eff_gid;
 static DevTty;
-static char *CopyrightCmd;
-static char *HelpCmd;
 #ifdef LOADAV
     static char KmemName[] = "/dev/kmem";
 #ifdef sequent
@@ -118,10 +155,10 @@ static char *HelpCmd;
 #endif
     static struct nlist nl[2];
     static avenrun, kmemf;
-#ifdef SUNLOADAV
+#ifdef LOADAV_3LONGS
     long loadav[3];
 #else
-#ifdef alliant
+#ifdef LOADAV_4LONGS
     long loadav[4];
 #else
     double loadav[3];
@@ -138,423 +175,569 @@ struct mode {
     int m_lmode;
 } OldMode, NewMode;
 
-static struct win *curr, *other;
-static CurrNum, OtherNum;
+struct win *fore;
+static ForeNum, WinList = -1;
 static struct win *wtab[MAXWIN];
 
-#define KEY_IGNORE         0
-#define KEY_HARDCOPY       1
-#define KEY_SUSPEND        2
-#define KEY_SHELL          3
-#define KEY_NEXT           4
-#define KEY_PREV           5
-#define KEY_KILL           6
-#define KEY_REDISPLAY      7
-#define KEY_WINDOWS        8
-#define KEY_OTHER          9
-#define KEY_0             10
-#define KEY_1             11
-#define KEY_2             12
-#define KEY_3             13
-#define KEY_4             14
-#define KEY_5             15
-#define KEY_6             16
-#define KEY_7             17
-#define KEY_8             18
-#define KEY_9             19
-#define KEY_XON           20
-#define KEY_XOFF          21
-#define KEY_INFO          22
-#define KEY_TERMCAP       23
-#define KEY_QUIT          24
-#define KEY_DETACH        25
-#define KEY_COPYRIGHT     26
-#define KEY_REPEAT        27
-#define KEY_HELP          28
-#define KEY_CREATE        29
+#define KEY_IGNORE         0	/* Keep these first 3 at the start */
+#define KEY_SCREEN         1
+#define KEY_0              2
+#define KEY_1              3
+#define KEY_2              4
+#define KEY_3              5
+#define KEY_4              6
+#define KEY_5              7
+#define KEY_6              8
+#define KEY_7              9
+#define KEY_8             10
+#define KEY_9             11
+#define KEY_AKA           12
+#define KEY_AUTOFLOW      13
+#define KEY_CLEAR         14
+#define KEY_DETACH        15
+#define KEY_FLOW          16
+#define KEY_HARDCOPY      17
+#define KEY_HELP          18
+#define KEY_INFO          19
+#define KEY_KILL          20
+#define KEY_LASTMSG       21
+#define KEY_LOGTOGGLE     22
+#define KEY_LOGIN         23
+#define KEY_MONITOR       24
+#define KEY_NEXT          25
+#define KEY_OTHER         26
+#define KEY_PREV          27
+#define KEY_QUIT          28
+#define KEY_REDISPLAY     29
+#define KEY_RESET         30
+#define KEY_SHELL         31
+#define KEY_SUSPEND       32
+#define KEY_TERMCAP       33
+#define KEY_TIME          34
+#define KEY_VERSION       35
+#define KEY_WIDTH         36
+#define KEY_WINDOWS       37
+#define KEY_WRAP          38
+#define KEY_XOFF          39
+#define KEY_XON           40
+#define KEY_CREATE       255
 
 struct key {
     int type;
     char **args;
 } ktab[256];
 
-static char *KeyNames[] = {
-    "hardcopy", "suspend", "shell", "next", "prev", "kill", "redisplay",
-    "windows", "other", "select0", "select1", "select2", "select3",
-    "select4", "select5", "select6", "select7", "select8", "select9",
-    "xon", "xoff", "info", "termcap", "quit", "detach", "copyright",
-    "repeat", "help", 0
+#ifndef FD_SET
+typedef struct fd_set { int fd_bits[1]; } fd_set;
+#   define FD_ZERO(fd) ((fd)->fd_bits[0] = 0)
+#   define FD_SET(b,fd) ((fd)->fd_bits[0] |= 1 << (b))
+#   define FD_ISSET(b,fd) ((fd)->fd_bits[0] & 1 << (b))
+#endif
+union fd_mask {
+    fd_set fd_val;
+    long long_val;
 };
 
-static char *CopyrightArgs[] = { "sh", "-c",
-				 "more %s/COPYING; exec cat >/dev/null", 0 };
-static char *HelpArgs[] =      { "sh", "-c",
-				 "more %s/HELP; exec cat >/dev/null", 0 };
 
-static char CopyrightNotice[] =
-    "Screen version 2.1c 13-Sep-91, Copyright (C) 1987 Oliver Laumann\n\n\r\
-This is free software, and you are welcome to redistribute it under\n\r\
-certain conditions.  \"screen\" comes with ABSOLUTELY NO WARRANTY.\n\r\
-Type control-a / for details and control-a ? for a command summary.\n\n\r";
+char *shellaka = NULL;
 
-main (ac, av) char **av; {
-    register n, len;
-    register struct win **pp, *p;
-    char *ap;
-    int s, r, w, x = 0;
-    int aflag = 0;
-    int DefaultStartup = 0;
+char *KeyNames[] = {
+    "screen",
+    "select0", "select1", "select2", "select3", "select4",
+    "select5", "select6", "select7", "select8", "select9",
+    "aka", "autoflow", "clear", "detach", "flow", "hardcopy", "help",
+    "info", "kill", "lastmsg", "log", "login", "monitor", "next",
+    "other", "prev", "quit", "redisplay", "reset", "shell",
+    "suspend", "termcap", "time", "version", "width", "windows",
+    "wrap", "xoff", "xon",
+    0
+};
+
+main(ac, av) char **av; {
+    register int n, len;
+    register struct win *p;
+    char *ap, *aka = NULL;
+    struct passwd *ppp;
+    int s = 0;
+    union fd_mask r, w, x;
+    int aflag = 0, oumask;
     struct timeval tv;
     time_t now;
-    char buf[IOSIZE], *myname = (ac == 0) ? "screen" : av[0];
-    char rc[256];
+    char buf[IOSIZE], *bufp, *myname = (ac == 0) ? "screen" : av[0];
     struct stat st;
+    int buflen,tmp;
 
-    mypid = getpid();
-    myterm = GetTtyName ();
+    FD_ZERO(&x.fd_val);
     while (ac > 0) {
 	ap = *++av;
 	if (--ac > 0 && *ap == '-') {
 	    switch (ap[1]) {
-	    case 'c':        /* Compatibility with older versions. */
-		break;
 	    case 'a':
 		aflag = 1;
+		break;
+	    case 'c':
+		if (ap[2])
+		    RcFileName = ap+2;
+		else {
+		    if (--ac == 0) goto help;
+		    RcFileName = *++av;
+		}
+		break;
+	    case 'e':
+		if (ap[2])
+		    ap += 2;
+		else {
+		    if (--ac == 0) goto help;
+		    ap = *++av;
+		}
+		if (!ParseEscape(ap))
+		    Msg(0, "Two characters are required with -e option.");
+		break;
+	    case 'n':			/* backward compatibility */
+		flowctl = 1;
+		break;
+	    case 'f':
+		switch (ap[2]) {
+		case 'n':
+		case '0':
+		    flowctl = 1;
+		    break;
+		case 'y':
+		case '1':
+		case '\0':
+		    flowctl = 2;
+		    break;
+		case 'a':
+		    flowctl = 3;
+		    break;
+		default:
+		    goto help;
+		}
+		break;
+	    case 'i':
+		iflag = 1;
+		break;
+	    case 'k':
+		if (ap[2])
+		    aka = ap+2;
+		else {
+		    if (--ac == 0) goto help;
+		    aka = *++av;
+		}
+		break;
+	    case 'l':
+		switch (ap[2]) {
+		case 'n':
+		case '0':
+		    loginflag = 0;
+		    break;
+		case 'y':
+		case '1':
+		case '\0':
+		    loginflag = 1;
+		    break;
+		default:
+		    goto help;
+		}
+		break;
+	    case 'L':
+		assume_LP = 1;
 		break;
 	    case 'm':
 		mflag = 1;
 		break;
-	    case 'n':
-		nflag = 1;
-		break;
-	    case 'f':
-		fflag = 1;
+	    case 'O':
+		force_vt = 0;
 		break;
 	    case 'r':
-		rflag = 1;
 		if (ap[2]) {
 		    SockName = ap+2;
 		    if (ac != 1) goto help;
 		} else if (--ac == 1) {
 		    SockName = *++av;
 		} else if (ac != 0) goto help;
+	    case 'R':
+		rflag = (ap[1] == 'r' ? 1 : 2);
 		break;
-	    case 'p':
-		if (ap[2] == 0) goto help;
-		mypid = atoi(ap + 2);
-		break;
-	    case 't':
-		if (ap[2] == 0) goto help;
-		myterm = ap + 2;
-		break;
-	    case 'e':
-		if (ap[2]) {
-		    ap += 2;
-		} else {
+	    case 's':
+		if (ap[2])
+		    ShellProg = ap+2;
+		else {
 		    if (--ac == 0) goto help;
-		    ap = *++av;
+		    ShellProg = *++av;
 		}
-		if (strlen (ap) != 2)
-		    Msg (0, "Two characters are required with -e option.");
-		Esc = ap[0];
-		MetaEsc = ap[1];
 		break;
 	    default:
 	    help:
-		Msg (0, "Use: %s [-a] [-f] [-n] [-e xy] [cmd args]\n\
- or: %s -r [host.tty]", myname, myname);
+		printf("Use: %s [-opts] [cmd [args]]\n", myname);
+		printf(" or: %s -r [host.tty]\n\nOptions:\n", myname);
+		printf("-a       Force all capabilities into each window's termcap\n");
+		printf("-c file  Read configuration file instead of .screenrc\n");
+		printf("-e xy    Change command characters\n");
+		printf("-f       Flow control on, -fn = off, -fa = auto\n");
+		printf("-i       Interrupt output sooner when flow control is on\n");
+		printf("-k aka   Set command's a.k.a. (name alias)\n");
+		printf("-l       Login mode on (update /etc/utmp), -ln = off\n");
+		printf("-L       Terminal's last character can be safely updated\n");
+		printf("-O       Choose optimal output rather than exact vt100 emulation\n");
+		printf("-r       Reattach to a detached screen process\n");
+		printf("-R       Reattach if possible, otherwise start a new session\n");
+		printf("-s shell Shell to execute rather than $SHELL\n");
+		exit(1);
 	    }
-	} else break;
+	} else
+	    break;
     }
-    if (nflag && fflag)
-	Msg (0, "-f and -n are conflicting options.");
-    if ((ShellProg = getenv ("SHELL")) == 0)
+    real_uid = getuid();
+    real_gid = getgid();
+    eff_uid = geteuid();
+    eff_gid = getegid();
+    if (!ShellProg && (ShellProg = getenv("SHELL")) == 0)
 	ShellProg = DefaultShell;
     ShellArgs[0] = ShellProg;
-    if (ac == 0) {
-	ac = 1;
-	av = ShellArgs;
-	DefaultStartup = 1;
+    if ((home = getenv("HOME")) == 0)
+	Msg(0, "$HOME is undefined.");
+    if ((LoginName = getlogin()) == 0 || LoginName[0] == '\0') {
+	if ((ppp = getpwuid(real_uid)) == 0)
+	    return 1;
+	LoginName = ppp->pw_name;
     }
-    if ((CopyrightCmd = malloc (strlen (LIBPATH)
-		    + strlen (CopyrightArgs[2]))) == 0 ||
-	    (HelpCmd = malloc (strlen (LIBPATH) + strlen (HelpArgs[2]))) == 0)
-	Msg (0, "Out of memory.");
-    sprintf (CopyrightCmd, CopyrightArgs[2], LIBPATH);
-    CopyrightArgs[2] = CopyrightCmd;
-    sprintf (HelpCmd, HelpArgs[2], LIBPATH);
-    HelpArgs[2] = HelpCmd;
-    if ((home = getenv ("HOME")) == 0)
-	Msg (0, "$HOME is undefined.");
-    sprintf (SockPath, "%s/%s", home, SockDir);
-    if (stat (SockPath, &st) == -1) {
+    if ((oumask = umask(0)) == -1)
+	Msg(errno, "Cannot change umask to zero");
+#ifdef SOCKDIR
+    if (stat(SOCKDIR, &st) == -1) {
+	if (errno == ENOENT)
+	    Msg(errno, "Directory not found: %s", SOCKDIR);
+	else
+	    Msg(errno, "Cannot get status of %s", SOCKDIR);
+    } else if ((st.st_mode & S_IFMT) != S_IFDIR)
+	Msg(0, "%s is not a directory.", SOCKDIR);
+    sprintf(SockPath, "%s/S-%s", SockDir, LoginName);
+#else
+    sprintf(SockPath, "%s/%s", home, SockDir);
+#endif
+    if (stat(SockPath, &st) == -1) {
 	if (errno == ENOENT) {
-#ifdef SUN_NFS_HACK
-	    SetRealUID ();
-#endif
-	    if (mkdir (SockPath, 0700) == -1)
-		Msg (errno, "Cannot make directory %s", SockPath);
-#ifdef SUN_NFS_HACK
-	    SetEffectiveUID ();
-#endif
-	    (void) chown (SockPath, getuid (), getgid ());
-	} else Msg (errno, "Cannot get status of %s", SockPath);
+	    if (mkdir(SockPath, 0700) == -1)
+		Msg(errno, "Cannot make directory %s", SockPath);
+	    (void) chown(SockPath, real_uid, real_gid);
+	} else
+	    Msg(errno, "Cannot get status of %s", SockPath);
     } else {
 	if ((st.st_mode & S_IFMT) != S_IFDIR)
-	    Msg (0, "%s is not a directory.", SockPath);
+	    Msg(0, "%s is not a directory.", SockPath);
 	if ((st.st_mode & 0777) != 0700)
-	    Msg (0, "Directory %s must have mode 700.", SockPath);
-	if (st.st_uid != getuid ())
-	    Msg (0, "You are not the owner of %s.", SockPath);
+	    Msg(0, "Directory %s must have mode 700.", SockPath);
+	if (st.st_uid != real_uid)
+	    Msg(0, "You are not the owner of %s.", SockPath);
     }
-    (void) gethostname (HostName, MAXSTR);
+    umask(oumask);
+    (void) gethostname(HostName, MAXSTR);
     HostName[MAXSTR-1] = '\0';
-    if (ap = index (HostName, '.'))
+    if (ap = index(HostName, '.'))
 	*ap = '\0';
-    strcat (SockPath, "/");
-    SockNamePtr = SockPath + strlen (SockPath);
-    if ((DevTty = open ("/dev/tty", O_RDWR|O_NDELAY)) == -1)
-	Msg (errno, "/dev/tty");
+    strcat(SockPath, "/");
+    SockNamePtr = SockPath + strlen(SockPath);
     if (rflag) {
-	Attach (MSG_ATTACH);
-	Attacher ();
-	/*NOTREACHED*/
+	if (Attach(MSG_ATTACH)) {
+	    Attacher();
+	    /*NOTREACHED*/
+	}
+	rflag = 0;
     }
-    if (GetSockName ()) {
-	s = MakeClientSocket (1);
-	SendCreateMsg (s, ac, av, aflag);
-	close (s);
-	exit (0);
+    if (GetSockName()) {
+	s = MakeClientSocket(1);
+	if (ac == 0) {
+	    ac = 1;
+	    av = ShellArgs;
+	}
+	av[ac] = aka;
+	SendCreateMsg(s, ac, av, aflag, flowctl, loginflag);
+	close(s);
+	exit(0);
     }
-    switch (fork ()) {
+    if ((DevTty = open("/dev/tty", O_RDWR|O_NDELAY)) == -1)
+	Msg(errno, "/dev/tty");
+    switch (fork()) {
     case -1:
-	Msg (errno, "fork");
+	Msg(errno, "fork");
 	/*NOTREACHED*/
     case 0:
 	break;
     default:
-	Attacher ();
+	Attacher();
 	/*NOTREACHED*/
     }
-    AttacherPid = getppid ();
-    ServerSocket = s = MakeServerSocket ();
-    InitTerm ();
-    if (fflag)
-	flowctl = 1;
-    else if (nflag)
-	flowctl = 0;
-    MakeNewEnv ();
-    GetTTY (0, &OldMode);
+    AttacherPid = getppid();
+    ServerSocket = s = MakeServerSocket();
+    StartRc();
+    InitTermcap();
+    InitTerm();
+    MakeNewEnv();
+    GetTTY(0, &OldMode);
     ospeed = (short)OldMode.m_ttyb.sg_ospeed;
-    InitUtmp ();
-#ifdef LOADAV
-    InitKmem ();
+#ifdef UTMPOK
+    InitUtmp();
 #endif
-    signal (SIGHUP, SigHup);
-    signal (SIGINT, Finit);
-    signal (SIGQUIT, Finit);
-    signal (SIGTERM, Finit);
-    signal (SIGTTIN, SIG_IGN);
-    signal (SIGTTOU, SIG_IGN);
-    InitKeytab ();
-    sprintf (rc, "%.*s/.screenrc", 245, home);
-    ReadRc (rc);
-    if ((n = MakeWindow (*av, av, aflag, 0, (char *)0, (char *)0)) == -1) {
-	SetTTY (0, &OldMode);
-	FinitTerm ();
-	Kill (AttacherPid, SIGHUP);
-	exit (1);
+#ifdef LOADAV
+    InitKmem();
+#endif
+    signal(SIGHUP, SigHup);
+    signal(SIGINT, Finit);
+    signal(SIGQUIT, Finit);
+    signal(SIGTERM, Finit);
+    signal(SIGTTIN, SIG_IGN);
+    signal(SIGTTOU, SIG_IGN);
+    InitKeytab();
+    FinishRc();
+    if (ac == 0) {
+	ac = 1;
+	av = ShellArgs;
+	if (!aka)
+	    aka = shellaka;
     }
-    SetCurrWindow (n);
+    if ((n = MakeWindow(aka,av,aflag,flowctl,0,(char*)0,loginflag)) == -1) {
+	Finit();
+	/*NOTREACHED*/
+    }
+    SetForeWindow(n);
     HasWindow = 1;
-    SetMode (&OldMode, &NewMode);
-    SetTTY (0, &NewMode);
-    signal (SIGCHLD, SigChld);
-    if (DefaultStartup)
-        WriteString (wtab[n], CopyrightNotice, strlen (CopyrightNotice));
+    SetMode(&OldMode, &NewMode);
+    SetTTY(0, &NewMode);
+    signal(SIGCHLD, SigChld);
+    signal(SIGINT, SigInt);
     tv.tv_usec = 0;
     while (1) {
+	/*
+	 *	check to see if message line should be removed
+	 */
 	if (status) {
-	    time (&now);
+	    (void) time(&now);
 	    if (now - TimeDisplayed < MSGWAIT) {
 		tv.tv_sec = MSGWAIT - (now - TimeDisplayed);
-	    } else RemoveStatus (curr);
+	    } else
+		RemoveStatus();
 	}
-	r = 0;
-	w = 0;
-	if (inlen)
-	    w |= 1 << curr->ptyfd;
-	else
-	    r |= 1 << 0;
-	for (pp = wtab; pp < wtab+MAXWIN; ++pp) {
-	    if (!(p = *pp))
+	/*
+	 *	check for I/O on all available I/O descriptors
+	 */
+	FD_ZERO(&r.fd_val);
+	FD_ZERO(&w.fd_val);
+	if (inbuf_ct > 0)
+	    for (n = 0; n < MAXWIN; n++)
+		if (inlen[n] > 0)
+		    FD_SET(wtab[n]->ptyfd,&w.fd_val);
+	if (!Detached)
+	    FD_SET(0, &r.fd_val);
+	for (n = WinList; n != -1; n = p->WinLink) {
+	    p = wtab[n];
+	    if (p->active && status && !HS)
 		continue;
-	    if ((*pp)->active && status)
+	    if (p->outlen > 0)
 		continue;
-	    if ((*pp)->outlen > 0)
-		continue;
-	    r |= 1 << (*pp)->ptyfd;
+	    FD_SET(p->ptyfd, &r.fd_val);
 	}
-	r |= 1 << s;
-	(void) fflush (stdout);
+	FD_SET(s, &r.fd_val);
+	(void) fflush(stdout);
 	if (GotSignal && !status) {
-	    SigHandler ();
+	    SigHandler();
 	    continue;
 	}
-	if (select (32, &r, &w, &x, status ? &tv : (struct timeval *)0) == -1) {
-	    if (errno == EINTR)
+	if (select(32, &r, &w, &x.fd_val, status ? &tv : (struct timeval *)0) == -1) {
+	    if (errno == EINTR) {
+		errno = 0;
 		continue;
-	    HasWindow = 0;
-	    Msg (errno, "select");
+	    }
+	    perror("select");
+	    Finit();
 	    /*NOTREACHED*/
 	}
 	if (GotSignal && !status) {
-	    SigHandler ();
+	    SigHandler();
 	    continue;
 	}
-	if (r & 1 << s) {
-	    RemoveStatus (curr);
-	    ReceiveMsg (s);
+	/* Process a client connect attempt and message */
+	if (FD_ISSET(s, &r.fd_val)) {
+	    if (!HS)
+		RemoveStatus();
+	    ReceiveMsg(s);
+	    continue;
 	}
-	if (r & 1 << 0) {
-	    RemoveStatus (curr);
+	/* Read, process, and store the user input */
+	if (FD_ISSET(0, &r.fd_val)) {
+	    if (!HS)
+		RemoveStatus();
 	    if (ESCseen) {
-		inbuf[0] = Esc;
-		inlen = read (0, inbuf+1, IOSIZE-1) + 1;
+		buf[0] = Esc;
+		buflen = read(0, buf + 1, IOSIZE - 1) + 1;
 		ESCseen = 0;
-	    } else {
-		inlen = read (0, inbuf, IOSIZE);
+	    } else
+		buflen = read(0, buf, IOSIZE);
+	    if (buflen < 0) {
+		perror("read");
+		Finit();
 	    }
-	    if (inlen > 0)
-		inlen = ProcessInput (inbuf, inlen);
-	    if (inlen > 0)
+	    bufp = buf;
+	    if (help_page)
+		process_help_input(&bufp,&buflen);
+	    while (buflen > 0) {
+		n = ForeNum;
+		len = inlen[n];
+		bufp = ProcessInput(bufp,&buflen,inbuf[n],&inlen[n],
+				    sizeof *inbuf);
+		if (inlen[n] > 0 && len == 0)
+		    inbuf_ct++;
+	    }
+	    if (inbuf_ct > 0)
 		continue;
 	}
 	if (GotSignal && !status) {
-	    SigHandler ();
+	    SigHandler();
 	    continue;
 	}
-	if (w & 1 << curr->ptyfd && inlen > 0) {
-	    if ((len = write (curr->ptyfd, inbuf, inlen)) > 0) {
-		inlen -= len;
-		bcopy (inbuf+len, inbuf, inlen);
+	/* Write the stored user input to the window descriptors */
+	if (inbuf_ct > 0 && w.long_val != 0) {
+	    for (n = 0; n < MAXWIN; n++) {
+		if (inlen[n] > 0) {
+		    tmp = wtab[n]->ptyfd;
+		    if (FD_ISSET(tmp,&w.fd_val)
+		     && (len = write(tmp, inbuf[n], inlen[n])) > 0) {
+			if ((inlen[n] -= len) == 0)
+			    inbuf_ct--;
+			bcopy(inbuf[n] + len, inbuf[n], inlen[n]);
+		    }
+		}
 	    }
 	}
 	if (GotSignal && !status) {
-	    SigHandler ();
+	    SigHandler();
 	    continue;
 	}
-	for (pp = wtab; pp < wtab+MAXWIN; ++pp) {
-	    if (!(p = *pp))
-		continue;
-	    if (p->outlen) {
-		WriteString (p, p->outbuf, p->outlen);
-	    } else if (r & 1 << p->ptyfd) {
-		if ((len = read (p->ptyfd, buf, IOSIZE)) == -1) {
+	/* Read and process the output from the window descriptors */
+	for (n = WinList; n != -1; n = p->WinLink) {
+	    p = wtab[n];
+	    if (p->outlen)
+		WriteString(p, p->outbuf, p->outlen);
+	    else if (FD_ISSET(p->ptyfd, &r.fd_val)) {
+		if ((len = read(p->ptyfd, buf, IOSIZE)) == -1) {
 		    if (errno == EWOULDBLOCK)
 			len = 0;
 		}
 		if (len > 0)
-		    WriteString (p, buf, len);
+		    WriteString(p, buf, len);
 	    }
-	    if (p->bell) {
-		p->bell = 0;
-		Msg (0, MakeBellMsg (pp-wtab));
+	    if (p->bell == BELL_ON) {
+		p->bell = BELL_DONE;
+		Msg(0, MakeWinMsg(BellString, n));
+		if (p->monitor == MON_FOUND)
+		    p->monitor = MON_DONE;
+	    } else if (p->monitor == MON_FOUND) {
+		p->monitor= MON_DONE;
+		Msg(0, MakeWinMsg(ActivityString, n));
 	    }
 	}
 	if (GotSignal && !status)
-	    SigHandler ();
+	    SigHandler();
     }
     /*NOTREACHED*/
 }
 
-static SigHandler () {
+static sig_t SigHandler() {
     while (GotSignal) {
 	GotSignal = 0;
-	DoWait ();
+	DoWait();
     }
 }
 
-static SigChld () {
+static sig_t SigChld() {
     GotSignal = 1;
 }
 
-static SigHup () {
-    Detach (0);
+static sig_t SigHup() {
+    if (auto_detach)
+	Detach(0);
+    else
+	Finit();
 }
 
-static DoWait () {
-    register pid;
-    register struct win **pp;
+static sig_t SigInt() {
+    char buf[1];
+
+    *buf = (char)intrc;
+    inlen[ForeNum] = 0;
+    if (!help_page)
+	write(fore->ptyfd, buf, 1);
+}
+
+static DoWait() {
+    register n, next, pid;
     union wait wstat;
 
-    while ((pid = wait3 (&wstat, WNOHANG|WUNTRACED, NULL)) > 0) {
-	for (pp = wtab; pp < wtab+MAXWIN; ++pp) {
-	    if (*pp && pid == (*pp)->wpid) {
-		if (WIFSTOPPED (wstat)) {
-		    (void) killpg (getpgrp ((*pp)->wpid), SIGCONT);
-		} else {
-		    KillWindow (pp);
-		}
+    while ((pid = wait3(&wstat, WNOHANG|WUNTRACED, (struct rusage *)0)) > 0) {
+	for (n = WinList; n != -1; n = next) {
+	    next = wtab[n]->WinLink;
+	    if (pid == wtab[n]->wpid) {
+		if (WIFSTOPPED(wstat))
+		    (void) killpg(getpgrp(wtab[n]->wpid), SIGCONT);
+		else
+		    KillWindow(n);
 	    }
 	}
     }
-    CheckWindows ();
+    CheckWindows();
 }
 
-static KillWindow (pp) struct win **pp; {
-    if (*pp == curr)
-	curr = 0;
-    if (*pp == other)
-	other = 0;
-    FreeWindow (*pp);
-    *pp = 0;
+static KillWindow(n) {
+    register i;
+
+    /*
+     * Remove window from linked list.
+     */
+    if (n == WinList) {
+	RemoveStatus();
+	WinList = fore->WinLink;
+	fore = 0;
+    } else {
+	i = WinList;
+	while (wtab[i]->WinLink != n)
+	    i = wtab[i]->WinLink;
+	wtab[i]->WinLink = wtab[n]->WinLink;
+    }
+    FreeWindow(wtab[n]);
+    wtab[n] = 0;
+    if (inlen[n] > 0) {
+	inlen[n] = 0;
+	inbuf_ct--;
+    }
 }
 
-static CheckWindows () {
-    register struct win **pp;
-
-    /* If the current window disappeared and the "other" window is still
-     * there, switch to the "other" window, else switch to the window
-     * with the lowest index.
-     * If there current window is still there, but the "other" window
-     * vanished, "SetCurrWindow" is called in order to assign a new value
-     * to "other".
+static CheckWindows() {
+    /* If the foreground window disappeared check the head of the linked
+     * list of windows for the most recently used window.
      * If no window is alive at all, exit.
      */
-    if (!curr && other) {
-	SwitchWindow (OtherNum);
-	return;
-    }
-    if (curr && !other) {
-	SetCurrWindow (CurrNum);
-	return;
-    }
-    for (pp = wtab; pp < wtab+MAXWIN; ++pp) {
-	if (*pp) {
-	    if (!curr)
-		SwitchWindow (pp-wtab);
-	    return;
-	}
-    }
-    Finit ();
+    if (WinList == -1)
+	Finit();
+    if (!fore)
+	SwitchWindow(WinList);
 }
 
-static Finit () {
-    register struct win *p, **pp;
+static sig_t Finit() {
+    register n, next;
 
-    for (pp = wtab; pp < wtab+MAXWIN; ++pp) {
-	if (p = *pp)
-	    FreeWindow (p);
+    for (n = WinList; n != -1; n = next) {
+	next = wtab[n]->WinLink;
+	FreeWindow(wtab[n]);
     }
-    SetTTY (0, &OldMode);
-    FinitTerm ();
-    printf ("[screen is terminating]\n");
-    Kill (AttacherPid, SIGHUP);
-    exit (0);
+    SetTTY(0, &OldMode);
+    FinitTerm();
+    printf("\n[screen is terminating]\n");
+    Kill(AttacherPid, SIGHUP);
+    (void) unlink(SockPath);
+    exit(0);
 }
 
-static InitKeytab () {
+static InitKeytab() {
     register i;
 
     ktab['h'].type = ktab[Ctrl('h')].type = KEY_HARDCOPY;
@@ -566,168 +749,270 @@ static InitKeytab () {
     ktab['k'].type = ktab[Ctrl('k')].type = KEY_KILL;
     ktab['l'].type = ktab[Ctrl('l')].type = KEY_REDISPLAY;
     ktab['w'].type = ktab[Ctrl('w')].type = KEY_WINDOWS;
+    ktab['v'].type = ktab[Ctrl('v')].type = KEY_VERSION;
     ktab['q'].type = ktab[Ctrl('q')].type = KEY_XON;
     ktab['s'].type = ktab[Ctrl('s')].type = KEY_XOFF;
-    ktab['t'].type = ktab[Ctrl('t')].type = KEY_INFO;
+    ktab['t'].type = ktab[Ctrl('t')].type = KEY_TIME;
+    ktab['i'].type = ktab[Ctrl('i')].type = KEY_INFO;
+    ktab['m'].type = ktab[Ctrl('m')].type = KEY_LASTMSG;
+    ktab['A'].type = KEY_AKA, ktab['A'].args = NULL;
+    ktab['L'].type = KEY_LOGIN;
+    ktab['W'].type = KEY_WIDTH;
     ktab['.'].type = KEY_TERMCAP;
     ktab[Ctrl('\\')].type = KEY_QUIT;
     ktab['d'].type = ktab[Ctrl('d')].type = KEY_DETACH;
-    ktab[Esc].type = KEY_OTHER;
+    ktab['r'].type = ktab[Ctrl('r')].type = KEY_WRAP;
+    ktab['f'].type = ktab[Ctrl('f')].type = KEY_FLOW;
+    ktab['/'].type = KEY_AUTOFLOW;
+    ktab['C'].type = KEY_CLEAR;
+    ktab['Z'].type = KEY_RESET;
+    ktab['H'].type = KEY_LOGTOGGLE;
+    if (Esc != MetaEsc)
+	ktab[Esc].type = KEY_OTHER;
+    else
+	ktab[Esc].type = KEY_IGNORE;
+    ktab['M'].type = KEY_MONITOR;
+    ktab['?'].type = KEY_HELP;
     for (i = 0; i <= 9; i++)
 	ktab[i+'0'].type = KEY_0+i;
-    ktab['/'].type = KEY_COPYRIGHT;
-    ktab['r'].type = ktab[Ctrl('r')].type = KEY_REPEAT;
-    ktab['?'].type = KEY_HELP;
 }
 
-static ProcessInput (buf, len) char *buf; {
+static char *ProcessInput(ibuf, pilen, obuf, polen, obuf_size)
+char *ibuf,*obuf;
+register int *pilen,*polen,obuf_size;
+{
     register n, k;
     register char *s, *p;
-    register struct win **pp;
 
-    for (s = p = buf; len > 0; len--, s++) {
+    for (s = ibuf, p = obuf + *polen; *pilen > 0; --*pilen, s++) {
 	if (*s == Esc) {
-	    if (len > 1) {
-		len--; s++;
+	    if (*pilen > 1) {
+		--*pilen; s++;
 		k = ktab[*s].type;
 		if (*s == MetaEsc) {
-		    *p++ = Esc;
-		} else if (k >= KEY_0 && k <= KEY_9) {
-		    p = buf;
-		    SwitchWindow (k - KEY_0);
-		} else switch (ktab[*s].type) {
+		    if (*polen < obuf_size) {
+			*p++ = Esc;
+			++*polen;
+		    }
+		} else if (k >= KEY_0 && k <= KEY_9)
+		    SwitchWindow(k - KEY_0);
+		else switch (ktab[*s].type) {
 		case KEY_TERMCAP:
-		    p = buf;
-		    WriteFile (0);
+		    WriteFile(0);
 		    break;
 		case KEY_HARDCOPY:
-		    p = buf;
-		    WriteFile (1);
+		    WriteFile(1);
+		    break;
+		case KEY_LOGTOGGLE:
+#ifdef NOREUID
+		    Msg(0,"Output logging is unavailable.\n");
+#else
+		    LogToggle();
+#endif
 		    break;
 		case KEY_SUSPEND:
-		    p = buf;
-		    Detach (1);
+		    *pilen = 0;
+		    Detach(1);
 		    break;
 		case KEY_SHELL:
-		    p = buf;
-		    if ((n = MakeWindow (ShellProg, ShellArgs,
-			    0, 0, (char *)0, (char *)0)) != -1)
-			SwitchWindow (n);
+		    if ((n = MakeWindow(shellaka, ShellArgs,
+			    0, flowctl, 0, (char *)0, loginflag)) != -1)
+			SwitchWindow(n);
 		    break;
 		case KEY_NEXT:
-		    p = buf;
-		    if (MoreWindows ())
-			SwitchWindow (NextWindow ());
+		    if (MoreWindows())
+			SwitchWindow(NextWindow());
 		    break;
 		case KEY_PREV:
-		    p = buf;
-		    if (MoreWindows ())
-			SwitchWindow (PreviousWindow ());
+		    if (MoreWindows())
+			SwitchWindow(PreviousWindow());
 		    break;
 		case KEY_KILL:
-		    p = buf;
-		    FreeWindow (wtab[CurrNum]);
-		    if (other == curr)
-			other = 0;
-		    curr = wtab[CurrNum] = 0;
-		    CheckWindows ();
+		    KillWindow(ForeNum);
+		    CheckWindows();
 		    break;
 		case KEY_QUIT:
-		    for (pp = wtab; pp < wtab+MAXWIN; ++pp)
-			if (*pp) FreeWindow (*pp);
-		    Finit ();
+		    Finit();
 		    /*NOTREACHED*/
 		case KEY_DETACH:
-		    p = buf;
-		    Detach (0);
+		    *pilen = 0;
+		    Detach(0);
 		    break;
 		case KEY_REDISPLAY:
-		    p = buf;
-		    Activate (wtab[CurrNum]);
+		    Activate();
 		    break;
 		case KEY_WINDOWS:
-		    p = buf;
-		    ShowWindows ();
+		    ShowWindows();
+		    break;
+		case KEY_VERSION:
+		    Msg(0, "%s  %s", ScreenVersion, AnsiVersion);
+		    break;
+		case KEY_TIME:
+		    ShowTime();
 		    break;
 		case KEY_INFO:
-		    p = buf;
-		    ShowInfo ();
+		    ShowInfo();
 		    break;
 		case KEY_OTHER:
-		    p = buf;
-		    if (MoreWindows ())
-			SwitchWindow (OtherNum);
+		    if (MoreWindows())
+			SwitchWindow(fore->WinLink);
 		    break;
 		case KEY_XON:
-		    *p++ = Ctrl('q');
+		    if (*polen < obuf_size) {
+			*p++ = Ctrl('q');
+			++*polen;
+		    }
 		    break;
 		case KEY_XOFF:
-		    *p++ = Ctrl('s');
+		    if (*polen < obuf_size) {
+			*p++ = Ctrl('s');
+			++*polen;
+		    }
 		    break;
-		case KEY_REPEAT:
-		    p = buf;
-		    Msg (0, "%s", lastmsg);
+		case KEY_WIDTH:
+		    if (Z0) {
+			fore->width = maxwidth+minwidth - fore->width;
+			Activate();
+		    } else
+			Msg(0,"Your termcap does not specify how to change the terminal's width.");
 		    break;
-		case KEY_COPYRIGHT:
-		    p = buf;
-		    if ((n = MakeWindow (CopyrightArgs[0], CopyrightArgs,
-			    0, 0, (char *)0, "copying")) != -1)
-			SwitchWindow (n);
+		case KEY_LOGIN:
+#ifdef UTMPOK
+		    if (fore->slot == -1) {
+#ifdef USRLIMIT
+			(void) lseek(utmpf, (off_t)0, 0);
+			UserCount = 0;
+			while (read(utmpf, &utmpbuf, sizeof (struct utmp)) > 0) {
+			    if (utmpbuf.ut_name[0] != '\0')
+				UserCount++;
+			}
+			if (UserCount >= USRLIMIT)
+			    Msg(0, "User limit reached.");
+			else
+#endif
+			{
+			    fore->slot = SetUtmp(fore->tty);
+			    Msg(0, "This window is now logged in.");
+			}
+		    } else {
+			RemoveUtmp(fore->slot);
+			fore->slot = -1;
+			Msg(0, "This window is no longer logged in.");
+		    }
+#else /* !UTMPOK */
+		    Msg(0,"Unable to modify /etc/utmp.\n");
+#endif
 		    break;
-		case KEY_HELP:
-		    p = buf;
-		    if ((n = MakeWindow (HelpArgs[0], HelpArgs,
-			    0, 0, (char *)0, "help")) != -1)
-			SwitchWindow (n);
+		case KEY_AKA:
+		    if (!ktab[*s].args)
+			InputAKA();
+		    else
+			strncpy(fore->cmd+fore->akapos, ktab[*s].args[0], 20);
+		    break;
+		case KEY_LASTMSG:
+		    Msg(0, "%s", LastMsg);
+		    break;
+		case KEY_SCREEN:
+		    if ((n = DoScreen("key", ktab[*s].args)) != -1)
+			SwitchWindow(n);
 		    break;
 		case KEY_CREATE:
-		    p = buf;
-		    if ((n = MakeWindow (ktab[*s].args[0], ktab[*s].args,
-			    0, 0, (char *)0, (char *)0)) != -1)
-			SwitchWindow (n);
+		    if ((n = MakeWindow((char *)0, ktab[*s].args,
+				0, flowctl, 0, (char *)0, loginflag)) != -1)
+			SwitchWindow(n);
+		    break;
+		case KEY_WRAP:
+		    fore->wrap = !fore->wrap;
+		    Msg(0, "%cwrap", fore->wrap ? '+' : '-');
+		    break;
+		case KEY_FLOW:
+		    ToggleFlow();
+		    goto flow_msg;
+		case KEY_AUTOFLOW:
+		    if ((fore->autoflow = !fore->autoflow) != 0
+		     && fore->flow == fore->keypad)
+			ToggleFlow();
+		flow_msg:
+		    Msg(0, "%cflow%s", fore->flow ? '+' : '-',
+			fore->autoflow ? "(auto)" : "");
+		    break;
+		case KEY_CLEAR:
+		    if (fore->state == LIT)
+			WriteString(fore, "\033[2J\033[H", 7);
+		    break;
+		case KEY_RESET:
+		    if (fore->state == LIT)
+			WriteString(fore, "\033c", 2);
+		    break;
+		case KEY_MONITOR:
+		    if (fore->monitor == MON_OFF) {
+			fore->monitor = MON_ON;
+			Msg(0,
+			  "Window %d is now being monitored for all activity.",
+			  ForeNum);
+		    } else {
+			fore->monitor = MON_OFF;
+			Msg(0,
+			  "Window %d is no longer being monitored for activity.",
+			  ForeNum);
+		    }
+		    break;
+		case KEY_HELP:
+		    display_help();
 		    break;
 		}
-	    } else ESCseen = 1;
-	} else *p++ = *s;
+	    } else
+		ESCseen = 1;
+	    --*pilen; s++;
+	    break;
+	} else if (*polen < obuf_size) {
+	    *p++ = *s;
+	    ++*polen;
+	}
     }
-    return p - buf;
+    return(s);
 }
 
-static SwitchWindow (n) {
-    if (!wtab[n])
+static SwitchWindow(n) {
+    if (!wtab[n]) {
+	ShowWindows();
 	return;
-    SetCurrWindow (n);
-    Activate (wtab[n]);
+    }
+    if (wtab[n] == fore) {
+	Msg(0, "This IS window %d.", n);
+	return;
+    }
+    SetForeWindow(n);
+    if (!Detached && !help_page)
+	Activate();
 }
 
-static SetCurrWindow (n) {
+static SetForeWindow(n) {
     /*
-     * If we come from another window, this window becomes the
-     * "other" window:
+     * If we come from another window, make it inactive.
      */
-    if (curr) {
-	curr->active = 0;
-	other = curr;
-	OtherNum = CurrNum;
-    }
-    CurrNum = n;
-    curr = wtab[n];
-    curr->active = 1;
+    if (fore)
+	fore->active = 0;
+    ForeNum = n;
+    fore = wtab[n];
+    if (!Detached && !help_page)
+	fore->active = 1;
     /*
-     * If the "other" window is currently undefined (at program start
-     * or because it has died), or if the "other" window is equal to the
-     * one just selected, we try to find a new one:
+     * Place the window at the head of the most-recently-used list.
      */
-    if (other == 0 || other == curr) {
-	OtherNum = NextWindow ();
-	other = wtab[OtherNum];
+    if ((n = WinList) != ForeNum) {
+	while (wtab[n]->WinLink != ForeNum)
+	    n = wtab[n]->WinLink;
+	wtab[n]->WinLink = fore->WinLink;
+	fore->WinLink = WinList;
+	WinList = ForeNum;
     }
 }
 
-static NextWindow () {
+static NextWindow() {
     register struct win **pp;
 
-    for (pp = wtab+CurrNum+1; pp != wtab+CurrNum; ++pp) {
+    for (pp = wtab+ForeNum+1; pp != wtab+ForeNum; ++pp) {
 	if (pp == wtab+MAXWIN)
 	    pp = wtab;
 	if (*pp)
@@ -736,10 +1021,10 @@ static NextWindow () {
     return pp-wtab;
 }
 
-static PreviousWindow () {
+static PreviousWindow() {
     register struct win **pp;
 
-    for (pp = wtab+CurrNum-1; pp != wtab+CurrNum; --pp) {
+    for (pp = wtab+ForeNum-1; pp != wtab+ForeNum; --pp) {
 	if (pp < wtab)
 	    pp = wtab+MAXWIN-1;
 	if (*pp)
@@ -748,37 +1033,45 @@ static PreviousWindow () {
     return pp-wtab;
 }
 
-static MoreWindows () {
-    register struct win **pp;
-    register n;
-
-    for (n = 0, pp = wtab; pp < wtab+MAXWIN; ++pp)
-	if (*pp) ++n;
-    if (n <= 1)
-	Msg (0, "No other window.");
-    return n > 1;
+static MoreWindows() {
+    if (fore->WinLink != -1)
+	return 1;
+    Msg(0, "No other window.");
+    return 0;
 }
 
-static FreeWindow (wp) struct win *wp; {
+void Free(p) register char *p; {
+    if (p)
+	free(p);
+}
+
+static FreeWindow(wp) struct win *wp; {
     register i;
 
-    RemoveUtmp (wp->slot);
-    (void) chmod (wp->tty, 0666);
-    (void) chown (wp->tty, 0, 0);
-    close (wp->ptyfd);
+#ifdef UTMPOK
+    RemoveUtmp(wp->slot);
+#endif
+#ifdef SUIDROOT
+    (void) chmod(wp->tty, 0666);
+    (void) chown(wp->tty, 0, 0);
+#endif
+    close(wp->ptyfd);
+    if (wp->logfp != NULL)
+	fclose(wp->logfp);
     for (i = 0; i < rows; ++i) {
-	free (wp->image[i]);
-	free (wp->attr[i]);
-	free (wp->font[i]);
+	Free(wp->image[i]);
+	Free(wp->attr[i]);
+	Free(wp->font[i]);
     }
-    free (wp->image);
-    free (wp->attr);
-    free (wp->font);
-    free (wp);
+    Free(wp->tabs);
+    Free((char *)wp->image);
+    Free((char *)wp->attr);
+    Free((char *)wp->font);
+    free((char *)wp);
 }
 
-static MakeWindow (prog, args, aflag, StartAt, dir, cmd)
-	char *prog, **args, *dir, *cmd; {
+static MakeWindow(prog, args, aflag, flowflag, StartAt, dir, lflag)
+	char *prog, **args, *dir; {
     register struct win **pp, *p;
     register char **cp;
     register n, f;
@@ -794,106 +1087,163 @@ static MakeWindow (prog, args, aflag, StartAt, dir, cmd)
 	    pp = wtab;
     } while (pp != wtab+StartAt);
     if (*pp) {
-	Msg (0, "No more windows.");
+	Msg(0, "No more windows.");
 	return -1;
     }
+
+#ifdef USRLIMIT
+    /*
+     *	Count current number of users, if logging windows in.
+     */
+    if (lflag == 1) {
+	(void) lseek(utmpf, (off_t)0, 0);
+	UserCount = 0;
+	while (read(utmpf, &utmpbuf, sizeof (struct utmp)) > 0) {
+	    if (utmpbuf.ut_name[0] != '\0')
+			UserCount++;
+	}
+	if (UserCount >= USRLIMIT) {
+	    Msg(0, "User limit reached.  Window will not be logged in.");
+	    lflag = 0;
+	}
+    }
+#endif
+
     n = pp - wtab;
-    if ((f = OpenPTY ()) == -1) {
-	Msg (0, "No more PTYs.");
+    if ((f = OpenPTY()) == -1) {
+	Msg(0, "No more PTYs.");
 	return -1;
     }
-    (void) fcntl (f, F_SETFL, FNDELAY);
-    if ((p = *pp = (struct win *)malloc (sizeof (struct win))) == 0) {
+    (void) fcntl(f, F_SETFL, FNDELAY);
+    if ((p = (struct win *)malloc(sizeof (struct win))) == 0) {
+	close(f);
+	Msg(0, "Out of memory.");
+	return -1;
+    }
+    bzero((char *)p, (int)sizeof (struct win));
+    p->ptyfd = f;
+    p->aflag = aflag;
+    if (!flowflag)
+	flowflag = flowctl;
+    p->flow = (flowflag != 1);
+    p->autoflow = (flowflag == 3);
+    if (!prog)
+	prog = Filename(args[0]);
+    strncpy(p->cmd, prog, MAXSTR-1);
+    if ((prog = rindex(p->cmd, '|')) != NULL) {
+	*prog++ = '\0';
+	prog += strlen(prog);
+	strcpy(prog,"(init)");
+	p->akapos = prog - p->cmd;
+	p->autoaka = 0;
+    } else
+	p->akapos = 0;
+    strncpy(p->tty, TtyName, MAXSTR-1);
+#ifdef SUIDROOT
+    (void) chown(TtyName, real_uid, real_gid);
+# ifdef UTMPOK
+    (void) chmod(TtyName, lflag ? TtyMode : (TtyMode & ~022));
+# else
+    (void) chmod(TtyName, TtyMode);
+# endif
+#endif
+#ifdef UTMPOK
+    if (lflag == 1)
+	p->slot = SetUtmp(TtyName);
+    else
+	p->slot = -1;
+#endif
+
+    if ((p->image = (char **)malloc((unsigned)rows * sizeof (char *))) == 0) {
 nomem:
-	Msg (0, "Out of memory.");
+	FreeWindow(p);
+	Msg(0, "Out of memory.");
 	return -1;
     }
-    if ((p->image = (char **)malloc (rows * sizeof (char *))) == 0)
-	goto nomem;
     for (cp = p->image; cp < p->image+rows; ++cp) {
-	if ((*cp = malloc (cols)) == 0)
+	if ((*cp = malloc((unsigned)maxwidth)) == 0)
 	    goto nomem;
-	bclear (*cp, cols);
+	bclear(*cp, maxwidth);
     }
-    if ((p->attr = (char **)malloc (rows * sizeof (char *))) == 0)
+    if ((p->attr = (char **)malloc((unsigned)rows * sizeof (char *))) == 0)
 	goto nomem;
     for (cp = p->attr; cp < p->attr+rows; ++cp) {
-	if ((*cp = malloc (cols)) == 0)
+	if ((*cp = malloc((unsigned)maxwidth)) == 0)
 	    goto nomem;
-	bzero (*cp, cols);
+	bzero(*cp, maxwidth);
     }
-    if ((p->font = (char **)malloc (rows * sizeof (char *))) == 0)
+    if ((p->font = (char **)malloc((unsigned)rows * sizeof (char *))) == 0)
 	goto nomem;
     for (cp = p->font; cp < p->font+rows; ++cp) {
-	if ((*cp = malloc (cols)) == 0)
+	if ((*cp = malloc((unsigned)maxwidth)) == 0)
 	    goto nomem;
-	bzero (*cp, cols);
+	bzero(*cp, maxwidth);
     }
-    if ((p->tabs = malloc (cols+1)) == 0)  /* +1 because 0 <= x <= cols */
+    /* tabs get maxwidth+1 because 0 <= x <= maxwidth */
+    if ((p->tabs = malloc((unsigned)maxwidth+1)) == 0)
 	goto nomem;
-    ResetScreen (p);
-    p->aflag = aflag;
-    p->active = 0;
-    p->bell = 0;
-    p->outlen = 0;
-    p->ptyfd = f;
-    strncpy (p->cmd, cmd ? cmd : Filename (args[0]), MAXSTR-1);
-    p->cmd[MAXSTR-1] = '\0';
-    strncpy (p->tty, TtyName, MAXSTR-1);
-    (void) chown (TtyName, getuid (), getgid ());
-    (void) chmod (TtyName, TtyMode);
-    p->slot = SetUtmp (TtyName);
-    switch (p->wpid = fork ()) {
+    p->width = default_width;
+    ResetScreen(p);
+    switch (p->wpid = fork()) {
     case -1:
-	Msg (errno, "fork");
-	free ((char *)p);
+	Msg(errno, "fork");
+	FreeWindow(p);
 	return -1;
     case 0:
-	signal (SIGHUP, SIG_DFL);
-	signal (SIGINT, SIG_DFL);
-	signal (SIGQUIT, SIG_DFL);
-	signal (SIGTERM, SIG_DFL);
-	signal (SIGTTIN, SIG_DFL);
-	signal (SIGTTOU, SIG_DFL);
-	setuid (getuid ());
-	setgid (getgid ());
-	if (dir && chdir (dir) == -1) {
-	    SendErrorMsg ("Cannot chdir to %s: %s", dir, sys_errlist[errno]);
-	    exit (1);
+	signal(SIGHUP, SIG_DFL);
+	signal(SIGINT, SIG_DFL);
+	signal(SIGQUIT, SIG_DFL);
+	signal(SIGTERM, SIG_DFL);
+	signal(SIGTTIN, SIG_DFL);
+	signal(SIGTTOU, SIG_DFL);
+	setuid(real_uid);
+	setgid(real_gid);
+	if (dir && chdir(dir) == -1) {
+	    SendErrorMsg("Cannot chdir to %s: %s", dir, sys_errlist[errno]);
+	    exit(1);
 	}
-	mypid = getpid ();
-	ioctl (DevTty, TIOCNOTTY, (char *)0);
-	if ((tf = open (TtyName, O_RDWR)) == -1) {
-	    SendErrorMsg ("Cannot open %s: %s", TtyName, sys_errlist[errno]);
-	    exit (1);
+	mypid = getpid();
+	ioctl(DevTty, TIOCNOTTY, (char *)0);
+	if ((tf = open(TtyName, O_RDWR)) == -1) {
+	    SendErrorMsg("Cannot open %s: %s", TtyName, sys_errlist[errno]);
+	    exit(1);
 	}
-	(void) dup2 (tf, 0);
-	(void) dup2 (tf, 1);
-	(void) dup2 (tf, 2);
-	for (f = getdtablesize () - 1; f > 2; f--)
-	    close (f);
-	ioctl (0, TIOCSPGRP, &mypid);
-	(void) setpgrp (0, mypid);
-	SetTTY (0, &OldMode);
-	NewEnv[2] = MakeTermcap (aflag);
-	sprintf (ebuf, "WINDOW=%d", n);
+	(void) dup2(tf, 0);
+	(void) dup2(tf, 1);
+	(void) dup2(tf, 2);
+	for (f = getdtablesize() - 1; f > 2; f--)
+	    close(f);
+	ioctl(0, TIOCSPGRP, &mypid);
+	(void) setpgrp(0, mypid);
+	SetTTY(0, &OldMode);
+	NewEnv[2] = MakeTermcap(aflag);
+	sprintf(ebuf, "WINDOW=%d", n);
 	NewEnv[3] = ebuf;
-	execvpe (prog, args, NewEnv);
-	SendErrorMsg ("Cannot exec %s: %s", prog, sys_errlist[errno]);
-	exit (1);
+	execvpe(*args, args, NewEnv);
+	SendErrorMsg("Cannot exec %s: %s", *args, sys_errlist[errno]);
+	exit(1);
     }
+    /*
+     * Place the newly created window at the head of the most-recently-used
+     * list.  Since this spot is reserved for the foreground window, you MUST
+     * call SetForeWindow (with "n" or "ForeNum") when you finish creating
+     * your windows.
+     */
+    *pp = p;
+    p->WinLink = WinList;
+    WinList = n;
     return n;
 }
 
-static execvpe (prog, args, env) char *prog, **args, **env; {
+static execvpe(prog, args, env) char *prog, **args, **env; {
     register char *path, *p;
     char buf[1024];
     char *shargs[MAXARGS+1];
     register i, eaccess = 0;
 
-    if (index (prog, '/'))
+    if (prog[0] == '/')
 	path = "";
-    else if ((path = getenv ("PATH")) == 0)
+    else if ((path = getenv("PATH")) == 0)
 	path = DefaultPath;
     do {
 	p = buf;
@@ -901,17 +1251,17 @@ static execvpe (prog, args, env) char *prog, **args, **env; {
 	    *p++ = *path++;
 	if (p > buf)
 	    *p++ = '/';
-	strcpy (p, prog);
+	strcpy(p, prog);
 	if (*path)
 	    ++path;
-	execve (buf, args, env);
+	execve(buf, args, env);
 	switch (errno) {
 	case ENOEXEC:
 	    shargs[0] = DefaultShell;
 	    shargs[1] = buf;
 	    for (i = 1; shargs[i+1] = args[i]; ++i)
 		;
-	    execve (DefaultShell, shargs, env);
+	    execve(DefaultShell, shargs, env);
 	    return;
 	case EACCES:
 	    eaccess = 1;
@@ -924,168 +1274,319 @@ static execvpe (prog, args, env) char *prog, **args, **env; {
 	errno = EACCES;
 }
 
-static WriteFile (dump) {   /* dump==0: create .termcap, dump==1: hardcopy */
+static WriteFile(dump) {   /* dump==0: create .termcap, dump==1: hardcopy */
     register i, j, k;
     register char *p;
     register FILE *f;
     char fn[1024];
-    int pid, s;
 
     if (dump)
-	sprintf (fn, "hardcopy.%d", CurrNum);
+	sprintf(fn, "hardcopy.%d", ForeNum);
     else
-	sprintf (fn, "%s/%s/.termcap", home, SockDir);
-    switch (pid = fork ()) {
-    case -1:
-	Msg (errno, "fork");
-	return;
-    case 0:
-	setuid (getuid ());
-	setgid (getgid ());
-	if ((f = fopen (fn, "w")) == NULL)
-	    exit (1);
-	if (dump) {
-	    for (i = 0; i < rows; ++i) {
-		p = curr->image[i];
-		for (k = cols-1; k >= 0 && p[k] == ' '; --k) ;
-		for (j = 0; j <= k; ++j)
-		    putc (p[j], f);
-		putc ('\n', f);
+#ifdef SOCKDIR
+	sprintf(fn, "%s/S-%s/.termcap", SockDir, LoginName);
+#else
+	sprintf(fn, "%s/%s/.termcap", home, SockDir);
+#endif
+    if (UserContext() > 0) {
+	if ((f = fopen(fn, "w")) == NULL)
+	    UserReturn(0);
+	else {
+	    if (dump) {
+		cols = fore->width;
+		for (i = 0; i < rows; ++i) {
+		    p = fore->image[i];
+		    for (k = cols-1; k >= 0 && p[k] == ' '; --k)
+			;
+		    for (j = 0; j <= k; ++j)
+			putc(p[j], f);
+		    putc('\n', f);
+		}
+	    } else {
+		if (p = index(MakeTermcap(fore->aflag), '=')) {
+		    fputs(++p, f);
+		    putc('\n', f);
+		}
 	    }
-	} else {
-	    if (p = index (MakeTermcap (curr->aflag), '=')) {
-		fputs (++p, f);
-		putc ('\n', f);
-	    }
+	    (void) fclose(f);
+	    UserReturn(1);
 	}
-	(void) fclose (f);
-	exit (0);
-    default:
-	while ((i = wait (&s)) != pid)
-	    if (i == -1) return;
-	if ((s >> 8) & 0377)
-	    Msg (0, "Cannot open \"%s\".", fn);
-	else
-	    Msg (0, "%s written to \"%s\".", dump ? "Screen image" :
-		"Termcap entry", fn);
     }
+    if (!UserStatus())
+	Msg(0, "Cannot open \"%s\"", fn);
+    else
+	Msg(0, "%s written to \"%s\"", dump ? "Screen image" :
+		"Termcap entry", fn);
 }
 
-static ShowWindows () {
+#ifndef NOREUID
+static LogToggle() {
+    char buf[1024];
+    int n;
+
+    sprintf(buf, "screenlog.%d", ForeNum);
+
+    if (fore->logfp != NULL) {
+	Msg(0, "Logfile \"%s\" closed.", buf);
+	fclose(fore->logfp);
+	fore->logfp = NULL;
+	return;
+    }
+    if (UserContext() > 0) {
+	if ((fore->logfp = fopen(buf, "a")) == NULL)
+	    UserReturn(0);
+	else if (ftell(fore->logfp) == 0)
+	    UserReturn(1);
+	else
+	    UserReturn(2);
+    }
+    if (!(n = UserStatus()))
+	Msg(0, "Error opening logfile \"%s\"", buf);
+    else
+	Msg(0, "%s logfile \"%s\"", n == 1? "Creating" : "Appending to", buf);
+}
+#endif
+
+#ifdef NOREUID
+int UserPID;
+#else
+int UserSTAT;
+#endif
+
+int UserContext() {
+#ifdef NOREUID
+    switch (UserPID = fork()) {
+    case -1:
+	Msg(errno, "fork");
+	return -1;
+    case 0:
+	signal(SIGHUP, SIG_DFL);
+	signal(SIGINT, SIG_IGN);
+	signal(SIGQUIT, SIG_DFL);
+	signal(SIGTERM, SIG_DFL);
+	signal(SIGTTIN, SIG_DFL);
+	signal(SIGTTOU, SIG_DFL);
+	setuid(real_uid);
+	setgid(real_gid);
+	return 1;
+    default:
+	return 0;
+    }
+#else
+    setreuid(eff_uid,real_uid);
+    setregid(eff_gid,real_gid);
+    return 1;
+#endif
+}
+
+UserReturn(val) {
+#if defined(SUIDROOT) && defined(NOREUID)
+    exit(val);
+#else
+    setreuid(real_uid,eff_uid);
+    setregid(real_gid,eff_gid);
+    UserSTAT = val;
+#endif
+}
+
+int UserStatus() {
+#ifdef NOREUID
+    int i, s;
+
+    if (UserPID < 0)
+	return 0;
+    while ((i = wait(&s)) != UserPID)
+	if (i == -1)
+	    return 0;
+    return ((s >> 8) & 0377);
+#else
+    return UserSTAT;
+#endif
+}
+
+static ShowWindows() {
     char buf[1024];
     register char *s;
     register struct win **pp, *p;
+    register i, OtherNum = fore->WinLink;
+    register char *cmd;
 
-    for (s = buf, pp = wtab; pp < wtab+MAXWIN; ++pp) {
+    for (i = 0, s = buf, pp = wtab; pp < wtab+MAXWIN; ++i, ++pp) {
 	if ((p = *pp) == 0)
 	    continue;
-	if (s - buf + 5 + strlen (p->cmd) > cols-1)
+
+	if (p->akapos) {
+	    if (*(p->cmd+p->akapos) && *(p->cmd+p->akapos-1) != ':')
+		cmd = p->cmd + p->akapos;
+	    else
+		cmd = p->cmd + strlen(p->cmd)+1;
+	} else
+		cmd = p->cmd;
+	if (s - buf + 5 + strlen(cmd) > fore->width-1)
 	    break;
 	if (s > buf) {
 	    *s++ = ' '; *s++ = ' ';
 	}
-	*s++ = pp - wtab + '0';
-	if (p == curr)
+	*s++ = i + '0';
+	if (i == ForeNum)
 	    *s++ = '*';
-	else if (p == other)
+	else if (i == OtherNum)
 	    *s++ = '-';
+	if (p->monitor == MON_DONE)
+	    *s++ = '@';
+	if (p->bell == BELL_DONE)
+	    *s++ = '!';
+#ifdef UTMPOK
+	if (p->slot != -1)
+	    *s++ = '$';
+#endif
+	if (p->logfp != NULL) {
+	    strcpy(s, "(L)");
+	    s += 3;
+	}
 	*s++ = ' ';
-	strcpy (s, p->cmd);
-	s += strlen (s);
+	strcpy(s, cmd);
+	s += strlen(s);
     }
-    Msg (0, buf);
+    *s++ = ' ';
+    *s = '\0';
+    Msg(0, "%s", buf);
 }
 
-static ShowInfo () {
-    char buf[1024], *p;
-    register struct win *wp = curr;
-    register i;
+static ShowTime() {
+    char buf[512];
+#ifdef LOADAV
+    char *p;
+#endif
     struct tm *tp;
     time_t now;
 
-    time (&now);
-    tp = localtime (&now);
-    sprintf (buf, "%2d:%02.2d:%02.2d %s", tp->tm_hour, tp->tm_min, tp->tm_sec,
+    (void) time(&now);
+    tp = localtime(&now);
+    sprintf(buf, "%2d:%02.2d:%02.2d %s", tp->tm_hour, tp->tm_min, tp->tm_sec,
 	HostName);
 #ifdef LOADAV
-    if (avenrun && GetAvenrun ()) {
-	p = buf + strlen (buf);
-#ifdef SUNLOADAV
-	sprintf (p, " %2.2f %2.2f %2.2f", (double)loadav[0]/FSCALE,
+    if (avenrun && GetAvenrun()) {
+	p = buf + strlen(buf);
+#ifdef LOADAV_3LONGS
+	sprintf(p, " %2.2f %2.2f %2.2f", (double)loadav[0]/FSCALE,
 	    (double)loadav[1]/FSCALE, (double)loadav[2]/FSCALE);
 #else
-#ifdef alliant
-	sprintf (p, " %2.2f %2.2f %2.2f %2.2f", (double)loadav[0]/100,
+#ifdef LOADAV_4LONGS
+	sprintf(p, " %2.2f %2.2f %2.2f %2.2f", (double)loadav[0]/100,
 	    (double)loadav[1]/100, (double)loadav[2]/100,
 	    (double)loadav[3]/100);
 #else
-	sprintf (p, " %2.2f %2.2f %2.2f", loadav[0], loadav[1], loadav[2]);
+	sprintf(p, " %2.2f %2.2f %2.2f", loadav[0], loadav[1], loadav[2]);
 #endif
 #endif
     }
 #endif
-    p = buf + strlen (buf);
-    sprintf (p, " (%d,%d) %cflow %cins %corg %cwrap %cpad", wp->y, wp->x,
-	flowctl ? '+' : '-',
+    Msg(0, "%s", buf);
+}
+
+static ShowInfo() {
+    char buf[512], *p;
+    register struct win *wp = fore;
+    register i;
+
+    sprintf(buf, "(%d,%d) %dcol %cflow%s %cins %corg %cwrap %capp %clog %cmon",
+	wp->y+1, wp->x+1, wp->width,
+	wp->flow ? '+' : '-', wp->autoflow ? "(auto)" : "",
 	wp->insert ? '+' : '-', wp->origin ? '+' : '-',
-	wp->wrap ? '+' : '-', wp->keypad ? '+' : '-');
+	wp->wrap ? '+' : '-', wp->keypad ? '+' : '-',
+	(wp->logfp != NULL) ? '+' : '-',
+	(wp->monitor != MON_OFF) ? '+' : '-');
     if (ISO2022) {
-	p = buf + strlen (buf);
-	sprintf (p, " G%1d [", wp->LocalCharset);
+	p = buf + strlen(buf);
+	sprintf(p, " G%1d [", wp->LocalCharset);
 	for (i = 0; i < 4; i++)
 	    p[i+5] = wp->charsets[i] ? wp->charsets[i] : 'B';
 	p[9] = ']';
 	p[10] = '\0';
     }
-    Msg (0, buf);
+    Msg(0, "%s", buf);
 }
 
-static OpenPTY () {
+#ifdef sequent
+
+static OpenPTY() {
+	char *m, *s;
+	register f;
+	f = getpseudotty(&s, &m);
+	strncpy(PtyName, m, sizeof PtyName);
+	strncpy(TtyName, s, sizeof TtyName);
+	(void) ioctl(f, TIOCFLUSH, (char *)0);
+#ifdef LOCKPTY
+	(void) ioctl(f, TIOCEXCL, (char *)0);
+#endif
+	return(f);
+}
+
+#else
+
+static OpenPTY() {
     register char *p, *l, *d;
     register i, f, tf;
 
-    strcpy (PtyName, PtyProto);
-    strcpy (TtyName, TtyProto);
-    for (p = PtyName, i = 0; *p != 'X'; ++p, ++i) ;
+    strcpy(PtyName, PtyProto);
+    strcpy(TtyName, TtyProto);
+    for (p = PtyName, i = 0; *p != 'X'; ++p, ++i)
+	;
+#ifdef sequent
+    for (l = "p"; *p = *l; ++l) { /*}*/
+	for (d = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"; p[1] = *d; ++d) { /*}*/
+#else
     for (l = "qpr"; *p = *l; ++l) {
 	for (d = "0123456789abcdef"; p[1] = *d; ++d) {
-	    if ((f = open (PtyName, O_RDWR)) != -1) {
+#endif
+	    if ((f = open(PtyName, O_RDWR)) != -1) {
 		TtyName[i] = p[0];
 		TtyName[i+1] = p[1];
-		if ((tf = open (TtyName, O_RDWR)) != -1) {
-		    close (tf);
+		if ((tf = open(TtyName, O_RDWR)) != -1) {
+		    close(tf);
+#ifdef LOCKPTY
+		    (void) ioctl(f, TIOCEXCL, (char *)0);
+#endif
 		    return f;
 		}
-		close (f);
+		close(f);
 	    }
 	}
     }
     return -1;
 }
+#endif
 
-static SetTTY (fd, mp) struct mode *mp; {
-    ioctl (fd, TIOCSETP, &mp->m_ttyb);
-    ioctl (fd, TIOCSETC, &mp->m_tchars);
-    ioctl (fd, TIOCSLTC, &mp->m_ltchars);
-    ioctl (fd, TIOCLSET, &mp->m_lmode);
-    ioctl (fd, TIOCSETD, &mp->m_ldisc);
+static SetTTY(fd, mp) struct mode *mp; {
+    ioctl(fd, TIOCSETP, &mp->m_ttyb);
+    ioctl(fd, TIOCSETC, &mp->m_tchars);
+    ioctl(fd, TIOCSLTC, &mp->m_ltchars);
+    ioctl(fd, TIOCLSET, &mp->m_lmode);
+    ioctl(fd, TIOCSETD, &mp->m_ldisc);
 }
 
-static GetTTY (fd, mp) struct mode *mp; {
-    ioctl (fd, TIOCGETP, &mp->m_ttyb);
-    ioctl (fd, TIOCGETC, &mp->m_tchars);
-    ioctl (fd, TIOCGLTC, &mp->m_ltchars);
-    ioctl (fd, TIOCLGET, &mp->m_lmode);
-    ioctl (fd, TIOCGETD, &mp->m_ldisc);
+static GetTTY(fd, mp) struct mode *mp; {
+    ioctl(fd, TIOCGETP, &mp->m_ttyb);
+    ioctl(fd, TIOCGETC, &mp->m_tchars);
+    ioctl(fd, TIOCGLTC, &mp->m_ltchars);
+    ioctl(fd, TIOCLGET, &mp->m_lmode);
+    ioctl(fd, TIOCGETD, &mp->m_ldisc);
 }
 
-static SetMode (op, np) struct mode *op, *np; {
+static SetMode(op, np) struct mode *op, *np; {
     *np = *op;
+    startc = op->m_tchars.t_startc;
+    stopc = op->m_tchars.t_stopc;
+    if (iflag)
+	intrc = op->m_tchars.t_intrc;
+    else
+	intrc = np->m_tchars.t_intrc = -1;
     np->m_ttyb.sg_flags &= ~(CRMOD|ECHO);
     np->m_ttyb.sg_flags |= CBREAK;
-    np->m_tchars.t_intrc = -1;
     np->m_tchars.t_quitc = -1;
-    if (!flowctl) {
+    if (flowctl == 1) {
+	np->m_tchars.t_intrc = -1;
 	np->m_tchars.t_startc = -1;
 	np->m_tchars.t_stopc = -1;
     }
@@ -1095,194 +1596,242 @@ static SetMode (op, np) struct mode *op, *np; {
     np->m_ltchars.t_lnextc = -1;
 }
 
-static char *GetTtyName () {
+SetFlow(on) {
+    if (on) {
+	NewMode.m_tchars.t_intrc  = intrc;
+	NewMode.m_tchars.t_startc = startc;
+	NewMode.m_tchars.t_stopc  = stopc;
+    } else {
+	NewMode.m_tchars.t_intrc  = -1;
+	NewMode.m_tchars.t_startc = -1;
+	NewMode.m_tchars.t_stopc  = -1;
+    }
+    ioctl(0, TIOCSETC, &NewMode.m_tchars);
+}
+
+static char *GetTtyName() {
     register char *p;
     register n;
 
-    for (p = 0, n = 0; n <= 2 && !(p = ttyname (n)); n++)
+    for (p = 0, n = 0; n <= 2 && !(p = ttyname(n)); n++)
 	;
     if (!p || *p == '\0')
-	Msg (0, "screen must run on a tty.");
+	Msg(0, "screen must run on a tty.");
     return p;
 }
 
-static Attach (how) {
+static Attach(how) {
     register s, lasts, found = 0;
     register DIR *dirp;
-    register struct direct *dp;
+    register DIRENT *dp;
     struct msg m;
+    struct stat st;
     char last[MAXNAMLEN+1];
 
     if (SockName) {
-	if ((lasts = MakeClientSocket (0)) == -1)
+	if ((lasts = MakeClientSocket(0)) == -1)
 	    if (how == MSG_CONT)
-		Msg (0,
-		    "This screen has already been continued from elsewhere.");
+		Msg(0, "Attach failed.");
 	    else
-		Msg (0, "There is no screen to be resumed from %s.", SockName);
+		Msg(0, "There is no screen to be resumed from %s.", SockName);
+	if (stat(SockPath, &st) == -1)
+	    Msg(errno, "stat");
+	if ((st.st_mode & 0700) != 0600)
+	    Msg(0, "That screen is not detached.");
     } else {
-#ifdef SUN_NFS_HACK
-	SetRealUID ();
+#ifdef NFS_HACK
+	setreuid(eff_uid, real_uid);
 #endif
-	if ((dirp = opendir (SockPath)) == NULL)
-	    Msg (0, "Cannot open %s", SockPath);
-	while ((dp = readdir (dirp)) != NULL) {
+	if ((dirp = opendir(SockPath)) == NULL)
+	    Msg(0, "Cannot open %s", SockPath);
+	while ((dp = readdir(dirp)) != NULL) {
 	    SockName = dp->d_name;
 	    if (SockName[0] == '.')
 		continue;
-	    if ((s = MakeClientSocket (0)) != -1) {
+	    if ((s = MakeClientSocket(0)) != -1) {
+		if (stat(SockPath, &st) == -1)
+		    Msg(errno, "stat");
+		if ((st.st_mode & 0700) != 0600) {
+		    close(s);
+		    continue;
+		}
 		if (found == 0) {
-		    strcpy (last, SockName);
+		    strcpy(last, SockName);
 		    lasts = s;
 		} else {
 		    if (found == 1) {
-			printf ("There are detached screens on:\n");
-			printf ("   %s\n", last);
-			close (lasts);
+			printf("There are detached screens on:\n");
+			printf("   %s\n", last);
+			close(lasts);
 		    }
-		    printf ("   %s\n", SockName);
-		    close (s);
+		    printf("   %s\n", SockName);
+		    close(s);
 		}
 		found++;
+		if (rflag == 2)
+		    break;
 	    }
 	}
-	if (found == 0)
-	    Msg (0, "There is no screen to be resumed.");
-	if (found > 1)
-	    Msg (0, "Type \"screen -r host.tty\" to resume one of them.");
-	closedir (dirp);
-	strcpy (SockNamePtr, last);
-	SockName = SockNamePtr;
-#ifdef SUN_NFS_HACK
-	SetEffectiveUID ();
+	closedir(dirp);
+#ifdef NFS_HACK
+	setreuid(real_uid, eff_uid);
 #endif
+	if (found == 0) {
+	    if (rflag == 2)
+		return 0;
+	    else
+		Msg(0, "There is no screen to be resumed.");
+	}
+	if (found > 1)
+	    Msg(0, "Type \"screen -r host.tty\" to resume one of them.");
+	strcpy(SockNamePtr, last);
+	SockName = SockNamePtr;
     }
     m.type = how;
-    strcpy (m.m.attach.tty, myterm);
-    m.m.attach.apid = mypid;
-    if (write (lasts, (char *)&m, sizeof (m)) != sizeof (m))
-	Msg (errno, "write");
+    strcpy(m.m.attach.tty, GetTtyName());
+    m.m.attach.apid = getpid();
+    if (write(lasts, (char *)&m, sizeof m) != sizeof m)
+	Msg(errno, "write");
+    return 1;
 }
 
-static AttacherFinit () {
-    exit (0);
+static sig_t AttacherFinit() {
+    exit(0);
 }
 
-static ReAttach () {
-    Attach (MSG_CONT);
+static sig_t SigStop() {
+    Suspended = 1;
+    return;
 }
 
-static Attacher () {
-    signal (SIGHUP, AttacherFinit);
-    signal (SIGCONT, ReAttach);
-    while (1)
-	pause ();
+static Attacher() {
+    signal(SIGHUP, AttacherFinit);
+    signal(SIGINT, SIG_IGN);
+    signal(SIGTSTP, SigStop);
+    while (1) {
+	pause();
+	if (Suspended) {
+	    signal(SIGTSTP, SIG_DFL);
+	    kill(getpid(), SIGTSTP);
+
+	    signal(SIGTSTP, SigStop);
+	    (void) Attach(MSG_CONT);
+	    Suspended = 0;
+	}
+    }
 }
 
-static Detach (suspend) {
-    register struct win **pp;
+static Detach(suspend) {
+#ifdef UTMPOK
+    register n;
+#endif
 
     if (Detached)
 	return;
-    signal (SIGHUP, SIG_IGN);
-    SetTTY (0, &OldMode);
-    FinitTerm ();
+    if (status)
+	RemoveStatus();
+    signal(SIGHUP, SIG_IGN);
+    SetTTY(0, &OldMode);
+    FinitTerm();
     if (suspend) {
-	Kill (AttacherPid, SIGTSTP);
+	(void) fflush(stdout);
+	Kill(AttacherPid, SIGTSTP);
     } else {
-	for (pp = wtab; pp < wtab+MAXWIN; ++pp)
-	    if (*pp) RemoveUtmp ((*pp)->slot);
-	printf ("\n[detached]\n");
-	Kill (AttacherPid, SIGHUP);
+#ifdef UTMPOK
+	for (n = WinList; n != -1; n = wtab[n]->WinLink)
+	    if (wtab[n]->slot != -1)
+		RemoveUtmp(wtab[n]->slot);
+#endif
+	printf("\n[detached]\n");
+	Kill(AttacherPid, SIGHUP);
 	AttacherPid = 0;
     }
-    close (0);
-    close (1);
-    close (2);
-    ioctl (DevTty, TIOCNOTTY, (char *)0);
+    close(0);
+    close(1);
+    close(2);
+    ioctl(DevTty, TIOCNOTTY,(char *)0);
+    close(DevTty);
+    (void) chmod(SockPath, S_IFSOCK|0600);	/* Flag detached-ness */
     Detached = 1;
-    do {
-	ReceiveMsg (ServerSocket); 
-    } while (Detached);
-    if (!suspend)
-	for (pp = wtab; pp < wtab+MAXWIN; ++pp)
-	    if (*pp) (*pp)->slot = SetUtmp ((*pp)->tty);
-    signal (SIGHUP, SigHup);
+    Suspended = suspend;
+    if (help_page)
+	help_page = 0;
+    fore->active = 0;
 }
 
-static Kill (pid, sig) {
+static Kill(pid, sig) {
     if (pid != 0)
-	(void) kill (pid, sig);
+	(void) kill(pid, sig);
+    return;
 }
 
-static GetSockName () {
+static GetSockName() {
     register client;
     static char buf[2*MAXSTR];
 
-    if (!mflag && (SockName = getenv ("STY")) != 0 && *SockName != '\0') {
+    if (!mflag && (SockName = getenv("STY")) != 0 && *SockName != '\0') {
 	client = 1;
-	setuid (getuid ());
-	setgid (getgid ());
+	setuid(real_uid);
+	setgid(real_gid);
     } else {
-	sprintf (buf, "%s.%s", HostName, Filename (GetTtyName ()));
+	sprintf(buf, "%s.%s", HostName, Filename(GetTtyName()));
 	SockName = buf;
 	client = 0;
     }
     return client;
 }
 
-static MakeServerSocket () {
+static MakeServerSocket() {
     register s;
     struct sockaddr_un a;
-    char *p;
+    struct stat st;
 
-    if ((s = socket (AF_UNIX, SOCK_STREAM, 0)) == -1)
-	Msg (errno, "socket");
+    if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+	Msg(errno, "socket");
     a.sun_family = AF_UNIX;
-    strcpy (SockNamePtr, SockName);
-    strcpy (a.sun_path, SockPath);
-    if (connect (s, (struct sockaddr *)&a, strlen (SockPath)+2) != -1) {
-	p = Filename (SockPath);
-	Msg (0, "You have already a screen running on %s.\n\
-If it has been detached, try \"screen -r\".", p);
+    strcpy(SockNamePtr, SockName);
+    strcpy(a.sun_path, SockPath);
+    if (connect(s, (struct sockaddr *)&a, strlen(SockPath)+2) != -1) {
+	printf("There is already a screen running on %s.\n",Filename(SockPath));
+	if (stat(SockPath, &st) == -1)
+	    Msg(errno, "stat");
+	if ((st.st_mode & 0700) == 0600)
+	    Msg(0, "To resume it, use \"screen -r\"");
+	else
+	    Msg(0, "It is not detached.");
 	/*NOTREACHED*/
     }
-#ifdef SUN_NFS_HACK
-    SetRealUID ();
-#endif
-    (void) unlink (SockPath);
-    if (bind (s, (struct sockaddr *)&a, strlen (SockPath)+2) == -1)
-	Msg (errno, "bind");
-#ifdef SUN_NFS_HACK
-    SetEffectiveUID ();
-#endif
-    (void) chown (SockPath, getuid (), getgid ());
-    if (listen (s, 5) == -1)
-	Msg (errno, "listen");
+    (void) unlink(SockPath);
+    if (bind(s, (struct sockaddr *)&a, strlen(SockPath)+2) == -1)
+	Msg(errno, "bind");
+    (void) chown(SockPath, real_uid, real_gid);
+    (void) chmod(SockPath, S_IFSOCK|0700);
+    if (listen(s, 5) == -1)
+	Msg(errno, "listen");
     return s;
 }
 
-static MakeClientSocket (err) {
+static MakeClientSocket(err) {
     register s;
     struct sockaddr_un a;
 
-    if ((s = socket (AF_UNIX, SOCK_STREAM, 0)) == -1)
-	Msg (errno, "socket");
+    if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+	Msg(errno, "socket");
     a.sun_family = AF_UNIX;
-    strcpy (SockNamePtr, SockName);
-    strcpy (a.sun_path, SockPath);
-    if (connect (s, (struct sockaddr *)&a, strlen (SockPath)+2) == -1) {
-	if (err) {
-	    Msg (errno, "connect: %s", SockPath);
-	} else {
-	    close (s);
+    strcpy(SockNamePtr, SockName);
+    strcpy(a.sun_path, SockPath);
+    if (connect(s, (struct sockaddr *)&a, strlen(SockPath)+2) == -1) {
+	if (err)
+	    Msg(errno, "connect: %s", SockPath);
+	else {
+	    close(s);
 	    return -1;
 	}
     }
     return s;
 }
 
-static SendCreateMsg (s, ac, av, aflag) char **av; {
+static SendCreateMsg(s, ac, av, aflag, flowflag, lflag) char **av; {
     struct msg m;
     register char *p;
     register len, n;
@@ -1290,59 +1839,77 @@ static SendCreateMsg (s, ac, av, aflag) char **av; {
     m.type = MSG_CREATE;
     p = m.m.create.line;
     for (n = 0; ac > 0 && n < MAXARGS-1; ++av, --ac, ++n) {
-	len = strlen (*av) + 1;
-	if (p + len >= m.m.create.line+MAXLINE)
+	len = strlen(*av) + 1;
+	if (p + len >= m.m.create.line+MAXLINE-1)
 	    break;
-	strcpy (p, *av);
+	strcpy(p, *av);
 	p += len;
     }
+    if (!ac && *av && p+strlen(*av)+1 < m.m.create.line+MAXLINE)
+	strcpy(p, *av);
+    else
+	*p = '\0';
     m.m.create.nargs = n;
     m.m.create.aflag = aflag;
-    if (getwd (m.m.create.dir) == 0)
-	Msg (0, "%s", m.m.create.dir);
-    if (write (s, (char *)&m, sizeof (m)) != sizeof (m))
-	Msg (errno, "write");
+    m.m.create.flowflag = flowflag;
+    m.m.create.lflag = lflag;
+    if (getwd(m.m.create.dir) == 0)
+	Msg(0, "%s", m.m.create.dir);
+    if (write(s, (char *)&m, sizeof m) != sizeof m)
+	Msg(errno, "write");
 }
 
+#ifdef USEVARARGS
 /*VARARGS1*/
-static SendErrorMsg (fmt, p1, p2, p3, p4, p5, p6) char *fmt; {
+static SendErrorMsg(fmt, va_alist) char *fmt; va_dcl {
+    static va_list ap = 0;
+#else
+/*VARARGS1*/
+static SendErrorMsg(fmt, p1, p2, p3, p4, p5, p6) char *fmt; {
+#endif
     register s;
     struct msg m;
 
-    s = MakeClientSocket (1);
+    s = MakeClientSocket(1);
     m.type = MSG_ERROR;
-    sprintf (m.m.message, fmt, p1, p2, p3, p4, p5, p6);
-    (void) write (s, (char *)&m, sizeof (m));
-    close (s);
-    sleep (2);
+#ifdef USEVARARGS
+    va_start(ap);
+    (void) vsprintf(m.m.message, fmt, ap);
+    va_end(ap);
+#else
+    sprintf(m.m.message, fmt, p1, p2, p3, p4, p5, p6);
+#endif
+    (void) write(s, (char *)&m, sizeof m);
+    close(s);
+    sleep(2);
 }
 
-static ReceiveMsg (s) {
+static ReceiveMsg(s) {
     register ns;
     struct sockaddr_un a;
-    int left, len = sizeof (a);
+    int left, len = sizeof a;
     struct msg m;
     char *p;
 
-    if ((ns = accept (s, (struct sockaddr *)&a, &len)) == -1) {
-	Msg (errno, "accept");
+    if ((ns = accept(s, (struct sockaddr *)&a, &len)) == -1) {
+	Msg(errno, "accept");
 	return;
     }
     p = (char *)&m;
-    left = sizeof (m);
-    while (left > 0 && (len = read (ns, p, left)) > 0) {
+    left = sizeof m;
+    while (left > 0 && (len = read(ns, p, left)) > 0) {
 	p += len;
 	left -= len;
     }
-    close (ns);
+    close(ns);
     if (len == -1)
-	Msg (errno, "read");
+	Msg(errno, "read");
     if (left > 0)
 	return;
     switch (m.type) {
     case MSG_CREATE:
 	if (!Detached)
-	    ExecCreate (&m);
+	    ExecCreate(&m);
 	break;
     case MSG_CONT:
 	if (m.m.attach.apid != AttacherPid || !Detached)
@@ -1350,282 +1917,473 @@ static ReceiveMsg (s) {
 	/*FALLTHROUGH*/
     case MSG_ATTACH:
 	if (Detached) {
-	    if (kill (m.m.attach.apid, 0) == 0 &&
-		    open (m.m.attach.tty, O_RDWR) == 0) {
-		(void) dup (0);
-		(void) dup (0);
+	    if (kill(m.m.attach.apid, 0) == 0 &&
+		    open(m.m.attach.tty, O_RDWR|O_NDELAY) == 0) {
+		(void) dup(0);
+		(void) dup(0);
+		GetTTY(0, &OldMode);
+		SetMode(&OldMode, &NewMode);
+		SetTTY(0, &NewMode);
+		if ((DevTty = open("/dev/tty", O_RDWR|O_NDELAY)) == -1)
+		    Msg(errno, "/dev/tty");
+		signal(SIGHUP, SigHup);
+		if (Suspended && m.type == MSG_ATTACH)
+		    if (kill(AttacherPid, SIGHUP) == 0)
+			kill(AttacherPid, SIGCONT);
 		AttacherPid = m.m.attach.apid;
+#ifdef UTMPOK
+		if (!Suspended)
+		    for (ns = WinList; ns != -1; ns = wtab[ns]->WinLink)
+			if (wtab[ns]->slot != -1)
+			    wtab[ns]->slot = SetUtmp(wtab[ns]->tty);
+#endif
+		(void) chmod(SockPath, S_IFSOCK|0700);
 		Detached = 0;
-		GetTTY (0, &OldMode);
-		SetMode (&OldMode, &NewMode);
-		SetTTY (0, &NewMode);
-		Activate (wtab[CurrNum]);
+		Suspended = 0;
+		InitTerm();
+		fore->active = 1;
+		Activate();
 	    }
 	} else {
-	    Kill (m.m.attach.apid, SIGHUP);
-	    Msg (0, "Not detached.");
+	    Kill(m.m.attach.apid, SIGHUP);
+	    Msg(0, "Not detached.");
 	}
 	break;
     case MSG_ERROR:
-	Msg (0, "%s", m.m.message);
+	Msg(0, "%s", m.m.message);
 	break;
     default:
-	Msg (0, "Invalid message (type %d).", m.type);
+	Msg(0, "Invalid message (type %d).", m.type);
     }
 }
 
-static ExecCreate (mp) struct msg *mp; {
+static ExecCreate(mp) struct msg *mp; {
     char *args[MAXARGS];
     register n;
     register char **pp = args, *p = mp->m.create.line;
 
     for (n = mp->m.create.nargs; n > 0; --n) {
 	*pp++ = p;
-	p += strlen (p) + 1;
+	p += strlen(p) + 1;
     }
     *pp = 0;
-    if ((n = MakeWindow (mp->m.create.line, args, mp->m.create.aflag, 0,
-	    mp->m.create.dir, (char *)0)) != -1)
-	SwitchWindow (n);
+    if (!*p)
+	p = 0;
+    if ((n = MakeWindow(p, args, mp->m.create.aflag, mp->m.create.flowflag,
+			 0, mp->m.create.dir, mp->m.create.lflag)) != -1)
+	SwitchWindow(n);
 }
 
-static ReadRc (fn) char *fn; {
-    FILE *f;
+static FILE *fp = NULL;
+static char *rc_name;
+
+static StartRc() {
+    register argc, len;
+    register char *p, *cp;
+    char buf[256];
+    char *args[MAXARGS], *t;
+
+    if (RcFileName)
+	rc_name = RcFileName;
+    else {
+	sprintf(buf, "%s/.screenrc", home);
+	rc_name = SaveStr(buf);
+    }
+    if (access(rc_name, R_OK) == -1 || (fp = fopen(rc_name, "r")) == NULL) {
+	if (RcFileName)
+	    Msg(0, "Unable to open \"%s\".", RcFileName);
+	else
+	    free(rc_name);
+	return;
+    }
+    if ((t = getenv("TERM")) == 0)
+	Msg(0, "No TERM in environment.");
+    while (fgets(buf, sizeof buf, fp) != NULL) {
+	if (p = rindex(buf, '\n'))
+	    *p = '\0';
+	if ((argc = Parse(buf, args)) == 0)
+	    continue;
+	if (strcmp(args[0], "termcap") == 0) {
+	    if (argc < 3 || argc > 4)
+		Msg(0, "%s: termcap: incorrect number of arguments.", rc_name);
+	    for (p = args[1]; p && *p; p = cp) {
+		if ((cp = index(p,'|')) != 0)
+		    *cp++ = '\0';
+		len = strlen(p);
+		if (p[len-1] == '*') {
+		    if (!len-1 || !strncmp(p,t,len-1))
+			break;
+		} else if (!strcmp(p,t))
+		    break;
+	    }
+	    if (!p)
+		continue;
+	    extra_incap = CatStr(extra_incap, args[2]);
+	    if (argc == 4)
+		extra_outcap = CatStr(extra_outcap, args[3]);
+	}
+    }
+    rewind(fp);
+}
+
+static FinishRc() {
     register char *p, **pp, **ap;
-    register argc, num, c;
+    register argc;
     char buf[256];
     char *args[MAXARGS];
-    int key;
+    char key;
 
+    if (fp == NULL)
+	return;
     ap = args;
-    if (access (fn, R_OK) == -1)
-	return;
-    if ((f = fopen (fn, "r")) == NULL)
-	return;
-    while (fgets (buf, 256, f) != NULL) {
-	if (p = rindex (buf, '\n'))
+    while (fgets(buf, sizeof buf, fp) != NULL) {
+	if (p = rindex(buf, '\n'))
 	    *p = '\0';
-	if ((argc = Parse (fn, buf, ap)) == 0)
+	if ((argc = Parse(buf, ap)) == 0)
 	    continue;
-	if (strcmp (ap[0], "escape") == 0) {
-	    p = ap[1];
-	    if (argc < 2 || strlen (p) != 2)
-		Msg (0, "%s: two characters required after escape.", fn);
-	    Esc = *p++;
-	    MetaEsc = *p;
-	} else if (strcmp (ap[0], "chdir") == 0) {
+	if (strcmp(ap[0], "escape") == 0) {
+	    if (argc != 2 || !ParseEscape(ap[1]))
+		Msg(0, "%s: two characters required after escape.", rc_name);
+	    if (Esc != MetaEsc)
+		ktab[Esc].type = KEY_OTHER;
+	    else
+		ktab[Esc].type = KEY_IGNORE;
+	} else if (strcmp(ap[0], "chdir") == 0) {
 	    p = argc < 2 ? home : ap[1];
-	    if (chdir (p) == -1)
-		Msg (errno, "%s", p);
-	} else if (strcmp (ap[0], "mode") == 0) {
-	    if (argc != 2) {
-		Msg (0, "%s: mode: one argument required.", fn);
-	    } else if (!IsNum (ap[1], 7)) {
-		Msg (0, "%s: mode: octal number expected.", fn);
-	    } else (void) sscanf (ap[1], "%o", &TtyMode);
-	} else if (strcmp (ap[0], "bell") == 0) {
-	    if (argc != 2) {
-		Msg (0, "%s: bell: one argument required.", fn);
-	    } else {
-		if ((BellString = malloc (strlen (ap[1]) + 1)) == 0)
-		    Msg (0, "Out of memory.");
-		strcpy (BellString, ap[1]);
+	    if (chdir(p) == -1)
+		Msg(errno, "%s", p);
+	} else if (strcmp(ap[0], "shell") == 0) {
+	    if (argc != 2)
+		Msg(0, "%s: shell: one argument required.", rc_name);
+	    ShellProg = ShellArgs[0] = SaveStr(ap[1]);
+	} else if (strcmp(ap[0], "shellaka") == 0) {
+	    if (argc != 2)
+		Msg(0, "%s: shellaka: one argument required.", rc_name);
+	    shellaka = SaveStr(ap[1]);
+	} else if (strcmp(ap[0], "screen") == 0) {
+	    (void) DoScreen(rc_name, ap+1);
+	} else if (strcmp(ap[0], "termcap") == 0) {
+	    ;		/* Already handled */
+	} else if (strcmp(ap[0], "bell") == 0) {
+	    if (argc != 2)
+		Msg(0, "%s: bell: one argument required.", rc_name);
+	    BellString = SaveStr(ap[1]);
+	} else if (strcmp(ap[0], "activity") == 0) {
+	    if (argc != 2)
+		Msg(0, "%s: activity: one argument required.", rc_name);
+	    ActivityString = SaveStr(ap[1]);
+	} else if (strcmp(ap[0], "login") == 0) {
+#ifdef UTMPOK
+	    ParseOnOff(argc,ap,&loginflag);
+#endif
+	} else if (strcmp(ap[0], "flow") == 0) {
+	    if (argc == 3 && ap[2][0] == 'i') {
+		iflag = 1;
+		argc--;
 	    }
-	} else if (strcmp (ap[0], "screen") == 0) {
-	    num = 0;
-	    if (argc > 1 && IsNum (ap[1], 10)) {
-		num = atoi (ap[1]);
-		if (num < 0 || num > MAXWIN-1)
-		    Msg (0, "%s: illegal screen number %d.", fn, num);
-		--argc; ++ap;
+	    if (argc == 2 && ap[1][0] == 'a')
+		flowctl = 3;
+	    else {
+		ParseOnOff(argc,ap,&flowctl);
+		flowctl++;
 	    }
-	    if (argc < 2) {
-		ap[1] = ShellProg; argc = 2;
-	    }
-	    ap[argc] = 0;
-	    (void) MakeWindow (ap[1], ap+1, 0, num, (char *)0, (char *)0);
-	} else if (strcmp (ap[0], "bind") == 0) {
+	} else if (strcmp(ap[0], "wrap") == 0) {
+	    ParseOnOff(argc,ap,&wrap);
+	} else if (strcmp(ap[0], "mode") == 0) {
+	    if (argc != 2)
+		Msg(0, "%s: mode: one argument required.", rc_name);
+	    if (!IsNum(ap[1], 7))
+		Msg(0, "%s: mode: octal number expected.", rc_name);
+	    (void) sscanf(ap[1], "%o", &TtyMode);
+	} else if (strcmp(ap[0], "autodetach") == 0) {
+	    ParseOnOff(argc,ap,&auto_detach);
+	} else if (strcmp(ap[0], "bind") == 0) {
 	    p = ap[1];
 	    if (argc < 2 || *p == '\0')
-		Msg (0, "%s: key expected after bind.", fn);
-	    if (p[1] == '\0') {
-		key = *p;
-	    } else if (p[0] == '^' && p[1] != '\0' && p[2] == '\0') {
-		c = p[1];
-		if (isupper (c))
-		    p[1] = tolower (c);    
-		key = Ctrl(c);
-	    } else if (IsNum (p, 7)) {
-		(void) sscanf (p, "%o", &key);
-	    } else {
-		Msg (0,
-		    "%s: bind: character, ^x, or octal number expected.", fn);
-	    }
-	    if (argc < 3) {
-		ktab[key].type = 0;
-	    } else {
-		for (pp = KeyNames; *pp; ++pp)
-		    if (strcmp (ap[2], *pp) == 0) break;
-		if (*pp) {
-		    ktab[key].type = pp-KeyNames+1;
-		} else {
-		    ktab[key].type = KEY_CREATE;
-		    ktab[key].args = SaveArgs (argc-2, ap+2);
+		Msg(0, "%s: key expected after bind.", rc_name);
+	    if (!(p = ParseChar(p, &key)) || *p)
+		Msg(0, "%s: bind: character, ^x, or (octal) \\032 expected.",
+			rc_name);
+	    if (ktab[key].type != KEY_IGNORE) {
+		if (ktab[key].type == KEY_SCREEN
+		 || ktab[key].type == KEY_CREATE
+		 || (ktab[key].type == KEY_AKA && ktab[key].args))
+		    command_bindings--;
+		ktab[key].type = KEY_IGNORE;
+		if ((pp = ktab[key].args) != NULL) {
+		    while (*pp)
+			free(*pp++);
+		    free((char *)pp);
 		}
 	    }
-	} else Msg (0, "%s: unknown keyword \"%s\".", fn, ap[0]);
+	    if (argc > 2) {
+		for (pp = KeyNames; *pp; ++pp)
+		    if (strcmp(ap[2], *pp) == 0)
+			break;
+		if (*pp) {
+		    ktab[key].type = pp-KeyNames+1;
+		    if (argc > 3)
+			ktab[key].args = SaveArgs(argc-3, ap+3);
+		    else
+			ktab[key].args = NULL;
+		    if (ktab[key].type == KEY_SCREEN
+		     || (ktab[key].type == KEY_AKA && ktab[key].args))
+			command_bindings++;
+		} else {
+		    ktab[key].type = KEY_CREATE;
+		    ktab[key].args = SaveArgs(argc-2, ap+2);
+		    command_bindings++;
+		}
+	    }
+	} else
+	    Msg(0, "%s: unknown keyword \"%s\"", rc_name, ap[0]);
     }
-    (void) fclose (f);
+    (void) fclose(fp);
+    if (!RcFileName)
+	free(rc_name);
 }
 
-static Parse (fn, buf, args) char *fn, *buf, **args; {
+static Parse(buf, args) char *buf, **args; {
     register char *p = buf, **ap = args;
     register delim, argc = 0;
 
     argc = 0;
     for (;;) {
 	while (*p && (*p == ' ' || *p == '\t')) ++p;
-	if (*p == '\0' || *p == '#')
+	if (*p == '\0' || *p == '#') {
+	    *p = '\0';
 	    return argc;
-	if (argc > MAXARGS-1)
-	    Msg (0, "%s: too many tokens.", fn);
-	delim = 0;
-	if (*p == '"' || *p == '\'') {
-	    delim = *p; *p = '\0'; ++p;
 	}
-	++argc;
-	*ap = p; ++ap;
+	if (argc > MAXARGS-1)
+	    Msg(0, "%s: too many tokens.", rc_name);
+	delim = 0;
+	if (*p == '"' || *p == '\'')
+	    delim = *p++;
+	argc++;
+	*ap = p; *++ap = 0;
 	while (*p && !(delim ? *p == delim : (*p == ' ' || *p == '\t')))
 	    ++p;
 	if (*p == '\0') {
 	    if (delim)
-		Msg (0, "%s: Missing quote.", fn);
-	    else
-		return argc;
+		Msg(0, "%s: Missing quote.", rc_name);
+	    return argc;
 	}
 	*p++ = '\0';
     }
 }
 
-static char **SaveArgs (argc, argv) register argc; register char **argv; {
+static int ParseEscape(p) char *p; {
+    if (!(p = ParseChar(p, &Esc)) || !(p = ParseChar(p, &MetaEsc)) || *p)
+	return 0;
+    return 1;
+}
+
+static char *ParseChar(p, cp) char *p, *cp; {
+    if (*p == '^') {
+	if (*++p == '?')
+	    *cp = '\177';
+	else if (*p >= '@')
+	    *cp = Ctrl(*p);
+	else
+	    return 0;
+	++p;
+    } else if (*p == '\\' && *++p <= '7' && *p >= '0') {
+	*cp = 0;
+	do
+	    *cp = *cp * 8 + *p - '0';
+	while (*++p <= '7' && *p >= '0');
+    } else
+	*cp = *p++;
+    return p;
+}
+
+ParseOnOff(argc,ap,var) int argc; char *ap[]; int *var; {
+    register num = -1;
+
+    if (argc == 2 && ap[1][0] == 'o') {
+	if (ap[1][1] == 'f')
+	    num = 0;
+	else if (ap[1][1] == 'n')
+	    num = 1;
+    }
+    if (num < 0)
+	Msg(0, "%s: %s: invalid argument.", rc_name, ap[0]);
+    *var = num;
+}
+
+static char *CatStr(str1, str2) register char *str1, *str2; {
+    register char *cp;
+    register len1, len2, add_colon;
+
+    len2 = strlen(str2);
+    add_colon = (str2[len2-1] != ':');
+    if (str1) {
+	len1 = strlen(str1);
+	cp = realloc(str1, (unsigned)len1 + len2 + add_colon + 1);
+	str1 = cp + len1;
+    } else {
+	if (!len2)
+	    return 0;
+	cp = malloc((unsigned)len2 + add_colon + 1);
+	str1 = cp;
+    }
+    if (cp == 0)
+	Msg(0, "Out of memory.");
+    strcpy(str1, str2);
+    if (add_colon)
+	strcat(str1, ":");
+
+    return cp;
+}
+
+static char *SaveStr(str) register char *str; {
+    register char *cp;
+
+    if ((cp = malloc((unsigned)strlen(str) + 1)) == 0)
+	Msg(0, "Out of memory.");
+    strcpy(cp, str);
+
+    return cp;
+}
+
+static char **SaveArgs(argc, argv) register argc; register char **argv; {
     register char **ap, **pp;
 
-    if ((pp = ap = (char **)malloc ((argc+1) * sizeof (char **))) == 0)
-	Msg (0, "Out of memory.");
-    while (argc--) {
-	if ((*pp = malloc (strlen (*argv)+1)) == 0)
-	    Msg (0, "Out of memory.");
-	strcpy (*pp, *argv);
-	++pp; ++argv;
-    }
+    if ((pp = ap = (char**)malloc((unsigned)(argc+1) * sizeof (char**))) == 0)
+	Msg(0, "Out of memory.");
+    while (argc--)
+	*pp++ = SaveStr(*argv++);
     *pp = 0;
     return ap;
 }
 
-static MakeNewEnv () {
-    register char **op, **np = NewEnv;
+static MakeNewEnv() {
+    register char **op, **np;
     static char buf[MAXSTR];
 
-    if (strlen (SockName) > MAXSTR-5)
+    for (op = environ; *op; ++op)
+	;
+    NewEnv = np = (char**)malloc((unsigned)(op-environ+4+1) * sizeof (char**));
+    if (!NewEnv)
+	Msg(0, "Out of memory.");
+    if (strlen(SockName) > MAXSTR-5)
 	SockName = "?";
-    sprintf (buf, "STY=%s", SockName);
+    sprintf(buf, "STY=%s", SockName);
     *np++ = buf;
     *np++ = Term;
-    np += 2;
+    np += 2;			/* leave room for TERMCAP and WINDOW */
     for (op = environ; *op; ++op) {
-	if (np == NewEnv + MAXARGS - 1)
-	    break;
-	if (!IsSymbol (*op, "TERM") && !IsSymbol (*op, "TERMCAP")
-		&& !IsSymbol (*op, "STY"))
+	if (!IsSymbol(*op, "TERM") && !IsSymbol(*op, "TERMCAP")
+	 && !IsSymbol(*op, "STY") && !IsSymbol(*op, "WINDOW")
+	 && !IsSymbol(*op, "SCREENCAP"))
 	    *np++ = *op;
     }
     *np = 0;
 }
 
-static IsSymbol (e, s) register char *e, *s; {
+static IsSymbol(e, s) register char *e, *s; {
     register char *p;
     register n;
 
-    for (p = e; *p && *p != '='; ++p) ;
+    for (p = e; *p && *p != '='; ++p)
+	;
     if (*p) {
 	*p = '\0';
-	n = strcmp (e, s);
+	n = strcmp(e, s);
 	*p = '=';
 	return n == 0;
     }
     return 0;
 }
 
+#ifdef USEVARARGS
 /*VARARGS2*/
-Msg (err, fmt, p1, p2, p3, p4, p5, p6) char *fmt; {
+Msg(err, fmt, va_alist) int err; char *fmt; va_dcl {
+    static va_list ap = 0;
+#else
+/*VARARGS2*/
+Msg(err, fmt, p1, p2, p3, p4, p5, p6) char *fmt; {
+#endif
     char buf[1024];
     register char *p = buf;
 
     if (Detached)
 	return;
-    sprintf (p, fmt, p1, p2, p3, p4, p5, p6);
+#ifdef USEVARARGS
+    va_start(ap);
+    (void) vsprintf(p, fmt, ap);
+    va_end(ap);
+#else
+    sprintf(p, fmt, p1, p2, p3, p4, p5, p6);
+#endif
     if (err) {
-	p += strlen (p);
+	p += strlen(p);
 	if (err > 0 && err < sys_nerr)
-	    sprintf (p, ": %s", sys_errlist[err]);
+	    sprintf(p, ": %s", sys_errlist[err]);
 	else
-	    sprintf (p, ": Error %d", err);
+	    sprintf(p, ": Error %d", err);
     }
-    if (HasWindow) {
-	MakeStatus (buf, curr);
-    } else {
-	printf ("%s\r\n", buf);
-	Kill (AttacherPid, SIGHUP);
-	exit (1);
+    if (HasWindow)
+	MakeStatus(buf);
+    else {
+	printf("%s\r\n", buf);
+	Kill(AttacherPid, SIGHUP);
+	exit(1);
     }
 }
 
-bclear (p, n) char *p; {
-    bcopy (blank, p, n);
+bclear(p, n) char *p; {
+    bcopy(blank, p, n);
 }
 
-static char *Filename (s) char *s; {
+static char *Filename(s) char *s; {
     register char *p;
 
-    p = s + strlen (s) - 1;
+    p = s + strlen(s) - 1;
     while (p >= s && *p != '/') --p;
     return ++p;
 }
 
-static IsNum (s, base) register char *s; register base; {
+static IsNum(s, base) register char *s; register base; {
     for (base += '0'; *s; ++s)
 	if (*s < '0' || *s > base)
 	    return 0;
     return 1;
 }
 
-static char *MakeBellMsg (n) {
+static char *MakeWinMsg(s,n) register char *s; {
     static char buf[MAXSTR];
-    register char *p = buf, *s = BellString;
+    register char *p = buf;
 
-    for (s = BellString; *s && p < buf+MAXSTR-1; s++)
-	*p++ = (*s == '%') ? n + '0' : *s;
+    for (; *s && p < buf+MAXSTR-1; s++,p++)
+	switch (*s) {
+	case '%':
+	    *p = n + '0';
+	    break;
+	case '~':
+	    *p = BELL;
+	    break;
+	default:
+	    *p = *s;
+	    break;
+	}
     *p = '\0';
     return buf;
 }
 
-static InitUtmp () {
-    struct passwd *p;
+#ifdef UTMPOK
 
-    if ((utmpf = open (UtmpName, O_WRONLY)) == -1) {
+static InitUtmp() {
+
+    if ((utmpf = open(UtmpName, O_WRONLY)) == -1) {
 	if (errno != EACCES)
-	    Msg (errno, UtmpName);
+	    Msg(errno, UtmpName);
 	return;
-    }
-    if ((LoginName = getlogin ()) == 0 || LoginName[0] == '\0') {
-	if ((p = getpwuid (getuid ())) == 0)
-	    return;
-	LoginName = p->pw_name;
     }
     utmp = 1;
 }
 
-static SetUtmp (name) char *name; {
+static SetUtmp(name) char *name; {
     register char *p;
     register struct ttyent *tp;
     register slot = 1;
@@ -1633,36 +2391,38 @@ static SetUtmp (name) char *name; {
 
     if (!utmp)
 	return 0;
-    if (p = rindex (name, '/'))
+    if (p = rindex(name, '/'))
 	++p;
     else p = name;
-    setttyent ();
-    while ((tp = getttyent ()) != NULL && strcmp (p, tp->ty_name) != 0)
+    setttyent();
+    while ((tp = getttyent()) != NULL && strcmp(p, tp->ty_name) != 0)
 	++slot;
     if (tp == NULL)
 	return 0;
-    strncpy (u.ut_line, p, 8);
-    strncpy (u.ut_name, LoginName, 8);
+    strncpy(u.ut_line, p, 8);
+    strncpy(u.ut_name, LoginName, 8);
     u.ut_host[0] = '\0';
-    time (&u.ut_time);
-    (void) lseek (utmpf, (long)(slot * sizeof (u)), 0);
-    (void) write (utmpf, (char *)&u, sizeof (u));
+    (void) time(&u.ut_time);
+    (void) lseek(utmpf, (off_t)(slot * sizeof u), 0);
+    (void) write(utmpf, (char *)&u, sizeof u);
     return slot;
 }
 
-static RemoveUtmp (slot) {
+static RemoveUtmp(slot) {
     struct utmp u;
 
     if (slot) {
-	bzero ((char *)&u, sizeof (u));
-	(void) lseek (utmpf, (long)(slot * sizeof (u)), 0);
-	(void) write (utmpf, (char *)&u, sizeof (u));
+	bzero((char *)&u, sizeof u);
+	(void) lseek(utmpf, (off_t)(slot * sizeof u), 0);
+	(void) write(utmpf, (char *)&u, sizeof u);
     }
 }
 
+#endif /* UTMPOK */
+
 #ifndef GETTTYENT
 
-static setttyent () {
+static setttyent() {
     struct stat s;
     register f;
     register char *p, *ep;
@@ -1671,80 +2431,288 @@ static setttyent () {
 	ttnext = tt;
 	return;
     }
-    if ((f = open (ttys, O_RDONLY)) == -1 || fstat (f, &s) == -1)
-	Msg (errno, ttys);
-    if ((tt = malloc (s.st_size + 1)) == 0)
-	Msg (0, "Out of memory.");
-    if (read (f, tt, s.st_size) != s.st_size)
-	Msg (errno, ttys);
-    close (f);
+    if ((f = open(ttys, O_RDONLY)) == -1 || fstat(f, &s) == -1)
+	Msg(errno, ttys);
+    if ((tt = malloc((unsigned)s.st_size + 1)) == 0)
+	Msg(0, "Out of memory.");
+    if (read(f, tt, s.st_size) != s.st_size)
+	Msg(errno, ttys);
+    close(f);
     for (p = tt, ep = p + s.st_size; p < ep; ++p)
 	if (*p == '\n') *p = '\0';
     *p = '\0';
     ttnext = tt;
 }
 
-static struct ttyent *getttyent () {
+static struct ttyent *getttyent() {
     static struct ttyent t;
 
     if (*ttnext == '\0')
 	return NULL;
     t.ty_name = ttnext + 2;
-    ttnext += strlen (ttnext) + 1;
+    ttnext += strlen(ttnext) + 1;
     return &t;
 }
 
-#endif
+#endif /* GETTTYENT */
 
 #ifdef LOADAV
 
-static InitKmem () {
-    if ((kmemf = open (KmemName, O_RDONLY)) == -1)
+static InitKmem() {
+    if ((kmemf = open(KmemName, O_RDONLY)) == -1)
 	return;
     nl[0].n_name = AvenrunSym;
-    nlist (UnixName, nl);
+    nlist(UnixName, nl);
     if (nl[0].n_type == 0 || nl[0].n_value == 0)
 	return;
     avenrun = 1;
 }
 
-static GetAvenrun () {
-    if (lseek (kmemf, nl[0].n_value, 0) == -1)
+static GetAvenrun() {
+    if (lseek(kmemf, (off_t)nl[0].n_value, 0) == (off_t)-1)
 	return 0;
-    if (read (kmemf, loadav, sizeof (loadav)) != sizeof (loadav))
+    if (read(kmemf, (char *)loadav, sizeof loadav) != sizeof loadav)
 	return 0;
     return 1;
 }
 
-#endif
+#endif /* LOADAV */
 
 #ifndef USEBCOPY
-bcopy (s1, s2, len) register char *s1, *s2; register len; {
+bcopy(s1, s2, len) register char *s1, *s2; register len; {
     if (s1 < s2 && s2 < s1 + len) {
 	s1 += len; s2 += len;
-	while (len-- > 0) {
+	while (len-- > 0)
 	    *--s2 = *--s1;
-	}
-    } else {
-	while (len-- > 0) {
+    } else
+	while (len-- > 0)
 	    *s2++ = *s1++;
+}
+#endif /* USEBCOPY */
+
+DoScreen(fn, av) char *fn, **av; {
+    register flowflag, num, lflag = loginflag;
+    register char *aka = NULL;
+    char *args[2];
+
+    flowflag = flowctl;
+    while (av && *av && av[0][0] == '-') {
+	switch (av[0][1]) {
+	case 'n':			/* backward compatibility */
+	    flowflag = 1;
+	    break;
+	case 'f':
+	    switch (av[0][2]) {
+	    case 'n':
+	    case '0':
+		flowflag = 1;
+		break;
+	    case 'y':
+	    case '1':
+	    case '\0':
+		flowflag = 2;
+		break;
+	    case 'a':
+		flowflag = 3;
+		break;
+	    default:
+		break;
+	    }
+	    break;
+	case 'k':
+	    if (av[0][2])
+		aka = &av[0][2];
+	    else if (*++av)
+		aka = *av;
+	    else
+		--av;
+	    break;
+	case 'l':
+	    switch (av[0][2]) {
+	    case 'n':
+	    case '0':
+		lflag = 0;
+		break;
+	    case 'y':
+	    case '1':
+	    case '\0':
+		lflag = 1;
+		break;
+	    default:
+		break;
+	    }
+	    break;
+	default:
+	    Msg(0, "%s: screen: invalid option -%c.", fn, av[0][1]);
+	    break;
 	}
+	++av;
+    }
+    num = 0;
+    if (av && *av && IsNum(*av, 10)) {
+	num = atoi(*av);
+	if (num < 0 || num > MAXWIN-1)
+	    Msg(0, "%s: illegal screen number %d.", fn, num);
+	++av;
+    }
+    if (!av || !*av) {
+	av = args;
+	av[0] = ShellProg;
+	av[1] = NULL;
+	if (!aka)
+	    aka = shellaka;
+    }
+    return MakeWindow(aka, av, 0, flowflag, num, (char *)0, lflag);
+}
+
+/* Esc-char is not consumed. All others are. Esc-char, space, and return end */
+process_help_input(ppbuf,plen)
+char **ppbuf;
+int *plen;
+{
+    int done = 0;
+    
+    while (!done && *plen > 0) {
+	switch (**ppbuf) {
+	case ' ':
+	    if ((help_page-1)*16 < command_bindings) {
+		display_help();
+		break;
+	    }
+	    /*FALLTHROUGH*/
+	case '\r':
+	case '\n':
+	    done = 1;
+	    break;
+	default:
+	    if (**ppbuf == Esc) {
+		done = 1;
+		continue;
+	    }
+	    break;
+	}
+	++*ppbuf;
+	--*plen;
+    }
+    if (done) {
+	help_page = 0;
+	fore->active = 1;	/* Turn the foreground window back on. */
+	Activate();
     }
 }
-#endif
 
-#ifdef SUN_NFS_HACK
-/* Swap effective and real UID */
-SetRealUID () {
-    register real_uid, eff_uid;
+display_help() {
+    int row, col, maxrow, num_names, n, key;
+    char buf[256], Esc_buf[5];
 
-    real_uid = getuid ();
-    eff_uid = geteuid ();
-    setreuid (eff_uid, real_uid);
+    if (!help_page++)
+	fore->active = 0;
+
+    /* Display the help screen */
+    init_help_screen();
+
+    printf("\n                 SCREEN Key Bindings, page %d of %d.\r\n\n",
+	help_page,(command_bindings+15)/16+1);
+
+    if (Esc == '"')
+	strcpy(Esc_buf,"'");
+    else
+	strcpy(Esc_buf,"\"");
+    add_key_to_buf(Esc_buf,Esc);
+    Esc_buf[strlen(Esc_buf)-1] = Esc_buf[0];
+    if (help_page == 1) {
+	if (MetaEsc == '"')
+	    strcpy(buf,"'");
+	else
+	    strcpy(buf,"\"");
+	add_key_to_buf(buf,MetaEsc);
+	buf[strlen(buf)-1] = buf[0];
+	printf("          Command key:  %s          Literal %s:  %s\r\n\n",
+		Esc_buf,Esc_buf,buf);
+
+	maxrow = ((num_names = sizeof KeyNames / sizeof (char *) - 2) + 2) / 3;
+	for (row = 0; row < maxrow; row++) {
+	    for (col = 0; col < 3 && (n = maxrow*col+row) < num_names; col++) {
+		buf[0] = '\0';
+		for (key = 0; key < 128; key++)
+		    if (ktab[key].type == n + 2
+		     && (n + 2 != KEY_AKA || !ktab[key].args))
+			add_key_to_buf(buf,key);
+		buf[14] = '\0';
+		/* Format is up to 9 chars of name, 2 spaces, 14 chars of key
+		 * bindings, and a space.
+		 */
+		printf("%-9s  %-14s ", KeyNames[n+1], buf);
+	    }
+	    printf("\r\n");
+	}
+	putchar('\n');
+	command_search = 0;
+    } else {
+	char **pp, *cp;
+
+	cols = fore->width;
+	maxrow = (help_page-1)*16;
+	for (row = maxrow-16; row < maxrow; row++) {
+	    if (row < command_bindings) {
+		while ((key = ktab[command_search].type) != KEY_CREATE
+			&& key != KEY_SCREEN
+			&& (key != KEY_AKA || !ktab[command_search].args) )
+		    command_search++;
+		buf[0] = '\0';
+		add_key_to_buf(buf,command_search);
+		printf("%-4s",buf);
+		col = 4;
+		if (key != KEY_CREATE) {
+		    col += strlen(KeyNames[key-1])+1;
+		    printf("%s ",KeyNames[key-1]);
+		}
+		pp = ktab[command_search++].args;
+		while (pp && (cp = *pp) != NULL) {
+		    if (!*cp || index(cp, ' ')) {
+			if (index(cp, '\''))
+			    *buf = '"';
+			else
+			    *buf = '\'';
+			sprintf(buf+1, "%s%c", cp, *buf);
+			cp = buf;
+		    }
+		    if ((col += strlen(cp)+1) >= cols) {
+			col = cols - (col - (strlen(cp)+1)) - 2;
+			if (col >= 0) {
+			    n = cp[col];
+			    cp[col] = '\0';
+			    printf("%s$",*pp);
+			    cp[col] = (char)n;
+			}
+			break;
+		    }
+		    printf("%s%c", cp, (cols-col != 1 || !pp[1])? ' ' : '$' );
+		    pp++;
+		}
+		printf("\r\n");
+	    } else
+		putchar('\n');
+	}
+    }
+
+    printf("\n[Press Space %s Return to end; %s to begin a command.]\r\n",
+	(help_page-1)*16 < command_bindings ? "for next page;" : "or",Esc_buf);
 }
 
-/* Swap them again */
-SetEffectiveUID () {
-    SetRealUID ();
+add_key_to_buf(buf,key) char *buf; int key; {
+    switch (key) {
+    case ' ':
+	strcat(buf,"sp ");
+	break;
+    case 0x7f:
+	strcat(buf,"^? ");
+	break;
+    default:
+	if (key < ' ')
+	    sprintf(buf + strlen(buf),"^%c ",(key | 0x40));
+	else
+	    sprintf(buf + strlen(buf),"%c ",key);
+	break;
+    }
 }
-#endif

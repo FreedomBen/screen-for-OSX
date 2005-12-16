@@ -1,20 +1,44 @@
-/* screen -- screen manager with VT100/ANSI terminal emulation
- * Copyright (C) 1987 Oliver Laumann
+/* Copyright (c) 1987-1990 Oliver Laumann and Wayne Davison.
+ * All rights reserved.  Not derived from licensed software.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 1, or (at your option)
- * any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program (see the file COPYING); if not, write to the
- * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Permission is granted to freely use, copy, modify, and redistribute
+ * this software, provided that no attempt is made to gain profit from it,
+ * the authors are not construed to be liable for any results of using the
+ * software, alterations are clearly marked as such, and this notice is
+ * not modified.
  */
+
+#ifdef SUIDROOT
+#  ifdef LOCKPTY
+#    undef LOCKPTY
+#  endif
+#endif
+
+#ifndef UTMPOK
+#  ifdef USRLIMIT
+#    undef USRLIMIT
+#  endif
+#endif
+
+#ifndef LOGINDEFAULT
+#  define LOGINDEFAULT 0
+#endif
+
+#if defined(LOADAV_3DOUBLES) || defined(LOADAV_3LONGS) || defined(LOADAV_4LONGS)
+#  define LOADAV
+#endif
+
+#ifndef FSCALE
+#  define FSCALE 1000.0		/* Sequent doesn't define FSCALE...grrrr */
+#endif
+
+#if defined(sun) || defined(ultrix)
+   typedef void sig_t;
+#else
+   typedef int sig_t;
+#endif
+
+/*typedef long off_t;		/* Someone might need this */
 
 enum state_t {
     LIT,         /* Literal input */
@@ -34,6 +58,7 @@ enum string_t {
     OSC,         /* Operating system command */
     APC,         /* Application program command */
     PM,          /* Privacy message */
+    AKA          /* a.k.a. for current screen */
 };
 
 #define MAXSTR       128
@@ -47,10 +72,10 @@ struct win {
     int aflag;
     char outbuf[IOSIZE];
     int outlen;
+    int autoaka, akapos;
     char cmd[MAXSTR];
     char tty[MAXSTR];
     int args[MAXARGS];
-    char GotArg[MAXARGS];
     int NumArgs;
     int slot;
     char **image;
@@ -72,6 +97,7 @@ struct win {
     int origin;
     int insert;
     int keypad;
+    int width;
     enum state_t state;
     enum string_t StringType;
     char string[MAXSTR];
@@ -79,6 +105,11 @@ struct win {
     char *tabs;
     int vbwait;
     int bell;
+    int flow;
+    int autoflow;
+    int WinLink;
+    FILE *logfp;
+    int monitor;
 };
 
 #define MAXLINE 1024
@@ -92,7 +123,9 @@ struct msg {
     int type;
     union {
 	struct {
+	    int lflag;
 	    int aflag;
+	    int flowflag;
 	    int nargs;
 	    char line[MAXLINE];
 	    char dir[1024];
@@ -104,3 +137,14 @@ struct msg {
 	char message[MAXLINE];
     } m;
 };
+
+#define BELL		7
+
+#define BELL_OFF	0 /* No bell has occurred in the window */
+#define BELL_ON		1 /* A bell has occurred, but user not yet notified */
+#define BELL_DONE	2 /* A bell has occured, user has been notified */
+
+#define MON_OFF		0 /* Monitoring is off in the window */
+#define MON_ON		1 /* No activity has occurred in the window */
+#define MON_FOUND	2 /* Activity has occured, but user not yet notified */
+#define MON_DONE	3 /* Activity has occured, user has been notified */

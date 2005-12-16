@@ -22,8 +22,9 @@ the entire manual, do the following:
 
 If you have got "vttest" (the VT100 test program from mod.sources) you
 may want to run it from within "screen" to verify that it correctly
-emulates a VT100 on your terminal (except for 132 column mode and
-double width/height characters, of course).
+emulates a VT100 on your terminal (except for things your terminal is
+incapable of handling, like 132 column mode and double width/height
+characters, of course).
 
 By the way, "screen" can be used to compensate for certain bugs of "real"
 VT100 terminals.  For instance, our 4.2 BSD version of mille(6) garbles
@@ -32,51 +33,42 @@ when it is invoked from within "screen".  In addition, "screen" enables
 you to use EMACS on terminals that are unable to generate Control-S and
 Control-Q from the keyboard or that require flow control using Control-S
 and Control-Q.  This is the reason why I have an alias like
+
      alias emacs "screen emacs"
-in my .cshrc file.
 
+in my .cshrc file.  Users who run EMACS on terminals which normally have no
+trouble with Control-S and Control-Q will probably want to run screen with
+the -fn or -fa options, or put the line "flow off" or "flow auto" in their
+.screenrc file.
 
-Major changes between this and the first release are:
+Before typing "make", copy config.h-dist to config.h and then edit it to
+reflect the configuration parameters of your choice.  Each define is well
+commented to help you decide what to choose.  Then give the Makefile the
+once-over and compile.
 
-*  "screen" allows you to `detach' the "screen" session from the physical
-   terminal and resume it at a later point in time (possibly on a
-   different terminal or in a different login session).
+To get screen to do everything it was designed to do, it should be installed
+set-uid root.  This enables it to modify the ownership of the pseudo-ttys,
+update /etc/utmp, and read the current load average from /dev/kmem.
 
-  To get an impression of this functionality do the following:
+Failing to install it suid root (e.g. if you fear a trojan horse) doesn't
+have any major disadvantages, except that w(1) and some other utilities
+will display only "screen" as the current process, and the pseudo ttys
+(ptys) used for the virtual terminals won't have their owners set.  Screen
+can provide you some pty security by opening the ptys exclusively, but
+this has the unfortunate side-effect of keeping your own subprocesses from
+being able to open /dev/tty.
 
-     - call "screen" and create a couple of windows
-     - type Control-A Control-D (screen terminates; you are back
-       in the shell)
-     - call "screen -r" to resume the detached "screen"
+It is also possible to create a special "screen" group and give the file
+/etc/utmp screen-group write-access, and give the file /dev/kmem screen-group
+read access to get all the features except the pty-ownership changes.  Some
+people also install it set-gid "kmem" or set-gid "utmp" to give it one or
+the other.
 
-*  "screen" supports multiple character sets and the ISO 2022 control
-   functions to designate and switch between character sets.
-   This allows you, for instance, to make use of the VT100 graphics
-   character set or national character sets
+Many people install screen as a normal program with no special privileges
+and still find it to be indispensable.  Give it a try.
 
+Send your questions, comments and bug reports for screen to:
 
-Before typing "make", you should have a look into the Makefile.
-If your system maintains a 4.3-BSD-style load average, add -DLOADAV to
-the compiler options.  If the load average maintained by your system
-is in the Sun format (three longs; not three doubles), set -DSUNLOADAV
-in addition to -DLOADAV.
+	Wayne Davison <davison%drivax@uunet.uu.net>
 
-In addition, you must set -DGETTTYENT if your system has the new format
-/etc/ttys and the getttyent(3) routines.
-
-If the bcopy() from your system's C library supports overlapping
-source and destination addresses, add -DUSEBCOPY.  Otherwise screen
-uses its own (possibly slower) version of bcopy().  If you are in
-doubt or don't know what bcopy() is, leave the option out.
-
-"screen" should be granted read and write access to /etc/utmp and, if
--DLOADAV has been specified, read access to /vmunix and /dev/kmem.
-"screen" should be installed with set-uid and owner root to enable it
-to correctly change the owner of newly allocated virtual terminals.
-Failing to do this (e.g. if you fear a trojan horse) doesn't have any
-major disadvantages, except that w(1) and some other utilities may have
-some problems with the tty files of your virtual terminals.
-
---
-    Oliver Laumann, Technical University of Berlin, Germany.
-    pyramid!tub!net  net@TUB.BITNET  net@tub.cs.tu-berlin.de
+	(...!uunet!drivax!davison)
