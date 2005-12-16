@@ -269,9 +269,10 @@ struct mode *Mode;
   D_dospeed = (short) D_OldMode.m_ttyb.sg_ospeed;
 #endif	/* POSIX || TERMIO */
   debug1("New displays ospeed = %d\n", D_dospeed);
-  strcpy(D_usertty, utty);
-  strcpy(D_termname, term);
-
+  strncpy(D_usertty, utty, sizeof(D_usertty) - 1);
+  D_usertty[sizeof(D_usertty) - 1] = 0;
+  strncpy(D_termname, term, sizeof(D_termname) - 1);
+  D_termname[sizeof(D_termname) - 1] = 0;
   D_user = *u;
   D_lay = &BlankLayer;
   D_layfn = BlankLayer.l_layfn;
@@ -477,7 +478,7 @@ int c;
       else if (D_kanji == SJIS)
 	{
 	  t += (c & 1) ? ((t <= 0x5f) ? 0x1f : 0x20) : 0x7e;
-	  c = (c - 0x21) / 2 + ((c < 0x5e) ? 0x81 : 0xc1);
+	  c = (c - 0x21) / 2 + ((c < 0x5f) ? 0x81 : 0xc1);
 	}
       D_mbcs = t;
     }
@@ -1887,7 +1888,12 @@ NukePending()
     PutStr(D_EI);
   D_insert = 0;
   /* Check for toggle */
-#ifndef MAPKEYS
+#ifdef MAPKEYS
+  if (D_KS && strcmp(D_KS, D_KE))
+    PutStr(D_KS);
+  if (D_CCS && strcmp(D_CCS, D_CCE))
+    PutStr(D_CCS);
+#else
   if (D_KS && strcmp(D_KS, D_KE))
     PutStr(D_KE);
   D_keypad = 0;

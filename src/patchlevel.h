@@ -227,11 +227,25 @@
  *                     linux: elf, but no SVR4, check for utmpx.
  *                     hpux10.10 libcurses breaks select()!
  *                     -- DISTRIBUTED
+ * 27.09.96 -- 3.07.03 ncurses tgetflag returns -1 if cap not valid.
+ *                     autonuke fix: reset application mode. An init
+ *                     string may have cleared it.
+ *                     Small UTMPOK patch from Douglas B. Jones.
+ * 23.06.97 -- 3.07.04 Some bugfixes. Kanji fixed.
+ *                     Code update from 3.8.6: Colon line editing added.
+ *                     Digraph made line-editing resistant.
+ *                     DEC ALPHA ut_user[0] = 0;
+ *                     Added error messages to exit_with_usage.
+ *                     FindSocket code improved (the MULTIUSER part).
+ *                     Use utimes() if available. Power-detached start.
+ *                     vsnprintf() support. exit -> _exit in window.c.
+ *                     AddXChars now tolerates NULL string.
+ *                     -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 3
 #define VERS 7
-#define PATCHLEVEL 2
-#define DATE "1-Sep-96"
+#define PATCHLEVEL 4
+#define DATE "23-Jun-97"
 #define STATE ""

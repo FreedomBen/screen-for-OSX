@@ -37,15 +37,25 @@ static void InpSetCursor __P((void));
 extern struct display *display;
 extern struct mchar mchar_blank, mchar_so;
 
+struct inpline
+{
+  char  buf[101];	/* text buffer */
+  int	len;		/* length of the editible string */
+  int	pos;		/* cursor position in editable string */
+};
+
+static struct inpline inphist;	/* XXX: should be a dynamic list */
+
+
 struct inpdata
 {
-  char	inpbuf[101];
-  int	inplen;
-  int	inpmaxlen;
-  char	*inpstring;
-  int	inpstringlen;
-  int	inpmode;
-  void	(*inpfinfunc)();
+  struct inpline inp;
+  int	inpmaxlen;	/* 100, or less, if caller has shorter buffer */
+  char	*inpstring;	/* the prompt */
+  int	inpstringlen;	/* length of the prompt */
+  int	inpmode;	/* INP_NOECHO, INP_RAW, INP_EVERY */
+  void	(*inpfinfunc) __P((char *buf, int len, char *priv));
+  char  *priv;
 };
 
 static struct LayFuncs InpLf =
@@ -78,9 +88,10 @@ char *p, *s;
     }
   if (s)
     {
-      strncpy(inpdata->inpbuf, s, sizeof(inpdata->inpbuf) - 1);
-      inpdata->inpbuf[sizeof(inpdata->inpbuf) - 1] = 0;
-      inpdata->inplen = strlen(inpdata->inpbuf);
+      if (s != inpdata->inp.buf)
+	strncpy(inpdata->inp.buf, s, sizeof(inpdata->inp.buf) - 1);
+      inpdata->inp.buf[sizeof(inpdata->inp.buf) - 1] = 0;
+      inpdata->inp.pos = inpdata->inp.len = strlen(inpdata->inp.buf);
     }
   RefreshLine(STATLINE, 0, D_width - 1, 0);
 }
@@ -93,13 +104,15 @@ char *p, *s;
  * mode is an OR of
  * INP_NOECHO == suppress echoing of characters.
  * INP_RAW    == raw mode. call finfunc after each character typed.
+ * INP_EVERY  == digraph mode.
  */
 void
-Input(istr, len, finfunc, mode)
+Input(istr, len, mode, finfunc, data)
 char *istr;
 int len;
-void (*finfunc)();
 int mode;
+void (*finfunc) __P((char *buf, int len, char *data));
+char *data;
 {
   int maxlen;
   struct inpdata *inpdata;
@@ -129,8 +142,9 @@ int mode;
   inpdata = (struct inpdata *)D_lay->l_data;
   inpdata->inpmaxlen = len;
   inpdata->inpfinfunc = finfunc;
-  inpdata->inplen = 0;
+  inpdata->inp.pos = inpdata->inp.len = 0;
   inpdata->inpmode = mode;
+  inpdata->priv = data;
   inp_setprompt(istr, (char *)NULL);
 }
 
@@ -140,7 +154,7 @@ InpSetCursor()
   struct inpdata *inpdata;
   
   inpdata = (struct inpdata *)D_lay->l_data;
-  GotoPos(inpdata->inpstringlen + (inpdata->inpmode & INP_NOECHO ? 0 : inpdata->inplen), STATLINE);
+  GotoPos(inpdata->inpstringlen + (inpdata->inpmode & INP_NOECHO ? 0 : inpdata->inp.pos), STATLINE);
 }
 
 static void
@@ -155,70 +169,134 @@ int *plen;
   
   inpdata = (struct inpdata *)D_lay->l_data;
 
-  GotoPos(inpdata->inpstringlen + (inpdata->inpmode & INP_NOECHO ? 0 : inpdata->inplen), STATLINE);
+  GotoPos(inpdata->inpstringlen + (inpdata->inpmode & INP_NOECHO ? 0 : inpdata->inp.pos), STATLINE);
   if (ppbuf == 0)
     {
       InpAbort();
       return;
     }
-  x = inpdata->inpstringlen + inpdata->inplen;
+  x = inpdata->inpstringlen + inpdata->inp.pos;
   len = *plen;
   pbuf = *ppbuf;
   while (len)
     {
+      char *p = inpdata->inp.buf + inpdata->inp.pos;
+
       ch = *pbuf++;
       len--;
       if (inpdata->inpmode & INP_EVERY)
 	{
-	  inpdata->inpbuf[inpdata->inplen] = ch;
-	  inpdata->inpbuf[inpdata->inplen + 1] = ch;	/* gross */
-	  (*inpdata->inpfinfunc)(inpdata->inpbuf, inpdata->inplen);
-	  ch = inpdata->inpbuf[inpdata->inplen];
+	  inpdata->inp.buf[inpdata->inp.len] = ch;
+	  inpdata->inp.buf[inpdata->inp.len + 1] = ch;	/* gross */
+	  (*inpdata->inpfinfunc)(inpdata->inp.buf, inpdata->inp.len, inpdata->priv);
+	  ch = inpdata->inp.buf[inpdata->inp.len];
 	}
       else if (inpdata->inpmode & INP_RAW)
 	{
-          (*inpdata->inpfinfunc)(&ch, 1);	/* raw */
+          (*inpdata->inpfinfunc)(&ch, 1, inpdata->priv);	/* raw */
 	  if (ch)
 	    continue;
 	}
-      if ((unsigned char)ch >= ' ' && ch != 0177 && inpdata->inplen < inpdata->inpmaxlen)
+      if (((unsigned char)ch & 0177) >= ' ' && ch != 0177 && inpdata->inp.len < inpdata->inpmaxlen)
 	{
-	  inpdata->inpbuf[inpdata->inplen++] = ch;
+	  if (inpdata->inp.len > inpdata->inp.pos)
+	    bcopy(p, p+1, inpdata->inp.len - inpdata->inp.pos);
+	  inpdata->inp.len++;
+	  inpdata->inp.buf[inpdata->inp.pos++] = ch;
+
 	  if (!(inpdata->inpmode & INP_NOECHO))
 	    {
 	      GotoPos(x, STATLINE);
 	      SetRendition(&mchar_so);
-	      PUTCHAR(ch);
+	      PUTCHAR(*p++);
 	      x++;
+	      if (p < inpdata->inp.buf+inpdata->inp.len)
+		{
+		  while (p < inpdata->inp.buf+inpdata->inp.len)
+		    PUTCHAR(*p++);
+		  GotoPos(x, STATLINE);
+		}
 	    }
 	}
-      else if ((ch == '\b' || ch == 0177) && inpdata->inplen > 0)
+      else if ((ch == '\b' || ch == 0177) && inpdata->inp.pos > 0)
 	{
-	  inpdata->inplen--;
+	  if (inpdata->inp.len > inpdata->inp.pos)
+	    bcopy(p, p-1, inpdata->inp.len - inpdata->inp.pos);
+	  inpdata->inp.len--;
+	  inpdata->inp.pos--;
+	  p--;
 	  if (!(inpdata->inpmode & 1))
 	    {
 	      x--;
 	      GotoPos(x, STATLINE);
+	      SetRendition(&mchar_so);
+	      while (p < inpdata->inp.buf+inpdata->inp.len)
+		PUTCHAR(*p++);
 	      SetRendition(&mchar_blank);
 	      PUTCHAR(' ');
 	      GotoPos(x, STATLINE);
 	    }
 	}
+      else if (ch == '\001' || (unsigned char)ch == 0201)	/* CTRL-A */
+	{
+	  GotoPos(x -= inpdata->inp.pos, STATLINE);
+	  inpdata->inp.pos = 0;
+	}
+      else if ((ch == '\002' || (unsigned char)ch == 0202) && inpdata->inp.pos > 0)	/* CTRL-B */
+	{
+	  GotoPos(--x, STATLINE);
+	  inpdata->inp.pos--;
+	}
+      else if (ch == '\005' || (unsigned char)ch == 0205)	/* CTRL-E */
+	{
+	  GotoPos(x += inpdata->inp.len - inpdata->inp.pos, STATLINE);
+	  inpdata->inp.pos = inpdata->inp.len;
+	}
+      else if ((ch == '\006' || (unsigned char)ch == 0206) && inpdata->inp.pos < inpdata->inp.len)	/* CTRL-F */
+	{
+	  GotoPos(++x, STATLINE);
+	  inpdata->inp.pos++;
+	}
+      else if (ch == '\020' || (unsigned char)ch == 0220)	/* CTRL-P */
+        {
+	  p = inpdata->inp.buf;
+	  GotoPos(inpdata->inpstringlen, STATLINE);
+	  SetRendition(&mchar_blank);
+	  while (p++ < inpdata->inp.buf+inpdata->inp.len)
+	    PUTCHAR(' ');
+
+	  inpdata->inp = inphist;	/* structure copy */
+	  if (inpdata->inp.len > inpdata->inpmaxlen)
+	    inpdata->inp.len = inpdata->inpmaxlen;
+	  if (inpdata->inp.pos > inpdata->inp.len)
+	    inpdata->inp.pos = inpdata->inp.len;
+  	  x = inpdata->inpstringlen + inpdata->inp.pos;
+
+	  p = inpdata->inp.buf;
+	  GotoPos(inpdata->inpstringlen, STATLINE);
+	  SetRendition(&mchar_so);
+	  while (p < inpdata->inp.buf+inpdata->inp.len)
+	    PUTCHAR(*p++);
+	  GotoPos(x, STATLINE);
+	}
       else if (ch == '\004' || ch == '\003' || ch == '\007' || ch == '\033' ||
 	       ch == '\000' || ch == '\n' || ch == '\r')
 	{
-          if (ch != '\033' && ch != '\n' && ch != '\r')
-	    inpdata->inplen = 0;
-	  inpdata->inpbuf[inpdata->inplen] = 0;
+          if (ch != '\004' && ch != '\n' && ch != '\r')
+	    inpdata->inp.len = 0;
+	  inpdata->inp.buf[inpdata->inp.len] = 0;
+
+	  if (inpdata->inp.len)
+	    inphist = inpdata->inp;	/* structure copy */
 	  
   	  D_lay->l_data = 0;
           InpAbort(); /* redisplays... */
 	  *ppbuf = pbuf;
 	  *plen = len;
           if ((inpdata->inpmode & INP_RAW) == 0)
-            (*inpdata->inpfinfunc)(inpdata->inpbuf, inpdata->inplen);
+            (*inpdata->inpfinfunc)(inpdata->inp.buf, inpdata->inp.len, inpdata->priv);
 	  else
-            (*inpdata->inpfinfunc)(pbuf - 1, 0);
+            (*inpdata->inpfinfunc)(pbuf - 1, 0, inpdata->priv);
 	  free((char *)inpdata);
 	  return;
 	}
@@ -248,7 +326,7 @@ int y, xs, xe, isblank;
       LAY_CALL_UP(RefreshLine(y, xs, xe, isblank));
       return;
     }
-  inpdata->inpbuf[inpdata->inplen] = 0;
+  inpdata->inp.buf[inpdata->inp.len] = 0;
   GotoPos(xs, y);
   q = xs;
   v = xe - xs + 1;
@@ -265,14 +343,14 @@ int y, xs, xe, isblank;
       v -= l;
     }
   s = r;
-  r += inpdata->inplen;
+  r += inpdata->inp.len;
   if (!(inpdata->inpmode & INP_NOECHO) && v > 0 && q < r)
     {
       SetRendition(&mchar_so);
       l = v;
       if (l > r-q)
 	l = r-q;
-      AddStrn(inpdata->inpbuf + q - s, l);
+      AddStrn(inpdata->inp.buf + q - s, l);
       q += l;
       v -= l;
     }
@@ -289,3 +367,12 @@ int y, xs, xe, isblank;
     }
   SetLastPos(q, y);
 }
+
+int
+InInput()
+{
+  if (display && D_layfn->LayProcess == InpProcess)
+    return 1;
+  return 0;
+}
+

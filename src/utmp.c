@@ -279,7 +279,14 @@ RemoveLoginSlot()
   if (ut_delete_user(D_loginslot, uu->ut_pid, 0, 0) == 0)
 # else /* _SEQUENT_ */
   u = *uu;
+  /*
+   * Ed Hill (ed-hill@uiowa.edu)   screen-3.5.2 under AIX 3.2.5
+   * when you are down to a single screen, and you log out of it (thus exiting
+   * screen), it leaves a stray entry in the utmp file. Seems better:
+   * u.ut_type = EMPTY;
+   */
   u.ut_type = DEAD_PROCESS;
+  u.ut_user[0] = '\0';	/* for Digital UNIX 3.2C, kilbi@rad.rwth-aachen.de */
   u.ut_exit.e_termination = 0;
   u.ut_exit.e_exit= 0;
   if (pututline(&u) == 0)

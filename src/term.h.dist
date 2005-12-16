@@ -221,17 +221,17 @@ union tcu
 #define d_CXC d_tcs[99].str
 #define D_CXC (D_tcs[99].str)
 #define T_CAPS 100
-#define T_CURSOR 139
-#define T_KEYPAD 143
-#define T_OCAPS 161
-#define T_ECAPS 174
-#define T_N 174
+#define T_CURSOR 147
+#define T_KEYPAD 151
+#define T_OCAPS 169
+#define T_ECAPS 182
+#define T_N 182
 
 #ifdef MAPKEYS
 #  define KMAPDEFSTART 100
-#  define NKMAPDEF 61
-#  define KMAPADEFSTART 139
+#  define NKMAPDEF 69
+#  define KMAPADEFSTART 147
 #  define NKMAPADEF 22
-#  define KMAPMDEFSTART 114
+#  define KMAPMDEFSTART 122
 #  define NKMAPMDEF 29
 #endif

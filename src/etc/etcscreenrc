@@ -93,3 +93,7 @@ bind 'K' kill
 bind 'I' login on
 bind 'O' login off
 bind '}' history
+
+# colon takes a parameter since screen-3.8.6
+bind 'R' colon "screen -ln rlogin faui -8^b^b^b"
+bind 'P' colon "^p"

@@ -978,8 +978,8 @@ else AC_DEFINE(NAME_MAX, 14)
 fi
 rm -f /tmp/conftest*
 
-AC_COMPILE_CHECK(vsprintf, [#include <varargs.h>
-#include <stdio.h>], [vsprintf();], AC_DEFINE(USEVARARGS))
+AC_COMPILE_CHECK(vsprintf, [
+#include <stdio.h>], [vsprintf(0,0,0);], AC_DEFINE(USEVARARGS))
 
 AC_DIR_HEADER
 AC_XENIX_DIR
@@ -993,6 +993,8 @@ AC_COMPILE_CHECK(rename, ,  [rename(0,0);], , AC_DEFINE(NEED_RENAME))
 AC_COMPILE_CHECK(_exit, ,   [_exit(0);],    AC_DEFINE(HAVE__EXIT))
 AC_COMPILE_CHECK(lstat, ,   [lstat(0,0);],  AC_DEFINE(HAVE_LSTAT))
 AC_COMPILE_CHECK(strerror, ,[strerror(0);], AC_DEFINE(HAVE_STRERROR))
+AC_COMPILE_CHECK(utimes, ,[utimes(0,0);], AC_DEFINE(HAVE_UTIMES))
+AC_COMPILE_CHECK(vsnprintf, ,[vsnprintf(0,0,0);], AC_DEFINE(HAVE_VSNPRINTF))
 
 dnl
 dnl    ****  the end  ****

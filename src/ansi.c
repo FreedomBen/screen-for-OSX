@@ -415,7 +415,7 @@ register struct win *p;
 #ifdef KANJI
 static char *kanjicharsets[3] = {
   "BBBB02", 	/* jis */
-  "\002IBB01",	/* euc  */
+  "B\002IB01",	/* euc  */
   "BIBB01"	/* sjis  */
 };
 #endif
@@ -955,6 +955,16 @@ skip:	      if (--len == 0)
 	      if (font != KANJI)
 		{
 		  debug2("SJIS !! %x %x\n", c, t);
+		  /*
+		   * SJIS -> EUC mapping:
+		   *   First byte:
+		   *     81,82...9f -> 21,23...5d
+		   *     e0,e1...ef -> 5f,61...7d
+		   *   Second byte:
+		   *     40-7e -> 21-5f
+		   *     80-9e -> 60-7e
+		   *     9f-fc -> 21-7e (increment first byte!)
+		   */
 		  if (0x40 <= t && t <= 0xfc && t != 0x7f)
 		    {
 		      if (c <= 0x9f) c = (c - 0x81) * 2 + 0x21;
@@ -1424,8 +1434,14 @@ int c, intermediate;
 	  ASetMode(0);
 	  break;
 	case 'i':
-	  if (display && a1 == 5)
-	    PrintStart();
+          {
+	    struct display *odisplay = display;
+	    if (display == 0 && displays && displays->d_next == 0)
+	      display = displays;
+	    if (display && a1 == 5)
+	      PrintStart();
+	    display = odisplay;
+	  }
 	  break;
 	case 'n':
 	  if (a1 == 5)		/* Report terminal status */
@@ -2464,7 +2480,7 @@ char *fmt;
 int n1, n2;
 {
   register int len;
-  char rbuf[40];
+  char rbuf[40];	/* enough room for all replys */
 
   sprintf(rbuf, fmt, n1, n2);
   len = strlen(rbuf);

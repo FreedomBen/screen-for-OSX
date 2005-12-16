@@ -69,7 +69,7 @@ extern int intrc, origintrc; /* display? */
 extern struct NewWindow nwin_default, nwin_undef;
 #ifdef COPY_PASTE
 extern int join_with_cr, pastefont;
-extern char mark_key_tab[];
+extern unsigned char mark_key_tab[];
 extern char *BufferFile;
 #endif
 #ifdef POW_DETACH
@@ -107,25 +107,27 @@ static int  ParseWinNum __P((struct action *act, int *));
 static int  ParseBase __P((struct action *act, char *, int *, int, char *));
 static char *ParseChar __P((char *, char *));
 static int  IsNum __P((char *, int));
-static void InputColon __P((void));
-static void Colonfin __P((char *, int));
+static void Colonfin __P((char *, int, char *));
 static void InputSelect __P((void));
 static void InputSetenv __P((char *));
 static void InputAKA __P((void));
-static void AKAfin __P((char *, int));
+static void AKAfin __P((char *, int, char *));
 #ifdef COPY_PASTE
-static void copy_reg_fn __P((char *, int));
-static void ins_reg_fn __P((char *, int));
+static void copy_reg_fn __P((char *, int, char *));
+static void ins_reg_fn __P((char *, int, char *));
 #endif
-static void process_fn __P((char *, int));
+static void process_fn __P((char *, int, char *));
 #ifdef PASSWORD
-static void pass1 __P((char *, int));
-static void pass2 __P((char *, int));
+static void pass1 __P((char *, int, char *));
+static void pass2 __P((char *, int, char *));
 #endif
 #ifdef POW_DETACH
-static void pow_detach_fn __P((char *, int));
+static void pow_detach_fn __P((char *, int, char *));
 #endif
-static void digraph_fn __P((char *, int));
+static void digraph_fn __P((char *, int, char *));
+#ifdef MAPKEYS
+static int  StuffKey __P((int));
+#endif
 
 
 
@@ -150,7 +152,9 @@ struct win *wtab[MAXWIN];	/* window table, should be dynamic */
 
 #ifdef MULTIUSER
 extern char *multi;
+extern int maxusercount;
 #endif
+char NullStr[] = "";		/* not really used */
 #ifdef PASSWORD
 int CheckPassword;
 char Password[30];
@@ -462,17 +466,16 @@ char *ibuf;
 int ilen;
 {
   int ch, slen;
-  char *s;
-  struct action *act;
+  unsigned char *s;
   int i, l;
 
   if (display == 0 || ilen == 0)
     return;
   slen = ilen;
-  s = ibuf;
+  s = (unsigned char *)ibuf;
   while(ilen-- > 0)
     {
-      ch = *(unsigned char *)s++;
+      ch = *s++;
       if (D_dontmap)
         D_dontmap = 0;
       else if (D_nseqs)
@@ -503,7 +506,7 @@ int ilen;
 		ProcessInput2(ibuf, slen);
 		D_seqruns = 0;
 	      }
-	    ibuf = s;
+	    ibuf = (char *)s;
 	    slen = ilen;
 	    ch = -1;
 	    if (*++D_seqp == 0)
@@ -511,29 +514,7 @@ int ilen;
 		i = (struct kmap *)(D_seqp - D_seql - KMAP_SEQ) - D_kmaps;
 		debug1("Mapping #%d", i);
 		i = D_kmaps[i].nr & ~KMAP_NOTIMEOUT;
-#ifdef DEBUG
-		if (i < KMAP_KEYS)
-		  debug1(" - %s", term[i + T_CAPS].tcname);
-#endif
-		if (i >= T_CURSOR - T_CAPS && i < T_KEYPAD - T_CAPS && D_cursorkeys)
-		  i += T_OCAPS - T_CURSOR;
-		else if (i >= T_KEYPAD - T_CAPS && i < T_OCAPS - T_CAPS && D_keypad)
-		  i += T_OCAPS - T_CURSOR;
-		debug1(" - action %d\n", i);
-		fore = D_fore;
-		act = 0;
-#ifdef COPY_PASTE
-		if (InMark())
-		  act = &mmtab[i];
-#endif
-		if ((!act || act->nr == RC_ILLEGAL) && !D_mapdefault)
-		  act = &umtab[i];
-		D_mapdefault = 0;
-		if (!act || act->nr == RC_ILLEGAL)
-		  act = &dmtab[i];
-		if (act && act->nr != RC_ILLEGAL)
-		  DoAction(act, 0);
-		else
+		if (StuffKey(i))
 		  {
 		    D_seqp -= D_seql;
 		    ProcessInput2(D_seqp, D_seql);
@@ -604,7 +585,7 @@ int ilen;
 
       if (ch >= 0)
         DoAction(&ktab[ch], ch);
-      ibuf = s + 1;
+      ibuf = (char *)(s + 1);
       ilen--;
     }
 }
@@ -821,7 +802,7 @@ int key;
 	  static char buf[2];
 
 	  buf[0] = key;
-	  Input(buf, 1, pow_detach_fn, INP_RAW);
+	  Input(buf, 1, INP_RAW, pow_detach_fn, NULL);
 	}
       else
         Detach(D_POWER); /* detach and kill Attacher's parent */
@@ -845,14 +826,7 @@ int key;
 	  dfp = NULL;
 	}
       if (strcmp("off", *args))
-        {
-	  char buf[255];
-
-	  sprintf(buf, "%s/SCREEN.%d", DEBUGDIR, getpid());
-	  if ((dfp = fopen(buf, "a")) == NULL)
-	    dfp = stderr;
-	  debug("debug: opening debug file.\n");
-	}
+        opendebug(0, 1);
 #else
       Msg(0, "Sorry, screen was compiled without -DDEBUG option.");
 #endif
@@ -1045,7 +1019,7 @@ int key;
        */
       if ((s = *args) == NULL)
 	{
-	  Input("Copy to register:", 1, copy_reg_fn, INP_RAW);
+	  Input("Copy to register:", 1, INP_RAW, copy_reg_fn, NULL);
 	  break;
 	}
       if (((s = ParseChar(s, &ch)) == NULL) || *s)
@@ -1075,7 +1049,7 @@ int key;
 	 * This could be done with RC_PASTE too, but is here to be consistent
 	 * with the zero argument call.
 	 */
-        copy_reg_fn(&ch, 0);
+        copy_reg_fn(&ch, 0, NULL);
       break;
 #endif
     case RC_REGISTER:
@@ -1095,7 +1069,7 @@ int key;
     case RC_PROCESS:
       if ((s = *args) == NULL)
 	{
-	  Input("Process register:", 1, process_fn, INP_RAW);
+	  Input("Process register:", 1, INP_RAW, process_fn, NULL);
 	  break;
 	}
       if ((s = ParseChar(s, &ch)) == NULL || *s)
@@ -1104,7 +1078,7 @@ int key;
 	      rc_name);
 	  break;
 	}
-      process_fn(&ch, 0);
+      process_fn(&ch, 0, NULL);
       break;
     case RC_STUFF:
       s = *args;
@@ -1245,7 +1219,13 @@ int key;
 	ChangeAKA(fore, *args, 20);
       break;
     case RC_COLON:
-      InputColon();
+      Input(":", 100, INP_COOKED, Colonfin, NULL);
+      if (*args && **args)
+	{
+	  s = *args;
+	  n = strlen(s);
+	  Process(&s, &n);
+	}
       break;
     case RC_LASTMSG:
       if (D_status_lastmsg)
@@ -1399,7 +1379,7 @@ int key;
 	 */
 	if ((s = *args) == NULL)
 	  {
-	    Input("Paste from register:", 1, ins_reg_fn, INP_RAW);
+	    Input("Paste from register:", 1, INP_RAW, ins_reg_fn, NULL);
 	    break;
 	  }
 	/*	
@@ -1833,6 +1813,14 @@ int key;
         break;
       if (n)
         {
+#ifdef MULTIUSER
+	  if (display)	/* we tell only this user */
+	    ACLBYTE(fore->w_lio_notify, D_user->u_id) |= ACLBIT(D_user->u_id);
+	  else
+	    for (i = 0; i < maxusercount; i++)
+	      ACLBYTE(fore->w_mon_notify, i) |= ACLBIT(i);
+	  if (!fore->w_tstamp.seconds)
+#endif
 	  fore->w_tstamp.lastio = time(0);
 	  fore->w_tstamp.seconds = i;
 	  if (!msgok)
@@ -1848,8 +1836,22 @@ int key;
 	}
       else
         {
-	  fore->w_tstamp.lastio = (time_t)0;
-	  fore->w_tstamp.seconds = 0;
+#ifdef MULTIUSER
+	  if (display) /* we remove only this user */
+	    ACLBYTE(fore->w_lio_notify, D_user->u_id) 
+	      &= ~ACLBIT(D_user->u_id);
+	  else
+	    for (i = 0; i < maxusercount; i++)
+	      ACLBYTE(fore->w_lio_notify, i) &= ~ACLBIT(i);
+	  for (i = maxusercount - 1; i >= 0; i--)
+	    if (ACLBYTE(fore->w_lio_notify, i))
+	      break;
+	  if (i < 0)
+#endif
+	    {
+	      fore->w_tstamp.lastio = (time_t)0;
+	      fore->w_tstamp.seconds = 0;
+	    }
 	  if (!msgok)
 	    break;
 #ifdef NETHACK
@@ -1882,13 +1884,13 @@ int key;
 	  s = NULL;
 	  if (ParseSaveStr(act, &s))
 	    break;
-	  if (!*s || strlen(s) > MAXPATHLEN - 13)
+	  if (!*s || strlen(s) + (SockName - SockPath) > MAXPATHLEN - 13)
 	    {
 	      Msg(0, "%s: bad session name '%s'\n", rc_name, s);
 	      free(s);
 	      break;
 	    }
-	  sprintf(buf, "%s", SockPath);
+	  strncpy(buf, SockPath, SockName - SockPath);
 	  sprintf(buf + (SockName - SockPath), "%d.%s", (int)getpid(), s); 
 	  free(s);
 	  if ((access(buf, F_OK) == 0) || (errno != ENOENT))
@@ -1902,7 +1904,7 @@ int key;
 	      break;
 	    }
 	  debug2("rename(%s, %s) done\n", SockPath, buf);
-	  sprintf(SockPath, "%s", buf);
+	  strcpy(SockPath, buf);
 	  MakeNewEnv();
 	}
       break;
@@ -1980,7 +1982,7 @@ int key;
         Msg(0, "Will %spaste font settings", pastefont ? "" : "not ");
       break;
     case RC_CRLF:
-      (void)ParseOnOff(act, &join_with_cr);
+      (void)ParseSwitch(act, &join_with_cr);
       break;
 #endif
 #ifdef NETHACK
@@ -2036,8 +2038,8 @@ int key;
 	      debug("prompting for password on no display???\n");
 	      break;
 	    }
-	  Input("New screen password:", sizeof(Password) - 1, pass1, 
-		INP_NOECHO);
+	  Input("New screen password:", sizeof(Password) - 1, INP_NOECHO,
+	        pass1, NULL);
 	}
       break;
 #endif				/* PASSWORD */
@@ -2103,7 +2105,7 @@ int key;
 	  if (*args == 0)
 	    {
 	      if (mf)
-		display_bindkey("Copy mode", mmtab);
+		display_bindkey("Edit mode", mmtab);
 	      else if (df)
 		display_bindkey("Default", dmtab);
 	      else
@@ -2216,39 +2218,18 @@ int key;
 #ifdef MULTIUSER
     case RC_ACLCHG:
     case RC_ACLADD:
-	{
-	  struct user **u;
-	  
-	  if (args[0][0] == '*' && args[0][1] == '\0' && args[1] && args[2])
-	    {
-	      for (u = &users; *u; u = &(*u)->u_next)
-	        AclSetPerm(*u, args[1], args[2]);
-	      break;
-	    } 
-	  do
-	    {
-	      for (s = args[0]; *s && *s != ' ' && *s != '\t' && *s != ','; s++)
-	        ;
-	      *s ? (*s++ = '\0') : (*s = '\0');
-	      u = FindUserPtr(args[0]);
-	      UserAdd(args[0], (char *)0, u);
-	      if (args[1] && args[2])
-		AclSetPerm(*u, args[1], args[2]);
-	      else
-		AclSetPerm(*u, "+rwx", "#?"); 
-	    } while (*(args[0] = s));
-	  break;
-	}
+      for (n = 0; args[n]; n++)
+        ;
+      UsersAcl(NULL, n, args);
+      break;
     case RC_ACLDEL:
-        {
-	  if (UserDel(args[0], (struct user **)0))
-	    break;
-	  if (msgok)
-	    Msg(0, "%s removed from acl database", args[0]);
-	  break;
-        }
+      if (UserDel(args[0], NULL))
+	break;
+      if (msgok)
+	Msg(0, "%s removed from acl database", args[0]);
+      break;
     case RC_ACLGRP:
-        {
+       {
 	  break;
 	}
     case RC_MULTIUSER:
@@ -2334,7 +2315,7 @@ int key;
 	  Msg(0, "using termcap entries for printing");
       break;
     case RC_DIGRAPH:
-      Input("Enter digraph: ", 10, digraph_fn, INP_EVERY);
+      Input("Enter digraph: ", 10, INP_EVERY, digraph_fn, NULL);
       if (*args && **args)
 	{
 	  s = *args;
@@ -2462,6 +2443,15 @@ char **args;
   return ap;
 }
 
+/*
+ * buf is split into argument vector args.
+ * leading whitespace is removed.
+ * @!| abbreviations are expanded.
+ * the end of buffer is recognized by '\0' or an un-escaped '#'.
+ * " and ' are interpreted.
+ *
+ * argc is returned.
+ */
 int 
 Parse(buf, args)
 char *buf, **args;
@@ -2797,6 +2787,13 @@ char *bname;
   return 0;
 }
 
+/*
+ * Interprets ^?, ^@ and other ^-control-char notation.
+ * Interprets \ddd octal notation
+ * 
+ * The result is placed in *cp, p is advanced behind the parsed expression and 
+ * returned. 
+ */
 static char *
 ParseChar(p, cp)
 char *p, *cp;
@@ -3132,7 +3129,7 @@ ShowWindows()
 	continue;
 
       cmd = p->w_title;
-      if (s - buf + strlen(cmd) > sizeof(buf) - 6)
+      if (s - buf + strlen(cmd) > sizeof(buf) - 24)
 	break;
       if (s > buf)
 	{
@@ -3276,9 +3273,10 @@ ShowInfo()
 
 
 static void
-AKAfin(buf, len)
+AKAfin(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   ASSERT(display);
   if (len && fore)
@@ -3288,28 +3286,24 @@ int len;
 static void
 InputAKA()
 {
-  Input("Set window's title to: ", 20, AKAfin, INP_COOKED);
+  Input("Set window's title to: ", 20, INP_COOKED, AKAfin, NULL);
 }
 
 static void
-Colonfin(buf, len)
+Colonfin(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   if (len)
     RcLine(buf);
 }
 
 static void
-InputColon()
-{
-  Input(":", 100, Colonfin, INP_COOKED);
-}
-
-static void
-SelectFin(buf, len)
+SelectFin(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   int n;
 
@@ -3323,16 +3317,17 @@ int len;
 static void
 InputSelect()
 {
-  Input("Switch to window: ", 20, SelectFin, INP_COOKED);
+  Input("Switch to window: ", 20, INP_COOKED, SelectFin, NULL);
 }
 
 static char setenv_var[31];
 
 
 static void
-SetenvFin1(buf, len)
+SetenvFin1(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   if (!len || !display)
     return;
@@ -3340,9 +3335,10 @@ int len;
 }
   
 static void
-SetenvFin2(buf, len)
+SetenvFin2(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   struct action act;
   char *args[3];
@@ -3362,18 +3358,25 @@ static void
 InputSetenv(arg)
 char *arg;
 {
-  static char setenv_buf[80];	/* need to be static here, cannot be freed */
+  static char setenv_buf[50 + sizeof(setenv_var)];	/* need to be static here, cannot be freed */
 
   if (arg)
     {
-      strncpy(setenv_var, arg, 30);
-      sprintf(setenv_buf, "Enter value for %s: ", arg);
-      Input(setenv_buf, 30, SetenvFin2, INP_COOKED);
+      strncpy(setenv_var, arg, sizeof(setenv_var) - 1);
+      sprintf(setenv_buf, "Enter value for %s: ", setenv_var);
+      Input(setenv_buf, 30, INP_COOKED, SetenvFin2, NULL);
     }
   else
-    Input("Setenv: Enter variable name: ", 30, SetenvFin1, INP_COOKED);
+    Input("Setenv: Enter variable name: ", 30, INP_COOKED, SetenvFin1, NULL);
 }
 
+/*
+ * the following options are understood by this parser:
+ * -f, -f0, -f1, -fy, -fa
+ * -t title, -T terminal-type, -h height-of-scrollback, 
+ * -ln, -l0, -ly, -l1, -l
+ * -a, -M, -L
+ */
 void
 DoScreen(fn, av)
 char *fn, **av;
@@ -3503,7 +3506,8 @@ char *fn, **av;
  */
 int
 CompileKeys(s, array)
-char *s, *array;
+char *s;
+unsigned char *array;
 {
   int i;
   unsigned char key, value;
@@ -3541,11 +3545,12 @@ char *s, *array;
  *  Asynchronous input functions
  */
 
-#ifdef POW_DETACH
+#if defined(POW_DETACH)
 static void
-pow_detach_fn(buf, len)
+pow_detach_fn(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   if (len)
     {
@@ -3568,9 +3573,10 @@ int len;
 
 #ifdef COPY_PASTE
 static void
-copy_reg_fn(buf, len)
+copy_reg_fn(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   struct plop *pp = plop_tab + (int)(unsigned char)*buf;
 
@@ -3592,9 +3598,10 @@ int len;
 }
 
 static void
-ins_reg_fn(buf, len)
+ins_reg_fn(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   struct plop *pp = plop_tab + (int)(unsigned char)*buf;
 
@@ -3627,9 +3634,10 @@ int len;
 #endif /* COPY_PASTE */
 
 static void
-process_fn(buf, len)
+process_fn(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   struct plop *pp = plop_tab + (int)(unsigned char)*buf;
 
@@ -3656,19 +3664,21 @@ int len;
 
 /* ARGSUSED */
 static void
-pass1(buf, len)
+pass1(buf, len, data)
 char *buf;
 int len;
+char *data;
 {
   strncpy(Password, buf, sizeof(Password) - 1);
-  Input("Retype new password:", sizeof(Password) - 1, pass2, 1);
+  Input("Retype new password:", sizeof(Password) - 1, INP_NOECHO, pass2, NULL);
 }
 
 /* ARGSUSED */
 static void
-pass2(buf, len)
+pass2(buf, len, data)
 char *buf;
 int len;
+char *data;
 {
   int st;
   char salt[2];
@@ -3717,9 +3727,10 @@ int len;
 #endif /* PASSWORD */
 
 static void
-digraph_fn(buf, len)
+digraph_fn(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   int ch, i, x;
 
@@ -3732,7 +3743,7 @@ int len;
 	{
 	  if (ch < '0' || ch > '7')
 	    {
-	      buf[len] = '\001';	/* ignore */
+	      buf[len] = '\034';	/* ^] is ignored by Input() */
 	      return;
 	    }
 	  if (len == 3)
@@ -3775,3 +3786,39 @@ int len;
   while(i)
     Process(&buf, &i);
 }
+
+#ifdef MAPKEYS
+static int
+StuffKey(i)
+int i;
+{
+  struct action *act;
+
+  debug1("StuffKey #%d", i);
+#ifdef DEBUG
+  if (i < KMAP_KEYS)
+    debug1(" - %s", term[i + T_CAPS].tcname);
+#endif
+  if (i >= T_CURSOR - T_CAPS && i < T_KEYPAD - T_CAPS && D_cursorkeys)
+    i += T_OCAPS - T_CURSOR;
+  else if (i >= T_KEYPAD - T_CAPS && i < T_OCAPS - T_CAPS && D_keypad)
+    i += T_OCAPS - T_CURSOR;
+  debug1(" - action %d\n", i);
+  fore = D_fore;
+  act = 0;
+#ifdef COPY_PASTE
+  if (InMark() || InInput())
+    act = &mmtab[i];
+#endif
+  if ((!act || act->nr == RC_ILLEGAL) && !D_mapdefault)
+    act = &umtab[i];
+  D_mapdefault = 0;
+  if (!act || act->nr == RC_ILLEGAL)
+    act = &dmtab[i];
+  if (act == 0 || act->nr == RC_ILLEGAL)
+    return -1;
+  DoAction(act, 0);
+  return 0;
+}
+#endif
+

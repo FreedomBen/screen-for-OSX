@@ -32,6 +32,8 @@ pow_detach_msg "Screen session of \$LOGNAME \$:cr:\$:nl:ended."
 
 defscrollback 1000
 
+# don't kill window after the process died
+# zombie "^["
 
 ################
 #
@@ -55,7 +57,7 @@ termcapinfo xterm* OL=10000
 # keys.
 termcapinfo xterm 'VR=\E[?5h:VN=\E[?5l'
 termcapinfo xterm 'k1=\E[11~:k2=\E[12~:k3=\E[13~:k4=\E[14~'
-termcapinfo xterm 'kh=\E[1~:kI=\E[2~:kD=\E[3~:kH=\E[4~:kP=\E[5~:kN=\E[6~'
+termcapinfo xterm 'kh=\E[1~:kI=\E[2~:kD=\E[3~:kH=\E[4~:kP=\E[H:kN=\E[6~'
 
 # special xterm hardstatus: use the window title.
 termcapinfo xterm 'hs:ts=\E]2;:fs=\007:ds=\E]0;screen\007'
@@ -122,3 +124,11 @@ register [ "\033:se noai\015a"
 register ] "\033:se ai\015a"
 bind ^] paste [.]
 
+################
+#
+# default windows
+#
+
+# screen -t local 0
+# screen -t mail 1 elm
+# screen -t 40 2 rlogin faui40

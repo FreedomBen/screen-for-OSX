@@ -121,7 +121,7 @@ char *rcfile;
       else
 	{
 	  debug("  ...nothing in $SCREENRC, defaulting $HOME/.screenrc\n");
-	  if (strlen(home) > 244)
+	  if (strlen(home) > sizeof(buf) - 12)
 	    Panic(0, "Rc: home too large");
 	  sprintf(buf, "%s/.iscreenrc", home);
           if (access(buf, R_OK))
@@ -176,7 +176,7 @@ char *rcfilename;
     {
       if ((p = rindex(buf, '\n')) != NULL)
 	*p = '\0';
-      if ((argc = Parse(expand_vars(buf), args)) == 0)
+      if ((argc = Parse(expand_vars(buf, display), args)) == 0)
 	continue;
       if (strcmp(args[0], "echo") == 0)
 	{
@@ -279,160 +279,13 @@ char *rcfilename;
   rc_name = "";
 }
 
-/*
- *	"$HOST blafoo"   	-> "localhost blafoo"
- *	"${HOST}blafoo"	  	-> "localhostblafoo"
- *	"\$HOST blafoo" 	-> "$HOST blafoo"
- *	"\\$HOST blafoo"	-> "\localhost blafoo"
- *	"'$HOST ${HOST}'"	-> "'$HOST ${HOST}'" 
- *	"'\$HOST'"       	-> "'\$HOST'"
- *	"\'$HOST' $HOST"   	-> "'localhost' $HOST"
- *
- *	"$:termcapname:"	-> "termcapvalue"
- *	"$:terminfoname:"	-> "termcapvalue"
- *
- *	"\101"			-> "A"
- *	"^a"			-> "\001"
- */
-char *
-expand_vars(ss)
-char *ss;
-{
-  static char ebuf[2048];
-  register int esize = 2047, vtype, quofl = 0;
-  register char *e = ebuf;
-  register char *s = ss;
-  register char *v;
-  char xbuf[11];
-  int i;
-
-  while (*s && *s != '\0' && *s != '\n' && esize > 0)
-    {
-      if (*s == '\'')
-	quofl ^= 1;
-      if (*s == '$' && !quofl)
-	{
-	  char *p, c;
-
-	  p = ++s;
-	  switch (*s)
-	    {
-	    case '{':
-	      p = ++s;
-	      while (*p != '}')
-	        if (*p++ == '\0')
-	          return ss;
-	      vtype = 0;		/* env var */
-	      break;
-	    case ':':
-	      p = ++s;
-	      while (*p != ':')
-		if (*p++ == '\0')
-		  return ss;
-	      vtype = 1;		/* termcap string */
-	      break;
-	    default:
-	      while (*p != ' ' && *p != '\0' && *p != '\n')
-		p++;
-	      vtype = 0;		/* env var */
-	    }
-	  c = *p;
-	  debug1("exp: c='%c'\n", c);
-	  *p = '\0';
-	  if (vtype == 0)
-	    {
-	      v = xbuf;
-	      if (strcmp(s, "TERM") == 0)
-		v = display ? D_termname : "unknown";
-	      else if (strcmp(s, "COLUMNS") == 0)
-		sprintf(xbuf, "%d", display ? D_width : -1);
-	      else if (strcmp(s, "LINES") == 0)
-		sprintf(xbuf, "%d", display ? D_height : -1);
-	      else
-		v = getenv(s);
-	    }
-	  else
-	    v = gettermcapstring(s);
-	  if (v)
-	    {
-	      debug2("exp: $'%s'='%s'\n", s, v);
-	      while (*v && esize-- > 0)
-	        *e++ = *v++;
-	    }
-	  else 
-	    debug1("exp: '%s' not env\n", s);  /* '{'-: */
-	  if ((*p = c) == '}' || c == ':')
-	    p++;
-	  s = p;
-	}
-      else if (*s == '^' && !quofl)
-	{
-	  s++;
-	  i = *s++;
-	  if (i == '?')
-	    i = '\177';
-	  else
-	    i &= 0x1f;
-	  *e++ = i;
-	  esize--;
-	}
-      else
-	{
-	  /*
-	   * \$, \\$, \\, \\\, \012 are reduced here, 
-	   * other sequences starting whith \ are passed through.
-	   */
-	  if (s[0] == '\\' && !quofl)
-	    {
-	      if (s[1] >= '0' && s[1] <= '7')
-		{
-		  s++;
-		  i = *s - '0';
-		  s++;
-		  if (*s >= '0' && *s <= '7')
-		    {
-		      i = i * 8 + *s - '0';
-		      s++;
-		      if (*s >= '0' && *s <= '7')
-			{
-			  i = i * 8 + *s - '0';
-			  s++;
-			}
-		    }
-		  debug2("expandvars: octal coded character %o (%d)\n", i, i);
-		  *e++ = i;
-		  esize--;
-		  continue;
-		}
-	      else
-		{
-		  if (s[1] == '$' || 
-		      (s[1] == '\\' && s[2] == '$') ||
-		      s[1] == '\'' || 
-		      (s[1] == '\\' && s[2] == '\'') ||
-		      s[1] == '^' || 
-		      (s[1] == '\\' && s[2] == '^'))
-		    s++;
-		}
-	    }
-	  *e++ = *s++;
-	  esize--;
-	}
-    }
-  if (esize <= 0)
-    Msg(0, "expand_vars: buffer overflow\n");
-  *e = '\0';
-  debug1("expand_var returns '%s'\n", ebuf);
-  return ebuf;
-}
-
 void
 RcLine(ubuf)
 char *ubuf;
 {
   char *args[MAXARGS], *buf;
 
-  buf = expand_vars(ubuf); 
+  buf = expand_vars(ubuf, display); 
   if (Parse(buf, args) <= 0)
     return;
   DoCommand(args);
@@ -458,11 +311,13 @@ int dump;
     {
     case DUMP_TERMCAP:
       i = SockName - SockPath;
+      if (i > sizeof(fn) - 9)
+	i = 0;
       strncpy(fn, SockPath, i);
       strcpy(fn + i, ".termcap");
       break;
     case DUMP_HARDCOPY:
-      if (hardcopydir)
+      if (hardcopydir && strlen(hardcopydir) < sizeof(fn) - 21)
 	sprintf(fn, "%s/hardcopy.%d", hardcopydir, fore->w_number);
       else
         sprintf(fn, "hardcopy.%d", fore->w_number);
@@ -471,7 +326,8 @@ int dump;
       break;
 #ifdef COPY_PASTE
     case DUMP_EXCHANGE:
-      sprintf(fn, "%s", BufferFile);
+      strncpy(fn, BufferFile, sizeof(fn) - 1);
+      fn[sizeof(fn) - 1] = 0;
       umask(0);
       break;
 #endif

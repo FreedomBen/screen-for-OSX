@@ -25,6 +25,7 @@
 RCS_ID("$Id$ FAU")
 
 #include <sys/types.h>
+#include <sys/stat.h>	/* mkdir() declaration */
 #include <signal.h>
 
 #include "config.h"
@@ -196,7 +197,7 @@ int egid;
     Panic(errno, "setegid");
 }
 
-#else
+#else /* HAVE_SETEUID */
 # ifdef HAVE_SETREUID
 
 void
@@ -229,8 +230,8 @@ int egid;
     Panic(errno, "setregid");
 }
 
-# endif
-#endif
+# endif /* HAVE_SETREUID */
+#endif /* HAVE_SETEUID */
 
 
 
@@ -292,8 +293,6 @@ int except;
     if (f != except)
       close(f);
 }
-
-
 
 /*
  *  Security - switch to real uid
@@ -427,6 +426,11 @@ int len;
 {
   char *p;
 
+  if (str == 0)
+    {
+      *buf = 0;
+      return 0;
+    }
   len -= 4;     /* longest sequence produced by AddXChar() */
   for (p = buf; p < buf + len && *str; str++)
     {
@@ -439,6 +443,181 @@ int len;
   return p - buf;
 }
 
+#ifdef DEBUG
+void
+opendebug(new, shout)
+int new, shout;
+{
+  char buf[256];
+
+#ifdef _MODE_T
+  mode_t oumask = umask(0);
+#else
+  int oumask = umask(0);
+#endif
+
+  ASSERT(!dfp);
+
+  (void) mkdir(DEBUGDIR, 0777);
+  sprintf(buf, shout ? "%s/SCREEN.%d" : "%s/screen.%d", DEBUGDIR, getpid());
+  if (!(dfp = fopen(buf, new ? "w" : "a")))
+    dfp = stderr;
+  else
+    (void)chmod(buf, 0666);
+
+  (void)umask(oumask);
+  debug("opendebug: done.\n");
+}
+#endif /* DEBUG */
+
+/*
+ *     "$HOST blafoo"          -> "localhost blafoo"
+ *     "${HOST}blafoo"         -> "localhostblafoo"
+ *     "\$HOST blafoo"         -> "$HOST blafoo"
+ *     "\\$HOST blafoo"        -> "\localhost blafoo"
+ *     "'$HOST ${HOST}'"       -> "'$HOST ${HOST}'"
+ *     "'\$HOST'"              -> "'\$HOST'"
+ *     "\'$HOST' $HOST"        -> "'localhost' $HOST"
+ *
+ *     "$:termcapname:"        -> "termcapvalue"
+ *     "$:terminfoname:"       -> "termcapvalue"
+ *
+ *     "\101"                  -> "A"
+ *     "^a"                    -> "\001"
+ *
+ * display == NULL is valid here!
+ */
+char *
+expand_vars(ss, d)
+char *ss;
+struct display *d;
+{
+  static char ebuf[2048];
+  register int esize = 2047, vtype, quofl = 0;
+  register char *e = ebuf;
+  register char *s = ss;
+  register char *v;
+  char xbuf[11];
+  int i;
+
+  while (s && *s != '\0' && *s != '\n' && esize > 0)
+    {
+      if (*s == '\'')
+	quofl ^= 1;
+      if (*s == '$' && !quofl)
+	{
+	  char *p, c;
+
+	  p = ++s;
+	  switch (*s)
+	    {
+	    case '{':
+	      p = ++s;
+	      while (*p != '}')
+		if (*p++ == '\0')
+		  return ss;
+	      vtype = 0;		/* env var */
+	      break;
+	    case ':':
+	      p = ++s;
+	      while (*p != ':')
+		if (*p++ == '\0')
+		  return ss;
+	      vtype = 1;		/* termcap string */
+	      break;
+	    default:
+	      while (*p != ' ' && *p != '\0' && *p != '\n')
+		p++;
+	      vtype = 0;		/* env var */
+	    }
+	  c = *p;
+	  debug1("exp: c='%c'\n", c);
+	  *p = '\0';
+	  if (vtype == 0)
+	    {
+	      v = xbuf;
+	      if (strcmp(s, "TERM") == 0)
+		v = d ? d->d_termname : "unknown";
+	      else if (strcmp(s, "COLUMNS") == 0)
+		sprintf(xbuf, "%d", d ? d->d_width : -1);
+	      else if (strcmp(s, "LINES") == 0)
+		sprintf(xbuf, "%d", d ? d->d_height : -1);
+	      else
+		v = getenv(s);
+	    }
+	  else
+	    v = gettermcapstring(s);
+	  if (v)
+	    {
+	      debug2("exp: $'%s'='%s'\n", s, v);
+	      while (*v && esize-- > 0)
+		*e++ = *v++;
+	    }
+	  else
+	    debug1("exp: '%s' not env\n", s);  /* '{'-: */
+	  if ((*p = c) == '}' || c == ':')
+	    p++;
+	  s = p;
+	}
+      else if (*s == '^' && !quofl)
+	{
+	  s++;
+	  i = *s++;
+	  if (i == '?')
+	    i = '\177';
+	  else
+	    i &= 0x1f;
+	  *e++ = i;
+	  esize--;
+	}
+      else
+	{
+	  /*
+	   * \$, \\$, \\, \\\, \012 are reduced here,
+	   * other sequences starting whith \ are passed through.
+	   */
+	  if (s[0] == '\\' && !quofl)
+	    {
+	      if (s[1] >= '0' && s[1] <= '7')
+		{
+		  s++;
+		  i = *s - '0';
+		  s++;
+		  if (*s >= '0' && *s <= '7')
+		    {
+		      i = i * 8 + *s - '0';
+		      s++;
+		      if (*s >= '0' && *s <= '7')
+			{
+			  i = i * 8 + *s - '0';
+			  s++;
+			}
+		    }
+		  debug2("expandvars: octal coded character %o (%d)\n", i, i);
+		  *e++ = i;
+		  esize--;
+		  continue;
+		}
+	      else
+		{
+		  if (s[1] == '$' ||
+		      (s[1] == '\\' && s[2] == '$') ||
+		      s[1] == '\'' ||
+		      (s[1] == '\\' && s[2] == '\'') ||
+		      s[1] == '^' ||
+		      (s[1] == '\\' && s[2] == '^'))
+		    s++;
+		}
+	    }
+	  *e++ = *s++;
+	  esize--;
+	}
+    }
+  if (esize <= 0)
+    Msg(0, "expand_vars: buffer overflow\n");
+  *e = '\0';
+  return ebuf;
+}
 
 #ifdef TERMINFO
 /*
@@ -466,3 +645,117 @@ int (*outc)();
 }
 #endif
 
+
+#ifndef USEVARARGS
+
+# define xva_arg(s, t, tn) (*(t *)(s += xsnoff(tn, 0, 0), s - xsnoff(tn, 0, 0)))
+# define xva_list char *
+
+static int
+xsnoff(a, b, c)
+int a;
+char *b;
+int c;
+{
+  return a ? (char *)&c  - (char *)&b : (char *)&b - (char *)&a;
+}
+
+int
+xsnprintf(s, n, fmt, p1, p2, p3, p4, p5, p6)
+char *s;
+int n;
+char *fmt;
+unsigned long p1, p2, p3, p4, p5, p6;
+{
+  int xvsnprintf __P((char *, int, char *, xva_list));
+  return xvsnprintf(s, n, fmt, (char *)&fmt + xsnoff(1, 0, 0));
+}
+
+#else
+
+# define xva_arg(s, t, tn) va_arg(s, t)
+# define xva_list va_list
+
+#endif
+
+
+#if !defined(USEVARARGS) || !defined(HAVE_VSNPRINTF)
+
+int
+xvsnprintf(s, n, fmt, stack)
+char *s;
+int n;
+char *fmt;
+xva_list stack;
+{
+  char *f, *sf = 0;
+  int i, on, argl = 0;
+  char myf[10], buf[20];
+  char *arg, *myfp;
+
+  on = n;
+  f = fmt;
+  arg = 0;
+  while(arg || (sf = index(f, '%')) || (sf = f + strlen(f)))
+    {
+      if (arg == 0)
+	{
+	  arg = f;
+	  argl = sf - f;
+	}
+      if (argl)
+	{
+	  i = argl > n - 1 ? n - 1 : argl;
+	  strncpy(s, arg, i);
+          s += i;
+	  n -= i;
+	  if (i < argl)
+	    {
+	      *s = 0;
+	      return on;
+	    }
+	}
+      arg = 0;
+      if (sf == 0)
+	continue;
+      f = sf;
+      sf = 0;
+      if (!*f)
+	break;
+      myfp = myf;
+      *myfp++ = *f++;
+      while (((*f >= '0' && *f <='9') || *f == '#') && myfp - myf < 8)
+        *myfp++ = *f++;
+      *myfp++ = *f;
+      *myfp = 0;
+      if (!*f++)
+	break;
+      switch(f[-1])
+	{
+	case '%':
+	  arg = "%";
+	  break;
+	case 'c':
+	case 'o':
+	case 'd':
+	case 'x':
+	  i = xva_arg(stack, int, 0);
+	  sprintf(buf, myf, i);
+	  arg = buf;
+	  break;
+	case 's':
+	  arg = xva_arg(stack, char *, 1);
+	  if (arg == 0)
+	    arg = "NULL";
+	  break;
+	default:
+	  arg = "";
+	  break;
+	}
+      argl = strlen(arg);
+    }
+  *s = 0;
+  return on - n;
+}
+
+#endif

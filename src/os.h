@@ -27,6 +27,11 @@
 #include <sys/param.h>
 
 
+/* In strict ANSI mode, HP-UX machines define __hpux but not hpux */
+#if defined(__hpux) && !defined(hpux)
+# define hpux
+#endif
+
 #if defined(BSDI) || defined(__386BSD__) || defined(_CX_UX) || defined(hpux)
 # include <signal.h>
 #endif /* BSDI || __386BSD__ || _CX_UX */
@@ -137,7 +142,14 @@ extern int errno;
 #endif
 
 #if !defined(HAVE__EXIT) && !defined(_exit)
-#define _exit(x) exit(x)
+# define _exit(x) exit(x)
+#endif
+
+#ifndef HAVE_UTIMES
+# define utimes utime
+#endif
+#ifndef HAVE_VSNPRINTF
+# define vsnprintf xvsnprintf
 #endif
 
 /*****************************************************************

@@ -73,7 +73,7 @@ static struct LayFuncs MarkLf =
 };
 
 int join_with_cr =  0;
-char mark_key_tab[256]; /* this array must be initialised first! */
+unsigned char mark_key_tab[256]; /* this array must be initialised first! */
 
 static struct markdata *markdata;
 
@@ -528,7 +528,7 @@ int *inlenp;
       else
 */
 	{
-          od = mark_key_tab[(unsigned int)*pt++];
+          od = mark_key_tab[(int)(unsigned char)*pt++];
           inlen--;
 	}
       rep_cnt = markdata->rep_cnt;
@@ -567,12 +567,14 @@ int *inlenp;
 	  Redisplay(0);
 	  GotoPos(cx, W2D(cy));
 	  break;
+	case 0202:	/* M-C-b */
 	case '\010':	/* CTRL-H Backspace */
 	case 'h':
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
 	  revto(cx - rep_cnt, cy);
 	  break;
+	case 0216:	/* M-C-p */
 	case '\016':	/* CTRL-N */
 	case 'j':
 	  if (rep_cnt == 0)
@@ -601,12 +603,14 @@ int *inlenp;
 	case '\n':
 	  revto(markdata->left_mar, cy + 1);
 	  break;
-	case 'k':
+	case 0220:	/* M-C-p */
 	case '\020':	/* CTRL-P */
+	case 'k':
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
 	  revto(cx, cy - rep_cnt);
 	  break;
+	case 0206:	/* M-C-f */
 	case 'l':
 	  if (rep_cnt == 0)
 	    rep_cnt = 1;
@@ -687,9 +691,11 @@ int *inlenp;
 	    rep_cnt = 100;
 	  revto_line(markdata->left_mar, (rep_cnt * (fore->w_histheight + D_height)) / 100, (D_height - 1) / 2);
 	  break;
+	case 0201:
 	case 'g':
 	  rep_cnt = 1;
 	  /* FALLTHROUGH */
+	case 0205:
 	case 'G':
 	  /* rep_cnt is here the WIN line number */
 	  if (rep_cnt == 0)

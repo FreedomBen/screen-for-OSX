@@ -24,7 +24,7 @@
 
 
 /* screen.c */
-extern void  main __P((int, char **));
+extern int   main __P((int, char **));
 extern sigret_t SigHup __P(SIGPROTOARG);
 extern void  eexit __P((int));
 extern void  Detach __P((int));
@@ -69,7 +69,7 @@ extern int   secopen __P((char *, int, int));
 extern void  WriteFile __P((int));
 extern char *ReadFile __P((char *, int *));
 extern void  KillBuffers __P((void));
-extern char *expand_vars __P((char *));
+extern char *expand_vars __P((char *, struct display *));
 
 /* tty.c */
 extern int   OpenTTY __P((char *));
@@ -99,10 +99,11 @@ extern void  ISearch __P((int));
 
 /* input.c */
 extern void  inp_setprompt __P((char *, char *));
-extern void  Input __P((char *, int, void (*)(), int));
+extern void  Input __P((char *, int, int, void (*)(), char *));
+extern int   InInput __P((void));
 
 /* help.c */
-extern void  exit_with_usage __P((char *));
+extern void  exit_with_usage __P((char *, char *, char *));
 extern void  display_help __P((void));
 extern void  display_copyright __P((void));
 extern void  display_displays __P((void));
@@ -161,7 +162,7 @@ extern int   IsNumColon __P((char *, int, char *, int));
 extern void  ShowWindows __P((void));
 extern int   WindowByNoN __P((char *));
 #ifdef COPY_PASTE
-extern int   CompileKeys __P((char *, char *));
+extern int   CompileKeys __P((char *, unsigned char *));
 #endif
 
 /* termcap.c */
@@ -247,7 +248,7 @@ extern void  DoResize __P((int, int));
 extern char *xrealloc __P((char *, int));
 
 /* socket.c */
-extern int   FindSocket __P((int *, int *, char *));
+extern int   FindSocket __P((int *, int *, int *, char *));
 extern int   MakeClientSocket __P((int));
 extern int   MakeServerSocket __P((void));
 extern int   RecoverSocket __P((void));
@@ -292,6 +293,14 @@ extern void  xsetegid  __P((int));
 #endif
 extern int   AddXChar __P((char *, int));
 extern int   AddXChars __P((char *, int, char *));
+extern void  opendebug __P((int, int));
+#ifdef USEVARARGS
+# ifndef HAVE_VSNPRINTF
+extern int   xvsnprintf __P((char *, int, char *, va_list));
+# endif
+#else
+extern int   xsnprintf __P(());
+#endif
 
 /* acl.c */
 #ifdef MULTIUSER
@@ -306,9 +315,10 @@ extern int   AclUserAddGroup __P((char *, char *));
 extern int   AclUserDelGroup __P((char *, char *));
 extern int   AclCheckPermWin __P((struct user *, int, struct win *));
 extern int   AclCheckPermCmd __P((struct user *, int, struct comm *));
-extern int   AclSetPerm __P((struct user *, char *, char *));
+extern int   AclSetPerm __P((struct user *, struct user *, char *, char *));
+extern int   UsersAcl __P((struct user *, int, char **));
 extern void  AclWinSwap __P((int, int));
-extern int   NewWindowAcl __P((struct win *));
+extern int   NewWindowAcl __P((struct win *, struct user *));
 #endif /* MULTIUSER */
 extern struct user **FindUserPtr __P((char *));
 extern int   UserAdd __P((char *, char *, struct user **));

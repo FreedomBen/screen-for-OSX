@@ -677,21 +677,21 @@ int aflag;
   if ((s = getenv("SCREENCAP")) && strlen(s) < TERMCAP_BUFSIZE)
     {
       sprintf(Termcap, "TERMCAP=%s", s);
-      sprintf(Term, "TERM=screen");
+      strcpy(Term, "TERM=screen");
       debug("getenvSCREENCAP o.k.\n");
       return Termcap;
     }
   Termcaplen = 0;
   debug1("MakeTermcap screenterm='%s'\n", screenterm);
   debug1("MakeTermcap termname='%s'\n", tname);
-  if (*screenterm == '\0')
+  if (*screenterm == '\0' || strlen(screenterm) > MAXSTR - 3)
     {
       debug("MakeTermcap sets screenterm=screen\n");
       strcpy(screenterm, "screen");
     }
   do
     {
-      sprintf(Term, "TERM=");
+      strcpy(Term, "TERM=");
       p = Term + 5;
       if (!aflag && strlen(screenterm) + strlen(tname) < MAXSTR-1)
 	{
@@ -705,10 +705,10 @@ int aflag;
           if (tgetent(buf, p) == 1)
 	    break;
 	}
-      sprintf(p, "%s", screenterm);
+      strcpy(p, screenterm);
       if (tgetent(buf, p) == 1)
 	break;
-      sprintf(p, "vt100");
+      strcpy(p, "vt100");
     }
   while (0);		/* Goto free programming... */
 
@@ -726,6 +726,8 @@ int aflag;
   }
   
   tcLineLen = 100;	/* Force NL */
+  if (strlen(Term) > TERMCAP_BUFSIZE - 40)
+    strcpy(Term, "too_long");
   sprintf(Termcap,
 	  "TERMCAP=SC|%s|VT 100/ANSI X3.64 virtual terminal", Term + 5);
   Termcaplen = strlen(Termcap);
@@ -928,7 +930,7 @@ char *s;
 	  *p++ = 'E';
 	  break;
 	case ':':
-	  sprintf(p, "\\072");
+	  strcpy(p, "\\072");
 	  p += 4;
 	  break;
 	case '^':
@@ -1243,7 +1245,7 @@ char *cap;
   bufp = buf;
   if ((tep = findcap(cap, &bufp, 2)))
     return (*tep == '@') ? 0 : 1;
-  return tgetflag(cap);
+  return tgetflag(cap) > 0;
 }
 
 static int

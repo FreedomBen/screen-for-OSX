@@ -161,6 +161,7 @@ extern int   vsprintf __P((char *, char *, va_list));
 #endif
 struct timeval;		/* for select __P */
 extern int   select __P((int, fd_set *, fd_set *, fd_set *, struct timeval *));
+extern int   utimes __P((char *, struct timeval *));
 
 extern void  unsetenv __P((char *));
 

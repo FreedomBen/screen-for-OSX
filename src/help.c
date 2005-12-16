@@ -39,8 +39,8 @@ extern struct mchar mchar_null;
 
 
 void
-exit_with_usage(myname)
-char *myname;
+exit_with_usage(myname, message, arg)
+char *myname, *message, *arg;
 {
   printf("Use: %s [-opts] [cmd [args]]\n", myname);
   printf(" or: %s -r [host.tty]\n\nOptions:\n", myname);
@@ -74,6 +74,12 @@ char *myname;
 #ifdef MULTI
   printf("-x           Attach to a not detached screen. (Multi display mode).\n");
 #endif /* MULTI */
+  if (message && *message)
+    {
+      printf("\nError: ");
+      printf(message, arg);
+      printf("\n");
+    }
   exit(1);
 }
 
@@ -287,7 +293,8 @@ helppage()
 	      debug1("help: searching key %d\n", n);
 	      buf[0] = '\0';
 	      for (key = 0; key < 256; key++)
-		if (ktab[key].nr == n && ktab[key].args == noargs)
+		if (ktab[key].nr == n && ktab[key].args == noargs && strlen(buf) < sizeof(buf) - 7)
+
 		  {
 		    strcat(buf, " ");
 		    add_key_to_buf(buf, key);
@@ -360,7 +367,7 @@ int fr;
 	    *bp++ = del = '\'';
 	}
       while (*cp && bp < buf + 250)
-        bp += AddXChar(bp, *cp++);
+        bp += AddXChar(bp, *(unsigned char *)cp++);
       if (del)
 	*bp++ = del;
       *bp = 0;
@@ -389,10 +396,11 @@ int key;
   debug1("help: key found: %c\n", key);
   buf += strlen(buf);
   if (key < 0)
-    sprintf(buf, "unset");
+    strcpy(buf, "unset");
   else if (key == ' ')
-    sprintf(buf, "sp");
-  else buf[AddXChar(buf, key)] = 0;
+    strcpy(buf, "sp");
+  else
+    buf[AddXChar(buf, key)] = 0;
 }
 
 

@@ -106,7 +106,7 @@ extern int intrc;
 
 extern int use_hardstatus;
 #ifdef COPY_PASTE
-extern char mark_key_tab[];
+extern unsigned char mark_key_tab[];
 #endif
 extern char version[];
 extern char DefaultShell[];
@@ -135,7 +135,7 @@ char *attach_term;
 char *LoginName;
 struct mode attach_Mode;
 
-char SockPath[MAXPATHLEN];
+char SockPath[MAXPATHLEN + 2 * MAXSTR];
 char *SockName, *SockMatch;	/* SockName is pointer in SockPath */
 int ServerSocket = -1;
 
@@ -313,7 +313,7 @@ fd_set *rp, *wp;
   FD_SET(ServerSocket, rp);
 }
 
-void
+int
 main(ac, av)
 int ac;
 char **av;
@@ -367,16 +367,7 @@ char **av;
    */
   closeallfiles(0);
 #ifdef DEBUG
-    {
-      char buf[255];
-
-      sprintf(buf, "%s/screen.%d", DEBUGDIR, getpid());
-      (void) mkdir(DEBUGDIR, 0777);
-      if ((dfp = fopen(buf, "w")) == NULL)
-	dfp = stderr;
-      else
-	(void) chmod(buf, 0666);
-    }
+  opendebug(1, 0);
 #endif
   sprintf(version, "%d.%.2d.%.2d%s (%s) %s", REV, VERS,
 	  PATCHLEVEL, STATE, ORIGIN, DATE);
@@ -490,7 +481,7 @@ char **av;
 	      else
 		{
 		  if (--ac == 0)
-		    exit_with_usage(myname);
+		    exit_with_usage(myname, "Specify an alternate rc-filename with -c", NULL);
 		  RcFileName = *++av;
 		}
 	      break;
@@ -500,11 +491,12 @@ char **av;
 	      else
 		{
 		  if (--ac == 0)
-		    exit_with_usage(myname);
+		    exit_with_usage(myname, "Specify command escape characters with -e", NULL);
 		  ap = *++av;
 		}
 	      if (ParseEscape((struct user *)0, ap))
-		Panic(0, "Two characters are required with -e option.");
+		Panic(0, "Two characters are required with -e option, not '%s'", ap);
+	      ap = NULL;
 	      break;
 	    case 'f':
 	      switch (ap[2])
@@ -522,7 +514,7 @@ char **av;
 		  nwin_options.flowflag = FLOW_AUTOFLAG;
 		  break;
 		default:
-		  exit_with_usage(myname);
+		  exit_with_usage(myname, "Unknown flow option -%s", --ap);
 		}
 	      break;
             case 'h':
@@ -531,23 +523,23 @@ char **av;
 	      else
 		{
 		  if (--ac == 0)
-		    exit_with_usage(myname);
+		    exit_with_usage(myname, NULL, NULL);
 		  nwin_options.histheight = atoi(*++av);
 		}
 	      if (nwin_options.histheight < 0)
-		exit_with_usage(myname);
+		exit_with_usage(myname, "-h %s: negative scrollback size?",*av);
 	      break;
 	    case 'i':
 	      iflag = 1;
 	      break;
-	    case 't': /* title is a synonym for AkA */
-	    case 'k':
+	    case 't':
+	    case 'k':	/* obsolete */
 	      if (ap[2])
 		nwin_options.aka = ap + 2;
 	      else
 		{
 		  if (--ac == 0)
-		    exit_with_usage(myname);
+		    exit_with_usage(myname, "Specify a new window-name with -t", NULL);
 		  nwin_options.aka = *++av;
 		}
 	      break;
@@ -573,7 +565,7 @@ char **av;
 		    }
 		  break;
 		default:
-		  exit_with_usage(myname);
+		  exit_with_usage(myname, "%s: Unknown suboption to -l", ap);
 		}
 	      break;
 	    case 'w':
@@ -598,7 +590,7 @@ char **av;
               else
                 {
                   if (--ac == 0)
-                    exit_with_usage(myname);
+		    exit_with_usage(myname, "Specify terminal-type with -T", NULL);
 		  if (strlen(*++av) < 20)
                     strcpy(screenterm, *av);
                 }
@@ -616,7 +608,7 @@ char **av;
 		{
 		  SockMatch = ap + 2;
 		  if (ac != 1)
-		    exit_with_usage(myname);
+		    exit_with_usage(myname, "must have exact one parameter after %s", ap);
 		}
 	      else if (ac > 1 && *av[1] != '-')
 		{
@@ -659,7 +651,7 @@ char **av;
 	      else
 		{
 		  if (--ac == 0)
-		    exit_with_usage(myname);
+		    exit_with_usage(myname, "Specify shell with -s", NULL);
 		  if (ShellProg)
 		    free(ShellProg);
 		  ShellProg = SaveStr(*++av);
@@ -672,22 +664,24 @@ char **av;
 	      else
 		{
 		  if (--ac == 0)
-		    exit_with_usage(myname);
+		    exit_with_usage(myname, "Specify session-name with -S", NULL);
 		  SockMatch = *++av;
 		  if (!*SockMatch)
-		    exit_with_usage(myname);
+		    exit_with_usage(myname, "-S: Empty session-name?", NULL);
 		}
 	      break;
 	    case 'v':
 	      Panic(0, "Screen version %s", version);
 	      /* NOTREACHED */
 	    default:
-	      exit_with_usage(myname);
+	      exit_with_usage(myname, "Unknown option %s", ap);
 	    }
 	}
       else
 	break;
     }
+  if (SockMatch && strlen(SockMatch) >= MAXSTR)
+    Panic(0, "Ridiculously long socketname - try again.");
   if (dflag && mflag && SockMatch && !(rflag || xflag))
     detached = 1;
   nwin = nwin_options;
@@ -754,6 +748,8 @@ char **av;
 	    Panic(0, "Cannot identify account '%s'.", multi);
 	  multi_uid = mppp->pw_uid;
 	  multi_home = SaveStr(mppp->pw_dir);
+	  if (strlen(multi_home) > MAXPATHLEN - 10)
+	    Panic(0, "home directory path too long");
 # ifdef MULTI
 	  if (rflag || lsflag)
 	    {
@@ -842,6 +838,10 @@ pw_try_again:
     home = ppp->pw_dir;
   if (strlen(LoginName) > 20)
     Panic(0, "LoginName too long - sorry.");
+#ifdef MULTIUSER
+  if (multi && strlen(multi) > 20)
+    Panic(0, "Screen owner name too long - sorry.");
+#endif
   if (strlen(home) > MAXPATHLEN - 25)
     Panic(0, "$HOME too long - sorry.");
 
@@ -866,7 +866,7 @@ pw_try_again:
       tty_mode = st.st_mode & 0777;
 #endif
       if ((n = secopen(attach_tty, O_RDWR, 0)) < 0)
-	Panic(0, "Cannot open '%s' - please check.", attach_tty);
+	Panic(0, "Cannot open your terminal '%s' - please check.", attach_tty);
       close(n);
       debug1("attach_tty is %s\n", attach_tty);
       if ((attach_term = getenv("TERM")) == 0 || *attach_term == 0)
@@ -1001,7 +1001,7 @@ pw_try_again:
 
   if (lsflag)
     {
-      int i, fo;
+      int i, fo, oth;
 
 #ifdef MULTIUSER
       if (multi)
@@ -1011,9 +1011,9 @@ pw_try_again:
       setgid(real_gid);
       eff_uid = real_uid;
       eff_gid = real_gid;
-      i = FindSocket((int *)NULL, &fo, SockMatch);
+      i = FindSocket((int *)NULL, &fo, &oth, SockMatch);
       if (quietflag)
-        exit(10 + i);
+	exit(8 + (fo ? ((oth || i) ? 2 : 1) : 0) + i);
       if (fo == 0)
 	{
 #ifdef NETHACK
@@ -1061,7 +1061,18 @@ pw_try_again:
 	}
     }
   nwin_compose(&nwin_default, &nwin_options, &nwin_default);
-  switch (MasterPid = fork())
+
+  if (DefaultEsc == -1)
+    DefaultEsc = Ctrl('a');
+  if (DefaultMetaEsc == -1)
+    DefaultMetaEsc = 'a';
+
+  if (!detached || dflag != 2)
+    MasterPid = fork();
+  else
+    MasterPid = 0;
+
+  switch (MasterPid)
     {
     case -1:
       Panic(errno, "fork");
@@ -1117,7 +1128,7 @@ pw_try_again:
 
     if (dfp && dfp != stderr)
       fclose(dfp);
-    sprintf(buf, "%s/SCREEN.%d", DEBUGDIR, getpid());
+    sprintf(buf, "%s/SCREEN.%d", DEBUGDIR, (int)getpid());
     if ((dfp = fopen(buf, "w")) == NULL)
       dfp = stderr;
     else
@@ -1247,7 +1258,7 @@ pw_try_again:
 #endif
   FinishRc(RcFileName);
 
-  debug2("UID %d  EUID %d\n", getuid(), geteuid());
+  debug2("UID %d  EUID %d\n", (int)getuid(), (int)geteuid());
   if (windows == NULL)
     {
       debug("We open one default window, as screenrc did not specify one.\n");
@@ -1633,6 +1644,11 @@ pw_try_again:
 		{
 		  if (errno == EINTR)
 		    continue;
+#ifdef EAGAIN
+		  /* IBM's select() doesn't always tell the truth */
+		  if (errno == EAGAIN)
+		    continue;
+#endif
 		  debug1("Read error: %d - SigHup()ing!\n", errno);
 		  SigHup(SIGARG);
 		  sleep(1);
@@ -1829,14 +1845,20 @@ struct win *p;
       debug3("window %d (%s) going into zombie state fd %d",
 	     p->w_number, p->w_title, p->w_ptyfd);
 #ifdef UTMPOK
-      RemoveUtmp(p);
+      if (p->w_slot != (slot_t)0 && p->w_slot != (slot_t)-1)
+	{
+	  RemoveUtmp(p);
+	  p->w_slot = 0;	/* "detached" */
+	}
 #endif
       (void) chmod(p->w_tty, 0666);
       (void) chown(p->w_tty, 0, 0);
       close(p->w_ptyfd);
       p->w_ptyfd = -1;
+#ifdef UTMPOK
       /* zap saved utmp as the slot may change */
       bzero((char *)&p->w_savut, sizeof(p->w_savut));
+#endif
       p->w_pid = 0;
       ResetWindow(p);
       p->w_y = p->w_bot;
@@ -1871,7 +1893,7 @@ SigChldHandler()
 	debug1("'%s' reconstructed\n", SockPath);
     }
   else
-    debug2("SigChldHandler: stat '%s' o.k. (%03o)\n", SockPath, st.st_mode);
+    debug2("SigChldHandler: stat '%s' o.k. (%03o)\n", SockPath, (int)st.st_mode);
 }
 
 static sigret_t
@@ -2180,7 +2202,7 @@ int mode;
       AddStr("[power detached]\r\n");
       if (PowDetachString) 
 	{
-	  AddStr(expand_vars(PowDetachString));
+	  AddStr(expand_vars(PowDetachString, display));
 	  AddStr("\r\n");
 	}
       sign = SIG_POWER_BYE;
@@ -2190,7 +2212,7 @@ int mode;
       AddStr("[remote power detached]\r\n");
       if (PowDetachString) 
 	{
-	  AddStr(expand_vars(PowDetachString));
+	  AddStr(expand_vars(PowDetachString, display));
 	  AddStr("\r\n");
 	}
       sign = SIG_POWER_BYE;
@@ -2340,10 +2362,10 @@ unsigned long p1, p2, p3, p4, p5, p6;
 # else /* __STDC__ */
   va_start(ap);
 # endif /* __STDC__ */
-  (void) vsprintf(p, fmt, ap);
+  (void) vsnprintf(p, sizeof(buf) - 100, fmt, ap);
   va_end(ap);
 #else /* USEVARARRGS */
-  sprintf(p, fmt, p1, p2, p3, p4, p5, p6);
+  xsnprintf(p, sizeof(buf) - 100, fmt, p1, p2, p3, p4, p5, p6);
 #endif /* USEVARARRGS */
   if (err)
     {
@@ -2392,10 +2414,10 @@ unsigned long p1, p2, p3, p4, p5, p6;
 # else /* __STDC__ */
   va_start(ap);
 # endif /* __STDC__ */
-  (void) vsprintf(p, fmt, ap);
+  (void) vsnprintf(p, sizeof(buf) - 100, fmt, ap);
   va_end(ap);
 #else /* USEVARARRGS */
-  sprintf(p, fmt, p1, p2, p3, p4, p5, p6);
+  xsnprintf(p, sizeof(buf) - 100, fmt, p1, p2, p3, p4, p5, p6);
 #endif /* USEVARARRGS */
   if (err)
     {

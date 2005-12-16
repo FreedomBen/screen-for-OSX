@@ -121,6 +121,9 @@ struct NewWindow *newwin;
   struct NewWindow nwin;
   int ttyflag;
   char *TtyName;
+#ifdef MULTIUSER
+  extern struct user *users;
+#endif
 
   debug1("NewWindow: StartAt %d\n", newwin->StartAt);
   debug1("NewWindow: aka     %s\n", newwin->aka?newwin->aka:"NULL");
@@ -175,7 +178,12 @@ struct NewWindow *newwin;
   p->w_cmdargs[i] = 0;
 
 #ifdef MULTIUSER
-  if (NewWindowAcl(p))
+  /*
+   * This is dangerous: without a display we use creators umask
+   * This is intended to be usefull for detached startup.
+   * But is still better than default bits with a NULL user.
+   */
+  if (NewWindowAcl(p, display ? D_user : users))
     {
       free((char *)p);
       close(f);
@@ -324,16 +332,8 @@ struct win *p;
     }
 
 #ifdef UTMPOK
-  p->w_slot = (slot_t) -1;
-  debug1("RemakeWindow will %slog in.\n", lflag ? "" : "not ");
-# ifdef LOGOUTOK
-  if (lflag)
-# endif
-    {
-      p->w_slot = (slot_t) 0;
-      if (display)
-	SetUtmp(p);
-    }
+  if (display && p->w_slot == (slot_t)0)
+    SetUtmp(p);
 #endif
   return p->w_number;
 }
@@ -488,6 +488,8 @@ struct win *win;
       args = ShellArgs;
       proc = *args;
     }
+  fflush(stdout);
+  fflush(stderr);
   switch (pid = fork())
     {
     case -1:
@@ -513,14 +515,14 @@ struct win *win;
       if (setuid(real_uid) || setgid(real_gid))
 	{
 	  SendErrorMsg("Setuid/gid: %s", strerror(errno));
-	  exit(1);
+	  _exit(1);
 	}
       eff_uid = real_uid;
       eff_gid = real_gid;
       if (dir && *dir && chdir(dir) == -1)
 	{
 	  SendErrorMsg("Cannot chdir to %s: %s", dir, strerror(errno));
-	  exit(1);
+	  _exit(1);
 	}
 
       if (display)
@@ -553,7 +555,7 @@ struct win *win;
 	  else
 	    (void) chmod(buf, 0666);
 	}
-      debug1("=== ForkWindow: pid %d\n", getpid());
+      debug1("=== ForkWindow: pid %d\n", (int)getpid());
 #endif
       /* Close the three /dev/null descriptors */
       close(0);
@@ -576,7 +578,7 @@ struct win *win;
 		  if ((newfd = open(ttyn, O_RDWR)) < 0)
 		    {
 		      SendErrorMsg("Cannot open %s: %s", ttyn, strerror(errno));
-		      exit(1);
+		      _exit(1);
 		    }
 		}
 	      else
@@ -602,7 +604,7 @@ struct win *win;
       if ((newfd = open(ttyn, O_RDWR)) != 0)
 	{
 	  SendErrorMsg("Cannot open %s: %s", ttyn, strerror(errno));
-	  exit(1);
+	  _exit(1);
 	}
       dup(0);
       dup(0);
@@ -619,17 +621,17 @@ struct win *win;
 	  if (ioctl(newfd, I_PUSH, "ptem"))
 	    {
 	      SendErrorMsg("Cannot I_PUSH ptem %s %s", ttyn, strerror(errno));
-	      exit(1);
+	      _exit(1);
 	    }
 	  if (ioctl(newfd, I_PUSH, "ldterm"))
 	    {
 	      SendErrorMsg("Cannot I_PUSH ldterm %s %s", ttyn, strerror(errno));
-	      exit(1);
+	      _exit(1);
 	    }
 	  if (ioctl(newfd, I_PUSH, "ttcompat"))
 	    {
 	      SendErrorMsg("Cannot I_PUSH ttcompat %s %s", ttyn, strerror(errno));
-	      exit(1);
+	      _exit(1);
 	    }
 #endif
 	  if (fgtty(newfd))
@@ -687,8 +689,8 @@ struct win *win;
 	NewEnv[2] = Termcap;
 #endif
       strcpy(shellbuf, "SHELL=");
-      strncpy(shellbuf + 6, ShellProg, MAXPATHLEN);
-      shellbuf[MAXPATHLEN + 6] = 0;
+      strncpy(shellbuf + 6, ShellProg + (*ShellProg == '-'), sizeof(shellbuf) - 7);
+      shellbuf[sizeof(shellbuf) - 1] = 0;
       NewEnv[4] = shellbuf;
       debug1("ForkWindow: NewEnv[4] = '%s'\n", shellbuf);
       if (term && *term && strcmp(screenterm, term) &&
@@ -723,7 +725,7 @@ struct win *win;
       execvpe(proc, args, NewEnv);
       debug1("exec error: %d\n", errno);
       SendErrorMsg("Cannot exec '%s': %s", proc, strerror(errno));
-      exit(1);
+      _exit(1);
     default:
       break;
     }
@@ -749,11 +751,13 @@ char *prog, **args, **env;
     path = DefaultPath;
   do
     {
-      p = buf;
-      while (*path && *path != ':')
-	*p++ = *path++;
+      for (p = buf; *path && *path != ':'; path++)
+	if (p - buf < sizeof(buf) - 2)
+	  *p++ = *path;
       if (p > buf)
 	*p++ = '/';
+      if (p - buf + strlen(prog) >= sizeof(buf) - 1)
+        continue;
       strcpy(p, prog);
       execve(buf, args, env);
       switch (errno)
@@ -984,6 +988,8 @@ char **av;
   SetMode(&D_OldMode, &D_NewMode);
   SetTTY(f, &D_NewMode);
 
+  fflush(stdout);
+  fflush(stderr);
   switch (fork())
     {
     case -1:
@@ -998,7 +1004,7 @@ char **av;
       if (setuid(real_uid) || setgid(real_gid))
 	{
 	  SendErrorMsg("Setuid/gid: %s", strerror(errno));
-	  exit(1);
+	  _exit(1);
 	}
       eff_uid = real_uid;
       eff_gid = real_gid;
@@ -1016,7 +1022,7 @@ char **av;
 	  else
 	    (void) chmod(buf, 0666);
 	}
-      debug1("=== Clone: pid %d\n", getpid());
+      debug1("=== Clone: pid %d\n", (int)getpid());
 #endif
       for (avp = av; *avp; avp++)
         {
@@ -1025,7 +1031,7 @@ char **av;
           if (strcmp(*avp, "%X") == 0)
             *avp = specialbuf;
         }
-      sprintf(specialbuf, "-SXX1");
+      strcpy(specialbuf, "-SXX1");
       namep += strlen(namep);
       specialbuf[3] = *--namep;
       specialbuf[2] = *--namep;
@@ -1037,7 +1043,7 @@ char **av;
 #endif
       execvpe(*av, av, environ);
       SendErrorMsg("Cannot exec '%s': %s", *av, strerror(errno));
-      exit(1);
+      _exit(1);
     default:
       break;
     }

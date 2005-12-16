@@ -93,19 +93,20 @@ extern char SockPath[];
  *  match: string to match socket name.
  *
  *  The socket directory must be in SockPath!
- *
- *  Returns: number of good sockets.
+ *  The global variables LoginName, multi, rflag, xflag, dflag, quietflag,
+ *  nethackflag, SockPath are used.
  *    
  *  The first good socket is stored in fdp and its name is
  *  appended to SockPath.
  *  If none exists or fdp is NULL SockPath is not changed.
  *
+ *  Returns: number of good sockets.
  */
 
 int
-FindSocket(fdp, nfoundp, match)
+FindSocket(fdp, nfoundp, notherp, match)
 int *fdp;
-int *nfoundp;
+int *nfoundp, *notherp;
 char *match;
 {
   DIR *dirp;
@@ -115,9 +116,9 @@ char *match;
   int sdirlen;
   int  matchlen = 0;
   char *name, *n;
-  int firsts = -1, s;
+  int firsts = -1, sockfd;
   char *firstn = 0;
-  int nfound = 0, ngood = 0, ndead = 0, nwipe = 0;
+  int nfound = 0, ngood = 0, ndead = 0, nwipe = 0, npriv = 0;
   struct sent
     {
       struct sent *next;
@@ -155,7 +156,7 @@ char *match;
     {
       name = dp->d_name;
       debug1("- %s\n",  name);
-      if (*name == 0 || *name == '.')
+      if (*name == 0 || *name == '.' || strlen(name) > 2*MAXSTR)
 	continue;
       if (matchlen)
 	{
@@ -177,8 +178,15 @@ char *match;
 	}
       sprintf(SockPath + sdirlen, "/%s", name);
 
+      debug1("stat %s\n", SockPath);
+      errno = 0;
+      debug2("uid = %d, gid = %d\n", (int)getuid(), (int)getgid());
+      debug2("euid = %d, egid = %d\n", (int)geteuid(), (int)getegid());
       if (stat(SockPath, &st))
-        continue;
+        {
+	  debug1("errno = %d\n", errno);
+	  continue;
+	}
 
 #ifndef SOCK_NOT_IN_FS
 # ifdef NAMEDPIPE
@@ -194,13 +202,25 @@ char *match;
 # endif
 #endif
 
+      debug2("st.st_uid = %d, real_uid = %d\n", (int)st.st_uid, real_uid);
       if (st.st_uid != real_uid)
 	continue;
       mode = st.st_mode & 0777;
       debug1("  has mode 0%03o\n", mode);
 #ifdef MULTIUSER
       if (multi && ((mode & 0677) != 0601))
-	continue;
+        {
+	  debug("  is not a MULTI-USER session");
+	  if (strcmp(multi, LoginName))
+	    {
+	      debug(" and we are in a foreign directory.\n");
+	      mode = -4;
+	    }
+	  else
+	    {
+	      debug(", but it is our own session.\n");
+	    }
+	}
 #endif
       debug("  store it.\n");
       if ((sent = (struct sent *)malloc(sizeof(struct sent))) == 0)
@@ -211,14 +231,16 @@ char *match;
       *slisttail = sent;
       slisttail = &sent->next;
       nfound++;
-      s = MakeClientSocket(0);
+      sockfd = MakeClientSocket(0);
 #ifdef USE_SETEUID
       /* MakeClientSocket sets ids back to eff */
       xseteuid(real_uid);
       xsetegid(real_gid);
 #endif
-      if (s == -1)
+      if (sockfd == -1)
 	{
+	  debug2("  MakeClientSocket failed, unreachable? %d %d\n",
+	  	 matchlen, wipeflag);
 	  sent->mode = -3;
 	  /* Unreachable - it is dead if we detect that it's local
            * or we specified a match
@@ -239,37 +261,47 @@ char *match;
 			}
 		    }
 	    }
+	  npriv++;
 	  continue;
 	}
-      /* Shall we connect ? */
-      mode &= 0776;
 
-     /*
-      * mode 600: socket is detached.
-      * mode 700: socket is attached.
-      * xflag implies rflag here.
-      *
-      * fail, when socket mode mode is not 600 or 700
-      * fail, when we want to detach, but it already is.
-      * fail, when we only want to attach, but mode 700 and not xflag.
-      * fail, if none of dflag, rflag, xflag is set.
-      */
-     if ((mode != 0700 && mode != 0600) ||
-        (dflag && mode == 0600) ||
-        (!dflag && rflag && mode == 0700 && !xflag) ||
-        (!dflag && !rflag && !xflag))
+      mode &= 0776;
+      /* Shall we connect ? */
+      debug2("  connecting: mode=%03o, rflag=%d, ", mode, rflag);
+      debug2("xflag=%d, dflag=%d ?\n", xflag, dflag);
+
+      /*
+       * mode 600: socket is detached.
+       * mode 700: socket is attached.
+       * xflag implies rflag here.
+       *
+       * fail, when socket mode is not 600 or 700
+       * fail, when we want to detach w/o reattach, but it already is detached.
+       * fail, when we only want to attach, but mode 700 and not xflag.
+       * fail, if none of dflag, rflag, xflag is set.
+       */
+      if ((mode != 0700 && mode != 0600) ||
+	  (dflag && !rflag && mode == 0600) ||
+	  (!dflag && rflag && mode == 0700 && !xflag) ||
+	  (!dflag && !rflag && !xflag))
 	{
-	  close(s);
+	  close(sockfd);
+	  debug("  no!\n");
+	  npriv++;		/* a good socket that was not for us */
 	  continue;
 	}
       ngood++;
       if (fdp && firsts == -1)
 	{
-	  firsts = s;
+	  firsts = sockfd;
 	  firstn = sent->name;
+	  debug("  taken\n");
 	}
       else
-	close(s);
+        {
+	  debug("  discarded.\n");
+	  close(sockfd);
+	}
     }
   (void)closedir(dirp);
   if (nfound && (lsflag || ngood != 1) && !quietflag)
@@ -319,14 +351,16 @@ char *match;
 	      break;
 #endif
 	    case -1:
-	      /* No trigraphs, please */
+	      /* No trigraphs here! */
 	      printf("\t%s\t(Dead ?%c?)\n", sent->name, '?');
 	      break;
 	    case -2:
 	      printf("\t%s\t(Removed)\n", sent->name);
 	      break;
 	    case -3:
-	      printf("\t%s\t(Unreachable)\n", sent->name);
+	      printf("\t%s\t(Remote or dead)\n", sent->name);
+	    case -4:
+	      printf("\t%s\t(Private)\n", sent->name);
 	      break;
 	    }
 	}
@@ -371,6 +405,8 @@ char *match;
   xseteuid(eff_uid);
   xsetegid(eff_gid);
 #endif
+  if (notherp)
+    *notherp = npriv;
   if (nfoundp)
     *nfoundp = nfound - nwipe;
   return ngood;
@@ -477,7 +513,8 @@ MakeServerSocket()
   if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
     Panic(errno, "socket");
   a.sun_family = AF_UNIX;
-  strcpy(a.sun_path, SockPath);
+  strncpy(a.sun_path, SockPath, sizeof(a.sun_path));
+  a.sun_path[sizeof(a.sun_path) - 1] = 0;
 # ifdef USE_SETEUID
   xseteuid(real_uid);
   xsetegid(real_gid);
@@ -549,7 +586,8 @@ int err;
   if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
     Panic(errno, "socket");
   a.sun_family = AF_UNIX;
-  strcpy(a.sun_path, SockPath);
+  strncpy(a.sun_path, SockPath, sizeof(a.sun_path));
+  a.sun_path[sizeof(a.sun_path) - 1] = 0;
 # ifdef USE_SETEUID
   xseteuid(real_uid);
   xsetegid(real_gid);
@@ -601,25 +639,28 @@ struct NewWindow *nwin;
   if (strlen(sty) > NAME_MAX)
     sty[NAME_MAX] = 0;
 #endif
+  if (strlen(sty) > 2 * MAXSTR - 1)
+    sty[2 * MAXSTR - 1] = 0;
   sprintf(SockPath + strlen(SockPath), "/%s", sty);
   if ((s = MakeClientSocket(1)) == -1)
     exit(1);
   debug1("SendCreateMsg() to '%s'\n", SockPath);
   bzero((char *)&m, sizeof(m));
   m.type = MSG_CREATE;
-  strcpy(m.m_tty, attach_tty);
+  strncpy(m.m_tty, attach_tty, sizeof(m.m_tty) - 1);
+  m.m_tty[sizeof(m.m_tty) - 1] = 0;
   p = m.m.create.line;
   n = 0;
   if (nwin->args != nwin_undef.args)
     for (av = nwin->args; *av && n < MAXARGS - 1; ++av, ++n)
       {
         len = strlen(*av) + 1;
-        if (p + len >= m.m.create.line + MAXPATHLEN - 1)
+        if (p + len >= m.m.create.line + sizeof(m.m.create.line) - 1)
 	  break;
         strcpy(p, *av);
         p += len;
       }
-  if (nwin->aka != nwin_undef.aka && p + strlen(nwin->aka) + 1 < m.m.create.line + MAXPATHLEN)
+  if (nwin->aka != nwin_undef.aka && p + strlen(nwin->aka) + 1 < m.m.create.line + sizeof(m.m.create.line))
     strcpy(p, nwin->aka);
   else
     *p = '\0';
@@ -670,17 +711,18 @@ unsigned long p1, p2, p3, p4, p5, p6;
 # else /* __STDC__ */
   va_start(ap);
 # endif /* __STDC__ */
-  (void) vsprintf(m.m.message, fmt, ap);
+  (void) vsnprintf(m.m.message, sizeof(m.m.message), fmt, ap);
   va_end(ap);
 #else /* USEVARARGS */
-  sprintf(m.m.message, fmt, p1, p2, p3, p4, p5, p6);
+  xsnprintf(m.m.message, sizeof(m.m.message), fmt, p1, p2, p3, p4, p5, p6);
 #endif /* USEVARARGS */
   debug1("SendErrorMsg: '%s'\n", m.m.message);
   if (display == 0)
     return;
   s = MakeClientSocket(0);
   m.type = MSG_ERROR;
-  strcpy(m.m_tty, D_usertty);
+  strncpy(m.m_tty, D_usertty, sizeof(m.m_tty) - 1);
+  m.m_tty[sizeof(m.m_tty) - 1] = 0;
   debug1("SendErrorMsg(): writing to '%s'\n", SockPath);
   (void) write(s, (char *) &m, sizeof m);
   close(s);
@@ -701,10 +743,10 @@ char *pwd, *utty;
 	{
 # ifdef NETHACK
           if (nethackflag)
-	    Msg(0, "'%s' tries to explode in the sky, but fails. (%s)", utty, pwd);
+	    Msg(0, "'%s' tries to explode in the sky, but fails.", utty);
           else
 # endif /* NETHACK */
-	  Msg(0, "Illegal reattach attempt from terminal %s, \"%s\"", utty, pwd);
+	  Msg(0, "Illegal reattach attempt from terminal %s.", utty);
 	}
       debug1("CheckPass() wrong password kill(%d, SIG_PW_FAIL)\n", pid);
       Kill(pid, SIG_PW_FAIL);
@@ -882,6 +924,7 @@ ReceiveMsg()
     if (TTYCMP(D_usertty, m.m_tty) == 0)
       break;
   debug2("display: %s display %sfound\n", m.m_tty, display ? "" : "not ");
+  wi = 0;
   if (!display)
     {
       for (wi = windows; wi; wi = wi->w_next)
@@ -946,12 +989,12 @@ ReceiveMsg()
       Kill(m.m.attach.apid, SIGCONT);
 # endif
 #endif				/* PASSWORD */
-      if (display)
+      if (display || wi)
 	{
-	  write(i, "Attaching to a not detached screen?\n", 36);
+	  write(i, "Attaching from inside of screen?\n", 33);
 	  close(i);
 	  Kill(m.m.attach.apid, SIG_BYE);
-	  Msg(0, "Attach msg ignored: We are not detached.");
+	  Msg(0, "Attach msg ignored: coming from inside.");
 	  break;
 	}
 
@@ -1045,15 +1088,24 @@ ReceiveMsg()
       RemoveLoginSlot();
       if (displays->d_next == 0)
         for (wi = windows; wi; wi = wi->w_next)
-	  if (wi->w_slot != (slot_t) -1)
+	  if (wi->w_ptyfd >= 0 && wi->w_slot != (slot_t) -1)
 	    SetUtmp(wi);
 #endif
       SetMode(&D_OldMode, &D_NewMode);
       SetTTY(D_userfd, &D_NewMode);
 
       D_fore = NULL;
+      /* there may be a window that we remember from last detach: */
       if (D_user->u_detachwin >= 0) 
         fore = wtab[D_user->u_detachwin];
+      /* Wayne wants us to restore the other window too. */
+      if (D_user->u_detachotherwin >= 0)
+        D_other = wtab[D_user->u_detachotherwin];
+      /*
+       * We want a window to start with.
+       * It is the window we left from, which is not occupied and
+       * grants us full read/write permissions.
+       */
 #ifdef MULTIUSER
       if (!fore || fore->w_display || AclCheckPermWin(D_user, ACL_WRITE, fore))
 #else
@@ -1092,7 +1144,8 @@ ReceiveMsg()
       Msg(0, "%s", m.m.message);
       break;
     case MSG_HANGUP:
-      SigHup(SIGARG);
+      if (!wi)		/* ignore hangups from inside */
+        SigHup(SIGARG);
       break;
 #ifdef REMOTE_DETACH
     case MSG_DETACH:
@@ -1160,7 +1213,7 @@ chsock()
    * may be happy to remove old files. We manually prevent the socket
    * from becoming old. (chmod does not touch mtime).
    */
-  (void)utime(SockPath, NULL);
+  (void)utimes(SockPath, NULL);
 
   if (euid != real_uid)
     UserReturn(r);

@@ -164,7 +164,8 @@ int how;
 
   bzero((char *) &m, sizeof(m));
   m.type = how;
-  strcpy(m.m_tty, attach_tty);
+  strncpy(m.m_tty, attach_tty, sizeof(m.m_tty) - 1);
+  m.m_tty[sizeof(m.m_tty) - 1] = 0;
 
   if (how == MSG_WINCH)
     {
@@ -186,7 +187,7 @@ int how;
     }
   else
     {
-      n = FindSocket(&lasts, (int *)0, SockMatch);
+      n = FindSocket(&lasts, (int *)0, (int *)0, SockMatch);
       switch (n)
 	{
 	case 0:
@@ -225,7 +226,7 @@ int how;
   eff_uid = real_uid;
   eff_gid = real_gid;
 
-  debug2("Attach: uid %d euid %d\n", getuid(), geteuid());
+  debug2("Attach: uid %d euid %d\n", (int)getuid(), (int)geteuid());
   MasterPid = 0;
   for (s = SockName; *s; s++)
     {
@@ -238,7 +239,7 @@ int how;
   if (stat(SockPath, &st) == -1)
     Panic(errno, "stat %s", SockPath);
   if ((st.st_mode & 0600) != 0600)
-    Panic(0, "Socket is in wrong mode (%03o)", st.st_mode);
+    Panic(0, "Socket is in wrong mode (%03o)", (int)st.st_mode);
   if ((dflag || !xflag) && (st.st_mode & 0700) != (dflag ? 0700 : 0600))
     Panic(0, "That screen is %sdetached.", dflag ? "already " : "not ");
 #ifdef REMOTE_DETACH
@@ -266,7 +267,8 @@ int how;
     }
 #endif
   ASSERT(how == MSG_ATTACH || how == MSG_CONT);
-  strcpy(m.m.attach.envterm, attach_term);
+  strncpy(m.m.attach.envterm, attach_term, sizeof(m.m.attach.envterm) - 1);
+  m.m.attach.envterm[sizeof(m.m.attach.envterm) - 1] = 0;
   debug1("attach: sending %d bytes... ", (int)sizeof(m));
 
   strncpy(m.m.attach.auser, LoginName, sizeof(m.m.attach.auser) - 1); 
@@ -349,7 +351,7 @@ char *pwto;
   sighup = signal(SIG_PW_FAIL, trysendfail);
   for (tries = 0; ; )
     {
-      strcpy(pwto, screenpw);
+      strncpy(pwto, screenpw, 9);
       trysendstatok = trysendstatfail = 0;
       if (write(fd, (char *) m, sizeof(*m)) != sizeof(*m))
 	Panic(errno, "write");
@@ -423,7 +425,8 @@ AttacherFinit SIGDEFARG
     {
       debug("Detaching backend!\n");
       bzero((char *) &m, sizeof(m));
-      strcpy(m.m_tty, attach_tty);
+      strncpy(m.m_tty, attach_tty, sizeof(m.m_tty) - 1);
+      m.m_tty[sizeof(m.m_tty) - 1] = 0;
       debug1("attach_tty is %s\n", attach_tty);
       m.m.detach.dpid = getpid();
       m.type = MSG_HANGUP;
@@ -726,7 +729,7 @@ LockTerminal()
 static void
 screen_builtin_lck()
 {
-  char fullname[100], *cp1, message[BUFSIZ];
+  char fullname[100], *cp1, message[100 + 100];
   char *pass, mypass[9];
 
 #ifdef undef
@@ -773,12 +776,14 @@ screen_builtin_lck()
     }
 
   debug("screen_builtin_lck looking in gcos field\n");
-  strcpy(fullname, ppp->pw_gecos);
+  strncpy(fullname, ppp->pw_gecos, sizeof(fullname) - 9);
+  fullname[sizeof(fullname) - 9] = 0;
   if ((cp1 = index(fullname, ',')) != NULL)
     *cp1 = '\0';
   if ((cp1 = index(fullname, '&')) != NULL)
     {
-      sprintf(cp1, "%s", ppp->pw_name);
+      strncpy(cp1, ppp->pw_name, 8);
+      cp1[8] = 0;
       if (*cp1 >= 'a' && *cp1 <= 'z')
 	*cp1 -= 'a' - 'A';
     }

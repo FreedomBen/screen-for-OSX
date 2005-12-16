@@ -184,8 +184,18 @@ struct term term[T_N] =
   { "k;", T_STR  }, KMAPDEF("\033[21~")
   { "F1", T_STR  }, KMAPDEF("\033[23~")
   { "F2", T_STR  }, KMAPDEF("\033[24~")
+  /* extra keys for vt220 (David.Leonard@it.uq.edu.au) */
+  { "F3", T_STR  },
+  { "F4", T_STR  },
+  { "F5", T_STR  },
+  { "F6", T_STR  },
+  { "F7", T_STR  },
+  { "F8", T_STR  },
+  { "F9", T_STR  },
+  { "FA", T_STR  },
+
   { "kb", T_STR  }, KMAPDEF("\010")
-  { "kh", T_STR  }, KMAPDEF("\033[1~") KMAPMDEF("g")
+  { "kh", T_STR  }, KMAPDEF("\033[1~") KMAPMDEF("\201")
   { "K1", T_STR  },
   { "K2", T_STR  },
   { "K3", T_STR  },
@@ -199,7 +209,7 @@ struct term term[T_N] =
   { "kD", T_STR  }, KMAPDEF("\033[3~")
   { "kE", T_STR  },
   { "kF", T_STR  },                    KMAPMDEF("\004")
-  { "kH", T_STR  }, KMAPDEF("\033[4~") KMAPMDEF("G")
+  { "kH", T_STR  }, KMAPDEF("\033[4~") KMAPMDEF("\205")
   { "kI", T_STR  }, KMAPDEF("\033[2~")
   { "kL", T_STR  },
   { "kM", T_STR  },
@@ -213,10 +223,10 @@ struct term term[T_N] =
   { "@7", T_STR  },
 /* keys that can have two bindings */
 /* define T_CURSOR */
-  { "ku", T_STR  }, KMAPDEF("\033[A") KMAPADEF("\033OA") KMAPMDEF("k")
-  { "kd", T_STR  }, KMAPDEF("\033[B") KMAPADEF("\033OB") KMAPMDEF("j")
-  { "kr", T_STR  }, KMAPDEF("\033[C") KMAPADEF("\033OC") KMAPMDEF("l")
-  { "kl", T_STR  }, KMAPDEF("\033[D") KMAPADEF("\033OD") KMAPMDEF("h")
+  { "ku", T_STR  }, KMAPDEF("\033[A") KMAPADEF("\033OA") KMAPMDEF("\220")
+  { "kd", T_STR  }, KMAPDEF("\033[B") KMAPADEF("\033OB") KMAPMDEF("\216")
+  { "kr", T_STR  }, KMAPDEF("\033[C") KMAPADEF("\033OC") KMAPMDEF("\206")
+  { "kl", T_STR  }, KMAPDEF("\033[D") KMAPADEF("\033OD") KMAPMDEF("\202")
 /* define T_KEYPAD */
   { "f0", T_STR  }, KMAPDEF("0") KMAPADEF("\033Op")
   { "f1", T_STR  }, KMAPDEF("1") KMAPADEF("\033Oq")

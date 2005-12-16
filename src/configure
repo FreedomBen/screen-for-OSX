@@ -2622,10 +2622,10 @@ rm -f /tmp/conftest*
 test -n "$silent" || echo "checking for vsprintf"
 cat > conftest.${ac_ext} <<EOF
 #include "confdefs.h"
-#include <varargs.h>
+
 #include <stdio.h>
 int main() { return 0; }
-int t() { vsprintf();; return 0; }
+int t() { vsprintf(0,0,0);; return 0; }
 EOF
 if eval $ac_compile; then
   rm -rf conftest*
@@ -2957,6 +2957,56 @@ DEFS="$DEFS -DHAVE_STRERROR=1"
 ac_sed_defs="${ac_sed_defs}\${ac_dA}HAVE_STRERROR\${ac_dB}HAVE_STRERROR\${ac_dC}1\${ac_dD}
 \${ac_uA}HAVE_STRERROR\${ac_uB}HAVE_STRERROR\${ac_uC}1\${ac_uD}
 \${ac_eA}HAVE_STRERROR\${ac_eB}HAVE_STRERROR\${ac_eC}1\${ac_eD}
+"
+}
+
+
+fi
+rm -f conftest*
+
+test -n "$silent" || echo "checking for utimes"
+cat > conftest.${ac_ext} <<EOF
+#include "confdefs.h"
+
+int main() { return 0; }
+int t() { utimes(0,0);; return 0; }
+EOF
+if eval $ac_compile; then
+  rm -rf conftest*
+  
+{
+test -n "$verbose" && \
+echo "	defining HAVE_UTIMES"
+echo "#define" HAVE_UTIMES "1" >> confdefs.h
+DEFS="$DEFS -DHAVE_UTIMES=1"
+ac_sed_defs="${ac_sed_defs}\${ac_dA}HAVE_UTIMES\${ac_dB}HAVE_UTIMES\${ac_dC}1\${ac_dD}
+\${ac_uA}HAVE_UTIMES\${ac_uB}HAVE_UTIMES\${ac_uC}1\${ac_uD}
+\${ac_eA}HAVE_UTIMES\${ac_eB}HAVE_UTIMES\${ac_eC}1\${ac_eD}
+"
+}
+
+
+fi
+rm -f conftest*
+
+test -n "$silent" || echo "checking for vsnprintf"
+cat > conftest.${ac_ext} <<EOF
+#include "confdefs.h"
+
+int main() { return 0; }
+int t() { vsnprintf(0,0,0);; return 0; }
+EOF
+if eval $ac_compile; then
+  rm -rf conftest*
+  
+{
+test -n "$verbose" && \
+echo "	defining HAVE_VSNPRINTF"
+echo "#define" HAVE_VSNPRINTF "1" >> confdefs.h
+DEFS="$DEFS -DHAVE_VSNPRINTF=1"
+ac_sed_defs="${ac_sed_defs}\${ac_dA}HAVE_VSNPRINTF\${ac_dB}HAVE_VSNPRINTF\${ac_dC}1\${ac_dD}
+\${ac_uA}HAVE_VSNPRINTF\${ac_uB}HAVE_VSNPRINTF\${ac_uC}1\${ac_uD}
+\${ac_eA}HAVE_VSNPRINTF\${ac_eB}HAVE_VSNPRINTF\${ac_eC}1\${ac_eD}
 "
 }
 

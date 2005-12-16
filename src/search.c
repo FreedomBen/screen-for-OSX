@@ -41,8 +41,8 @@ extern struct display *display;
  */
 
 static int  matchword __P((char *, int, int, int));
-static void searchend __P((char *, int));
-static void backsearchend __P((char *, int));
+static void searchend __P((char *, int, char *));
+static void backsearchend __P((char *, int, char *));
 
 void
 Search(dir)
@@ -53,20 +53,22 @@ int dir;
     {
       markdata = (struct markdata *)D_lay->l_data;
       if (markdata->isdir > 0)
-	searchend((char *)0, 0);
+	searchend(0, 0, NULL);
       else if (markdata->isdir < 0)
-	backsearchend((char *)0, 0);
+	backsearchend(0, 0, NULL);
       else
 	Msg(0, "No previous pattern");
     }
   else
-    Input((dir > 0 ? "/" : "?"), sizeof(markdata->isstr)-1, (dir > 0 ? searchend : backsearchend), INP_COOKED);
+    Input((dir > 0 ? "/" : "?"), sizeof(markdata->isstr)-1, INP_COOKED,
+          (dir > 0 ? searchend : backsearchend), NULL);
 }
 
 static void
-searchend(buf, len)
+searchend(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   int x = 0, sx, ex, y;
   struct markdata *markdata;
@@ -92,9 +94,10 @@ int len;
 }
 
 static void
-backsearchend(buf, len)
+backsearchend(buf, len, data)
 char *buf;
 int len;
+char *data;	/* dummy */
 {
   int sx, ex, x = -1, y;
   struct markdata *markdata;
@@ -157,7 +160,7 @@ static char *isprompts[] = {
 
 
 static int  is_redo __P((struct markdata *));
-static void is_process __P((char *, int));
+static void is_process __P((char *, int, char *));
 static int  is_bm __P((char *, int, int, int, int));
 
 
@@ -209,9 +212,10 @@ int l, p, end, dir;
 
 /*ARGSUSED*/
 static void
-is_process(p, n)
+is_process(p, n, data)	/* i-search */
 char *p;
 int n;
+char *data;	/* dummy */
 {
   int pos, x, y, dir;
   struct markdata *markdata;
@@ -323,13 +327,15 @@ ISearch(dir)
 int dir;
 {
   struct markdata *markdata;
+
   markdata = (struct markdata *)D_lay->l_data;
   markdata->isdir = markdata->isstartdir = dir;
   markdata->isstartpos = markdata->cx + markdata->cy * D_width;
   markdata->isistrl = markdata->isstrl = 0;
   if (W2D(markdata->cy) == STATLINE)
     revto_line(markdata->cx, markdata->cy, STATLINE > 0 ? STATLINE - 1 : 1);
-  Input(isprompts[dir + 1], sizeof(markdata->isstr) - 1, is_process, INP_RAW);
+  Input(isprompts[dir + 1], sizeof(markdata->isstr) - 1, INP_RAW,
+        is_process, NULL);
   GotoPos(markdata->cx, W2D(markdata->cy));
 }
 

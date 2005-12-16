@@ -1,14 +1,5 @@
-Zhang has developed a patch to the "screen" VT100 terminal emulation program
-that allows one to perform tektronics "tek40xx" style graphics in a 
-screen window.  I've tested it with gnuplot and it works quite well.  
-
-Send flames or technical inquries to the patch author Xiaoguang
-Zhang (zhang@gmsds.ms.ornl.gov) and to screen@uni-erlangen.de
-
-=====================================================================
-
-*** ./ansi.h.orig	Fri Jan  2 19:12:05 1970
---- ./ansi.h	Wed Nov 15 19:25:11 1995
+*** ./ansi.h.orig	Tue Jan  9 19:16:35 1996
+--- ./ansi.h	Sat Jun 14 22:38:37 1997
 ***************
 *** 56,62 ****
     PRIN,				/* Printer mode */
@@ -29,11 +20,11 @@ Zhang (zhang@gmsds.ms.ornl.gov) and to screen@uni-erlangen.de
   };
   
   enum string_t 
-*** ./ansi.c.orig	Sun Oct 29 16:01:26 1995
---- ./ansi.c	Wed Nov 15 19:25:11 1995
+*** ./ansi.c.orig	Thu May  1 17:33:31 1997
+--- ./ansi.c	Sat Jun 14 22:38:37 1997
 ***************
-*** 805,810 ****
---- 805,815 ----
+*** 813,818 ****
+--- 813,823 ----
   	    case 'k':
   	      StartString(AKA);
   	      break;
@@ -46,8 +37,8 @@ Zhang (zhang@gmsds.ms.ornl.gov) and to screen@uni-erlangen.de
   	      if (Special(c))
   	        {
 ***************
-*** 868,873 ****
---- 873,899 ----
+*** 876,881 ****
+--- 881,907 ----
   		  goto tryagain;
   		}
   	    }
@@ -75,5 +66,3 @@ Zhang (zhang@gmsds.ms.ornl.gov) and to screen@uni-erlangen.de
   	  break;
   	case LIT:
   	default:
-
-=====================================================================

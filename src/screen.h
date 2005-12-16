@@ -64,9 +64,9 @@
 
 #ifndef NOASSERT
 # if defined(__STDC__)
-#  define ASSERT(lousy_cpp) {if (!(lousy_cpp)) {debug2("ASSERT("#lousy_cpp")ion failed file %s line %d\n", __FILE__, __LINE__);abort();}}
+#  define ASSERT(lousy_cpp) do {if (!(lousy_cpp)) {if (!dfp) opendebug(0, 1);debug2("ASSERT("#lousy_cpp") failed file %s line %d\n", __FILE__, __LINE__);abort();}} while (0)
 # else
-#  define ASSERT(lousy_cpp) {if (!(lousy_cpp)) {debug2("ASSERT(lousy_cpp)ion failed file %s line %d\n", __FILE__, __LINE__);abort();}}
+#  define ASSERT(lousy_cpp) do {if (!(lousy_cpp)) {if (!dfp) opendebug(0, 1);debug2("ASSERT(lousy_cpp) failed file %s line %d\n", __FILE__, __LINE__);abort();}} while (0)
 # endif
 #else
 # define ASSERT(lousy_cpp) {;}

@@ -107,8 +107,9 @@ char *line;
    */
 #ifdef TIOCEXCL
  errno = 0;
- ioctl(f, TIOCEXCL, (char *) 0);
- debug3("%d %d %d\n", getuid(), geteuid(), getpid());
+ if (ioctl(f, TIOCEXCL, (char *) 0) < 0)
+   Msg(errno, "%s: ioctl TIOCEXCL failed", line);
+ debug3("%d %d %d\n", (int)getuid(), (int)geteuid(), (int)getpid());
  debug2("%s TIOCEXCL errno %d\n", line, errno);
 #endif  /* TIOCEXCL */
   /*

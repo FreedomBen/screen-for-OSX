@@ -449,6 +449,16 @@
 #undef HAVE_LSTAT
 
 /*
+ * define HAVE_UTIMES if your system has the utimes() call.
+ */
+#undef HAVE_UTIMES
+
+/*
+ * define HAVE_VSNPRINTF if your system has vsnprintf() (GNU lib).
+ */
+#undef HAVE_VSNPRINTF
+
+/*
  * define HAVE_DEV_PTC if you have a /dev/ptc character special
  * device.
  */

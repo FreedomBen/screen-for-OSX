@@ -58,7 +58,16 @@ typedef struct grouplist
   struct grouplist *next;
 } AclGroupList;
 
-#endif
+/*
+ * How a user joins a group.
+ * Here is the node to construct one list per user.
+ */
+struct usergroup
+{
+  struct user *u;	/* the user who borrows us his rights */
+  struct usergroup *next;
+};
+#endif /* MULTIUSER */
 
 /***************
  *  ==> user.h
@@ -71,17 +80,21 @@ typedef struct grouplist
  */
 typedef struct user
 {
-  struct user *u_next;
+  struct user *u_next;		/* continue the main user list */
   char u_name[20+1];		/* login name how he showed up */
-  char u_password[20+1];	/* his password (may be zero length). */
+  char *u_password;		/* his password (may be NullStr). */
+  int  u_checkpassword;		/* nonzero if this u_password is valid */
   int  u_detachwin;		/* the window where he last detached */
+  int  u_detachotherwin;	/* window that was "other" when he detached */
   int  u_Esc, u_MetaEsc;	/* the users screen escape character */
 #ifdef COPY_PASTE
   char  *u_copybuffer;
   int   u_copylen;
 #endif
 #ifdef MULTIUSER
-  int id;			/* a uniq index in the bitfields. */
+  int u_id;			/* a uniq index in the bitfields. */
+  AclBits u_umask_w_bits[ACL_BITS_PER_WIN];	/* his window create umask */
+  struct usergroup *u_group;	/* linked list of pointers to other users */
 #endif
 } User;
 

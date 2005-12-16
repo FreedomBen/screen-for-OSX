@@ -63,12 +63,12 @@ struct comm comms[RC_LAST + 1] =
 #ifdef MULTI
   { "clone",		NEED_DISPLAY|ARGS_ONE|ARGS_ORMORE },
 #endif
-  { "colon",		NEED_DISPLAY|ARGS_ZERO },
+  { "colon",		NEED_DISPLAY|ARGS_ZEROONE },
   { "command",		NEED_DISPLAY|ARGS_ZERO },
   { "console",		NEED_FORE|ARGS_ZEROONE },
 #ifdef COPY_PASTE
   { "copy",		NEED_FORE|ARGS_ZERO },
-  { "crlf",		ARGS_ONE },
+  { "crlf",		ARGS_ZEROONE },
 #endif
   { "debug",		ARGS_ZEROONE },
 #ifdef AUTO_NUKE
