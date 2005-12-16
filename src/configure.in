@@ -206,7 +206,7 @@ AC_TRY_LINK([#include <utmpx.h>
 
 AC_CHECKING(for Solaris 2.x)
 AC_EGREP_CPP(yes,
-[#if defined(SVR4) && defined(sun)
+[#if defined(__SVR4) && defined(__sun)
   yes
 #endif
 ], LIBS="$LIBS -lsocket -lnsl -lkstat")
@@ -270,7 +270,7 @@ dnl   Solaris seteuid doesn't change the saved uid, bad for
 dnl     multiuser screen sessions
 AC_CHECKING(seteuid)
 AC_TRY_LINK(,[
-#if defined(linux) || defined(NeXT) || defined(_AUX_SOURCE) || defined(AUX) || defined(ultrix) || (defined(sun) && defined(SVR4)) || defined(ISC) || defined(sony_news)
+#if defined(linux) || defined(NeXT) || defined(_AUX_SOURCE) || defined(AUX) || defined(ultrix) || (defined(__sun) && defined(__SVR4)) || defined(ISC) || defined(sony_news)
 seteuid_is_broken(0);
 #else
 seteuid(0);
@@ -815,7 +815,7 @@ AC_CHECKING(getutent)
 AC_TRY_LINK([
 #include <time.h> /* to get time_t on SCO */
 #include <sys/types.h>
-#if defined(SVR4) && !defined(DGUX)
+#if defined(__SVR4) && !defined(DGUX)
 #include <utmpx.h>
 #define utmp utmpx
 #else
@@ -832,7 +832,7 @@ AC_CHECKING(getutent with -lgen)
 AC_TRY_LINK([
 #include <time.h>
 #include <sys/types.h>
-#if defined(SVR4) && !defined(DGUX)
+#if defined(__SVR4) && !defined(DGUX)
 #include <utmpx.h>
 #define utmp utmpx
 #else
@@ -848,7 +848,7 @@ AC_CHECKING(ut_host)
 AC_TRY_COMPILE([
 #include <time.h>
 #include <sys/types.h>
-#if defined(SVR4) && !defined(DGUX)
+#if defined(__SVR4) && !defined(DGUX)
 #include <utmpx.h>
 #define utmp utmpx
 #else
@@ -979,7 +979,7 @@ AC_PROGRAM_SOURCE([
 #include <sys/types.h>
 #include <sys/param.h>
 ],[
-#if !defined(LOADAV_GETLOADAVG) && ((defined(hp300) && !defined(__hpux)) || defined(sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || (defined(SVR4) && !defined(__hpux)) || defined(sony_news) || (!defined(__osf__) && defined(__alpha)) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
+#if !defined(LOADAV_GETLOADAVG) && ((defined(hp300) && !defined(__hpux)) || defined(__sun) || (defined(ultrix) && defined(mips)) || defined(_SEQUENT_) || defined(sgi) || (defined(__SVR4) && !defined(__hpux)) || defined(sony_news) || (!defined(__osf__) && defined(__alpha)) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX) || defined(m88k))
 loadtype=long
 # if defined(apollo) || defined(_IBMR2) || defined(_AUX_SOURCE) || defined(AUX)
 loadscale=65536
@@ -992,7 +992,7 @@ loadscale=FSCALE
 loadtype=int
 loadscale=1024
 #   else
-#    if defined(MIPS) || defined(SVR4) || defined(m88k)
+#    if defined(MIPS) || defined(__SVR4) || defined(m88k)
 loadscale=256
 #    else /* not MIPS */
 loadscale=1000 	/* our default value */
