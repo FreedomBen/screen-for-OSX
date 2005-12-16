@@ -1557,7 +1557,7 @@ char **av;
 	FreePseudowin(w);
 	return -1;
       }
-    if (!(pwin->p_fdpat & F_PFRONT))
+    if (w->w_type == W_TYPE_PTY && !(pwin->p_fdpat & F_PFRONT))
       {
 	if (ioctl(w->w_ptyfd, TIOCPKT, (char *)&flag))
 	  {
@@ -1595,11 +1595,11 @@ struct win *w;
   if (fcntl(w->w_ptyfd, F_SETFL, FNBLOCK))
     Msg(errno, "Warning: FreePseudowin: NBLOCK fcntl failed");
 #ifdef TIOCPKT
-  if (!(pwin->p_fdpat & F_PFRONT))
+  if (w->w_type == W_TYPE_PTY && !(pwin->p_fdpat & F_PFRONT))
     {
       int flag = 1;
       if (ioctl(w->w_ptyfd, TIOCPKT, (char *)&flag))
-	Msg(errno, "Warning: FreePseudowin: TIOCPKT ioctl");
+	Msg(errno, "Warning: FreePseudowin: TIOCPKT win ioctl");
     }
 #endif
   /* should be able to use CloseDevice() here */

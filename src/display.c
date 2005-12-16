@@ -2387,6 +2387,8 @@ char *str;
 
   if (D_status == STATUS_ON_WIN && D_has_hstatus == HSTATUS_LASTLINE && STATLINE == D_height-1)
     return;	/* sorry, in use */
+  if (D_blocked)
+    return;
 
   if (D_HS && D_has_hstatus == HSTATUS_HS)
     {

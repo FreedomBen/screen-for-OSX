@@ -516,11 +516,14 @@
  *                     -- DISTRIBUTED
  * 18.09.2003  4.00.01 fixed two small bugs in the new parser.
  *                     -- DISTRIBUTED
+ * 05.12.2003  4.00.02 fixed a bug in the ansi parser. fixed execs
+ *                     on ttys. fixed hardstatus line on blanked screen.
+ *                     -- DISTRIBUTED
  */
 
 #define ORIGIN "FAU"
 #define REV 4
 #define VERS 0
-#define PATCHLEVEL 1
-#define DATE "18-Sep-03"
+#define PATCHLEVEL 2
+#define DATE "5-Dec-03"
 #define STATE ""

@@ -568,14 +568,16 @@ register int len;
 	      break;
 	    case ';':
 	    case ':':
-	      curr->w_NumArgs++;
+	      if (curr->w_NumArgs < MAXARGS)
+	        curr->w_NumArgs++;
 	      break;
 	    default:
 	      if (Special(c))
 		break;
 	      if (c >= '@' && c <= '~')
 		{
-		  curr->w_NumArgs++;
+		  if (curr->w_NumArgs < MAXARGS)
+		    curr->w_NumArgs++;
 		  DoCSI(c, curr->w_intermediate);
 		  if (curr->w_state != PRIN)
 		    curr->w_state = LIT;
@@ -1230,6 +1232,8 @@ int c, intermediate;
 	    a1 = curr->w_width;
 	  if (a2 < 1)
 	    a2 = curr->w_height;
+	  if (a1 > 10000 || a2 > 10000)
+	    break;
 	  WChangeSize(curr, a1, a2);
 	  cols = curr->w_width;
 	  rows = curr->w_height;

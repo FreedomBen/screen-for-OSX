@@ -34,7 +34,9 @@
 /*
  * Maximum of simultaneously allowed windows per screen session.
  */
-#define MAXWIN 40
+#ifndef MAXWIN
+# define MAXWIN 40
+#endif
 
 /*
  * Define SOCKDIR to be the directory to contain the named sockets
