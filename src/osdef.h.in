@@ -82,14 +82,13 @@ extern int   waitpid __P((int, int *, int));
 
 extern int   getdtablesize __P((void));
 
-#ifdef HAVE_SETREUID
-# ifdef hpux
+#ifdef HAVE_SETRESUID
 extern int   setresuid __P((int, int, int));
 extern int   setresgid __P((int, int, int));
-# else
+#endif
+#ifdef HAVE_SETREUID
 extern int   setreuid __P((int, int));
 extern int   setregid __P((int, int));
-# endif
 #endif
 #ifdef HAVE_SETEUID
 extern int   seteuid __P((int));

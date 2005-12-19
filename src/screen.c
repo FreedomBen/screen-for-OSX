@@ -158,6 +158,7 @@ int nversion;	/* numerical version, used for secondary DA */
 /* the attacher */
 struct passwd *ppp;
 char *attach_tty;
+int attach_fd = -1;
 char *attach_term;
 char *LoginName;
 struct mode attach_Mode;
@@ -211,7 +212,7 @@ int tty_oldmode = -1;
 #endif
 
 char HostName[MAXSTR];
-int MasterPid;
+int MasterPid, PanicPid;
 int real_uid, real_gid, eff_uid, eff_gid;
 int default_startup;
 int ZombieKey_destroy, ZombieKey_resurrect, ZombieKey_onerror;
@@ -889,6 +890,10 @@ char **av;
   attach_tty = "";
   if (!detached && !lsflag && !cmdflag && !(dflag && !mflag && !rflag && !xflag))
     {
+#ifndef NAMEDPIPE
+      int fl;
+#endif
+
       /* ttyname implies isatty */
       if (!(attach_tty = ttyname(0)))
         Panic(0, "Must be connected to a terminal.");
@@ -899,10 +904,20 @@ char **av;
 #ifdef MULTIUSER
       tty_mode = (int)st.st_mode & 0777;
 #endif
-      if ((n = secopen(attach_tty, O_RDWR | O_NONBLOCK, 0)) < 0)
-	Panic(0, "Cannot open your terminal '%s' - please check.", attach_tty);
-      close(n);
-      debug1("attach_tty is %s\n", attach_tty);
+
+#ifndef NAMEDPIPE
+      fl = fcntl(0, F_GETFL, 0);
+      if (fl != -1 && (fl & (O_RDWR|O_RDONLY|O_WRONLY)) == O_RDWR)
+	attach_fd = 0;
+#endif
+      if (attach_fd == -1)
+	{
+	  if ((n = secopen(attach_tty, O_RDWR | O_NONBLOCK, 0)) < 0)
+	    Panic(0, "Cannot open your terminal '%s' - please check.", attach_tty);
+	  close(n);
+	}
+      debug2("attach_tty is %s, attach_fd is %d\n", attach_tty, attach_fd);
+
       if ((attach_term = getenv("TERM")) == 0 || *attach_term == 0)
 	Panic(0, "Please set a terminal type.");
       if (strlen(attach_term) > sizeof(D_termname) - 1)
@@ -1163,6 +1178,9 @@ char **av;
       /* NOTREACHED */
     }
 
+  if (!detached)
+    PanicPid = getppid();
+
   if (DefaultEsc == -1)
     DefaultEsc = Ctrl('a');
   if (DefaultMetaEsc == -1)
@@ -1196,9 +1214,13 @@ char **av;
 #endif
   if (!detached)
     {
-      /* reopen tty. must do this, because fd 0 may be RDONLY */
-      if ((n = secopen(attach_tty, O_RDWR, 0)) < 0)
-	Panic(0, "Cannot reopen '%s' - please check.", attach_tty);
+      if (attach_fd == -1)
+	{
+	  if ((n = secopen(attach_tty, O_RDWR, 0)) < 0)
+	    Panic(0, "Cannot reopen '%s' - please check.", attach_tty);
+	}
+      else
+	n = dup(attach_fd);
     }
   else
     n = -1;
@@ -1222,6 +1244,7 @@ char **av;
     {
       if (MakeDisplay(LoginName, attach_tty, attach_term, n, getppid(), &attach_Mode) == 0)
 	Panic(0, "Could not alloc display");
+      PanicPid = 0;
 #ifdef ENCODINGS
       D_encoding = nwin_options.encoding > 0 ? nwin_options.encoding : 0;
       debug1("D_encoding = %d\n", D_encoding);
@@ -1994,7 +2017,11 @@ VA_DECL
     }
   debug3("Panic('%s'); display=%x displays=%x\n", buf, display, displays);
   if (displays == 0 && display == 0)
-    printf("%s\r\n", buf);
+    {
+      printf("%s\r\n", buf);
+      if (PanicPid)
+        Kill(PanicPid, SIG_BYE);
+    }
   else if (displays == 0)
     {
       /* no displays but a display - must have forked.
@@ -2634,6 +2661,8 @@ int rec;
 	  p--;
 	  /* small hack */
 	  if (display && ((ev && ev == &D_forecv->c_captev) || (!ev && win && win == D_fore)))
+	    minusflg = !minusflg;
+	  if (minusflg)
 	    qmflag = 1;
 	  break;
 	case '>':

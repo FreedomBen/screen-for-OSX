@@ -26,7 +26,6 @@
 
 #define KMAP_KEYS (T_OCAPS-T_CAPS)
 #define KMAP_AKEYS (T_OCAPS-T_CURSOR)
-#define KMAP_EXT 50
 
 #define KMAP_NOTIMEOUT 0x4000
 
@@ -38,6 +37,10 @@ struct kmap_ext
   struct action dm;
   struct action mm;
 };
+
+#else
+
+# define KMAP_EXT 50
 
 #endif
 

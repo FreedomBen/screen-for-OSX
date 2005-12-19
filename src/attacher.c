@@ -57,7 +57,7 @@ extern char *attach_tty, *attach_term, *LoginName, *preselect;
 extern int xflag, dflag, rflag, quietflag, adaptflag;
 extern struct mode attach_Mode;
 extern struct NewWindow nwin_options;
-extern int MasterPid;
+extern int MasterPid, attacher_fd;
 
 #ifdef MULTIUSER
 extern char *multi;
@@ -87,6 +87,9 @@ AttachSigCont SIGDEFARG
  *  returns 1 if we could attach one, or 0 if none.
  *  Understands  MSG_ATTACH, MSG_DETACH, MSG_POW_DETACH
  *               MSG_CONT, MSG_WINCH and nothing else!
+ *
+ *  if type == MSG_ATTACH and sockets are used, attaches
+ *  tty filedescriptor.
  */
 
 static int
@@ -95,6 +98,11 @@ int s;
 struct msg *m;
 {
   int r, l = sizeof(*m);
+
+#ifndef NAMEDPIPE
+  if (m->type == MSG_ATTACH)
+    return SendAttachMsg(s, m, attach_fd);
+#endif
 
   while(l > 0)
     {
@@ -184,8 +192,13 @@ int how;
     {
       real_uid = multi_uid;
       eff_uid  = own_uid;
+#ifdef HAVE_SETRESUID
+      if (setresuid(multi_uid, own_uid, multi_uid))
+	Panic(errno, "setresuid");
+#else
       xseteuid(multi_uid);
       xseteuid(own_uid);
+#endif
       if (chmod(attach_tty, 0666))
 	Panic(errno, "chmod %s", attach_tty);
       tty_oldmode = tty_mode;

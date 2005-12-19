@@ -64,6 +64,7 @@ static void TelDosub __P((struct win *));
 #define TO_NAWS         31
 #define TO_TSPEED       32
 #define TO_LFLOW        33
+#define TO_LINEMODE     34
 #define TO_XDISPLOC     35
 #define TO_NEWENV       39
 
@@ -406,13 +407,13 @@ int cmd, opt;
   int repl = 0;
 
   if (cmd == TC_WONT)
-    debug2("[WONT %c %d]\n", TO_S[opt], opt);
+    debug2("[<-WONT %c %d]\n", TO_S[opt], opt);
   if (cmd == TC_WILL)
-    debug2("[WILL %c %d]\n", TO_S[opt], opt);
+    debug2("[<-WILL %c %d]\n", TO_S[opt], opt);
   if (cmd == TC_DONT)
-    debug2("[DONT %c %d]\n", TO_S[opt], opt);
+    debug2("[<-DONT %c %d]\n", TO_S[opt], opt);
   if (cmd == TC_DO)
-    debug2("[DO  %c %d]\n", TO_S[opt], opt);
+    debug2("[<-DO  %c %d]\n", TO_S[opt], opt);
 
   switch(cmd)
     {
@@ -458,6 +459,16 @@ int cmd, opt;
   b[0] = TC_IAC;
   b[1] = repl;
   b[2] = opt;
+
+  if (repl == TC_WONT)
+    debug2("[->WONT %c %d]\n", TO_S[opt], opt);
+  if (repl == TC_WILL)
+    debug2("[->WILL %c %d]\n", TO_S[opt], opt);
+  if (repl == TC_DONT)
+    debug2("[->DONT %c %d]\n", TO_S[opt], opt);
+  if (repl == TC_DO)
+    debug2("[->DO  %c %d]\n", TO_S[opt], opt);
+
   TelReply(p, (char *)b, 3);
   if (cmd == TC_DO && opt == TO_NAWS)
     TelWindowSize(p);

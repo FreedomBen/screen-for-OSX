@@ -39,6 +39,7 @@ extern int hardstatusemu;
 extern struct action umtab[];
 extern struct action mmtab[];
 extern struct action dmtab[];
+extern struct action ktab[];
 extern struct kmap_ext *kmap_exts;
 extern int kmap_extn;
 extern int DefaultEsc;
@@ -547,7 +548,8 @@ int map;
       else
 	break;
     }
-
+  if (n < KMAP_KEYS)
+    domap = 1;
   if (map == 0 && domap)
     return 0;
   if (map && !domap)

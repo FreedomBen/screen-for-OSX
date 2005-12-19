@@ -156,12 +156,12 @@ extern int errno;
 # endif
 #endif
 
-#ifdef hpux
+#if defined(HAVE_SETRESUID) && !defined(HAVE_SETREUID)
 # define setreuid(ruid, euid) setresuid(ruid, euid, -1)
 # define setregid(rgid, egid) setresgid(rgid, egid, -1)
 #endif
 
-#if defined(HAVE_SETEUID) || defined(HAVE_SETREUID)
+#if defined(HAVE_SETEUID) || defined(HAVE_SETREUID) || defined(HAVE_SETRESUID)
 # define USE_SETEUID
 #endif
 

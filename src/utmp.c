@@ -604,6 +604,7 @@ struct utmp *u;
 char *line, *user;
 int pid;
 {
+  time_t now;
   u->ut_type = USER_PROCESS;
   strncpy(u->ut_user, user, sizeof(u->ut_user));
   /* Now the tricky part... guess ut_id */
@@ -618,7 +619,10 @@ int pid;
 #endif /* sgi */
   strncpy(u->ut_line, line, sizeof(u->ut_line));
   u->ut_pid = pid;
-  (void)time((time_t *)&u->ut_time);
+  /* must use temp variable because of NetBSD/sparc64, where
+   * ut_xtime is long(64) but time_t is int(32) */
+  (void)time(&now);
+  u->ut_time = now;
 }
 
 static slot_t
@@ -726,9 +730,11 @@ struct utmp *u;
 char *line, *user;
 int pid;
 {
+  time_t now;
   strncpy(u->ut_line, line, sizeof(u->ut_line));
   strncpy(u->ut_name, user, sizeof(u->ut_name));
-  (void)time((time_t *)&u->ut_time);
+  (void)time(&now);
+  u->ut_time = now;
 }
 
 static slot_t

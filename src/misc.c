@@ -613,7 +613,7 @@ char *value;
    */
 # endif /* NEEDSETENV */
 #else /* USESETENV */
-# if defined(linux) || defined(__sun) || defined(__convex__) || (BSD >= 199103)
+# if defined(linux) || defined(__convex__) || (BSD >= 199103)
   setenv(var, value, 1);
 # else
   setenv(var, value);

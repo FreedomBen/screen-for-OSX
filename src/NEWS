@@ -10,6 +10,7 @@
 
 * more robust startup
 
+* use setresuid; SendAttachMsg() for fd-passing added; DoCSI enhanced.
 
                   ------------------------------
                    What's new in screen-4.0.0 ?

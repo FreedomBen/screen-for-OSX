@@ -781,7 +781,7 @@ char *cmd;
 #ifdef SIGPIPE
       signal(SIGPIPE, SIG_DFL);
 #endif
-      execl("/bin/sh", "sh", "-c", cmd, 0);
+      execl("/bin/sh", "sh", "-c", cmd, (char *)0);
       Panic(errno, "/bin/sh");
     default:
       break;

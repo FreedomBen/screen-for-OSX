@@ -458,6 +458,7 @@
  * define HAVE_SETREUID. Otherwise screen will use a forked process to
  * safely create output files without retaining any special privileges.
  */
+#undef HAVE_SETRESUID
 #undef HAVE_SETREUID
 
 /*

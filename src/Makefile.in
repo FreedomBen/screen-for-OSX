@@ -78,7 +78,7 @@ install_bin: .version screen
 # This doesn't work if $(bindir)/screen is a symlink
 	-if [ -f $(DESTDIR)$(bindir)/screen ] && [ ! -f $(DESTDIR)$(bindir)/screen.old ]; then mv $(DESTDIR)$(bindir)/screen $(DESTDIR)$(bindir)/screen.old; fi
 	rm -f $(DESTDIR)$(bindir)/screen
-	(cd $(DESTDIR)$(bindir) && ln -sf $(SCREEN) screen)
+	(cd $(DESTDIR)$(bindir) && ln -f -s $(SCREEN) screen)
 	cp $(srcdir)/utf8encodings/?? $(DESTDIR)$(SCREENENCODINGS)
 
 ###############################################################################

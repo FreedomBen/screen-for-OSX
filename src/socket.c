@@ -789,25 +789,75 @@ ReceiveMsg()
   struct display *next;
 #endif
   struct display *olddisplays = displays;
+  int recvfd = -1;
 
 #ifdef NAMEDPIPE
   debug("Ha, there was someone knocking on my fifo??\n");
   if (fcntl(ServerSocket, F_SETFL, 0) == -1)
     Panic(errno, "BLOCK fcntl");
+  p = (char *) &m;
+  left = sizeof(m);
 #else
   struct sockaddr_un a;
+  struct msghdr msg;
+  struct iovec iov;
+  char control[1024];
 
   len = sizeof(a);
   debug("Ha, there was someone knocking on my socket??\n");
-  if ((ns = accept(ns, (struct sockaddr *) &a, &len)) < 0)
+  if ((ns = accept(ns, (struct sockaddr *) &a, (void *)&len)) < 0)
     {
       Msg(errno, "accept");
       return;
     }
-#endif				/* NAMEDPIPE */
 
   p = (char *) &m;
   left = sizeof(m);
+  bzero(&msg, sizeof(msg));
+  iov.iov_base = &m;
+  iov.iov_len = left;
+  msg.msg_iov = &iov;
+  msg.msg_iovlen  = 1;
+  msg.msg_controllen = sizeof(control);
+  msg.msg_control = &control;
+  while (left > 0)
+    {
+      len = recvmsg(ns, &msg, 0);
+      if (len < 0 && errno == EINTR)
+	continue;
+      if (len < 0)
+	{
+	  close(ns);
+	  Msg(errno, "read");
+	  return;
+	}
+      if (msg.msg_controllen)
+	{
+	  struct cmsghdr  *cmsg;
+	  for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg))
+	    {
+	      int cl;
+	      char *cp;
+	      if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
+		continue;
+	      cp = (char *)CMSG_DATA(cmsg);
+	      cl = cmsg->cmsg_len;
+	      while(cl >= CMSG_LEN(sizeof(int)))
+		{
+		  if (recvfd >= 0)
+		    close(recvfd);
+		  bcopy(cp, &recvfd, sizeof(int));
+		  cl -= CMSG_LEN(sizeof(int));
+		}
+	    }
+	}
+      p += len;
+      left -= len;
+      break;
+    }
+
+#endif
+
   while (left > 0)
     {
       len = read(ns, p, left);
@@ -836,6 +886,8 @@ ReceiveMsg()
   if (len < 0)
     {
       Msg(errno, "read");
+      if (recvfd != -1)
+	close(recvfd);
       return;
     }
   if (left > 0)
@@ -848,11 +900,19 @@ ReceiveMsg()
     }
   if (m.protocol_revision != MSG_REVISION)
     {
+      if (recvfd != -1)
+	close(recvfd);
       Msg(0, "Invalid message (magic 0x%08x).", m.protocol_revision);
       return;
     }
 
   debug2("*** RecMsg: type %d tty %s\n", m.type, m.m_tty);
+  if (m.type != MSG_ATTACH && recvfd != -1)
+    {
+      close(recvfd);
+      recvfd = -1;
+    }
+
   for (display = displays; display; display = display->d_next)
     if (TTYCMP(D_usertty, m.m_tty) == 0)
       break;
@@ -876,7 +936,11 @@ ReceiveMsg()
     RemoveStatus();
 
   if (display && !D_tcinited && m.type != MSG_HANGUP)
-    return;		/* ignore messages for bad displays */
+    {
+      if (recvfd != -1)
+	close(recvfd);
+      return;		/* ignore messages for bad displays */
+    }
 
   switch (m.type)
     {
@@ -908,7 +972,21 @@ ReceiveMsg()
 	  Msg(0, "Attach attempt with bad pid(%d)!", m.m.attach.apid);
           break;
 	}
-      if ((i = secopen(m.m_tty, O_RDWR | O_NONBLOCK, 0)) < 0)
+      if (recvfd != -1)
+	{
+	  char *myttyname;
+	  i = recvfd;
+	  recvfd = -1;
+	  myttyname = ttyname(i);
+	  if (myttyname == 0 || strcmp(myttyname, m.m_tty))
+	    {
+	      Msg(errno, "Attach: passed fd does not match tty: %s - %s!", m.m_tty, myttyname ? myttyname : "NULL");
+	      close(i);
+	      Kill(m.m.attach.apid, SIG_BYE);
+	      break;
+	    }
+	}
+      else if ((i = secopen(m.m_tty, O_RDWR | O_NONBLOCK, 0)) < 0)
 	{
 	  Msg(errno, "Attach: Could not open %s!", m.m_tty);
 	  Kill(m.m.attach.apid, SIG_BYE);
@@ -1212,6 +1290,14 @@ struct msg *m;
           fore = 0;
 	  noshowwin = 1;
 	}
+      else if (!strcmp(m->m.attach.preselect, "+"))
+	{
+	  struct action newscreen;
+	  char *na = 0;
+	  newscreen.nr = RC_SCREEN;
+	  newscreen.args = &na;
+	  DoAction(&newscreen, -1);
+	}
       else
         fore = FindNiceWindow(fore, m->m.attach.preselect);
     }
@@ -1433,3 +1519,45 @@ struct msg *mp;
   EffectiveAclUser = 0;
 #endif
 }
+
+#ifndef NAMEDPIPE
+
+int
+SendAttachMsg(s, m, fd)
+int s;
+struct msg *m;
+int fd;
+{
+  int r;
+  struct msghdr msg;
+  struct iovec iov;
+  char buf[CMSG_SPACE(sizeof(int))];
+  struct cmsghdr *cmsg;
+
+  iov.iov_base = (char *)m;
+  iov.iov_len = sizeof(*m);
+  bzero(&msg, sizeof(msg));
+  msg.msg_name = 0;
+  msg.msg_namelen = 0;
+  msg.msg_iov = &iov; 
+  msg.msg_iovlen = 1;
+  msg.msg_control = buf;
+  msg.msg_controllen = sizeof(buf);
+  cmsg = CMSG_FIRSTHDR(&msg);
+  cmsg->cmsg_level = SOL_SOCKET;
+  cmsg->cmsg_type = SCM_RIGHTS; 
+  cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+  bcopy(&fd, CMSG_DATA(cmsg), sizeof(int));
+  msg.msg_controllen = cmsg->cmsg_len;
+  while(1)
+    {
+      r = sendmsg(s, &msg, 0);
+      if (r == -1 && errno == EINTR)
+	continue;
+      if (r == -1)
+	return -1;
+      return 0;
+    }
+}
+
+#endif

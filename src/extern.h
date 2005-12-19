@@ -335,6 +335,7 @@ extern int   chsock __P((void));
 extern void  ReceiveMsg __P((void));
 extern void  SendCreateMsg __P((char *, struct NewWindow *));
 extern int   SendErrorMsg __P((char *, char *));
+extern int   SendAttachMsg __P((int, struct msg *, int));
 
 /* misc.c */
 extern char *SaveStr __P((const char *));

@@ -622,6 +622,10 @@ XIF{VSTOP}	D_NewMode.tio.c_cc[VSTOP] = VDISABLE;
       D_NewMode.tio.c_iflag &= ~IXON;
     }
 # ifdef POSIX
+#  ifdef TCOON
+  if (!on)
+    tcflow(D_userfd, TCOON);
+#  endif
   if (tcsetattr(D_userfd, TCSANOW, &D_NewMode.tio))
 # else
   if (ioctl(D_userfd, TCSETAW, (char *)&D_NewMode.tio) != 0)

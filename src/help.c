@@ -37,6 +37,9 @@ extern char *noargs[];
 extern struct mchar mchar_blank, mchar_so;
 extern unsigned char *blank;
 extern struct win *wtab[];
+#ifdef MAPKEYS
+extern struct term term[];
+#endif
 
 static void PadStr __P((char *, int, int, int));
 
@@ -161,7 +164,7 @@ struct action *ktabp;
     used[n] = 0;
   mcom = 0;
   mkey = 0;
-  for (key = 0; key < 256; key++)
+  for (key = 0; key < 256 + KMAP_KEYS; key++)
     {
       n = ktabp[key].nr;
       if (n == RC_ILLEGAL)
@@ -314,7 +317,7 @@ helppage()
 	      x += helpdata->inter - !col;
 	      n = helpdata->nact[n];
 	      buf[0] = '\0';
-	      for (key = 0; key < 256; key++)
+	      for (key = 0; key < 256 + KMAP_KEYS; key++)
 		if (ktabp[key].nr == n && ktabp[key].args == noargs && strlen(buf) < sizeof(buf) - 7)
 		  {
 		    strcat(buf, " ");
@@ -333,13 +336,13 @@ helppage()
 	  while ((n = ktabp[helpdata->command_search].nr) == RC_ILLEGAL
 		 || ktabp[helpdata->command_search].args == noargs)
 	    {
-	      if (++helpdata->command_search >= 256)
+	      if (++helpdata->command_search >= 256 + KMAP_KEYS)
 		return -1;
 	    }
 	  buf[0] = '\0';
 	  add_key_to_buf(buf, helpdata->command_search);
-	  PadStr(buf, 4, 0, crow);
-	  AddAction(&ktabp[helpdata->command_search++], 4, crow);
+	  PadStr(buf, 5, 0, crow);
+	  AddAction(&ktabp[helpdata->command_search++], 5, crow);
 	  helpdata->grow++;
 	}
       else
@@ -425,6 +428,17 @@ int key;
     strcpy(buf, "unset");
   else if (key == ' ')
     strcpy(buf, "sp");
+#ifdef MAPKEYS
+  else if (key >= 256)
+    {
+      key = key - 256 + T_CAPS;
+      buf[0] = ':';
+      buf[1] = term[key].tcname[0];
+      buf[2] = term[key].tcname[1];
+      buf[3] = ':';
+      buf[4] = 0;
+    }
+#endif
   else
     buf[AddXChar(buf, key)] = 0;
 }
@@ -1004,7 +1018,7 @@ int isblank;
   char *str;
   int n;
 
-  display = 0;
+  display = Layer2Window(flayer) ? 0 : flayer->l_cvlist ? flayer->l_cvlist->c_display : 0;
   str = MakeWinMsgEv(wliststr, wtab[i], '%', flayer->l_width, (struct event *)0, 0);
   n = strlen(str);
   if (i != pos && isblank)
@@ -1347,8 +1361,6 @@ InWList()
 */
 
 #ifdef MAPKEYS
-
-extern struct term term[];
 extern struct kmap_ext *kmap_exts;
 extern int kmap_extn;
 extern struct action dmtab[];

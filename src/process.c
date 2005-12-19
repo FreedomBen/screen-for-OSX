@@ -198,7 +198,7 @@ struct action idleaction;
 char **blankerprg;
 #endif
 
-struct action ktab[256];	/* command key translation table */
+struct action ktab[256 + KMAP_KEYS];	/* command key translation table */
 struct kclass {
   struct kclass *next;
   char *name;
@@ -553,6 +553,12 @@ InitKeytab()
   ktab['X'].nr = RC_REMOVE;
   ktab['F'].nr = RC_FIT;
   ktab['\t'].nr = RC_FOCUS;
+  {
+    char *args[2];
+    args[0] = "up";
+    args[1] = 0;
+    SaveAction(ktab + T_BACKTAB - T_CAPS + 256, RC_FOCUS, args, 0);
+  }
   /* These come last; they may want overwrite others: */
   if (DefaultEsc >= 0)
     {
@@ -3023,21 +3029,52 @@ int key;
     case RC_BIND:
 	{
 	  struct action *ktabp = ktab;
+	  int kflag = 0;
 
-	  if (argc > 2 && !strcmp(*args, "-c"))
+	  for (;;)
 	    {
-	      ktabp = FindKtab(args[1], 1);
-	      if (ktabp == 0)
-		break;
-	      args += 2;
-	      argl += 2;
+	      if (argc > 2 && !strcmp(*args, "-c"))
+		{
+		  ktabp = FindKtab(args[1], 1);
+		  if (ktabp == 0)
+		    break;
+		  args += 2;
+		  argl += 2;
+		  argc -= 2;
+		}
+	      else if (argc > 1 && !strcmp(*args, "-k"))
+	        {
+		  kflag = 1;
+		  args++;
+		  argl++;
+		  argc--;
+		}
+	      else
+	        break;
 	    }
+#ifdef MAPKEYS
+          if (kflag)
+	    {
+	      for (n = 0; n < KMAP_KEYS; n++)
+		if (strcmp(term[n + T_CAPS].tcname, *args) == 0)
+		  break;
+	      if (n == KMAP_KEYS)
+		{
+		  Msg(0, "%s: bind: unknown key '%s'", rc_name, *args);
+		  break;
+		}
+	      n += 256;
+	    }
+	  else
+#endif
 	  if (*argl != 1)
 	    {
 	      Msg(0, "%s: bind: character, ^x, or (octal) \\032 expected.", rc_name);
 	      break;
 	    }
-	  n = (unsigned char)args[0][0];
+	  else
+	    n = (unsigned char)args[0][0];
+
 	  if (args[1])
 	    {
 	      if ((i = FindCommnr(args[1])) == RC_ILLEGAL)
@@ -4853,7 +4890,7 @@ struct win *p;
   s = buf;
   for (display = displays; display; display = display->d_next)
     {
-      if (D_user == olddisplay->d_user)
+      if (olddisplay && D_user == olddisplay->d_user)
 	continue;
       for (cv = D_cvlist; cv; cv = cv->c_next)
 	if (Layer2Window(cv->c_layer) == p)
@@ -5723,12 +5760,26 @@ StuffKey(i)
 int i;
 {
   struct action *act;
+  int discard = 0;
 
   debug1("StuffKey #%d", i);
 #ifdef DEBUG
   if (i < KMAP_KEYS)
     debug1(" - %s", term[i + T_CAPS].tcname);
 #endif
+
+  if (i < KMAP_KEYS && D_ESCseen)
+    {
+      struct action *act = &D_ESCseen[i + 256];
+      if (act->nr != RC_ILLEGAL)
+	{
+	  D_ESCseen = 0;
+          DoAction(act, i + 256);
+	  return 0;
+	}
+      discard = 1;
+    }
+
   if (i >= T_CURSOR - T_CAPS && i < T_KEYPAD - T_CAPS && D_cursorkeys)
     i += T_OCAPS - T_CURSOR;
   else if (i >= T_KEYPAD - T_CAPS && i < T_OCAPS - T_CAPS && D_keypad)
@@ -5743,9 +5794,16 @@ int i;
 #endif
   if ((!act || act->nr == RC_ILLEGAL) && !D_mapdefault)
     act = i < KMAP_KEYS+KMAP_AKEYS ? &umtab[i] : &kmap_exts[i - (KMAP_KEYS+KMAP_AKEYS)].um;
-  D_mapdefault = 0;
   if (!act || act->nr == RC_ILLEGAL)
     act = i < KMAP_KEYS+KMAP_AKEYS ? &dmtab[i] : &kmap_exts[i - (KMAP_KEYS+KMAP_AKEYS)].dm;
+
+  if (discard && (!act || act->nr != RC_COMMAND))
+    {
+      D_ESCseen = 0;
+      return 0;
+    }
+  D_mapdefault = 0;
+
   if (act == 0 || act->nr == RC_ILLEGAL)
     return -1;
   DoAction(act, 0);

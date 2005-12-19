@@ -1225,19 +1225,44 @@ int c, intermediate;
 	  SaveCursor();
 	  break;
 	case 't':
-	  if (a1 != 8)
-	    break;
-	  a1 = curr->w_args[2];
-	  if (a1 < 1)
-	    a1 = curr->w_width;
-	  if (a2 < 1)
-	    a2 = curr->w_height;
-	  if (a1 > 10000 || a2 > 10000)
-	    break;
-	  WChangeSize(curr, a1, a2);
-	  cols = curr->w_width;
-	  rows = curr->w_height;
+	  switch(a1)
+	    {
+	    case 11:
+	      if (curr->w_layer.l_cvlist)
+		Report("\033[1t", 0, 0);
+	      else
+		Report("\033[2t", 0, 0);
+	      break;
+	    case 7:
+	      LRefreshAll(&curr->w_layer, 0);
+	      break;
+	    case 21:
+	      a1 = strlen(curr->w_title);
+	      if ((unsigned)(curr->w_inlen + 5 + a1) <= sizeof(curr->w_inbuf))
+		{
+		  bcopy("\033]l", curr->w_inbuf + curr->w_inlen, 3);
+		  bcopy(curr->w_title, curr->w_inbuf + curr->w_inlen + 3, a1);
+		  bcopy("\033\\", curr->w_inbuf + curr->w_inlen + 3 + a1, 2);
+		  curr->w_inlen += 5 + a1;
+		}
+	      break;
+	    case 8:
+	      a1 = curr->w_args[2];
+	      if (a1 < 1)
+		a1 = curr->w_width;
+	      if (a2 < 1)
+		a2 = curr->w_height;
+	      if (a1 > 10000 || a2 > 10000)
+		break;
+	      WChangeSize(curr, a1, a2);
+	      cols = curr->w_width;
+	      rows = curr->w_height;
+	      break;
+	    default:
+	      break;
+	    }
 	  break;
+
 	case 'u':
 	  RestoreCursor();
 	  break;
