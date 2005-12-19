@@ -3097,7 +3097,7 @@ via the second and the third form.
 Note also that this is an experimental feature.
 .sp
 .ne 3
-.BR "zombie " [\fIkeys\fP]
+.BR "zombie " [\fIkeys\fP [ onerror ] ]
 .br
 .BR "defzombie " [\fIkeys\fP]
 .PP
@@ -3118,6 +3118,10 @@ when their process exits.
 As the zombie-setting is manipulated globally for all windows, this command 
 should only be called \fBdefzombie\fP. Until we need this as a per window 
 setting, the commands \fBzombie\fP and \fBdefzombie\fP are synonymous.
+
+Optionally you can put the word \*Qonerror\*U after the keys. This will cause screen
+to monitor exit status of the process running in the window. If it exits normally ('0'), 
+the window disappears. Any other exit value causes the window to become a zombie.
 
 .SH "THE MESSAGE LINE"
 .I Screen

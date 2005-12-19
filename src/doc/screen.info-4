@@ -931,7 +931,7 @@ File: screen.info,  Node: Zombie,  Next: Printcmd,  Prev: Version,  Up: Miscella
 Zombie
 ======
 
- - Command: zombie [KEYS]
+ - Command: zombie [KEYS [onerror]]
  - Command: defzombie [KEYS]
      (none)
      Per default windows are removed from the window list as soon as the
@@ -949,6 +949,11 @@ Zombie
      command should only be called `defzombie'. Until we need this as a
      per window setting, the commands `zombie' and `defzombie' are
      synonymous.
+
+     Optionally you can put the word \*Qonerror\*U after the keys. This will
+     cause screen to monitor exit status of the process running in the window.
+     If it exits normally ('0'), the window disappears. Any other exit value
+     causes the window to become a zombie.
 
 
 File: screen.info,  Node: Printcmd,  Next: Sorendition,  Prev: Zombie,  Up: Miscellaneous

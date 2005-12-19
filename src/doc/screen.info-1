@@ -1303,7 +1303,7 @@ Command Summary
 `zmodem [off|auto|catch|pass]'
      Define how screen treats zmodem requests.  *Note Zmodem::.
 
-`zombie [KEYS]'
+`zombie [KEYS [onerror]]'
      Keep dead windows.  *Note Zombie::.
 
 
