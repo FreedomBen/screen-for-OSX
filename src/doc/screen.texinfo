@@ -346,7 +346,7 @@ a new process. The command exits if the session terminates.
 
 @item -p @var{name_or_number}
 Preselect a window. This is usefull when you want to reattach to a
-specific windor or you want to send a command via the @samp{-X}
+specific window or you want to send a command via the @samp{-X}
 option to a specific window. As with screen's select commant, @samp{-}
 selects the blank window. As a special case for reattach, @samp{=}
 brings up the windowlist on the blank window.

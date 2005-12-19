@@ -300,7 +300,7 @@ Invoking `Screen'
 
 `-p NAME_OR_NUMBER'
      Preselect a window. This is usefull when you want to reattach to a
-     specific windor or you want to send a command via the `-X' option
+     specific window or you want to send a command via the `-X' option
      to a specific window. As with screen's select commant, `-' selects
      the blank window. As a special case for reattach, `=' brings up
      the windowlist on the blank window.
