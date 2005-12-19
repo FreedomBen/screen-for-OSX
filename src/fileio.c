@@ -130,7 +130,8 @@ char *rcfile;
  */
 int
 StartRc(rcfilename, nopanic)
-char *rcfilename, int nopanic;
+char *rcfilename;
+int nopanic;
 {
   register int argc, len;
   register char *p, *cp;
