@@ -522,11 +522,12 @@
  * 11.10.2004, 4.00.03jw handle StartRc errors nonfatal if due to a msg.
  * 12.10.2004, 4.00.03jw1 let docu of 'split' 'focus' 'remove' and 'only' refer to each other.
  * 01.11.2004, 4.00.03jw2 zombie command has new option 'onerror'
+ * 2005-12-19, 4.00.03jw3 syntax error.
  */
 
 #define ORIGIN "FAU"
 #define REV 4
 #define VERS 0
 #define PATCHLEVEL 3
-#define DATE "01-Nov-04"
-#define STATE "jw2"
+#define DATE "19-Dec-05"
+#define STATE "jw3"
