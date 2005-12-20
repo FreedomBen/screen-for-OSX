@@ -417,7 +417,10 @@ See the @code{-r} flag for a description how to construct matches.
 
 @item -x
 Attach to a session which is already attached elsewhere (multi-display
-mode).
+mode). 
+@code{Screen} refuses to attach from within itself. 
+But when cascading multiple screens, loops are not detected; take care.
+
 
 @item -X
 Send the specified command to a running screen session. You can use
@@ -1156,7 +1159,7 @@ Send an XOFF character.  @xref{XON/XOFF}.
 Send an XON character.  @xref{XON/XOFF}.
 @item zmodem [off|auto|catch|pass]
 Define how screen treats zmodem requests.  @xref{Zmodem}.
-@item zombie [@var{keys}]
+@item zombie [@var{keys} [onerror] ]
 Keep dead windows.  @xref{Zombie}.
 @end table
 
@@ -4530,7 +4533,7 @@ Display the version and modification date in the message line.
 
 @node Zombie, Printcmd, Version, Miscellaneous
 @section Zombie
-@deffn Command zombie [@var{keys}]
+@deffn Command zombie [@var{keys} [onerror] ]
 @deffnx Command defzombie [@var{keys}]
 (none)@*
 Per default windows are removed from the window list as soon as the
@@ -4546,6 +4549,11 @@ the process terminates.
 As the zombie setting is affected globally for all windows, this command 
 should only be called @code{defzombie}. Until we need this as a per window 
 setting, the commands @code{zombie} and @code{defzombie} are synonymous.
+
+Optionally you can put the word @code{onerror} after the keys. This will
+cause screen to monitor exit status of the process running in the window.
+If it exits normally ('0'), the window disappears. Any other exit value
+causes the window to become a zombie.
 @end deffn
 
 @node Printcmd, Sorendition, Zombie, Miscellaneous

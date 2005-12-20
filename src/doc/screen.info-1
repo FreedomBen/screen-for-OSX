@@ -370,6 +370,8 @@ Invoking `Screen'
 `-x'
      Attach to a session which is already attached elsewhere
      (multi-display mode).
+     `Screen' refuses to attach from within itself. 
+     But when cascading multiple screens, loops are not detected; take care.
 
 `-X'
      Send the specified command to a running screen session. You can use

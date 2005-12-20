@@ -360,6 +360,9 @@ See the \fB-r\fP flag for a description how to construct matches.
 Attach to a not detached
 .I screen
 session. (Multi display mode).
+.I Screen
+refuses to attach from within itself. 
+But when cascading multiple screens, loops are not detected; take care.
 .TP 5
 .B \-X
 Send the specified command to a running screen session. You can use
