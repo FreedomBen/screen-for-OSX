@@ -1,0 +1,201 @@
+From screen-users-bounces+jw=cs.fau.de@gnu.org  Fri Dec 16 22:23:46 2005
+Received: from faui45.informatik.uni-erlangen.de (IDENT:root@fauern.informatik.uni-erlangen.de [131.188.34.45])
+	by faui40.informatik.uni-erlangen.de (8.9.3p3/8.1.49-FAU) with ESMTP id WAA08712
+	for <jnweiger@i4.informatik.uni-erlangen.de>; Fri, 16 Dec 2005 22:23:46 +0100 (MET)
+Received: from lists.gnu.org (lists.gnu.org [199.232.76.165])
+	by faui45.informatik.uni-erlangen.de (8.9.3p3/8.1.49-FAU) with ESMTP id WAA28416
+	for <jw@cs.fau.de>; Fri, 16 Dec 2005 22:23:45 +0100 (MET)
+Received: from localhost ([127.0.0.1] helo=lists.gnu.org)
+	by lists.gnu.org with esmtp (Exim 4.43)
+	id 1EnN2o-0003P6-7M
+	for jw@cs.fau.de; Fri, 16 Dec 2005 16:23:14 -0500
+Received: from mailman by lists.gnu.org with tmda-scanned (Exim 4.43)
+	id 1EnKWZ-000807-RE
+	for screen-users@gnu.org; Fri, 16 Dec 2005 13:41:48 -0500
+Received: from exim by lists.gnu.org with spam-scanned (Exim 4.43)
+	id 1EnKWY-0007yj-AQ
+	for screen-users@gnu.org; Fri, 16 Dec 2005 13:41:47 -0500
+Received: from [199.232.76.173] (helo=monty-python.gnu.org)
+	by lists.gnu.org with esmtp (Exim 4.43) id 1EnKWX-0007y7-LZ
+	for screen-users@gnu.org; Fri, 16 Dec 2005 13:41:45 -0500
+Received: from [64.233.162.195] (helo=zproxy.gmail.com)
+	by monty-python.gnu.org with esmtp (Exim 4.34) id 1EnKZ0-0005Ig-91
+	for screen-users@gnu.org; Fri, 16 Dec 2005 13:44:18 -0500
+Received: by zproxy.gmail.com with SMTP id i11so687899nzh
+	for <screen-users@gnu.org>; Fri, 16 Dec 2005 10:41:00 -0800 (PST)
+DomainKey-Signature: a=rsa-sha1; q=dns; c=nofws; s=beta; d=gmail.com;
+	h=received:message-id:date:from:user-agent:x-accept-language:mime-version:to:subject:content-type:content-transfer-encoding;
+	b=htOg5ElAxJoDWlgFSUJd85Bf6mf7Y8FPLZRoIWCdtrnesxVHg1ZMe5zNYUb1pVC9iK8cGKMIAFbgysTC3CeGK9JEJBEk6xNJCs7y5s2vSILQ9zV67ZkkikyK4ke+2rCHmj7xYDlLW+JsdqbbnVJilY7Xl/cxgcy9+MIfOdnucKw=
+Received: by 10.65.197.20 with SMTP id z20mr1443729qbp;
+	Fri, 16 Dec 2005 10:41:00 -0800 (PST)
+Received: from ?192.168.1.151? ( [82.24.24.234])
+	by mx.gmail.com with ESMTP id q14sm641312qbq.2005.12.16.10.40.58;
+	Fri, 16 Dec 2005 10:40:59 -0800 (PST)
+Message-ID: <43A30A56.1030000@gmail.com>
+Date: Fri, 16 Dec 2005 18:41:26 +0000
+From: bill <bill.pursell@gmail.com>
+User-Agent: Mozilla Thunderbird 1.0.7-1.1.fc3 (X11/20050929)
+X-Accept-Language: en-us, en
+MIME-Version: 1.0
+To: Screen Users <screen-users@gnu.org>
+Content-Type: text/plain; charset=ISO-8859-1; format=flowed
+Content-Transfer-Encoding: 7bit
+Subject: fFtT patch
+X-BeenThere: screen-users@gnu.org
+X-Mailman-Version: 2.1.5
+Precedence: list
+List-Id: General GNU Screen discussion <screen-users.gnu.org>
+List-Unsubscribe: <http://lists.gnu.org/mailman/listinfo/screen-users>,
+	<mailto:screen-users-request@gnu.org?subject=unsubscribe>
+List-Archive: <http://lists.gnu.org/pipermail/screen-users>
+List-Post: <mailto:screen-users@gnu.org>
+List-Help: <mailto:screen-users-request@gnu.org?subject=help>
+List-Subscribe: <http://lists.gnu.org/mailman/listinfo/screen-users>,
+	<mailto:screen-users-request@gnu.org?subject=subscribe>
+Sender: screen-users-bounces+jw=cs.fau.de@gnu.org
+Errors-To: screen-users-bounces+jw=cs.fau.de@gnu.org
+X-Spam-Checker-Version: SpamAssassin 2.63 (2004-01-11) on 
+	faui40.informatik.uni-erlangen.de
+X-Spam-Level: 
+X-Spam-Status: No, hits=-4.8 required=5.0 tests=BAYES_00,RCVD_IN_SORBS 
+	autolearn=no version=2.63
+Status: RO
+Content-Length: 4721
+Lines: 145
+
+Here's the patch which implements the fFtT;, cursor movements.  I'm not
+even remotely confident of this: I cut and pasted from a terminal
+into thunderbird.
+
+[reformatted by jw, 2005-12-19]
+
+--- ./mark.c.orig	2005-12-16 19:48:09.000000000 +0100
++++ ./mark.c	2005-12-19 12:00:42.795719267 +0100
+@@ -149,6 +149,55 @@
+ #define NW_MUSTMOVE	(1<<2)
+ #define NW_BIG		(1<<3)
+ 
++static int
++nextchar(int *xp, int *yp, int direction, char target, int num)
++{   /* Set *xp to the num-th occurrence of the target in the line. */
++
++    /* Return EXIT_FAILURE if the target doesn't appear num times.
++    Caller could use that to emit a warning. */
++
++    int    width;           /* width of the current window. */
++    int    x;               /* x coordinate of the current cursor position. */
++    int    step;            /* amount to increment x (+1 or -1) */
++    int    adjust;          /* Final adjustment of cursor position. */
++    char  *displayed_line;  /* Line in which search takes place. */
++
++    debug("nextchar\n");
++
++    x              = *xp;
++    adjust         = 0;
++    width          = fore->w_width;
++    displayed_line = WIN(*yp) -> image;
++
++    switch(direction) {
++    case 't': adjust = -1; /* fall through */
++    case 'f': step = 1;    /* fall through */
++        break;
++    case 'T': adjust = 1;  /* fall through */
++    case 'F': step = -1;   /* fall through */
++        break;
++    default:
++        ASSERT(0);
++    }
++
++    x += step;
++
++    debug1("ml->image = %s\n", displayed_line);
++    debug2("num = %d, width = %d\n",num, width);
++    debug2("x = %d targe = %c\n", x, target );
++
++    for ( ;x>=0 && x <= width; x += step) {
++        if (displayed_line[x] == target) {
++            if (--num == 0) {
++                *xp = x + adjust;
++                return EXIT_SUCCESS;
++            }
++        }
++    }
++    return EXIT_FAILURE;
++}
++
++
+ static void
+ nextword(xp, yp, flags, num)
+ int *xp, *yp, flags, num;
+@@ -534,8 +583,55 @@
+ 	}
+       cx = markdata->cx;
+       cy = markdata->cy;
++
++      if (markdata -> char_search[0]) {
++        debug2("searching for %c:%d\n",od,rep_cnt);
++        markdata->char_search[0] = 0;  /* Clear the flag. */
++        markdata->rep_cnt = 0;
++
++        if (isgraph (od)) {
++          markdata->char_search[1] = od;
++          rep_cnt = (rep_cnt) ? rep_cnt : 1;
++          nextchar(&cx, &cy, markdata->char_search[2], od, rep_cnt );
++          revto(cx, cy);
++          continue;
++        }
++      }
++
+       switch (od)
+ 	{
++        case 'f': /* fall through */
++        case 'F': /* fall through */
++        case 't': /* fall through */
++        case 'T': /* fall through */
++            markdata -> char_search[0] = markdata->char_search[2] = od;
++            debug("entering char search\n");
++            continue;
++            /* If we break, rep_cnt will be reset, so we
++            continue instead.  It might be cleaner to
++            store the rep_count in char_search and
++            break here so later followon code will be
++            hit. */
++        case ';':
++                if (!rep_cnt) rep_cnt = 1;
++                nextchar(&cx, &cy, markdata->char_search[2], markdata->char_search[1], rep_cnt );
++                revto(cx, cy);
++                break;
++        case ',': {
++                int search_dir;
++                if (!rep_cnt) rep_cnt = 1;
++                switch (markdata->char_search[2]) {
++                case 't': search_dir = 'T'; break;
++                case 'T': search_dir = 't'; break;
++                case 'f': search_dir = 'F'; break;
++                case 'F': search_dir = 'f'; break;
++                }
++                nextchar(&cx, &cy, search_dir, markdata->char_search[1], rep_cnt );
++
++                revto(cx, cy);
++                break;
++            }
++
+ 	case 'o':
+ 	case 'x':
+ 	  if (!markdata->second)
+--- ./mark.h.orig	2005-12-16 19:51:07.000000000 +0100
++++ ./mark.h	2005-12-19 12:03:10.405928022 +0100
+@@ -41,6 +41,7 @@
+   int	isdir;		/* current search direction */
+   int	isstartpos;	/* position where isearch was started */
+   int	isstartdir;	/* direction when isearch was started */
++  int   char_search[3];	
+ };
+ 
+ 
+
+
+_______________________________________________
+screen-users mailing list
+screen-users@gnu.org
+http://lists.gnu.org/mailman/listinfo/screen-users
