@@ -311,7 +311,7 @@ struct comm comms[RC_LAST + 1] =
   { "version",		ARGS_0 },
   { "wall",		NEED_DISPLAY|ARGS_1},
   { "width",		ARGS_0123 },
-  { "windowlist",	NEED_DISPLAY|ARGS_012 },
+  { "windowlist",	ARGS_012 },
   { "windows",		NEED_DISPLAY|ARGS_0 },
   { "wrap",		NEED_FORE|ARGS_01 },
 #ifdef COPY_PASTE

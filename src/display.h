@@ -40,7 +40,7 @@ struct kmap_ext
 
 #else
 
-# define KMAP_EXT 50
+#define KMAP_KEYS 0
 
 #endif
 

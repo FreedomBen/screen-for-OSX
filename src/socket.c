@@ -844,9 +844,11 @@ ReceiveMsg()
 	      cl = cmsg->cmsg_len;
 	      while(cl >= CMSG_LEN(sizeof(int)))
 		{
-		  if (recvfd >= 0)
+		  int passedfd;
+		  bcopy(cp, &passedfd, sizeof(int));
+		  if (recvfd >= 0 && passedfd != recv)
 		    close(recvfd);
-		  bcopy(cp, &recvfd, sizeof(int));
+		  recvfd = passedfd;
 		  cl -= CMSG_LEN(sizeof(int));
 		}
 	    }

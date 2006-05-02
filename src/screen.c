@@ -1363,7 +1363,7 @@ char **av;
   if (display && default_startup)
     display_copyright();
   signal(SIGINT, SigInt);
-  if (rflag && (rflag & 1) == 0)
+  if (rflag && (rflag & 1) == 0 && !quietflag)
     {
       Msg(0, "New screen...");
       rflag = 0;

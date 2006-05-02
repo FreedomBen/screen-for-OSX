@@ -57,7 +57,7 @@ extern char *attach_tty, *attach_term, *LoginName, *preselect;
 extern int xflag, dflag, rflag, quietflag, adaptflag;
 extern struct mode attach_Mode;
 extern struct NewWindow nwin_options;
-extern int MasterPid, attacher_fd;
+extern int MasterPid, attach_fd;
 
 #ifdef MULTIUSER
 extern char *multi;

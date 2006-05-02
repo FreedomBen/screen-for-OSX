@@ -682,17 +682,6 @@ int wi, he, hi;
   if (wi == 0)
     he = hi = 0;
 
-  if (wi > 1000)
-    {
-      Msg(0, "Window width too large, truncated");
-      wi = 1000;
-    }
-  if (he > 1000)
-    {
-      Msg(0, "Window height too large, truncated");
-      he = 1000;
-    }
-
   if (p->w_width == wi && p->w_height == he && p->w_histheight == hi)
     {
       debug("ChangeWindowSize: No change.\n");
@@ -1055,8 +1044,11 @@ struct win *p;
   int i;
 
   if (p->w_alt_mlines)
-    for (i = 0; i < p->w_alt_height; i++)
-      FreeMline(p->w_alt_mlines + i);
+    {
+      for (i = 0; i < p->w_alt_height; i++)
+        FreeMline(p->w_alt_mlines + i);
+      free(p->w_alt_mlines);
+    }
   p->w_alt_mlines = 0;
   p->w_alt_width = 0;
   p->w_alt_height = 0;
@@ -1064,8 +1056,11 @@ struct win *p;
   p->w_alt_y = 0;
 #ifdef COPY_PASTE
   if (p->w_alt_hlines)
-    for (i = 0; i < p->w_alt_histheight; i++)
-      FreeMline(p->w_alt_hlines + i);
+    {
+      for (i = 0; i < p->w_alt_histheight; i++)
+        FreeMline(p->w_alt_hlines + i);
+      free(p->w_alt_hlines);
+    }
   p->w_alt_hlines = 0;
   p->w_alt_histidx = 0;
 #endif

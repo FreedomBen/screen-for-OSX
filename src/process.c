@@ -202,7 +202,7 @@ struct action ktab[256 + KMAP_KEYS];	/* command key translation table */
 struct kclass {
   struct kclass *next;
   char *name;
-  struct action ktab[256];
+  struct action ktab[256 + KMAP_KEYS];
 };
 struct kclass *kclasses;
 

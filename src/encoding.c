@@ -995,7 +995,7 @@ struct mchar *mc;
     {
       /* full, recycle old entry */
       if (c1 >= 0xd800 && c1 < 0xe000)
-        comb_tofront(root, c1);
+        comb_tofront(root, c1 - 0xd800);
       i = combchars[root]->prev;
       /* FIXME: delete old char from all buffers */
     }
