@@ -283,9 +283,9 @@ This can also be set in your .screenrc by specifying `OP' in a \*Qtermcap\*U
 command.
 .TP 5
 .BI "\-p " number_or_name
-Preselect a window. This is usefull when you want to reattach to a
+Preselect a window. This is useful when you want to reattach to a
 specific window or you want to send a command via the \*Q-X\*U
-option to a specific window. As with screen's select commant, \*Q-\*U
+option to a specific window. As with screen's select command, \*Q-\*U
 selects the blank window. As a special case for reattach, \*Q=\*U
 brings up the windowlist on the blank window.
 .TP 5
@@ -1051,7 +1051,7 @@ so that users can type slowly.
 This key-binding makes \*Q^T\*U an escape character for key-bindings. If
 you did the above \*Qstuff barfoo\*U binding, you can enter the word
 \*Qfoo\*U by typing \*Q^Tfoo\*U. If you want to insert a \*Q^T\*U
-you have to press the key twice (i.e. escape the escape binding).
+you have to press the key twice (i.e., escape the escape binding).
 .sp
 .nf
         bindkey -k F1 command
@@ -1455,7 +1455,7 @@ session for the duration
 of the break, but it may be the only way to generate long breaks. 
 .IR Tcsendbreak " and " TIOCSBRK
 may or may not produce long breaks with spikes (e.g. 4 per
-second). This is not only system dependant, this also differs between
+second). This is not only system-dependent, this also differs between
 serial board drivers.
 Calling \*Qdefbreaktype\*U with no parameter displays the current setting.
 .sp
@@ -1731,7 +1731,7 @@ Run a unix subprocess (specified by an executable path \fInewcommand\fP and its
 optional arguments) in the current window. The flow of data between 
 newcommands stdin/stdout/stderr, the process originally started in the window 
 (let us call it "application-process") and screen itself (window) is 
-controlled by the filedescriptor pattern fdpat.
+controlled by the file descriptor pattern fdpat.
 This pattern is basically a three character sequence representing stdin, stdout
 and stderr of newcommand. A dot (.) connects the file descriptor
 to
@@ -1922,7 +1922,7 @@ If you prepend the word \*Qalways\*U to the type (e.g., \*Qalwayslastline\*U),
 will use the type even if the terminal supports a hardstatus.
 .P
 The third form specifies the contents of the hardstatus line.  '%h' is
-used as default string, i.e. the stored hardstatus of the current
+used as default string, i.e., the stored hardstatus of the current
 window (settable via \*QESC]0;<string>^G\*U or \*QESC_<string>ESC\e\*U)
 is displayed.  You can customize this to any string you like including
 the escapes from the \*QSTRING ESCAPES\*U chapter. If you leave out
@@ -2119,7 +2119,7 @@ Default is `off'.
 .br
 .BI "logfile flush " secs
 .PP
-Defines the name the logfiles will get. The default is
+Defines the name the log files will get. The default is
 \*Qscreenlog.%n\*U. The second form changes the number of seconds
 .I screen
 will wait before flushing the logfile buffer to the file-system. The
@@ -3192,7 +3192,7 @@ Clear (or keep) the eight bit in each received byte.
 .PP
 You may want to specify as many of these options as applicable. Unspecified
 options cause the terminal driver to make up the parameter values of the
-connection.  These values are system dependant and may be in defaults or values
+connection.  These values are system dependent and may be in defaults or values
 saved from a previous connection.
 .PP
 For tty windows, the 
@@ -3306,7 +3306,7 @@ window title
 .IP u
 all other users on this window
 .IP w
-all window numbers and names. With '-' quailifier: up to the current
+all window numbers and names. With '-' qualifier: up to the current
 window; with '+' qualifier: starting with the window after the current
 one.
 .IP W
@@ -3358,7 +3358,7 @@ An attribute/color modifier is is used to change the attributes or the
 color settings. Its format
 is \*Q[attribute modifier] [color description]\*U. The attribute modifier
 must be prefixed by a change type indicator if it can be confused with
-a color desciption. The following change types are known:
+a color description. The following change types are known:
 .IP +
 add the specified set to the current attributes
 .IP -
@@ -3416,14 +3416,14 @@ use the pseudo-color 'i' to set just the brightness and leave the color
 unchanged.
 .br
 A one digit/letter color description is treated as foreground or
-background color dependant on the current attributes: if reverse mode is
+background color dependent on the current attributes: if reverse mode is
 set, the background color is changed instead of the foreground color.
 If you don't like this, prefix the color with a \*Q.\*U. If you want
-the same behaviour for two-letter color descriptions, also prefix them
+the same behavior for two-letter color descriptions, also prefix them
 with a \*Q.\*U.
 .br
 As a special case, \*Q%{-}\*U restores the attributes and colors that
-were set before the last change was made (i.e. pops one level of the
+were set before the last change was made (i.e., pops one level of the
 color-change stack).
 .PP
 Examples:
@@ -4342,7 +4342,7 @@ The things in braces may be repeated any number of times.
 A \fI<charset-mapping>\fP tells 
 .I screen
 how to map characters
-in font \fI<designator>\fP ('B': Ascii, 'A': UK, 'K': german, etc.)
+in font \fI<designator>\fP ('B': Ascii, 'A': UK, 'K': German, etc.)
 to strings. Every \fI<mapping>\fP describes to what string a single
 character will be translated. A template mechanism is used, as 
 most of the time the codes have a lot in common (for example
@@ -4362,7 +4362,7 @@ This tells
 .I screen
 how to translate ISOlatin1 (charset 'B')
 upper case umlaut characters on a hp700 terminal that has a
-german charset. '\e304' gets translated to '\eE(K[\eE(B' and so on.
+German charset. '\e304' gets translated to '\eE(K[\eE(B' and so on.
 Note that this line gets parsed *three* times before the internal
 lookup table is built, therefore a lot of quoting is needed to
 create a single '\e'.
@@ -4380,7 +4380,7 @@ This example shows one use of the extension:
 
     termcap xterm 'XC=K%,%\eE(B,[\e304,\e\e\e\e\e326,]\e334'
 
-Here, a part of the german ('K') charset is emulated on an xterm.
+Here, a part of the German ('K') charset is emulated on an xterm.
 If 
 .I screen
 has to change to the 'K' charset, '\eE(B' will be sent

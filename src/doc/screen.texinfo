@@ -345,9 +345,9 @@ a new process. The command exits if the session terminates.
 @end table
 
 @item -p @var{name_or_number}
-Preselect a window. This is usefull when you want to reattach to a
+Preselect a window. This is useful when you want to reattach to a
 specific window or you want to send a command via the @samp{-X}
-option to a specific window. As with screen's select commant, @samp{-}
+option to a specific window. As with screen's select command, @samp{-}
 selects the blank window. As a special case for reattach, @samp{=}
 brings up the windowlist on the blank window.
 
@@ -1335,7 +1335,7 @@ Clear (or keep) the eight bit in each received byte.
 
 You may want to specify as many of these options as applicable.
 Unspecified options cause the terminal driver to make up the parameter
-values of the connection. These values are system dependant and may be
+values of the connection. These values are system-dependent and may be
 in defaults or values saved from a previous connection.
 
 For tty windows, the @code{info} command shows some of the modem
@@ -2891,7 +2891,7 @@ h=^B:l=^F:$=^E} would set some keys to be more familiar to @code{emacs}
 users.
 If your terminal sends characters, that cause you to abort copy mode,
 then this command may help by binding these characters to do nothing.
-The no-op character is `@' and is used like this: @code{markkeys @@=L=H}
+The no-op character is `@@' and is used like this: @code{markkeys @@=L=H}
 if you do not want to use the `H' or `L' commands any longer. 
 As shown in this example, multiple keys can be assigned to one function
 in a single statement.
@@ -2931,7 +2931,7 @@ or previous line.
 @noindent
 @kbd{C-u} and @kbd{C-d} scroll the display up/down by the specified
 amount of lines while preserving the cursor position. (Default: half
-screenfull).
+screenful).
 
 @noindent
 @kbd{C-b} and @kbd{C-f} move the cursor up/down a full screen.
@@ -3227,7 +3227,7 @@ Run a unix subprocess (specified by an executable path @var{newcommand} and
 its optional arguments) in the current window. The flow of data between
 newcommands stdin/stdout/stderr, the process originally started (let us call it 
 "application-process") and 
-screen itself (window) is controlled by the filedescriptor pattern @var{fdpat}.
+screen itself (window) is controlled by the file descriptor pattern @var{fdpat}.
 This pattern is basically a three character sequence representing stdin, stdout
 and stderr of newcommand. A dot (@code{.}) connects the file descriptor
 to screen. An exclamation mark (@code{!}) causes the file descriptor to be
@@ -3469,7 +3469,7 @@ option is given, bindkey modifies the default table, @samp{-m}
 changes the copy mode table and with neither option the user
 table is selected. The argument @samp{string} is the sequence of
 characters to which an action is bound. This can either be a fixed
-tring or a termcap keyboard capability name (selectable with the
+string or a termcap keyboard capability name (selectable with the
 @samp{-k} option).
 
 Some keys on a VT100 terminal can send a different
@@ -3519,7 +3519,7 @@ bindkey "\024" mapdefault
 This key-binding makes @samp{C-t} an escape character for key-bindings. If
 you did the above @samp{stuff barfoo} binding, you can enter the word
 @samp{foo} by typing @samp{C-t foo}. If you want to insert a
-@samp{C-t} you have to press the key twice (i.e. escape the escape
+@samp{C-t} you have to press the key twice (i.e., escape the escape
 binding).
 
 @example
@@ -3542,7 +3542,7 @@ Like mapdefault, but don't even look in the default bindkey table.
 @end deffn
 @deffn Command maptimeout timo
 (none)@*
-Set the intercharacter timer for input sequence detection to a timeout
+Set the inter-character timer for input sequence detection to a timeout
 of @var{timo} ms. The default timeout is 300ms. Maptimeout with no
 arguments shows the current setting.
 @end deffn
@@ -4064,7 +4064,7 @@ Here is an example:
 
 This tells @code{screen}, how to translate ISOlatin1 (charset @samp{B})
 upper case umlaut characters on a @code{hp700} terminal that has a
-german charset. @samp{\304} gets translated to
+German charset. @samp{\304} gets translated to
 @samp{\E(K[\E(B} and so on.
 Note that this line gets parsed *three* times before the internal
 lookup table is built, therefore a lot of quoting is needed to
@@ -4083,7 +4083,7 @@ This example shows one use of the extension:
     termcap xterm 'XC=K%,%\E(B,[\304,\\\\\326,]\334'
 @end example
 
-Here, a part of the german (@samp{K}) charset is emulated on an xterm.
+Here, a part of the German (@samp{K}) charset is emulated on an xterm.
 If screen has to change to the @samp{K} charset, @samp{\E(B} will be
 sent
 to the terminal, i.e. the ASCII charset is used instead. The
@@ -4148,7 +4148,7 @@ If you prepend the word @code{always} to the type (e.g., @code{alwayslastline}),
 the type even if the terminal supports a hardstatus line.
 
 The third form specifies the contents of the hardstatus line.
-@code{%h} is used as default string, i.e. the stored hardstatus of the
+@code{%h} is used as default string, i.e., the stored hardstatus of the
 current window (settable via @samp{ESC]0;^G} or @samp{ESC_\\}) is
 displayed.
 You can customize this to any string you like including
@@ -4220,7 +4220,7 @@ otherwise, these files are overwritten each time.
 @deffn Command hardcopydir directory
 (none)@*
 Defines a directory where hardcopy files will be placed.
-If unset hardcopys are dumped in screen's current working
+If unset, hardcopys are dumped in screen's current working
 directory.
 @end deffn
 
@@ -4250,7 +4250,7 @@ included in the session log.  Default is @samp{off}.
 @deffn Command logfile filename
 @deffnx Command logfile flush secs
 (none)@*
-Defines the name the logfiles will get. The default is @samp{screenlog.%n}.
+Defines the name the log files will get. The default is @samp{screenlog.%n}.
 The second form changes the number of seconds @code{screen}
 will wait before flushing the logfile buffer to the file-system. The
 default value is 10 seconds.
@@ -4410,7 +4410,7 @@ terminal devices opened afterwards. The preferred methods are
 session for the duration of the break, but it may be the only way to
 generate long breaks. @code{tcsendbreak} and @code{TIOCSBRK} may or may not
 produce long breaks with spikes (e.g. 4 per second). This is not only system
-dependant, this also differs between serial board drivers.
+dependent, this also differs between serial board drivers.
 Calling @code{defbreaktype} with no parameter displays the current setting.
 @end deffn
 
@@ -4767,7 +4767,7 @@ window title
 @item u
 all other users on this window
 @item w
-all window numbers and names. With @code{-} quailifier: up to the current
+all window numbers and names. With @code{-} qualifier: up to the current
 window; with @code{+} qualifier: starting with the window after the current
 one.
 @item W
@@ -4819,7 +4819,7 @@ An attribute/color modifier is is used to change the attributes or the
 color settings. Its format
 is @samp{[attribute modifier] [color description]}. The attribute modifier
 must be prefixed by a change type indicator if it can be confused with
-a color desciption. The following change types are known: 
+a color description. The following change types are known: 
 @table @code
 @item +
 add the specified set to the current attributes
@@ -4876,10 +4876,10 @@ use the pseudo-color @samp{i} to set just the brightness and leave the color
 unchanged.
 
 A one digit/letter color description is treated as foreground or
-background color dependant on the current attributes: if reverse mode is
+background color dependent on the current attributes: if reverse mode is
 set, the background color is changed instead of the foreground color.
 If you don't like this, prefix the color with a @samp{.}. If you want
-the same behaviour for two-letter color descriptions, also prefix them
+the same behavior for two-letter color descriptions, also prefix them
 with a @samp{.}.
 
 As a special case, @samp{%@{-@}} restores the attributes and colors that
@@ -5077,7 +5077,7 @@ found a bug not mentioned here.
 @menu
 * Known Bugs::                  Problems we know about.
 * Reporting Bugs::              How to contact the maintainers.
-* Availability::                Where to find the lastest screen version.
+* Availability::                Where to find the latest screen version.
 @end menu
 
 @node Known Bugs, Reporting Bugs,  , Bugs
