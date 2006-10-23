@@ -45,7 +45,7 @@ extern void  Finit __P((int));
 extern void  MakeNewEnv __P((void));
 extern char *MakeWinMsg __P((char *, struct win *, int));
 extern char *MakeWinMsgEv __P((char *, struct win *, int, int, struct event *, int));
-extern int   PutWinMsg __P((char *, int, int));
+extern void  PutWinMsg __P((char *, int, int));
 extern void  WindowDied __P((struct win *, int, int));
 extern void  setbacktick __P((int, int, int, char **));
 
@@ -289,7 +289,7 @@ extern void  NukePending __P((void));
 #endif
 extern void  SetCanvasWindow __P((struct canvas *, struct win *));
 extern int   MakeDefaultCanvas __P((void));
-extern int   AddCanvas __P((void));
+extern int   AddCanvas __P((int));
 extern void  RemCanvas __P((void));
 extern void  OneCanvas __P((void));
 extern int   RethinkDisplayViewports __P((void));

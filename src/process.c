@@ -559,6 +559,12 @@ InitKeytab()
     args[1] = 0;
     SaveAction(ktab + T_BACKTAB - T_CAPS + 256, RC_FOCUS, args, 0);
   }
+  {
+    char *args[2];
+    args[0] = "-v";
+    args[1] = 0;
+    SaveAction(ktab + '|', RC_SPLIT, args, 0);
+  }
   /* These come last; they may want overwrite others: */
   if (DefaultEsc >= 0)
     {
@@ -3698,7 +3704,11 @@ int key;
       break;
 #endif /* MULTIUSER */
     case RC_SPLIT:
-      AddCanvas();
+      s = args[0];
+      if (s && !strcmp(s, "-v"))
+        AddCanvas(SLICE_HORI);
+      else
+        AddCanvas(SLICE_VERT);
       Activate(-1);
       break;
     case RC_REMOVE:
@@ -3768,13 +3778,14 @@ int key;
       (void)ParseSwitch(act, &separate_sids);
       break;
     case RC_EVAL:
-      for (; *args; args++)
+      args = SaveArgs(args);
+      for (i = 0; args[i]; i++)
 	{
-	  char *ss = SaveStr(*args);
-	  if (*ss)
-	    Colonfin(ss, strlen(ss), (char *)0);
-	  free(ss);
+	  if (args[i][0])
+	    Colonfin(args[i], strlen(args[i]), (char *)0);
+	  free(args[i]);
 	}
+      free(args);
       break;
     case RC_ALTSCREEN:
       (void)ParseSwitch(act, &use_altscreen);
@@ -5962,17 +5973,9 @@ char *arg;
   if (*arg == '=')
     {
       /* make all regions the same height */
-      int h = dsize;
-      int hh, i = 0;
-      for (cv = D_cvlist; cv; cv = cv->c_next)
-	{
-	  hh = h / nreg-- - 1;
-	  cv->c_ys = i;
-	  cv->c_ye = i + hh - 1;
-	  cv->c_yoff = i;
-	  i += hh + 1;
-	  h -= hh + 1;
-        }
+      struct canvas *cv = &D_canvas;
+      ResizeCanvas(cv->c_slperp, cv->c_xs, cv->c_ys, cv->c_xe, cv->c_ye, SLICE_HORI|SLICE_VERT|SLICE_GLOBAL);
+      RecreateCanvasChain();
       RethinkDisplayViewports();
       ResizeLayersToCanvases();
       return;

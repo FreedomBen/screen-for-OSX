@@ -284,7 +284,7 @@ struct comm comms[RC_LAST + 1] =
   { "slowpaste",	NEED_FORE|ARGS_01 },
   { "sorendition",      ARGS_012 },
   { "source",		ARGS_1 },
-  { "split",		NEED_DISPLAY|ARGS_0 },
+  { "split",		NEED_DISPLAY|ARGS_01 },
   { "startup_message",	ARGS_1 },
   { "stuff",		NEED_LAYER|ARGS_12 },
 #ifdef MULTIUSER

@@ -1224,20 +1224,12 @@ struct msg *m;
 #ifdef ETCSCREENRC
 # ifdef ALLOW_SYSSCREENRC
   if ((p = getenv("SYSSCREENRC")))
-    r = StartRc(p, 1);
+    StartRc(p, 1);
   else
 # endif
-    r = StartRc(ETCSCREENRC, 1);
+    StartRc(ETCSCREENRC, 1);
 #endif
-  r += StartRc(RcFileName, 1);
-  if (r)
-    {
-      FreeDisplay();
-      Kill(pid, SIG_BYE);
-      Msg(0, "Failed reattach attempt at terminal %s.", m->m_tty);
-      return;
-    }
-
+  StartRc(RcFileName, 1);
   if (InitTermcap(m->m.attach.columns, m->m.attach.lines))
     {
       FreeDisplay();

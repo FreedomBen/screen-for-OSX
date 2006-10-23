@@ -2843,7 +2843,7 @@ int esc;
   return MakeWinMsgEv(s, win, esc, 0, (struct event *)0, 0);
 }
 
-int
+void
 PutWinMsg(s, start, max)
 char *s;
 int start, max;
@@ -2854,7 +2854,18 @@ int start, max;
   int rendstackn = 0;
 
   if (s != winmsg_buf)
-    return 0;
+    {
+      /* sorry, no fancy coloring available */
+      debug1("PutWinMsg %s plain\n", s);
+      l = strlen(s);
+      if (l > max)
+	l = max;
+      l -= start;
+      s += start;
+      while (l-- > 0)
+	PUTCHARLP(*s++);
+      return;
+    }
   rend = D_rend;
   p = 0;
   l = strlen(s);
@@ -2904,7 +2915,6 @@ int start, max;
 	    PUTCHARLP(*s++);
 	}
     }
-  return 1;
 }
 
 

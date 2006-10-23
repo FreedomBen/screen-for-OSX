@@ -148,58 +148,20 @@ int change_fore;
   struct win *p;
   struct canvas *cv, **cvpp;
   int wwi;
-  int y, h, hn;
+  int y, h, hn, xe, ye;
 
   debug2("ChangeScreenSize from (%d,%d) ", D_width, D_height);
   debug3("to (%d,%d) (change_fore: %d)\n",wi, he, change_fore);
 
-  /*
-   *  STRATEGY: keep the ratios.
-   *  if canvas doesn't fit anymore, throw it off.
-   *  (ATTENTION: cvlist must be sorted!)
-   */
-  y = 0;
-  h = he;
-  if (D_has_hstatus == HSTATUS_LASTLINE)
+  cv = &D_canvas;
+  cv->c_xe = wi - 1;
+  cv->c_ye = he - 1 - ((cv->c_slperp && cv->c_slperp->c_slnext) || captionalways) - (D_has_hstatus == HSTATUS_LASTLINE);
+  if (cv->c_slperp)
     {
-      if (h > 1)
-        h--;
-      else
-        D_has_hstatus = 0;	/* sorry */
+      ResizeCanvas(cv->c_slperp, cv->c_xs, cv->c_ys, cv->c_xe, cv->c_ye, 0);
+      RecreateCanvasChain();
+      RethinkDisplayViewports();
     }
-  for (cvpp = &D_cvlist; (cv = *cvpp); )
-    {
-      if (h < 2 && cvpp != &D_cvlist)
-        {
-          /* kill canvas */
-	  SetCanvasWindow(cv, 0);
-          *cvpp = cv->c_next;
-	  free(cv);
-	  if (D_forecv == cv)
-	    D_forecv = 0;
-          continue;
-        }
-      hn = (cv->c_ye - cv->c_ys + 1) * he / D_height;
-      if (hn == 0)
-        hn = 1;
-      if (hn + 2 >= h || cv->c_next == 0)
-        hn = h - 1;
-      if ((!captionalways && cv == D_cvlist && h - hn < 2) || hn == 0)
-        hn = h;
-      ASSERT(hn > 0);
-      cv->c_xs = 0;
-      cv->c_xe = wi - 1;
-      cv->c_ys = y;
-      cv->c_ye = y + hn - 1;
-
-      cv->c_xoff = cv->c_xs;
-      cv->c_yoff = cv->c_ys;
-
-      y += hn + 1;
-      h -= hn + 1;
-      cvpp = &cv->c_next;
-    }
-  RethinkDisplayViewports();
   if (D_forecv == 0)
     D_forecv = D_cvlist;
   if (D_forecv)

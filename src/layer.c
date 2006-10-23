@@ -436,17 +436,8 @@ int x, y;
 	len2 = xe2 - (x + vp->v_xoff) + 1;
 	if (len2 > len)
 	  len2 = len;
-	if (!PutWinMsg(s, xs2 - x - vp->v_xoff, len2))
-	  {
-	    s2 = s + xs2 - x - vp->v_xoff;
-	    while (len2-- > 0)
-	      {
-	        PUTCHARLP(*s2++);
-		xs2++;
-	      }
-	  }
-        else
-	  xs2 = x + vp->v_xoff + len2;
+	PutWinMsg(s, xs2 - x - vp->v_xoff, len2);
+	xs2 = x + vp->v_xoff + len2;
 	if (xs2 < vp->v_xs)
 	  xs2 = vp->v_xs;
 	or = D_rend;

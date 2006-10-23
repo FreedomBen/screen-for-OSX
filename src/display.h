@@ -46,10 +46,24 @@ struct kmap_ext
 
 struct win;			/* forward declaration */
 
+#define SLICE_UNKN 0
+#define SLICE_VERT (1 << 0)
+#define SLICE_HORI (1 << 1)
+
+#define SLICE_THIS (1 << 2)	/* used in equal test */
+#define SLICE_GLOBAL (1 << 3)
+
 struct canvas
 {
   struct canvas   *c_next;	/* next canvas on display */
   struct display  *c_display;	/* back pointer to display */
+
+  struct canvas   *c_slnext;	/* next canvas in display slice */
+  struct canvas   *c_slprev;	/* prev canvas in display slice */
+  struct canvas   *c_slperp;	/* perpendicular slice */
+  struct canvas   *c_slback;	/* perpendicular slice back pointer */
+  int              c_slorient;  /* our slice orientation */
+
   struct viewport *c_vplist;
   struct layer    *c_layer;	/* layer on this canvas */
   struct canvas   *c_lnext;	/* next canvas that displays layer */
@@ -78,7 +92,8 @@ struct viewport
 struct display
 {
   struct display *d_next;	/* linked list */
-  struct acluser *d_user;		/* user who owns that display */
+  struct acluser *d_user;	/* user who owns that display */
+  struct canvas d_canvas;	/* our canvas slice */
   struct canvas *d_cvlist;	/* the canvases of this display */
   struct canvas *d_forecv;	/* current input focus */
   void (*d_processinput) __P((char *, int));
@@ -201,6 +216,7 @@ extern struct display TheDisplay;
 
 #define D_user		DISPLAY(d_user)
 #define D_username	(DISPLAY(d_user) ? DISPLAY(d_user)->u_name : 0)
+#define D_canvas	DISPLAY(d_canvas)
 #define D_cvlist	DISPLAY(d_cvlist)
 #define D_forecv	DISPLAY(d_forecv)
 #define D_processinput	DISPLAY(d_processinput)
