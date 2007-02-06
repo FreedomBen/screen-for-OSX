@@ -63,6 +63,7 @@ struct canvas
   struct canvas   *c_slperp;	/* perpendicular slice */
   struct canvas   *c_slback;	/* perpendicular slice back pointer */
   int              c_slorient;  /* our slice orientation */
+  int              c_slweight;	/* size ratio */
 
   struct viewport *c_vplist;
   struct layer    *c_layer;	/* layer on this canvas */
@@ -75,6 +76,16 @@ struct canvas
   int              c_ys;
   int              c_ye;
   struct event     c_captev;	/* caption changed event */
+};
+
+struct layout
+{
+  struct layout   *lay_next;
+  char            *lay_name;
+  struct canvas    lay_canvas;
+  struct canvas   *lay_forecv;
+  struct canvas   *lay_cvlist;
+  int              lay_autosave;
 };
 
 struct viewport
@@ -96,6 +107,7 @@ struct display
   struct canvas d_canvas;	/* our canvas slice */
   struct canvas *d_cvlist;	/* the canvases of this display */
   struct canvas *d_forecv;	/* current input focus */
+  struct layout *d_layout;	/* layout we're using */
   void (*d_processinput) __P((char *, int));
   char *d_processinputdata;	/* data for processinput */
   int d_vpxmin, d_vpxmax;	/* min/max used position on display */
@@ -218,6 +230,7 @@ extern struct display TheDisplay;
 #define D_username	(DISPLAY(d_user) ? DISPLAY(d_user)->u_name : 0)
 #define D_canvas	DISPLAY(d_canvas)
 #define D_cvlist	DISPLAY(d_cvlist)
+#define D_layout	DISPLAY(d_layout)
 #define D_forecv	DISPLAY(d_forecv)
 #define D_processinput	DISPLAY(d_processinput)
 #define D_processinputdata	DISPLAY(d_processinputdata)

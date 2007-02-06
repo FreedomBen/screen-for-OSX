@@ -60,6 +60,8 @@ static void RAW_PUTCHAR __P((int));
 #ifdef COLOR
 static void SetBackColor __P((int));
 #endif
+static void FreePerp __P((struct canvas *));
+static struct canvas *AddPerp __P((struct canvas *));
 
 
 extern struct layer *flayer;
@@ -120,6 +122,8 @@ int defautonuke = 0;
 #endif
 int captionalways;
 int hardstatusemu = HSTATUS_IGNORE;
+
+int focusminwidth, focusminheight;
 
 /*
  *  Default layer management
@@ -312,7 +316,6 @@ void
 FreeDisplay()
 {
   struct win *p;
-  struct canvas *cv, *cvp;
 #ifdef MULTI
   struct display *d, **dp;
 #endif
@@ -421,6 +424,7 @@ MakeDefaultCanvas()
   cv->c_xe      = D_width - 1;
   cv->c_ys      = 0;
   cv->c_ye      = D_height - 1 - (D_has_hstatus == HSTATUS_LASTLINE) - captionalways;
+  debug2("MakeDefaultCanvas 0,0 %d,%d\n", cv->c_xe, cv->c_ye);
   cv->c_xoff    = 0;
   cv->c_yoff    = 0;
   cv->c_next = 0;
@@ -429,8 +433,13 @@ MakeDefaultCanvas()
   cv->c_slnext = 0;
   cv->c_slprev = 0;
   cv->c_slperp = 0;
+  cv->c_slweight = 1;
   cv->c_slback = &D_canvas;
   D_canvas.c_slperp = cv;
+  D_canvas.c_xs = cv->c_xs;
+  D_canvas.c_xe = cv->c_xe;
+  D_canvas.c_ys = cv->c_ys;
+  D_canvas.c_ye = cv->c_ye;
   cv->c_slorient = SLICE_UNKN;
   cv->c_captev.type = EV_TIMEOUT;
   cv->c_captev.data = (char *)cv;
@@ -485,6 +494,7 @@ FreeCanvas(cv)
 struct canvas *cv;
 {
   struct viewport *vp, *nvp;
+  struct canvas **cvp;
   struct win *p;
 
   if (cv->c_slprev)
@@ -501,9 +511,20 @@ struct canvas *cv;
       return;
     }
 
-  if (display && D_forecv == cv)
-    D_forecv = 0;
-  p = Layer2Window(cv->c_layer);
+  if (display)
+    {
+      if (D_forecv == cv)
+	D_forecv = 0;
+      /* remove from canvas chain as SetCanvasWindow might call
+       * some layer function */
+      for (cvp = &D_cvlist; *cvp ; cvp = &(*cvp)->c_next)
+	if (*cvp == cv)
+	  {
+	    *cvp = cv->c_next;
+	    break;
+	  }
+    }
+  p = cv->c_layer ? Layer2Window(cv->c_layer) : 0;
   SetCanvasWindow(cv, 0);
   if (p)
     WindowChanged(p, 'u');
@@ -546,17 +567,61 @@ struct canvas *cv;
   return num;
 }
 
-void
-ResizeCanvas(cv, xs, ys, xe, ye, equal)
+int
+CountCanvasPerp(cv)
 struct canvas *cv;
-int xs, ys, xe, ye, equal;
 {
-  struct canvas *cv2, *cvn;
-  int num;
-  int h, j, oh, nh, n, i, hh, m;
+  struct canvas *cvp;
+  int num = 1, n;
+  for (cvp = cv->c_slperp; cvp; cvp = cvp->c_slnext)
+    if (cvp->c_slperp)
+      {
+	n = CountCanvas(cvp->c_slperp);
+	if (n > num)
+	  num = n;
+      }
+  return num;
+}
 
-  debug2("ResizeCanvase: %d,%d", xs, ys);
-  debug3(" %d,%d equal=%d\n", xe, ye, equal);
+void
+EqualizeCanvas(cv, gflag)
+struct canvas *cv;
+int gflag;
+{
+  struct canvas *cv2;
+  for (; cv; cv = cv->c_slnext)
+    {
+      if (cv->c_slperp && gflag)
+	{
+	  cv->c_slweight = CountCanvasPerp(cv);
+	  for (cv2 = cv->c_slperp; cv2; cv2 = cv2->c_slnext)
+	    if (cv2->c_slperp)
+	      EqualizeCanvas(cv2->c_slperp, gflag);
+	}
+      else
+	cv->c_slweight = 1;
+    }
+}
+
+void
+ResizeCanvas(cv)
+struct canvas *cv;
+{
+  struct canvas *cv2, *cvn, *fcv;
+  int nh, i, maxi, hh, m, w, wsum;
+  int need, got;
+  int xs, ys, xe, ye;
+  int focusmin = 0;
+
+  xs = cv->c_xs;
+  ys = cv->c_ys;
+  xe = cv->c_xe;
+  ye = cv->c_ye;
+  cv = cv->c_slperp;
+  debug2("ResizeCanvas: %d,%d", xs, ys);
+  debug2(" %d,%d\n", xe, ye);
+  if (cv == 0)
+    return;
   if (cv->c_slorient == SLICE_UNKN)
     {
       ASSERT(!cv->c_slnext && !cv->c_slperp);
@@ -568,92 +633,157 @@ int xs, ys, xe, ye, equal;
       cv->c_yoff = cv->c_ys;
       return;
     }
-  oh = -1;
-  for (cv2 = cv, j = 0; cv2; cv2 = cv2->c_slnext)
-    {
-      j++;
-      oh += cv2->c_slorient == SLICE_VERT ? cv2->c_ye - cv2->c_ys : cv2->c_xe - cv2->c_xs;
-      oh += 2;
-    }
-  nh = cv->c_slorient == SLICE_VERT ? ye - ys + 1 : xe - xs + 1;
 
-  num = CountCanvas(cv);
-  if (equal & SLICE_GLOBAL)
-    j = num;
-  debug3("ResizeCanvase: oh=%d nh=%d num=%d\n", oh, nh, num);
-  h = nh - (2 * num - 1);
-  if (h < 0)
-    h = 0;
+  fcv = 0;
+  if (focusminwidth || focusminheight)
+    {
+      debug("searching for focus canvas\n");
+      cv2 = D_forecv;
+      while (cv2->c_slback)
+        {
+	  if (cv2->c_slback == cv->c_slback)
+	    {
+	      fcv = cv2;
+	      focusmin = cv->c_slorient == SLICE_VERT ? focusminheight : focusminwidth;
+	      if (focusmin > 0)
+		focusmin--;
+	      else if (focusmin < 0)
+		focusmin = cv->c_slorient == SLICE_VERT ? ye - ys + 2 : xe - xs + 2;
+	      debug1("found, focusmin=%d\n", focusmin);
+	    }
+          cv2 = cv2->c_slback;
+        }
+    }
+  if (focusmin)
+    {
+      m = CountCanvas(cv) * 2;
+      nh = cv->c_slorient == SLICE_VERT ? ye - ys + 2 : xe - xs + 2;
+      nh -= m;
+      if (nh < 0)
+	nh = 0;
+      if (focusmin > nh)
+	focusmin = nh;
+      debug1("corrected to %d\n", focusmin);
+    }
+
+  /* pass 1: calculate weight sum */
+  for (cv2 = cv, wsum = 0; cv2; cv2 = cv2->c_slnext)
+    {
+      debug1("  weight %d\n", cv2->c_slweight);
+      wsum += cv2->c_slweight;
+    }
+  debug1("wsum = %d\n", wsum);
+  if (wsum == 0)
+    wsum = 1;
+  w = wsum;
+
+  /* pass 2: calculate need/excess space */
+  nh = cv->c_slorient == SLICE_VERT ? ye - ys + 2 : xe - xs + 2;
+  for (cv2 = cv, need = got = 0; cv2; cv2 = cv2->c_slnext)
+    {
+      m = cv2->c_slperp ? CountCanvasPerp(cv2) * 2 - 1 : 1;
+      if (cv2 == fcv)
+	m += focusmin;
+      hh = cv2->c_slweight ? nh * cv2->c_slweight / w : 0;
+      w -= cv2->c_slweight;
+      nh -= hh;
+      debug2("  should %d min %d\n", hh, m);
+      if (hh <= m + 1)
+        need += m + 1 - hh;
+      else
+        got += hh - m - 1;
+    }
+  debug2("need: %d, got %d\n", need, got);
+  if (need > got)
+    need = got;
+
+  /* pass 3: distribute space */
+  nh = cv->c_slorient == SLICE_VERT ? ye - ys + 2 : xe - xs + 2;
   i = cv->c_slorient == SLICE_VERT ? ys : xs;
+  maxi = cv->c_slorient == SLICE_VERT ? ye : xe;
+  w = wsum;
   for (; cv; cv = cvn)
     {
       cvn = cv->c_slnext;
-      if (cv->c_slperp)
+      if (i > maxi)
 	{
-	  struct canvas *next = cv->c_slnext;
-	  cv->c_slnext = 0;
-	  m = CountCanvas(cv) * 2 - 1;
-	  cv->c_slnext = next;
-	}
-      else
-	m = 1;	/* min size */
-      if (h < 0)
-	hh = 0;
-      else if (equal & (cv->c_slorient | SLICE_THIS))
-	{
-	  if (equal & SLICE_GLOBAL)
+	  if (cv->c_slprev && !cv->c_slback->c_slback && !cv->c_slprev->c_slperp && !cv->c_slprev->c_slprev)
 	    {
-	      int w = (m + 1) / 2;
-	      hh = m + (w * h) / j;
-	      j -= w;
+	      cv->c_slprev->c_slorient = SLICE_UNKN;
+	      if (!captionalways)
+		{
+	          cv->c_slback->c_ye++;
+		  cv->c_slprev->c_ye++;
+		}
 	    }
-	  else
-	    hh = m + h / j--;
-	}
-      else
-	{
-	  hh = cv->c_slorient == SLICE_VERT ? cv->c_ye - cv->c_ys + 1 : cv->c_xe - cv->c_xs + 1;
-	  hh = (hh * nh + oh/2) / oh;
-	  if (hh < m)
-	    hh = m;
-	  if (hh > h + m)
-	    hh = h + m;
-	  if (!cv->c_slnext)
-	    hh = h + m;
-	}
-      if (hh <= 0)
-	{
 	  SetCanvasWindow(cv, 0);
 	  FreeCanvas(cv);
 	  continue;
 	}
-      ASSERT(hh > 0);
+      m = cv->c_slperp ? CountCanvasPerp(cv) * 2 - 1 : 1;
+      if (cv == fcv)
+	m += focusmin;
+      hh = cv->c_slweight ? nh * cv->c_slweight / w : 0;
+      w -= cv->c_slweight;
+      nh -= hh;
+      debug2("  should %d min %d\n", hh, m);
+      if (hh <= m + 1)
+	{
+	  hh = m + 1;
+	  debug1(" -> %d\n", hh);
+	}
+      else
+	{
+	  int hx = need * (hh - m - 1) / got;
+	  debug3(" -> %d - %d = %d\n", hh, hx, hh - hx);
+	  got -= (hh - m - 1);
+	  hh -= hx;
+	  need -= hx;
+          debug2("   now need=%d got=%d\n", need, got);
+	}
+      ASSERT(hh >= m + 1);
+      /* hh is window size plus pation line */
+      if (i + hh > maxi + 2)
+	{
+	  hh = maxi + 2 - i;
+	  debug1("  not enough space, reducing to %d\n", hh);
+	}
+      if (i + hh == maxi + 1)
+	{
+	  hh++;
+	  debug("  incrementing as no other canvas will fit\n");
+	}
       if (cv->c_slorient == SLICE_VERT)
         {
           cv->c_xs = xs;
           cv->c_xe = xe;
           cv->c_ys = i;
-          cv->c_ye = i + hh - 1;
+          cv->c_ye = i + hh - 2;
           cv->c_xoff = xs;
           cv->c_yoff = i;
-	  ASSERT(i + hh - 1 <= ye);
         }
       else
         {
           cv->c_xs = i;
-          cv->c_xe = i + hh - 1;
+          cv->c_xe = i + hh - 2;
           cv->c_ys = ys;
           cv->c_ye = ye;
           cv->c_xoff = i;
           cv->c_yoff = ys;
-	  ASSERT(i + hh - 1 <= xe);
         }
       cv->c_xoff = cv->c_xs;
       cv->c_yoff = cv->c_ys;
       if (cv->c_slperp)
-        ResizeCanvas(cv->c_slperp, cv->c_xs, cv->c_ys, cv->c_xe, cv->c_ye, equal & ~SLICE_THIS);
-      i += hh + 1;              /* 1: room for caption */
-      h -= hh - m;
+	{
+          ResizeCanvas(cv);
+	  if (!cv->c_slperp->c_slnext)
+	    {
+	      debug("deleting perp node\n");
+	      FreePerp(cv->c_slperp);
+	      FreePerp(cv);
+	    }
+	}
+      i += hh;
     }
 }
 
@@ -684,6 +814,8 @@ struct canvas *cv;
     pcv->c_slnext->c_slprev = pcv;
   if (pcv->c_slprev)
     pcv->c_slprev->c_slnext = pcv;
+  pcv->c_slweight = cv->c_slweight;
+  cv->c_slweight = 1;
   cv->c_slnext = 0;
   cv->c_slprev = 0;
   cv->c_slperp = 0;
@@ -708,11 +840,13 @@ struct canvas *pcv;
   if (cv->c_slback && cv->c_slback->c_slperp == pcv)
     cv->c_slback->c_slperp = cv;
   cv->c_slorient = pcv->c_slorient;
+  cv->c_slweight = pcv->c_slweight;
   while (cv->c_slnext)
     {
       cv = cv->c_slnext;
       cv->c_slorient = pcv->c_slorient;
       cv->c_slback = pcv->c_slback;
+      cv->c_slweight = pcv->c_slweight;
     }
   cv->c_slnext = pcv->c_slnext;
   if (cv->c_slnext)
@@ -724,10 +858,9 @@ int
 AddCanvas(orient)
 int orient;
 {
-  int hh, h, i, j;
-  struct canvas *cv, **cvpp;
+  struct canvas *cv;
   int xs, xe, ys, ye;
-  int num, m;
+  int h, num;
 
   cv = D_forecv;
   debug2("AddCanvas orient %d, forecv is %d\n", orient, cv->c_slorient);
@@ -797,7 +930,8 @@ int orient;
   cv->c_next    = 0;
 
   cv = cv->c_slback;
-  ResizeCanvas(cv->c_slperp, xs, ys, xe, ye, SLICE_THIS);
+  EqualizeCanvas(cv->c_slperp, 0);
+  ResizeCanvas(cv);
   RecreateCanvasChain();
   RethinkDisplayViewports();
   ResizeLayersToCanvases();
@@ -807,10 +941,8 @@ int orient;
 void
 RemCanvas()
 {
-  int hh, h, i, j;
   int xs, xe, ys, ye;
-  struct canvas *cv, *cvn;
-  int did = 0;
+  struct canvas *cv;
 
   debug("RemCanvas\n");
   cv = D_forecv;
@@ -840,21 +972,20 @@ RemCanvas()
   FreeCanvas(cv);
 
   cv = D_forecv;
-  while (cv->c_slprev)
-    cv = cv->c_slprev;
+  while (D_forecv->c_slperp)
+    D_forecv = D_forecv->c_slperp;
+
   /* if only one canvas left, set orient back to unknown */
-  if (!cv->c_slnext && !cv->c_slback->c_slback)
+  if (!cv->c_slnext && !cv->c_slprev && !cv->c_slback->c_slback)
     {
       cv->c_slorient = SLICE_UNKN;
       if (!captionalways)
-	{
-	  ye++;		/* caption line not needed */
-	  cv->c_slback->c_ye = ye;
-	}
+	cv->c_slback->c_ye = ++ye;	/* caption line no longer needed */
     }
-  ResizeCanvas(cv, xs, ys, xe, ye, SLICE_THIS);
-  while (D_forecv->c_slperp)
-    D_forecv = D_forecv->c_slperp;
+  cv = cv->c_slback;
+  EqualizeCanvas(cv->c_slperp, 0);
+  ResizeCanvas(cv);
+
   D_fore = Layer2Window(D_forecv->c_layer);
   flayer = D_forecv->c_layer;
 
@@ -866,7 +997,7 @@ RemCanvas()
 void
 OneCanvas()
 {
-  struct canvas *cv = D_forecv, *ocv;
+  struct canvas *cv = D_forecv, *ocv = 0;
 
   if (cv->c_slprev)
     {
@@ -891,8 +1022,9 @@ OneCanvas()
   cv->c_slnext = 0;
   cv->c_slprev = 0;
   ASSERT(!cv->c_slperp);
-  cv = &D_canvas;
-  ResizeCanvas(cv->c_slperp, cv->c_xs, cv->c_ys, cv->c_xe, cv->c_ye, SLICE_HORI|SLICE_VERT);
+  if (!captionalways)
+    D_canvas.c_ye++;	/* caption line no longer needed */
+  ResizeCanvas(&D_canvas);
   RecreateCanvasChain();
   RethinkDisplayViewports();
   ResizeLayersToCanvases();
@@ -2674,7 +2806,7 @@ void
 ShowHStatus(str)
 char *str;
 {
-  int l, i, ox, oy, max;
+  int l, ox, oy, max;
 
   if (D_status == STATUS_ON_WIN && D_has_hstatus == HSTATUS_LASTLINE && STATLINE == D_height-1)
     return;	/* sorry, in use */
@@ -2841,8 +2973,8 @@ int y, from, to, isblank;
 	      l = strlen(buf);
 	      GotoPos(from, y);
 	      SetRendition(&mchar_so);
-	      if (l > to - cv->c_xs + 1)
-		l = to - cv->c_xs + 1;
+	      if (l > xx - cv->c_xs + 1)
+		l = xx - cv->c_xs + 1;
 	      PutWinMsg(buf, from - cv->c_xs, l);
 	      from = cv->c_xs + l;
 	      for (; from <= xx; from++)
@@ -4207,3 +4339,174 @@ char **cmdv;
 }
 
 #endif
+
+struct layout *layouts;
+struct layout *layout_last, layout_last_marker;
+struct layout *layout_attach = &layout_last_marker;
+
+void
+FreeLayoutCv(cv)
+struct canvas *cv;
+{
+  for (; cv; cv = cv->c_slnext)
+    if (cv->c_slperp)
+      {
+	FreeLayoutCv(cv->c_slperp);
+	free(cv->c_slperp);
+	cv->c_slperp = 0;
+      }
+}
+
+void
+DupLayoutCv(cvf, cvt, save)
+struct canvas *cvf, *cvt;
+int save;
+{
+  while(cvf)
+    {
+      cvt->c_slorient = cvf->c_slorient;
+      cvt->c_slweight = cvf->c_slweight;
+      if (cvf == D_forecv)
+        D_forecv = cvt;
+      if (!save)
+	{
+	  cvt->c_display = display;
+	  if (!cvf->c_slperp)
+	    {
+	      cvt->c_captev.type = EV_TIMEOUT;
+	      cvt->c_captev.data = (char *)cvt;
+	      cvt->c_captev.handler = cv_winid_fn;
+	      cvt->c_blank.l_cvlist = 0;
+	      cvt->c_blank.l_layfn = &BlankLf;
+	      cvt->c_blank.l_bottom = &cvt->c_blank;
+	    }
+          cvt->c_layer = cvf->c_layer;
+	}
+      else
+	{
+	  struct win *p = cvf->c_layer ? Layer2Window(cvf->c_layer) : 0;
+          cvt->c_layer = p ? &p->w_layer : 0;
+	}
+      if (cvf->c_slperp)
+	{
+	  cvt->c_slperp = (struct canvas *)calloc(1, sizeof(struct canvas));
+	  cvt->c_slperp->c_slback = cvt;
+	  DupLayoutCv(cvf->c_slperp, cvt->c_slperp, save);
+	}
+      if (cvf->c_slnext)
+	{
+	  cvt->c_slnext = (struct canvas *)calloc(1, sizeof(struct canvas));
+	  cvt->c_slnext->c_slprev = cvt;
+	  cvt->c_slnext->c_slback = cvt->c_slback;
+	}
+      cvf = cvf->c_slnext;
+      cvt = cvt->c_slnext;
+    }
+}
+
+void
+PutWindowCv(cv)
+struct canvas *cv;
+{
+  struct win *p;
+  for (; cv; cv = cv->c_slnext)
+    {
+      if (cv->c_slperp)
+	{
+	  PutWindowCv(cv->c_slperp);
+	  continue;
+	}
+      p = cv->c_layer ? (struct win *)cv->c_layer->l_data : 0;
+      cv->c_layer = 0;
+      SetCanvasWindow(cv, p);
+    }
+}
+
+
+void
+SaveLayout(name, cv)
+char *name;
+struct canvas *cv;
+{
+  struct layout *lay, **layp;
+  struct canvas *fcv;
+  for (layp = &layouts; (lay = *layp) != 0; layp = &lay->lay_next)
+    if (!strcmp(lay->lay_name, name))
+      break;
+  if (lay)
+    FreeLayoutCv(&lay->lay_canvas);
+  else
+    {
+      lay = *layp = (struct layout *)calloc(1, sizeof(*lay));
+      lay->lay_name = SaveStr(name);
+      lay->lay_autosave = 1;
+    }
+  fcv = D_forecv;
+  DupLayoutCv(cv, &lay->lay_canvas, 1);
+  lay->lay_forecv = D_forecv;
+  D_forecv = fcv;
+  D_layout = lay;
+}
+
+void
+AutosaveLayout(lay)
+struct layout *lay;
+{
+  struct canvas *fcv;
+  if (!lay || !lay->lay_autosave)
+    return;
+  FreeLayoutCv(&lay->lay_canvas);
+  fcv = D_forecv;
+  DupLayoutCv(&D_canvas, &lay->lay_canvas, 1);
+  lay->lay_forecv = D_forecv;
+  D_forecv = fcv;
+}
+
+struct layout *
+FindLayout(name)
+char *name;
+{
+  struct layout *lay;
+  for (lay = layouts; lay; lay = lay->lay_next)
+    if (!strcmp(lay->lay_name, name))
+      break;
+  return lay;
+}
+
+void
+LoadLayout(lay, cv)
+struct layout *lay;
+struct canvas *cv;
+{
+  AutosaveLayout(D_layout);
+  if (!lay)
+    {
+      while (D_canvas.c_slperp)
+	FreeCanvas(D_canvas.c_slperp);
+      MakeDefaultCanvas();
+      SetCanvasWindow(D_forecv, 0);
+      D_layout = 0;
+      return;
+    }
+  while (D_canvas.c_slperp)
+    FreeCanvas(D_canvas.c_slperp);
+  D_cvlist = 0;
+  D_forecv = lay->lay_forecv;
+  DupLayoutCv(&lay->lay_canvas, &D_canvas, 0);
+  D_canvas.c_ye = D_height - 1 - ((D_canvas.c_slperp && D_canvas.c_slperp->c_slnext) || captionalways) - (D_has_hstatus == HSTATUS_LASTLINE);
+  ResizeCanvas(&D_canvas);
+  RecreateCanvasChain();
+  RethinkDisplayViewports();
+  PutWindowCv(&D_canvas);
+  ResizeLayersToCanvases();
+  D_layout = lay;
+}
+
+void
+NewLayout(name)
+char *name;
+{
+  LoadLayout(0, &D_canvas);
+  SaveLayout(name, &D_canvas);
+  D_layout->lay_autosave = 1;
+}

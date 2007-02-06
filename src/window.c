@@ -244,6 +244,12 @@ int *lenp;
   debug1("WinProcess: %d bytes\n", *lenp);
   fore = (struct win *)flayer->l_data;
 
+  if (fore->w_type == W_TYPE_GROUP)
+    {
+      *bufpp += *lenp;
+      *lenp = 0;
+      return;
+    }
   if (fore->w_ptyfd < 0)	/* zombie? */
     {
       ZombieProcess(bufpp, lenp);
@@ -466,7 +472,7 @@ WinRestore()
 {
   struct canvas *cv;
   fore = (struct win *)flayer->l_data;
-  debug1("WinRestore: win %x\n", fore);
+  debug1("WinRestore: win %p\n", fore);
   for (cv = flayer->l_cvlist; cv; cv = cv->c_next)
     {
       display = cv->c_display;
@@ -584,6 +590,8 @@ struct NewWindow *newwin;
 
   if ((f = OpenDevice(nwin.args, nwin.lflag, &type, &TtyName)) < 0)
     return -1;
+  if (type == W_TYPE_GROUP)
+    f = -1;
 
   if ((p = (struct win *)malloc(sizeof(struct win))) == 0)
     {
@@ -610,6 +618,11 @@ struct NewWindow *newwin;
     p->w_term = SaveStr(nwin.term);
 
   p->w_number = n;
+  p->w_group = 0;
+  if (p->w_type != W_TYPE_GROUP && fore && fore->w_type == W_TYPE_GROUP)
+    p->w_group = fore;
+  else if (p->w_type != W_TYPE_GROUP && fore && fore->w_group)
+    p->w_group = fore->w_group;
 #ifdef MULTIUSER
   /*
    * This is dangerous: without a display we use creators umask
@@ -712,7 +725,7 @@ struct NewWindow *newwin;
     SetCharsets(p, nwin.charset);
 #endif
 
-  if (VerboseCreate)
+  if (VerboseCreate && type != W_TYPE_GROUP)
     {
       struct display *d = display; /* WriteString zaps display */
 
@@ -763,6 +776,17 @@ struct NewWindow *newwin;
   *pp = p;
   p->w_next = windows;
   windows = p;
+
+  if (type == W_TYPE_GROUP)
+    {
+      SetForeWindow(p);
+      Activate(p->w_norefresh);
+      WindowChanged((struct win*)0, 'w');
+      WindowChanged((struct win*)0, 'W');
+      WindowChanged((struct win*)0, 0);
+      return n;
+    }
+
   p->w_lflag = nwin.lflag;
 #ifdef UTMPOK
   p->w_slot = (slot_t)-1;
@@ -1009,6 +1033,12 @@ char **namep;
 
   if (!arg)
     return -1;
+  if (strcmp(arg, "//group") == 0)
+    {
+      *typep = W_TYPE_GROUP;
+      *namep = "telnet";
+      return 0;
+    }
 #ifdef BUILTIN_TELNET
   if (strcmp(arg, "//telnet") == 0)
     {
@@ -1119,7 +1149,7 @@ char **args, *ttyn;
 {
   int pid;
   char tebuf[25];
-  char ebuf[10];
+  char ebuf[20];
   char shellbuf[7 + MAXPATHLEN];
   char *proc;
 #ifndef TIOCSWINSZ
@@ -2141,7 +2171,7 @@ int len;
       return;
     }
   flayer = &p->w_layer;
-  Input(":", 100, INP_COOKED, zmodem_fin, NULL);
+  Input(":", 100, INP_COOKED, zmodem_fin, NULL, 0);
   s = send ? zmodem_sendcmd : zmodem_recvcmd;
   n = strlen(s);
   LayProcess(&s, &n);

@@ -63,6 +63,7 @@ extern char *attach_tty, *LoginName, HostName[];
 extern struct display *display, *displays;
 extern struct win *fore, *wtab[], *console_window, *windows;
 extern struct layer *flayer;
+extern struct layout *layout_attach, *layout_last, layout_last_marker;
 extern struct NewWindow nwin_undef;
 #ifdef MULTIUSER
 extern char *multi;
@@ -1261,6 +1262,17 @@ struct msg *m;
 #endif
 
   D_fore = NULL;
+  if (layout_attach)
+    {
+      struct layout *lay = layout_attach;
+      if (lay == &layout_last_marker)
+	lay = layout_last;
+      if (lay)
+	{
+	  LoadLayout(lay, &D_canvas);
+	  SetCanvasWindow(D_forecv, 0);
+	}
+    }
   /*
    * there may be a window that we remember from last detach:
    */
@@ -1306,7 +1318,7 @@ struct msg *m;
 #endif
 	{
 	  flayer = D_forecv->c_layer;
-	  display_wlist(1, WLIST_NUM);
+	  display_wlist(1, WLIST_NUM, (char *)0);
 	  noshowwin = 1;
 	}
     }

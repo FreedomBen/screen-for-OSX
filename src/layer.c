@@ -840,9 +840,6 @@ int on;
     }
 }
 
-
-/*******************************************************************/
-
 void
 LClearAll(l, uself)
 struct layer *l;
@@ -871,6 +868,53 @@ int isblank;
   flayer = oldflayer;
 }
 
+void
+/*VARARGS2*/
+#if defined(USEVARARGS) && defined(__STDC__)
+LMsg(int err, char *fmt, VA_DOTS)
+#else
+LMsg(err, fmt, VA_DOTS)
+int err;
+char *fmt;
+VA_DECL
+#endif
+{
+  VA_LIST(ap)
+  char buf[MAXPATHLEN*2];
+  char *p = buf;
+  struct canvas *cv;
+
+  VA_START(ap, fmt);
+  fmt = DoNLS(fmt);
+  (void)vsnprintf(p, sizeof(buf) - 100, fmt, VA_ARGS(ap));
+  VA_END(ap);
+  if (err)
+    {
+      p += strlen(p);
+      *p++ = ':';
+      *p++ = ' ';
+      strncpy(p, strerror(err), buf + sizeof(buf) - p - 1);
+      buf[sizeof(buf) - 1] = 0;
+    }
+  debug2("LMsg('%s') (%#x);\n", buf, (unsigned int)flayer);
+  for (display = displays; display; display = display->d_next)
+    {
+      for (cv = D_cvlist; cv; cv = cv->c_next)
+	if (cv->c_layer == flayer)
+	  break;
+      if (cv == 0)
+	continue;
+      MakeStatus(buf);
+    }
+}
+
+
+/*******************************************************************/
+/*******************************************************************/
+
+/*
+ *  Layer creation / removal
+ */
 
 void
 KillLayerChain(lay)
@@ -902,12 +946,6 @@ struct layer *lay;
 }
 
 
-/*******************************************************************/
-/*******************************************************************/
-
-/*
- *  Layer creation / removal
- */
 
 int
 InitOverlayPage(datasize, lf, block)
@@ -1000,6 +1038,8 @@ int block;
   return 0;
 }
 
+extern struct layout *layouts;
+
 void
 ExitOverlayPage()
 {
@@ -1007,6 +1047,7 @@ ExitOverlayPage()
   struct win *p;
   int doredisplay = 0;
   struct canvas *cv, *ocv;
+  struct layout *lay;
 
   ASSERT(flayer);
   debug1("Exiting layer %#x\n", (unsigned int)flayer);
@@ -1041,6 +1082,11 @@ ExitOverlayPage()
     p->w_paster.pa_pastelayer = 0;
 #endif
 
+  for (lay = layouts; lay; lay = lay->lay_next)
+    for (cv = lay->lay_cvlist; cv; cv = cv->c_next)
+      if (cv->c_layer == oldlay)
+	cv->c_layer = flayer;
+
   /* add all canvases back into next layer's canvas list */
   for (ocv = 0, cv = oldlay->l_cvlist; cv; cv = cv->c_lnext)
     {
@@ -1062,44 +1108,3 @@ ExitOverlayPage()
   LayRestore();
   LaySetCursor();
 }
-
-void
-/*VARARGS2*/
-#if defined(USEVARARGS) && defined(__STDC__)
-LMsg(int err, char *fmt, VA_DOTS)
-#else
-LMsg(err, fmt, VA_DOTS)
-int err;
-char *fmt;
-VA_DECL
-#endif
-{
-  VA_LIST(ap)
-  char buf[MAXPATHLEN*2];
-  char *p = buf;
-  struct canvas *cv;
-
-  VA_START(ap, fmt);
-  fmt = DoNLS(fmt);
-  (void)vsnprintf(p, sizeof(buf) - 100, fmt, VA_ARGS(ap));
-  VA_END(ap);
-  if (err)
-    {
-      p += strlen(p);
-      *p++ = ':';
-      *p++ = ' ';
-      strncpy(p, strerror(err), buf + sizeof(buf) - p - 1);
-      buf[sizeof(buf) - 1] = 0;
-    }
-  debug2("LMsg('%s') (%#x);\n", buf, (unsigned int)flayer);
-  for (display = displays; display; display = display->d_next)
-    {
-      for (cv = D_cvlist; cv; cv = cv->c_next)
-	if (cv->c_layer == flayer)
-	  break;
-      if (cv == 0)
-	continue;
-      MakeStatus(buf);
-    }
-}
-

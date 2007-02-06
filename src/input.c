@@ -55,6 +55,7 @@ struct inpdata
   int  inpmode;		/* INP_NOECHO, INP_RAW, INP_EVERY */
   void (*inpfinfunc) __P((char *buf, int len, char *priv));
   char  *priv;		/* private data for finfunc */
+  int  privdata;	/* private data space */
 };
 
 static struct LayFuncs InpLf =
@@ -93,6 +94,8 @@ char *p, *s;
       inpdata->inp.pos = inpdata->inp.len = strlen(inpdata->inp.buf);
     }
   InpRedisplayLine(INPUTLINE, 0, flayer->l_width - 1, 0);
+  flayer->l_x = inpdata->inpstringlen + (inpdata->inpmode & INP_NOECHO ? 0 : inpdata->inp.pos);
+  flayer->l_y = INPUTLINE;
 }
 
 /*
@@ -106,12 +109,13 @@ char *p, *s;
  * INP_EVERY  == digraph mode.
  */
 void
-Input(istr, len, mode, finfunc, data)
+Input(istr, len, mode, finfunc, priv, data)
 char *istr;
 int len;
 int mode;
-void (*finfunc) __P((char *buf, int len, char *data));
-char *data;
+void (*finfunc) __P((char *buf, int len, char *priv));
+char *priv;
+int data;
 {
   int maxlen;
   struct inpdata *inpdata;
@@ -136,10 +140,14 @@ char *data;
   inpdata->inpfinfunc = finfunc;
   inpdata->inp.pos = inpdata->inp.len = 0;
   inpdata->inpmode = mode;
-  inpdata->priv = data;
-  inp_setprompt(istr, (char *)NULL);
-  flayer->l_x = inpdata->inpstringlen;
-  flayer->l_y = INPUTLINE;
+  inpdata->privdata = data;
+  if (!priv)
+    priv = &inpdata->privdata;
+  inpdata->priv = priv;
+  inpdata->inpstringlen = 0;
+  inpdata->inpstring = NULL;
+  if (istr)
+    inp_setprompt(istr, (char *)NULL);
 }
 
 static void
@@ -174,10 +182,12 @@ int *plen;
       if (inpdata->inpmode & INP_EVERY)
 	{
 	  inpdata->inp.buf[inpdata->inp.len] = ch;
-	  inpdata->inp.buf[inpdata->inp.len + 1] = ch;	/* gross */
-	  display = inpdisplay;
-	  (*inpdata->inpfinfunc)(inpdata->inp.buf, inpdata->inp.len, inpdata->priv);
-	  ch = inpdata->inp.buf[inpdata->inp.len];
+	  if (ch)
+	    {
+	      display = inpdisplay;
+	      (*inpdata->inpfinfunc)(inpdata->inp.buf, inpdata->inp.len, inpdata->priv);
+	      ch = inpdata->inp.buf[inpdata->inp.len];
+	    }
 	}
       else if (inpdata->inpmode & INP_RAW)
 	{
@@ -313,7 +323,7 @@ int *plen;
 	  if (inpdata->inp.len && inpdata->inpmode == 0)
 	    inphist = inpdata->inp;	/* structure copy */
 	  
-  	  flayer->l_data = 0;
+  	  flayer->l_data = 0;	/* so inpdata does not get freed */
           InpAbort();		/* redisplays... */
 	  *ppbuf = pbuf;
 	  *plen = len;

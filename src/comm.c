@@ -183,7 +183,9 @@ struct comm comms[RC_LAST + 1] =
   { "fit",		NEED_DISPLAY|ARGS_0 },
   { "flow",		NEED_FORE|ARGS_01 },
   { "focus",		NEED_DISPLAY|ARGS_01 },
+  { "focusminsize",	ARGS_02 },
   { "gr",		NEED_FORE|ARGS_01 },
+  { "group",            NEED_FORE|ARGS_01 },
   { "hardcopy",		ARGS_012 },
   { "hardcopy_append",	ARGS_1 },
   { "hardcopydir",	ARGS_01 },
@@ -202,6 +204,7 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "kill",		NEED_FORE|ARGS_0 },
   { "lastmsg",		NEED_DISPLAY|ARGS_0 },
+  { "layout",           ARGS_1|ARGS_ORMORE},
   { "license",		NEED_LAYER|ARGS_0 },
 #ifdef LOCK
   { "lockscreen",	NEED_DISPLAY|ARGS_0 },
@@ -267,7 +270,7 @@ struct comm comms[RC_LAST + 1] =
   { "removebuf",	ARGS_0 },
 #endif
   { "reset",		NEED_FORE|ARGS_0 },
-  { "resize",		NEED_DISPLAY|ARGS_01 },
+  { "resize",		NEED_DISPLAY|ARGS_0|ARGS_ORMORE },
   { "screen",		ARGS_0|ARGS_ORMORE },
 #ifdef COPY_PASTE
   { "scrollback",	NEED_FORE|ARGS_1 },

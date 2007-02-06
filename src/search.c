@@ -62,7 +62,7 @@ int dir;
     }
   else
     Input((dir > 0 ? "/" : "?"), sizeof(markdata->isstr)-1, INP_COOKED,
-          (dir > 0 ? searchend : backsearchend), NULL);
+          (dir > 0 ? searchend : backsearchend), NULL, 0);
 }
 
 static void
@@ -364,7 +364,7 @@ int dir;
   if (W2D(markdata->cy) == INPUTLINE)
     revto_line(markdata->cx, markdata->cy, INPUTLINE > 0 ? INPUTLINE - 1 : 1);
   Input(isprompts[dir + 1], sizeof(markdata->isstr) - 1, INP_RAW,
-        is_process, NULL);
+        is_process, NULL, 0);
   LGotoPos(flayer, markdata->cx, W2D(markdata->cy));
   flayer->l_x = markdata->cx;
   flayer->l_y = W2D(markdata->cy);

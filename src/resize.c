@@ -158,7 +158,7 @@ int change_fore;
   cv->c_ye = he - 1 - ((cv->c_slperp && cv->c_slperp->c_slnext) || captionalways) - (D_has_hstatus == HSTATUS_LASTLINE);
   if (cv->c_slperp)
     {
-      ResizeCanvas(cv->c_slperp, cv->c_xs, cv->c_ys, cv->c_xe, cv->c_ye, 0);
+      ResizeCanvas(cv);
       RecreateCanvasChain();
       RethinkDisplayViewports();
     }
@@ -644,6 +644,8 @@ int wi, he, hi;
   if (wi == 0)
     he = hi = 0;
 
+  if (p->w_type == W_TYPE_GROUP)
+    return 0;
   if (p->w_width == wi && p->w_height == he && p->w_histheight == hi)
     {
       debug("ChangeWindowSize: No change.\n");

@@ -150,6 +150,7 @@ struct win
   char  *w_akachange;		/* autoaka hack */
   char	 w_akabuf[MAXSTR];	/* aka buffer */
   int	 w_autoaka;		/* autoaka hack */
+  struct win *w_group;		/* window group we belong to */
   int	 w_intermediate;	/* char used while parsing ESC-seq */
   int	 w_args[MAXARGS];	/* emulator args */
   int	 w_NumArgs;
@@ -287,6 +288,7 @@ struct win
 #define W_TYPE_PTY		0
 #define W_TYPE_PLAIN		1
 #define W_TYPE_TELNET		2
+#define W_TYPE_GROUP		3
 
 
 /*

@@ -879,6 +879,7 @@ struct wlistdata {
   int last;
   int start;
   int order;
+  struct win *group;
 };
 
 static struct LayFuncs WListLf =
@@ -891,6 +892,8 @@ static struct LayFuncs WListLf =
   WListResize,
   DefRestore
 };
+
+#define WTAB_GROUP_MATCHES(i) (group == wtab[i]->w_group)
 
 static int
 WListResize(wi, he)
@@ -918,9 +921,11 @@ int *plen;
   struct wlistdata *wlistdata;
   struct display *olddisplay = display;
   int h;
+  struct win *group;
 
   ASSERT(flayer);
   wlistdata = (struct wlistdata *)flayer->l_data;
+  group = wlistdata->group;
   h = wlistdata->numwin;
   while (!done && *plen > 0)
     {
@@ -928,7 +933,7 @@ int *plen;
 	{
 	  int n = (unsigned char)**ppbuf - '0';
 	  int d = 0;
-	  if (n < MAXWIN && wtab[n])
+	  if (n < MAXWIN && wtab[n] && WTAB_GROUP_MATCHES(n))
 	    {
 	      int i;
 	      for (d = -wlistdata->npos, i = WListNext(wlistdata, -1, 0); i != n; i = WListNext(wlistdata, i, 1), d++)
@@ -974,7 +979,7 @@ int *plen;
 	case ' ':
 	  done = 1;
 	  h = wlistdata->pos;
-	  if (!display || !wtab[h] || wtab[h] == D_fore || (flayer->l_cvlist && flayer->l_cvlist->c_lnext))
+	  if (!display || h == MAXWIN || !wtab[h] || wtab[h] == D_fore || (flayer->l_cvlist && flayer->l_cvlist->c_lnext))
 	    HelpAbort();
 #ifdef MULTIUSER
 	  else if (AclCheckPermWin(D_user, ACL_READ, wtab[h]))
@@ -984,7 +989,8 @@ int *plen;
 	    ExitOverlayPage();	/* no need to redisplay */
 	  /* restore display, don't switch wrong user */
 	  display = olddisplay;
-	  SwitchWindow(h);
+	  if (h != MAXWIN)
+	    SwitchWindow(h);
 	  break;
 	case 0033:
 	case 0007:
@@ -1017,22 +1023,29 @@ int isblank;
 {
   char *str;
   int n;
+  int yoff;
+  struct wlistdata *wlistdata;
 
+  if (i == MAXWIN)
+    return;
+  wlistdata = (struct wlistdata *)flayer->l_data;
+  yoff = wlistdata->group ? 3 : 2;
   display = Layer2Window(flayer) ? 0 : flayer->l_cvlist ? flayer->l_cvlist->c_display : 0;
   str = MakeWinMsgEv(wliststr, wtab[i], '%', flayer->l_width, (struct event *)0, 0);
   n = strlen(str);
   if (i != pos && isblank)
     while (n && str[n - 1] == ' ')
       n--;
-  LPutWinMsg(flayer, str, (i == pos || !isblank) ? flayer->l_width : n, i == pos ? &mchar_so : &mchar_blank, 0, y + 2);
+  LPutWinMsg(flayer, str, (i == pos || !isblank) ? flayer->l_width : n, i == pos ? &mchar_so : &mchar_blank, 0, y + yoff);
 #if 0
-  LPutStr(flayer, str, n, i == pos ? &mchar_so : &mchar_blank, 0, y + 2);
+  LPutStr(flayer, str, n, i == pos ? &mchar_so : &mchar_blank, 0, y + yoff);
   if (i == pos || !isblank)
     while(n < flayer->l_width)
-      LPutChar(flayer, i == pos ? &mchar_so : &mchar_blank, n++, y + 2);
+      LPutChar(flayer, i == pos ? &mchar_so : &mchar_blank, n++, y + yoff);
 #endif
   return;
 }
+
 
 static int
 WListNext(wlistdata, old, delta)
@@ -1040,6 +1053,7 @@ struct wlistdata *wlistdata;
 int old, delta;
 {
   int i, j;
+  struct win *group = wlistdata->group;
 
   if (old == MAXWIN)
     return MAXWIN;
@@ -1048,22 +1062,22 @@ int old, delta;
       if (old == -1)
 	{
 	  for (old = 0; old < MAXWIN; old++)
-	    if (wtab[old])
+	    if (wtab[old] && WTAB_GROUP_MATCHES(old))
 	      break;
 	  if (old == MAXWIN)
 	    return old;
 	}
-      if (!wtab[old])
+      if (!wtab[old] || !WTAB_GROUP_MATCHES(old))
 	return MAXWIN;
       i = old;
       while (delta > 0 && i < MAXWIN - 1)
-	if (wtab[++i])
+	if (wtab[++i] && WTAB_GROUP_MATCHES(i))
 	  {
 	    old = i;
 	    delta--;
 	  }
       while (delta < 0 && i > 0)
-	if (wtab[--i])
+	if (wtab[--i] && WTAB_GROUP_MATCHES(i))
 	  {
 	    old = i;
 	    delta++;
@@ -1200,14 +1214,15 @@ int y, xs, xe, isblank;
 }
 
 void
-display_wlist(onblank, order)
+display_wlist(onblank, order, group)
 int onblank;
 int order;
+struct win *group;
 {
   struct win *p;
   struct wlistdata *wlistdata;
 
-  if (flayer->l_width < 10 || flayer->l_height < 5)
+  if (flayer->l_width < 10 || flayer->l_height < 6)
     {
       LMsg(0, "Window size too small for window list page");
       return;
@@ -1221,17 +1236,26 @@ int order;
 	  return;
 	}
       p = D_fore;
-      SetForeWindow((struct win *)0);
-      Activate(0);
-      if (flayer->l_width < 10 || flayer->l_height < 5)
+      if (p)
+	{
+	  SetForeWindow((struct win *)0);
+          if (p->w_group)
+	    {
+	      D_fore = p->w_group;
+	      flayer->l_data = (char *)p->w_group;
+	    }
+	  Activate(0);
+	}
+      if (flayer->l_width < 10 || flayer->l_height < 6)
 	{
 	  LMsg(0, "Window size too small for window list page");
 	  return;
 	}
-      debug3("flayer %x %d %x\n", flayer, flayer->l_width, flayer->l_height);
     }
   else
     p = Layer2Window(flayer);
+  if (!group && p)
+    group = p->w_group;
   if (InitOverlayPage(sizeof(*wlistdata), &WListLf, 0))
     return;
   wlistdata = (struct wlistdata *)flayer->l_data;
@@ -1239,9 +1263,10 @@ int order;
   flayer->l_y = flayer->l_height - 1;
   wlistdata->start = onblank && p ? p->w_number : -1;
   wlistdata->order = order;
+  wlistdata->group = group;
   wlistdata->pos = p ? p->w_number : WListNext(wlistdata, -1, 0);
   wlistdata->ypos = wlistdata->npos = 0;
-  wlistdata->numwin= flayer->l_height - 3;
+  wlistdata->numwin= flayer->l_height - (group ? 4 : 3);
   wlistpage();
 }
 
@@ -1251,35 +1276,49 @@ wlistpage()
   struct wlistdata *wlistdata;
   char *str;
   int pos;
+  struct win *group;
 
   wlistdata = (struct wlistdata *)flayer->l_data;
+  group = wlistdata->group;
 
   LClearAll(flayer, 0);
   if (wlistdata->start >= 0 && wtab[wlistdata->start] == 0)
     wlistdata->start = -2;
 
   pos = wlistdata->pos;
-  if (wtab[pos] == 0)
+  if (pos == MAXWIN || !wtab[pos] || !WTAB_GROUP_MATCHES(pos))
     {
       if (wlistdata->order == WLIST_MRU)
         pos = WListNext(wlistdata, -1, wlistdata->npos);
       else
 	{
           /* find new position */
-	  while(++pos < MAXWIN)
-	    if (wtab[pos])
-	      break;
+	  if (pos < MAXWIN)
+	    while(++pos < MAXWIN)
+	      if (wtab[pos] && WTAB_GROUP_MATCHES(pos))
+	        break;
 	  if (pos == MAXWIN)
-	    while (--pos > 0)
-	      if (wtab[pos])
+	    while (--pos >= 0)
+	      if (wtab[pos] && WTAB_GROUP_MATCHES(pos))
 		break;
+	  if (pos == -1)
+	    pos == MAXWIN;
 	}
     }
   wlistdata->pos = pos;
 
   display = 0;
   str = MakeWinMsgEv(wlisttit, (struct win *)0, '%', flayer->l_width, (struct event *)0, 0);
-  LPutWinMsg(flayer, str, strlen(str), &mchar_blank, 0, 0);
+  if (wlistdata->group)
+    {
+      LPutWinMsg(flayer, "Group: ", 7, &mchar_blank, 0, 0);
+      LPutWinMsg(flayer, wlistdata->group->w_title, strlen(wlistdata->group->w_title), &mchar_blank, 7, 0);
+      LPutWinMsg(flayer, str, strlen(str), &mchar_blank, 0, 1);
+    }
+  else
+    {
+      LPutWinMsg(flayer, str, strlen(str), &mchar_blank, 0, 0);
+    }
   WListNormalize();
   WListLines(wlistdata->numwin, -1);
   LaySetCursor();
@@ -1334,7 +1373,7 @@ WListLinkChanged()
   for (display = displays; display; display = display->d_next)
     for (cv = D_cvlist; cv; cv = cv->c_next)
       {
-        if (cv->c_layer->l_layfn != &WListLf)
+        if (!cv->c_layer || cv->c_layer->l_layfn != &WListLf)
 	  continue;
         wlistdata = (struct wlistdata *)cv->c_layer->l_data;
 	if (wlistdata->order != WLIST_MRU)

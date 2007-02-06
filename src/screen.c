@@ -124,6 +124,7 @@ extern char DefaultShell[];
 extern char *zmodem_sendcmd;
 extern char *zmodem_recvcmd;
 #endif
+extern struct layout *layout_last;
 
 
 char *ShellProg;
@@ -1864,6 +1865,8 @@ int mode;
       D_user->u_detachwin = D_fore->w_number;
       D_user->u_detachotherwin = D_other ? D_other->w_number : -1;
     }
+  AutosaveLayout(D_layout);
+  layout_last = D_layout;
   for (cv = D_cvlist; cv; cv = cv->c_next)
     {
       p = Layer2Window(cv->c_layer);

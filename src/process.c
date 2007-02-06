@@ -59,6 +59,7 @@ extern int VBellWait, MsgWait, MsgMinWait, SilenceWait;
 extern char SockPath[], *SockName;
 extern int TtyMode, auto_detach, use_altscreen;
 extern int iflag, maxwin;
+extern int focusminwidth, focusminheight;
 extern int use_hardstatus, visual_bell;
 #ifdef COLOR
 extern int attr2color[][4];
@@ -146,7 +147,7 @@ static void pow_detach_fn __P((char *, int, char *));
 static void digraph_fn __P((char *, int, char *));
 static void confirm_fn __P((char *, int, char *));
 static int  IsOnDisplay __P((struct win *));
-static void ResizeRegions __P((char*));
+static void ResizeRegions __P((char *, int));
 static void ResizeFin __P((char *, int, char *));
 static struct action *FindKtab __P((char *, int));
 
@@ -155,6 +156,7 @@ extern struct layer *flayer;
 extern struct display *display, *displays;
 extern struct win *fore, *console_window, *windows;
 extern struct acluser *users;
+extern struct layout *layouts, *layout_attach, layout_last_marker;
 
 extern char screenterm[], HostName[], version[];
 extern struct NewWindow nwin_undef, nwin_default;
@@ -391,6 +393,20 @@ static const unsigned char digraphs[][3] = {
     {'"', '~', 223}	/* ß */
 };
 
+#define RESIZE_FLAG_H 1
+#define RESIZE_FLAG_V 2
+#define RESIZE_FLAG_L 4
+
+static char *resizeprompts[] = {
+  "resize # lines: ",
+  "resize -h # lines: ",
+  "resize -v # lines: ",
+  "resize -b # lines: ",
+  "resize -l # lines: ",
+  "resize -l -h # lines: ",
+  "resize -l -v # lines: ",
+  "resize -l -b # lines: ",
+};
 
 char *noargs[1];
 
@@ -1187,9 +1203,9 @@ int key;
 	if (key >= 0)
 	  {
 #ifdef PSEUDOS
-	    Input(fore->w_pwin ? "Really kill this filter [y/n]" : "Really kill this window [y/n]", 1, INP_RAW, confirm_fn, (char *)RC_KILL);
+	    Input(fore->w_pwin ? "Really kill this filter [y/n]" : "Really kill this window [y/n]", 1, INP_RAW, confirm_fn, NULL, RC_KILL);
 #else
-	    Input("Really kill this window [y/n]", 1, INP_RAW, confirm_fn, (char *)RC_KILL);
+	    Input("Really kill this window [y/n]", 1, INP_RAW, confirm_fn, NULL, RC_KILL);
 #endif
 	    break;
 	  }
@@ -1212,7 +1228,7 @@ int key;
     case RC_QUIT:
       if (key >= 0)
 	{
-	  Input("Really quit and kill all your windows [y/n]", 1, INP_RAW, confirm_fn, (char *)RC_QUIT);
+	  Input("Really quit and kill all your windows [y/n]", 1, INP_RAW, confirm_fn, NULL, RC_QUIT);
 	  break;
 	}
       Finit(0);
@@ -1231,7 +1247,7 @@ int key;
 	  static char buf[2];
 
 	  buf[0] = key;
-	  Input(buf, 1, INP_RAW, pow_detach_fn, NULL);
+	  Input(buf, 1, INP_RAW, pow_detach_fn, NULL, 0);
 	}
       else
         Detach(D_POWER); /* detach and kill Attacher's parent */
@@ -1528,7 +1544,7 @@ int key;
        */
       if ((s = *args) == NULL)
 	{
-	  Input("Copy to register:", 1, INP_RAW, copy_reg_fn, NULL);
+	  Input("Copy to register:", 1, INP_RAW, copy_reg_fn, NULL, 0);
 	  break;
 	}
       if (*argl != 1)
@@ -1626,7 +1642,7 @@ int key;
     case RC_PROCESS:
       if ((s = *args) == NULL)
 	{
-	  Input("Process register:", 1, INP_RAW, process_fn, NULL);
+	  Input("Process register:", 1, INP_RAW, process_fn, NULL, 0);
 	  break;
 	}
       if (*argl != 1)
@@ -1915,7 +1931,7 @@ int key;
 	ChangeAKA(fore, *args, strlen(*args));
       break;
     case RC_COLON:
-      Input(":", 100, INP_COOKED, Colonfin, NULL);
+      Input(":", 100, INP_COOKED, Colonfin, NULL, 0);
       if (*args && **args)
 	{
 	  s = *args;
@@ -2051,15 +2067,15 @@ int key;
 #endif
     case RC_WINDOWLIST:
       if (!*args)
-        display_wlist(0, WLIST_NUM);
+        display_wlist(0, WLIST_NUM, (char *)0);
       else if (!strcmp(*args, "-m") && !args[1])
-        display_wlist(0, WLIST_MRU);
+        display_wlist(0, WLIST_MRU, (char *)0);
       else if (!strcmp(*args, "-b") && !args[1])
-        display_wlist(1, WLIST_NUM);
+        display_wlist(1, WLIST_NUM, (char *)0);
       else if (!strcmp(*args, "-b") && !strcmp(args[1], "-m") && !args[2])
-        display_wlist(1, WLIST_MRU);
+        display_wlist(1, WLIST_MRU, (char *)0);
       else if (!strcmp(*args, "-m") && !strcmp(args[1], "-b") && !args[2])
-        display_wlist(1, WLIST_MRU);
+        display_wlist(1, WLIST_MRU, (char *)0);
       else if (!strcmp(*args, "string"))
 	{
 	  if (args[1])
@@ -2142,7 +2158,7 @@ int key;
 	 */
 	if ((s = *args) == NULL)
 	  {
-	    Input("Paste from register:", 1, INP_RAW, ins_reg_fn, NULL);
+	    Input("Paste from register:", 1, INP_RAW, ins_reg_fn, NULL, 0);
 	    break;
 	  }
 	if (args[1] == 0 && !fore)	/* no window? */
@@ -3028,7 +3044,7 @@ int key;
 	      Msg(0, "%s: password: window required", rc_name);
 	      break;
 	    }
-	  Input("New screen password:", 100, INP_NOECHO, pass1, display ? (char *)D_user : (char *)users);
+	  Input("New screen password:", 100, INP_NOECHO, pass1, display ? (char *)D_user : (char *)users, 0);
 	}
       break;
 #endif				/* PASSWORD */
@@ -3551,7 +3567,7 @@ int key;
       break;
 
     case RC_DIGRAPH:
-      Input("Enter digraph: ", 10, INP_EVERY, digraph_fn, NULL);
+      Input("Enter digraph: ", 10, INP_EVERY, digraph_fn, NULL, 0);
       if (*args && **args)
 	{
 	  s = *args;
@@ -3751,6 +3767,14 @@ int key;
 	  Msg(0, "%s: usage: focus [up|down|top|bottom]", rc_name);
 	  break;
 	}
+      if ((focusminwidth && (focusminwidth < 0 || D_forecv->c_xe - D_forecv->c_xs + 1 < focusminwidth)) ||
+          (focusminheight && (focusminheight < 0 || D_forecv->c_ye - D_forecv->c_ys + 1 < focusminheight)))
+	{
+	  ResizeCanvas(&D_canvas);
+	  RecreateCanvasChain();
+	  RethinkDisplayViewports();
+	  ResizeLayersToCanvases();	/* redisplays */
+	}
       fore = D_fore = Layer2Window(D_forecv->c_layer);
       flayer = D_forecv->c_layer;
 #ifdef RXVT_OSC
@@ -3769,10 +3793,36 @@ int key;
       WindowChanged(0, 'F');
       break;
     case RC_RESIZE:
+      i = 0;
+      if (D_forecv->c_slorient == SLICE_UNKN)
+	{
+	  Msg(0, "resize: need more than one region");
+	  break;
+	}
+      for (; *args; args++)
+	{
+	  if (!strcmp(*args, "-h"))
+	    i |= RESIZE_FLAG_H;
+	  else if (!strcmp(*args, "-v"))
+	    i |= RESIZE_FLAG_V;
+	  else if (!strcmp(*args, "-b"))
+	    i |= RESIZE_FLAG_H | RESIZE_FLAG_V;
+	  else if (!strcmp(*args, "-p"))
+	    i |= D_forecv->c_slorient == SLICE_VERT ? RESIZE_FLAG_H : RESIZE_FLAG_V;
+	  else if (!strcmp(*args, "-l"))
+	    i |= RESIZE_FLAG_L;
+	  else
+	    break;
+	}
+      if (*args && args[1])
+	{
+	  Msg(0, "%s: usage: resize [-h] [-v] [-l] [num]\n", rc_name);
+	  break;
+	}
       if (*args)
-	ResizeRegions(*args);
+	ResizeRegions(*args, 0);
       else
-	Input("resize # lines: ", 20, INP_COOKED, ResizeFin, (char*)0);
+	Input(resizeprompts[i], 20, INP_EVERY, ResizeFin, (char*)0, i);
       break;
     case RC_SETSID:
       (void)ParseSwitch(act, &separate_sids);
@@ -3880,6 +3930,201 @@ int key;
 	  else
 	    Msg(0, "idle off");
 	}
+      break;
+    case RC_FOCUSMINSIZE:
+      for (i = 0; i < 2 && args[i]; i++)
+	{
+	  if (!strcmp(args[i], "max") || !strcmp(args[i], "_"))
+	    n = -1;
+	  else
+	    n = atoi(args[i]);
+	  if (i == 0)
+	    focusminwidth = n;
+	  else
+            focusminheight = n;
+	}
+      if (msgok)
+	{
+	  char b[2][20];
+	  for (i = 0; i < 2; i++)
+	    {
+	      n = i == 0 ? focusminwidth : focusminheight;
+	      if (n == -1)
+		strcpy(b[i], "max");
+	      else
+		sprintf(b[i], "%d", n);
+	    }
+          Msg(0, "focus min size is %s %s\n", b[0], b[1]);
+	}
+      break;
+    case RC_GROUP:
+      if (*args)
+	{
+	  fore->w_group = 0;
+	  if (args[0][0])
+	    {
+	      fore->w_group = WindowByName(*args);
+	      if (fore->w_group && fore->w_group != W_TYPE_GROUP)
+		fore->w_group = 0;
+	    }
+	}
+      if (msgok)
+	{
+	  if (fore->w_group)
+	    Msg(0, "window group is '%s'\n", fore->w_group->w_title);
+	  else
+	    Msg(0, "window belongs to no group");
+	}
+      break;
+    case RC_LAYOUT:
+      if (!strcmp(args[0], "name"))
+	{
+	  if (!D_layout)
+	    {
+	      Msg(0, "not on a layout");
+	      break;
+	    }
+	  if (!args[1])
+	    {
+	      Msg(0, "current layout is '%s'", D_layout->lay_name);
+	      break;
+	    }
+	  free(D_layout->lay_name);
+	  D_layout->lay_name = SaveStr(args[1]);
+	}
+      else if (!strcmp(args[0], "autosave"))
+	{
+	  if (!D_layout)
+	    {
+	      Msg(0, "not on a layout");
+	      break;
+	    }
+	  if (args[1])
+	    {
+	      if (!strcmp(args[1], "on"))
+		D_layout->lay_autosave = 1;
+	      else if (!strcmp(args[1], "off"))
+		D_layout->lay_autosave = 0;
+	      else
+		{
+		  Msg(0, "invalid argument. Give 'on' or 'off");
+		  break;
+		}
+	    }
+	  if (msgok)
+	    Msg(0, "autosave is %s", D_layout->lay_autosave ? "on" : "off");
+	}
+      else if (!strcmp(args[0], "new"))
+	{
+	  if (!args[1])
+	    {
+	      Msg(0, "usage: layout new <name>");
+	      break;
+	    }
+          NewLayout(args[1]);
+	  Activate(-1);
+	}
+      else if (!strcmp(args[0], "save"))
+	{
+	  if (!args[1])
+	    {
+	      Msg(0, "usage: layout save <name>");
+	      break;
+	    }
+	  SaveLayout(args[1], &D_canvas);
+	}
+      else if (!strcmp(args[0], "load"))
+	{
+          struct layout *lay;
+	  if (!args[1])
+	    {
+	      Msg(0, "usage: layout load <name>");
+	      break;
+	    }
+	  if (!args[1][0])
+	    {
+	      if (!D_layout)
+		break;
+	      LoadLayout((struct layout *)0, &D_canvas);
+	      Activate(-1);
+	      break;
+	    }
+          lay = FindLayout(args[1]);
+	  if (!lay)
+	    {
+	      Msg(0, "unknown layout '%s'", args[1]);
+	      break;
+	    }
+	  LoadLayout(lay, &D_canvas);
+	  Activate(-1);
+	}
+      else if (!strcmp(args[0], "next"))
+	{
+	  struct layout *lay = D_layout;
+	  if (lay)
+	    lay = lay->lay_next ? lay->lay_next : layouts;
+	  else
+	    lay = layouts;
+	  if (!lay)
+	    {
+	      Msg(0, "no layout defined");
+	      break;
+	    }
+	  if (lay == D_layout)
+	    break;
+	  LoadLayout(lay, &D_canvas);
+	  Activate(-1);
+	}
+      else if (!strcmp(args[0], "prev"))
+	{
+	  struct layout *lay = D_layout;
+	  if (lay)
+	    {
+	      for (lay = layouts; lay->lay_next && lay->lay_next != D_layout; lay = lay->lay_next)
+		;
+	    }
+	  else
+	    lay = layouts;
+	  if (!lay)
+	    {
+	      Msg(0, "no layout defined");
+	      break;
+	    }
+	  if (lay == D_layout)
+	    break;
+	  LoadLayout(lay, &D_canvas);
+	  Activate(-1);
+	}
+      else if (!strcmp(args[0], "attach"))
+	{
+	  if (!args[1])
+	    {
+	      if (!layout_attach)
+	        Msg(0, "no attach layout set");
+	      else if (layout_attach == &layout_last_marker)
+	        Msg(0, "will attach to last layout");
+	      else
+	        Msg(0, "will attach to layout '%s'", layout_attach->lay_name);
+	      break;
+	    }
+	  if (!strcmp(args[1], ":last"))
+	    layout_attach = &layout_last_marker;
+	  else if (!args[1][0])
+	    layout_attach = 0;
+	  else
+	    {
+	      struct layout *lay;
+	      lay = FindLayout(args[1]);
+	      if (!lay)
+		{
+		  Msg(0, "unknown layout '%s'", args[1]);
+		  break;
+		}
+	      layout_attach = lay;
+	    }
+	}
+      else
+	Msg(0, "unknown layout subcommand");
       break;
     default:
 #ifdef HAVE_BRAILLE
@@ -4540,16 +4785,23 @@ struct win *wi;
     }
 
   /* find right layer to display on canvas */
-  if (wi)
+  if (wi && wi->w_type != W_TYPE_GROUP)
     {
       l = &wi->w_layer;
       if (wi->w_savelayer && (wi->w_blocked || wi->w_savelayer->l_cvlist == 0))
 	l = wi->w_savelayer;
     }
   else
-    l = &cv->c_blank;
+    {
+      l = &cv->c_blank;
+      if (wi)
+	l->l_data = (char *)wi;
+      else
+	l->l_data = 0;
+    }
 
   /* add our canvas to the layer's canvaslist */
+  ASSERT(l->l_cvlist != cv);
   cv->c_lnext = l->l_cvlist;
   l->l_cvlist = cv;
   cv->c_layer = l;
@@ -4559,6 +4811,17 @@ struct win *wi;
 
   if (flayer == 0)
     flayer = l;
+
+  if (wi && wi->w_type == W_TYPE_GROUP)
+    {
+      /* auto-start windowlist on groups */
+      struct display *d = display;
+      struct layer *oldflayer = flayer;
+      flayer = l;
+      display_wlist(0, 0, wi);
+      flayer = oldflayer;
+      display = d;
+    }
 
   if (wi && D_other == wi)
     D_other = wi->w_next;	/* Might be 0, but that's OK. */
@@ -4663,15 +4926,21 @@ static int
 NextWindow()
 {
   register struct win **pp;
-  int n = fore ? fore->w_number : -1;
+  int n = fore ? fore->w_number : MAXWIN;
+  char *group = fore ? fore->w_group : 0;
 
-  for (pp = wtab + n + 1; pp != wtab + n; pp++)
+  for (pp = fore ? wtab + n + 1 : wtab; pp != wtab + n; pp++)
     {
       if (pp == wtab + MAXWIN)
 	pp = wtab;
       if (*pp)
-	break;
+	{
+	  if (!fore || group == (*pp)->w_group)
+	    break;
+	}
     }
+  if (pp == wtab + n)
+    return -1;
   return pp - wtab;
 }
 
@@ -4679,15 +4948,21 @@ static int
 PreviousWindow()
 {
   register struct win **pp;
-  int n = fore ? fore->w_number : MAXWIN - 1;
+  int n = fore ? fore->w_number : -1;
+  char *group = fore ? fore->w_group : 0;
 
   for (pp = wtab + n - 1; pp != wtab + n; pp--)
     {
-      if (pp < wtab)
+      if (pp == wtab - 1)
 	pp = wtab + MAXWIN - 1;
       if (*pp)
-	break;
+	{
+	  if (!fore || group == (*pp)->w_group)
+	    break;
+	}
     }
+  if (pp == wtab + n)
+    return -1;
   return pp - wtab;
 }
 
@@ -4816,6 +5091,8 @@ int where;
 	continue;
       if ((flags & 1) && display && p == D_fore)
 	continue;
+      if (D_fore && D_fore->w_group != p->w_group)
+	continue;
 
       cmd = p->w_title;
       l = strlen(cmd);
@@ -4881,7 +5158,7 @@ struct win *p;
       strcpy(s, "(L)");
       s += 3;
     }
-  if (p->w_ptyfd < 0)
+  if (p->w_ptyfd < 0 && p->w_type != W_TYPE_GROUP)
     *s++ = 'Z';
   *s = 0;
   return s;
@@ -5122,7 +5399,7 @@ InputAKA()
 {
   char *s, *ss;
   int n;
-  Input("Set window's title to: ", sizeof(fore->w_akabuf) - 1, INP_COOKED, AKAfin, NULL);
+  Input("Set window's title to: ", sizeof(fore->w_akabuf) - 1, INP_COOKED, AKAfin, NULL, 0);
   s = fore->w_title;
   if (!s)
     return;
@@ -5180,7 +5457,7 @@ char *data;	/* dummy */
 static void
 InputSelect()
 {
-  Input("Switch to window: ", 20, INP_COOKED, SelectFin, NULL);
+  Input("Switch to window: ", 20, INP_COOKED, SelectFin, NULL, 0);
 }
 
 static char setenv_var[31];
@@ -5220,10 +5497,10 @@ char *arg;
     {
       strncpy(setenv_var, arg, sizeof(setenv_var) - 1);
       sprintf(setenv_buf, "Enter value for %s: ", setenv_var);
-      Input(setenv_buf, 30, INP_COOKED, SetenvFin2, NULL);
+      Input(setenv_buf, 30, INP_COOKED, SetenvFin2, NULL, 0);
     }
   else
-    Input("Setenv: Enter variable name: ", 30, INP_COOKED, SetenvFin1, NULL);
+    Input("Setenv: Enter variable name: ", 30, INP_COOKED, SetenvFin1, NULL, 0);
 }
 
 /*
@@ -5473,16 +5750,15 @@ char *data;	/* dummy */
 {
   struct plop *pp = plop_tab + (int)(unsigned char)*buf;
 
-
-  if (!fore)
-    return;	/* Input() should not call us w/o fore, but you never know... */
-  if (*buf == '.')
-    Msg(0, "ins_reg_fn: Warning: pasting real register '.'!");
   if (len)
     {
       *buf = 0;
       return;
     }
+  if (!fore)
+    return;	/* Input() should not call us w/o fore, but you never know... */
+  if (*buf == '.')
+    Msg(0, "ins_reg_fn: Warning: pasting real register '.'!");
   if (pp->buf)
     {
       MakePaster(&fore->w_paster, pp->buf, pp->len, 0);
@@ -5517,7 +5793,7 @@ static void
 confirm_fn(buf, len, data)
 char *buf;
 int len;
-char *data;	/* dummy */
+char *data;
 {
   struct action act;
 
@@ -5526,7 +5802,7 @@ char *data;	/* dummy */
       *buf = 0;
       return;
     }
-  act.nr = (int)data;
+  act.nr = *(int *)data;
   act.args = noargs;
   act.argl = 0;
   DoAction(&act, -1);
@@ -5560,11 +5836,11 @@ char *data;
   if (buf && len)
     strncpy(p, buf, 1 + (l < len) ? l : len);
   if (!*i->name)
-    Input("Screen User: ", sizeof(i->name) - 1, INP_COOKED, su_fin, (char *)i);
+    Input("Screen User: ", sizeof(i->name) - 1, INP_COOKED, su_fin, (char *)i, 0);
   else if (!*i->pw1)
-    Input("User's UNIX Password: ", sizeof(i->pw1)-1, INP_COOKED|INP_NOECHO, su_fin, (char *)i);
+    Input("User's UNIX Password: ", sizeof(i->pw1)-1, INP_COOKED|INP_NOECHO, su_fin, (char *)i, 0);
   else if (!*i->pw2)
-    Input("User's Screen Password: ", sizeof(i->pw2)-1, INP_COOKED|INP_NOECHO, su_fin, (char *)i);
+    Input("User's Screen Password: ", sizeof(i->pw2)-1, INP_COOKED|INP_NOECHO, su_fin, (char *)i, 0);
   else
     {
       if ((p = DoSu(i->up, i->name, i->pw2, i->pw1)))
@@ -5610,7 +5886,7 @@ char *data;
     free((char *)u->u_password);
   u->u_password = SaveStr(buf);
   bzero(buf, strlen(buf));
-  Input("Retype new password:", 100, INP_NOECHO, pass2, data);
+  Input("Retype new password:", 100, INP_NOECHO, pass2, data, 0);
 }
 
 static void
@@ -5683,6 +5959,7 @@ char *data;	/* dummy */
   ch = buf[len];
   if (ch)
     {
+      buf[len + 1] = ch;		/* so we can restore it later */
       if (ch < ' ' || ch == '\177')
 	return;
       if (len >= 1 && ((*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X'))))
@@ -5713,8 +5990,13 @@ char *data;	/* dummy */
         buf[len] = '\n';
       return;
     }
-  buf[len] = buf[len + 1];	/* gross */
-  len++;
+  if (len < 1)
+    return;
+  if (buf[len + 1])
+    {
+      buf[len] = buf[len + 1];	/* stored above */
+      len++;
+    }
   if (len < 2)
     return;
   if (len >= 1 && ((*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X'))))
@@ -5954,45 +6236,243 @@ char *str;
 
 #endif
 
-static void
-ResizeRegions(arg)
-char *arg;
+static int
+CalcSlicePercent(cv, percent)
+struct canvas *cv;
+int percent;
+{
+  int w, wsum, up;
+  if (!cv || !cv->c_slback)
+    return percent;
+  up = CalcSlicePercent(cv->c_slback->c_slback, percent);
+  w = cv->c_slweight;
+  for (cv = cv->c_slback->c_slperp, wsum = 0; cv; cv = cv->c_slnext)
+    wsum += cv->c_slweight;
+  if (wsum == 0)
+    return 0;
+  return (up * w) / wsum;
+}
+
+static int
+ChangeCanvasSize(fcv, abs, diff, gflag, percent)
+struct canvas *fcv;	/* make this canvas bigger */
+int abs;		/* mode: 0:rel 1:abs 2:max */
+int diff;		/* change this much */
+int gflag;		/* go up if neccessary */
+int percent;
 {
   struct canvas *cv;
-  int nreg, dsize, diff, siz;
+  int done, have, m, dir;
+
+  debug3("ChangeCanvasSize abs %d diff %d percent=%d\n", abs, diff, percent);
+  if (abs == 0 && diff == 0)
+    return 0;
+  if (abs == 2)
+    {
+      if (diff == 0)
+	  fcv->c_slweight = 0;
+      else
+	{
+          for (cv = fcv->c_slback->c_slperp; cv; cv = cv->c_slnext)
+	    cv->c_slweight = 0;
+	  fcv->c_slweight = 1;
+	  cv = fcv->c_slback->c_slback;
+	  if (gflag && cv && cv->c_slback)
+	    ChangeCanvasSize(cv, abs, diff, gflag, percent);
+	}
+      return diff;
+    }
+  if (abs)
+    {
+      if (diff < 0)
+	diff = 0;
+      if (percent && diff > percent)
+	diff = percent;
+    }
+  if (percent)
+    {
+      int wsum, up;
+      for (cv = fcv->c_slback->c_slperp, wsum = 0; cv; cv = cv->c_slnext)
+	wsum += cv->c_slweight;
+      if (wsum)
+	{
+	  up = gflag ? CalcSlicePercent(fcv->c_slback->c_slback, percent) : percent;
+          debug3("up=%d, wsum=%d percent=%d\n", up, wsum, percent);
+	  if (wsum < 1000)
+	    {
+	      int scale = wsum < 10 ? 1000 : 100;
+	      for (cv = fcv->c_slback->c_slperp; cv; cv = cv->c_slnext)
+		cv->c_slweight *= scale;
+	      wsum *= scale;
+	      debug1("scaled wsum to %d\n", wsum);
+	    }
+	  for (cv = fcv->c_slback->c_slperp; cv; cv = cv->c_slnext)
+	    {
+	      if (cv->c_slweight)
+		{
+	          cv->c_slweight = (cv->c_slweight * up) / percent;
+		  if (cv->c_slweight == 0)
+		    cv->c_slweight = 1;
+		}
+	      debug1("  - weight %d\n", cv->c_slweight);
+	    }
+	  diff = (diff * wsum) / percent;
+	  percent = wsum;
+	}
+    }
+  else
+    {
+      if (abs && diff == (fcv->c_slorient == SLICE_VERT ? fcv->c_ye - fcv->c_ys + 2 : fcv->c_xe - fcv->c_xs + 2))
+	return 0;
+      /* fix weights to real size (can't be helped, sorry) */
+      for (cv = fcv->c_slback->c_slperp; cv; cv = cv->c_slnext)
+	{
+	  cv->c_slweight = cv->c_slorient == SLICE_VERT ? cv->c_ye - cv->c_ys + 2 : cv->c_xe - cv->c_xs + 2;
+	  debug1("  - weight %d\n", cv->c_slweight);
+	}
+    }
+  if (abs)
+    diff = diff - fcv->c_slweight;
+  debug1("diff = %d\n", diff);
+  if (diff == 0)
+    return 0;
+  if (diff < 0)
+    {
+      cv = fcv->c_slnext ? fcv->c_slnext : fcv->c_slprev;
+      fcv->c_slweight += diff;
+      cv->c_slweight -= diff;
+      return diff;
+    }
+  done = 0;
+  dir = 1;
+  for (cv = fcv->c_slnext; diff > 0; cv = dir > 0 ? cv->c_slnext : cv->c_slprev)
+    {
+      if (!cv)
+	{
+	  debug1("reached end, dir is %d\n", dir);
+	  if (dir == -1)
+	    break;
+	  dir = -1;
+	  cv = fcv;
+	  continue;
+	}
+      if (percent)
+	m = 1;
+      else
+        m = cv->c_slperp ? CountCanvasPerp(cv) * 2 : 2;
+      debug2("min is %d, have %d\n", m, cv->c_slweight);
+      if (cv->c_slweight > m)
+	{
+	  have = cv->c_slweight - m;
+	  if (have > diff)
+	    have = diff;
+	  debug1("subtract %d\n", have);
+	  cv->c_slweight -= have;
+	  done += have;
+	  diff -= have;
+	}
+    }
+  if (diff && gflag)
+    {
+      /* need more room! */
+      cv = fcv->c_slback->c_slback;
+      if (cv && cv->c_slback)
+        done += ChangeCanvasSize(fcv->c_slback->c_slback, 0, diff, gflag, percent);
+    }
+  fcv->c_slweight += done;
+  debug1("ChangeCanvasSize returns %d\n", done);
+  return done;
+}
+
+static void
+ResizeRegions(arg, flags)
+char *arg;
+int flags;
+{
+  struct canvas *cv;
+  int nreg, dsize, diff, siz, nsiz, l, done;
+  int gflag = 0, abs = 0, percent = 0;
+  int orient = 0;
 
   ASSERT(display);
-  for (nreg = 0, cv = D_cvlist; cv; cv = cv->c_next)
-    nreg++;
-  if (nreg < 2)
+  if (D_forecv->c_slorient == SLICE_UNKN)
     {
       Msg(0, "resize: need more than one region");
       return;
     }
-  dsize = D_height - (D_has_hstatus == HSTATUS_LASTLINE);
+  gflag = flags & RESIZE_FLAG_L ? 0 : 1;
+  orient |= flags & RESIZE_FLAG_H ? SLICE_HORI : 0;
+  orient |= flags & RESIZE_FLAG_V ? SLICE_VERT : 0;
+  if (orient == 0)
+    orient = D_forecv->c_slorient;
+  l = strlen(arg);
   if (*arg == '=')
     {
       /* make all regions the same height */
-      struct canvas *cv = &D_canvas;
-      ResizeCanvas(cv->c_slperp, cv->c_xs, cv->c_ys, cv->c_xe, cv->c_ye, SLICE_HORI|SLICE_VERT|SLICE_GLOBAL);
+      struct canvas *cv = gflag ? &D_canvas : D_forecv->c_slback;
+      if (cv->c_slperp->c_slorient & orient)
+	EqualizeCanvas(cv->c_slperp, gflag);
+      /* can't use cv->c_slorient directly as it can be D_canvas */
+      if ((cv->c_slperp->c_slorient ^ (SLICE_HORI ^ SLICE_VERT)) & orient)
+        {
+	  if (cv->c_slback)
+	    {
+	      cv = cv->c_slback;
+	      EqualizeCanvas(cv->c_slperp, gflag);
+	    }
+	  else
+	   EqualizeCanvas(cv, gflag);
+        }
+      ResizeCanvas(cv);
       RecreateCanvasChain();
       RethinkDisplayViewports();
       ResizeLayersToCanvases();
       return;
     }
-  siz = D_forecv->c_ye - D_forecv->c_ys + 1;
-  if (*arg == '+')
-    diff = atoi(arg + 1);
-  else if (*arg == '-')
-    diff = -atoi(arg + 1);
-  else if (!strcmp(arg, "min"))
-    diff = 1 - siz;
-  else if (!strcmp(arg, "max"))
-    diff = dsize - (nreg - 1) * 2 - 1 - siz;
+  if (!strcmp(arg, "min") || !strcmp(arg, "0"))
+    {
+      abs = 2;
+      diff = 0;
+    }
+  else if (!strcmp(arg, "max") || !strcmp(arg, "_"))
+    {
+      abs = 2;
+      diff = 1;
+    }
   else
-    diff = atoi(arg) - siz;
-  if (diff == 0)
+    {
+      if (l > 0 && arg[l - 1] == '%')
+	percent = 1000;
+      if (*arg == '+')
+	diff = atoi(arg + 1);
+      else if (*arg == '-')
+	diff = -atoi(arg + 1);
+      else
+	{
+	  diff = atoi(arg);		/* +1 because of caption line */
+	  if (diff < 0)
+	    diff = 0;
+	  abs = diff == 0 ? 2 : 1;
+	}
+    }
+  if (!abs && !diff)
     return;
+  if (percent)
+    diff = diff * percent / 100;
+  cv = D_forecv;
+  if (cv->c_slorient & orient)
+    ChangeCanvasSize(cv, abs, diff, gflag, percent);
+  if (cv->c_slback->c_slorient & orient)
+    ChangeCanvasSize(cv->c_slback, abs, diff, gflag, percent);
+
+  ResizeCanvas(&D_canvas);
+  RecreateCanvasChain();
+  RethinkDisplayViewports();
+  ResizeLayersToCanvases();
+  return;
+
+#if 0
+
   if (siz + diff < 1)
     diff = 1 - siz;
   if (siz + diff > dsize - (nreg - 1) * 2 - 1)
@@ -6050,6 +6530,7 @@ char *arg;
     }
   RethinkDisplayViewports();
   ResizeLayersToCanvases();
+#endif
 }
 
 static void
@@ -6058,7 +6539,29 @@ char *buf;
 int len;
 char *data;
 {
-  ResizeRegions(buf);
+  int ch;
+  int flags = *(int *)data;
+  ch = ((unsigned char *)buf)[len];
+  if (ch == 0)
+    {
+      ResizeRegions(buf, flags);
+      return;
+    }
+  if (ch == 'h')
+    flags ^= RESIZE_FLAG_H;
+  else if (ch == 'v')
+    flags ^= RESIZE_FLAG_V;
+  else if (ch == 'b')
+    flags |= RESIZE_FLAG_H|RESIZE_FLAG_V;
+  else if (ch == 'p')
+    flags ^= D_forecv->c_slorient == SLICE_VERT ? RESIZE_FLAG_H : RESIZE_FLAG_V;
+  else if (ch == 'l')
+    flags ^= RESIZE_FLAG_L;
+  else
+    return;
+  inp_setprompt(resizeprompts[flags], NULL);
+  *(int *)data = flags;
+  buf[len] = '\034';
 }
 
 #ifdef RXVT_OSC
