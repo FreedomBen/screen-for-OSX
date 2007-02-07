@@ -150,6 +150,8 @@ static int  IsOnDisplay __P((struct win *));
 static void ResizeRegions __P((char *, int));
 static void ResizeFin __P((char *, int, char *));
 static struct action *FindKtab __P((char *, int));
+static void SelectFin __P((char *, int, char *));
+static void SelectLayoutFin __P((char *, int, char *));
 
 
 extern struct layer *flayer;
@@ -157,6 +159,7 @@ extern struct display *display, *displays;
 extern struct win *fore, *console_window, *windows;
 extern struct acluser *users;
 extern struct layout *layouts, *layout_attach, layout_last_marker;
+extern struct layout *laytab[];
 
 extern char screenterm[], HostName[], version[];
 extern struct NewWindow nwin_undef, nwin_default;
@@ -3971,13 +3974,13 @@ int key;
       if (msgok)
 	{
 	  if (fore->w_group)
-	    Msg(0, "window group is '%s'\n", fore->w_group->w_title);
+	    Msg(0, "window group is %d (%s)\n", fore->w_group->w_number, fore->w_group->w_title);
 	  else
 	    Msg(0, "window belongs to no group");
 	}
       break;
     case RC_LAYOUT:
-      if (!strcmp(args[0], "name"))
+      if (!strcmp(args[0], "title"))
 	{
 	  if (!D_layout)
 	    {
@@ -3986,11 +3989,32 @@ int key;
 	    }
 	  if (!args[1])
 	    {
-	      Msg(0, "current layout is '%s'", D_layout->lay_name);
+	      Msg(0, "current layout is %d (%s)", D_layout->lay_number, D_layout->lay_title);
 	      break;
 	    }
-	  free(D_layout->lay_name);
-	  D_layout->lay_name = SaveStr(args[1]);
+	  free(D_layout->lay_title);
+	  D_layout->lay_title= SaveStr(args[1]);
+	}
+      else if (!strcmp(args[0], "number"))
+	{
+	  int old;
+	  struct layout *lay;
+	  if (!args[1])
+	    {
+	      Msg(0, "This is layout %d (%s).\n", D_layout->lay_number, D_layout->lay_title);
+	      break;
+	    }
+	   old = D_layout->lay_number;
+	   n = atoi(args[1]);
+	   if (n < 0 || n >= MAXLAY)
+	     break;
+	   lay = laytab[n];
+	   laytab[n] = D_layout;
+	   D_layout->lay_number = n;
+	   laytab[old] = lay;
+	   if (lay)
+	     lay->lay_number = old;
+	   break;
 	}
       else if (!strcmp(args[0], "autosave"))
 	{
@@ -4016,12 +4040,24 @@ int key;
 	}
       else if (!strcmp(args[0], "new"))
 	{
-	  if (!args[1])
+	  char *t = args[1];
+	  n = 0;
+	  if (t)
 	    {
-	      Msg(0, "usage: layout new <name>");
-	      break;
+	      while (*t >= '0' && *t <= '9')
+		t++;
+	      if (t != args[1] && (!*t || *t == ':'))
+		{
+		  n = atoi(args[1]);
+		  if (*t)
+		    t++;
+		}
+	      else
+		t = args[1];
 	    }
-          NewLayout(args[1]);
+	  if (!t || !*t)
+	    t = "layout";
+          NewLayout(t, n);
 	  Activate(-1);
 	}
       else if (!strcmp(args[0], "save"))
@@ -4033,30 +4069,15 @@ int key;
 	    }
 	  SaveLayout(args[1], &D_canvas);
 	}
-      else if (!strcmp(args[0], "load"))
+      else if (!strcmp(args[0], "select"))
 	{
           struct layout *lay;
-	  if (!args[1])
+          if (!args[1])
 	    {
-	      Msg(0, "usage: layout load <name>");
+	      Input("Switch to layout: ", 20, INP_COOKED, SelectLayoutFin, NULL, 0);
 	      break;
 	    }
-	  if (!args[1][0])
-	    {
-	      if (!D_layout)
-		break;
-	      LoadLayout((struct layout *)0, &D_canvas);
-	      Activate(-1);
-	      break;
-	    }
-          lay = FindLayout(args[1]);
-	  if (!lay)
-	    {
-	      Msg(0, "unknown layout '%s'", args[1]);
-	      break;
-	    }
-	  LoadLayout(lay, &D_canvas);
-	  Activate(-1);
+	  SelectLayoutFin(args[1], strlen(args[1]), (char *)0);
 	}
       else if (!strcmp(args[0], "next"))
 	{
@@ -4104,7 +4125,7 @@ int key;
 	      else if (layout_attach == &layout_last_marker)
 	        Msg(0, "will attach to last layout");
 	      else
-	        Msg(0, "will attach to layout '%s'", layout_attach->lay_name);
+	        Msg(0, "will attach to layout %d (%s)", layout_attach->lay_number, layout_attach->lay_title);
 	      break;
 	    }
 	  if (!strcmp(args[1], ":last"))
@@ -4122,6 +4143,10 @@ int key;
 		}
 	      layout_attach = lay;
 	    }
+	}
+      else if (!strcmp(args[0], "show"))
+	{
+	  ShowLayouts(-1);
 	}
       else
 	Msg(0, "unknown layout subcommand");
@@ -5453,6 +5478,36 @@ char *data;	/* dummy */
     return;
   SwitchWindow(n);
 }
+
+static void
+SelectLayoutFin(buf, len, data)
+char *buf;
+int len;
+char *data;	/* dummy */
+{
+  int n;
+  struct layout *lay;
+
+  if (!len || !display)
+    return;
+  if (len == 1 && *buf == '-')
+    {
+      LoadLayout((struct layout *)0);
+      Activate(0);
+      return;
+    }
+  lay = FindLayout(buf);
+  if (!lay)
+    Msg(0, "No such layout\n");
+  else if (lay == D_layout)
+    Msg(0, "This IS layout %d (%s).\n", lay->lay_number, lay->lay_title);
+  else
+    {
+      LoadLayout(lay, &D_canvas);
+      Activate(0);
+    }
+}
+
     
 static void
 InputSelect()

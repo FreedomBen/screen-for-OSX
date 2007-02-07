@@ -29,6 +29,8 @@
 
 #define KMAP_NOTIMEOUT 0x4000
 
+#define MAXLAY 10
+
 struct kmap_ext
 {
   char *str;
@@ -81,7 +83,8 @@ struct canvas
 struct layout
 {
   struct layout   *lay_next;
-  char            *lay_name;
+  char            *lay_title;
+  int              lay_number;
   struct canvas    lay_canvas;
   struct canvas   *lay_forecv;
   struct canvas   *lay_cvlist;

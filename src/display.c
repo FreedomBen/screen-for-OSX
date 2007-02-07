@@ -4341,6 +4341,7 @@ char **cmdv;
 #endif
 
 struct layout *layouts;
+struct layout *laytab[MAXLAY];
 struct layout *layout_last, layout_last_marker;
 struct layout *layout_attach = &layout_last_marker;
 
@@ -4422,25 +4423,54 @@ struct canvas *cv;
     }
 }
 
+struct lay *
+CreateLayout(title, startat)
+char *title;
+int startat;
+{
+  struct layout *lay;
+  int i;
+
+  if (startat >= MAXLAY || startat < 0)
+    startat = 0;
+  for (i = startat; ;)
+    {
+      if (!laytab[i])
+        break;
+      if (++i == MAXLAY)
+	i = 0;
+      if (i == startat)
+	{
+	  Msg(0, "No more layouts\n");
+	  return 0;
+	}
+    }
+  lay = (struct layout *)calloc(1, sizeof(*lay));
+  lay->lay_title = SaveStr(title);
+  lay->lay_autosave = 1;
+  lay->lay_number = i;
+  laytab[i] = lay;
+  lay->lay_next = layouts;
+  layouts = lay;
+  return lay;
+}
 
 void
 SaveLayout(name, cv)
 char *name;
 struct canvas *cv;
 {
-  struct layout *lay, **layp;
+  struct layout *lay;
   struct canvas *fcv;
-  for (layp = &layouts; (lay = *layp) != 0; layp = &lay->lay_next)
-    if (!strcmp(lay->lay_name, name))
+  for (lay = layouts; lay; lay = lay->lay_next)
+    if (!strcmp(lay->lay_title, name))
       break;
   if (lay)
     FreeLayoutCv(&lay->lay_canvas);
   else
-    {
-      lay = *layp = (struct layout *)calloc(1, sizeof(*lay));
-      lay->lay_name = SaveStr(name);
-      lay->lay_autosave = 1;
-    }
+    lay = CreateLayout(name, 0);
+  if (!lay)
+    return;
   fcv = D_forecv;
   DupLayoutCv(cv, &lay->lay_canvas, 1);
   lay->lay_forecv = D_forecv;
@@ -4467,8 +4497,14 @@ FindLayout(name)
 char *name;
 {
   struct layout *lay;
+  char *s;
+  int i;
+  for (i = 0, s = name; *s >= '0' && *s <= '9'; s++)
+    i = i * 10 + (*s - '0');
+  if (!*s && s != name && i >= 0 && i < MAXLAY)
+    return laytab[i];
   for (lay = layouts; lay; lay = lay->lay_next)
-    if (!strcmp(lay->lay_name, name))
+    if (!strcmp(lay->lay_title, name))
       break;
   return lay;
 }
@@ -4503,10 +4539,96 @@ struct canvas *cv;
 }
 
 void
-NewLayout(name)
-char *name;
+NewLayout(title, startat)
+char *title;
+int startat;
 {
+  struct layout *lay;
+  struct canvas *fcv;
+
+  lay = CreateLayout(title, startat);
+  if (!lay)
+    return;
   LoadLayout(0, &D_canvas);
-  SaveLayout(name, &D_canvas);
-  D_layout->lay_autosave = 1;
+  fcv = D_forecv;
+  DupLayoutCv(&D_canvas, &lay->lay_canvas, 1);
+  lay->lay_forecv = D_forecv;
+  D_forecv = fcv;
+  D_layout = lay;
+  lay->lay_autosave = 1;
+}
+
+static char *
+AddLayoutsInfo(buf, len, where)
+char *buf;
+int len;
+int where;
+{
+  char *s, *ss, *t;
+  struct layout *p, **pp;
+  int l;
+
+  s = ss = buf;
+  for (pp = laytab; pp < laytab + MAXLAY; pp++)
+    {
+      if (pp - laytab == where && ss == buf)
+	ss = s;
+      if ((p = *pp) == 0)
+        continue;
+      t = p->lay_title;
+      l = strlen(t);
+      if (l > 20)
+        l = 20;
+      if (s - buf + l > len - 24)
+        break;
+      if (s > buf)
+	{
+	  *s++ = ' ';
+	  *s++ = ' ';
+	}
+      sprintf(s, "%d", p->lay_number);
+      if (p->lay_number == where)
+	ss = s;
+      s += strlen(s);
+      if (display && p == D_layout)
+	*s++ = '*';
+      *s++ = ' ';
+      strncpy(s, t, l);
+      s += l;
+    }
+  *s = 0;
+  return ss;
+}
+
+void
+ShowLayouts(where)
+int where;
+{
+  char buf[1024];
+  char *s, *ss; 
+
+  if (!display)
+    return;
+  if (!layouts)
+    {
+      Msg(0, "No layouts defined\n");
+      return;
+    }
+  if (where == -1 && D_layout)
+    where = D_layout->lay_number;
+  ss = AddLayoutsInfo(buf, sizeof(buf), where);
+  s = buf + strlen(buf);
+  if (ss - buf > D_width / 2) 
+    {    
+      ss -= D_width / 2; 
+      if (s - ss < D_width)
+        {
+          ss = s - D_width;
+          if (ss < buf) 
+            ss = buf; 
+        }
+    }    
+  else 
+    ss = buf; 
+  Msg(0, "%s", ss); 
 }
