@@ -4423,7 +4423,7 @@ struct canvas *cv;
     }
 }
 
-struct lay *
+struct layout *
 CreateLayout(title, startat)
 char *title;
 int startat;
