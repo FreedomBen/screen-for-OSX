@@ -41,6 +41,10 @@ struct markdata
   int	isdir;		/* current search direction */
   int	isstartpos;	/* position where isearch was started */
   int	isstartdir;	/* direction when isearch was started */
+  struct {              /* bookkeeping for fFtT;, commands */
+    int flag, target, direction;
+  } f_cmd;
+    
 };
 
 

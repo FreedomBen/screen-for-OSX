@@ -134,6 +134,54 @@ int y;
   return x;
 }
 
+/*
+ * nextchar sets *xp to the num-th occurrence of the target in the line.
+ *
+ * Returns -1 if the target doesn't appear num times, 0 otherwise.
+ */
+static int
+nextchar(int *xp, int *yp, int direction, char target, int num)
+{
+  int width;  /* width of the current window. */
+  int x;      /* x coordinate of the current cursor position. */
+  int step;   /* amount to increment x (+1 or -1) */
+  int adjust; /* Final adjustment of cursor position. */
+  char *displayed_line; /* Line in which search takes place. */
+ 
+  debug("nextchar\n");
+ 
+  x = *xp;
+  adjust = 0;
+  width = fore->w_width;
+  displayed_line = WIN(*yp) -> image;
+ 
+  switch(direction) {
+  case 't': adjust = -1; /* fall through */
+  case 'f': step = 1; /* fall through */
+  break;
+  case 'T': adjust = 1; /* fall through */
+  case 'F': step = -1; /* fall through */
+  break;
+  default:
+  ASSERT(0);
+  }
+ 
+  x += step;
+ 
+  debug1("ml->image = %s\n", displayed_line);
+  debug2("num = %d, width = %d\n",num, width);
+  debug2("x = %d targe = %c\n", x, target );
+ 
+  for ( ;x>=0 && x <= width; x += step) {
+    if (displayed_line[x] == target) {
+      if (--num == 0) {
+        *xp = x + adjust;
+        return 0;
+      }
+    }
+  }
+  return -1;
+}
 
 /*
  *  nextword calculates the cursor position of the num'th word.
@@ -148,6 +196,8 @@ int y;
 #define NW_ENDOFWORD	(1<<1)
 #define NW_MUSTMOVE	(1<<2)
 #define NW_BIG		(1<<3)
+
+
 
 static void
 nextword(xp, yp, flags, num)
@@ -514,7 +564,7 @@ int *inlenp;
           inlen--;
 	}
       rep_cnt = markdata->rep_cnt;
-      if (od >= '0' && od <= '9')
+      if (od >= '0' && od <= '9' && !markdata->f_cmd.flag)
         {
 	  if (rep_cnt < 1001 && (od != '0' || rep_cnt != 0))
 	    {
@@ -534,8 +584,61 @@ int *inlenp;
 	}
       cx = markdata->cx;
       cy = markdata->cy;
-      switch (od)
-	{
+
+      if (markdata -> f_cmd.flag) {
+        debug2("searching for %c:%d\n",od,rep_cnt);
+        markdata->f_cmd.flag = 0;
+        markdata->rep_cnt = 0;
+
+	if (isgraph (od)) {
+	  markdata->f_cmd.target = od;
+	  rep_cnt = (rep_cnt) ? rep_cnt : 1;
+	  nextchar(&cx, &cy, markdata->f_cmd.direction, od, rep_cnt );
+	  revto(cx, cy);
+	  continue;
+	}
+      }
+
+      switch (od) 
+        {
+	case 'f': /* fall through */
+	case 'F': /* fall through */
+	case 't': /* fall through */
+	case 'T': /* fall through */
+	/* 
+	 * Set f_cmd to do a search on the next key stroke.
+	 * If we break, rep_cnt will be reset, so we
+	 * continue instead. It might be cleaner to
+	 * store the rep_count in f_cmd and
+	 * break here so later followon code will be
+	 * hit. 
+	 */
+	markdata->f_cmd.flag = 1;
+        markdata->f_cmd.direction = od;
+	debug("entering char search\n");
+	continue;
+	case ';':
+	  if (!rep_cnt)
+	    rep_cnt = 1;
+	  nextchar(&cx, &cy, markdata->f_cmd.direction, markdata->f_cmd.target, rep_cnt );
+	  revto(cx, cy);
+	break;
+	case ',': {
+	  int search_dir;
+	  if (!rep_cnt)
+	    rep_cnt = 1;
+	  switch (markdata->f_cmd.direction) {
+	  case 't': search_dir = 'T'; break;
+	  case 'T': search_dir = 't'; break;
+	  case 'f': search_dir = 'F'; break;
+	  case 'F': search_dir = 'f'; break;
+	  }
+	  nextchar(&cx, &cy, search_dir, markdata->f_cmd.target, rep_cnt );
+	 
+	  revto(cx, cy);
+	  break;
+	  }
+
 	case 'o':
 	case 'x':
 	  if (!markdata->second)

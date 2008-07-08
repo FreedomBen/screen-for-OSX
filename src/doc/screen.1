@@ -1268,6 +1268,14 @@ of the top, center or bottom line of the window.
 \fBB\fP, \fBE\fP move the cursor WORD by WORD (as in vi).
 .br 
 .ti -2n
+.\"\fBf\fP,\fBt\fP, \fBF\fP, \fBT\fP move the cursor forward/backward to the next occurence of the target.
+\fBf/F\fP, \fBt/T\fP move the cursor forward/backward to the next occurence of the target. (eg, '3fy' will 
+move the cursor to the 3rd 'y' to the right.)
+.br
+.ti -2n
+\fB;\fP \fB,\fP Repeat the last f/F/t/T command in the same/opposite direction.
+.br
+.ti -2n
 \fBC-u\fP and \fBC-d\fP scroll the display up/down by the specified amount of 
 lines while preserving the cursor position. (Default: half screen-full). 
 .br
