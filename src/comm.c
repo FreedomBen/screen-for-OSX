@@ -120,7 +120,7 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "console",		NEED_FORE|ARGS_01 },
 #ifdef COPY_PASTE
-  { "copy",		NEED_FORE|ARGS_0 },
+  { "copy",		NEED_FORE|NEED_DISPLAY|ARGS_0 },
   { "crlf",		ARGS_01 },
 #endif
   { "debug",		ARGS_01 },
