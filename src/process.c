@@ -3823,7 +3823,7 @@ int key;
 	  break;
 	}
       if (*args)
-	ResizeRegions(*args, 0);
+	ResizeRegions(*args, i);
       else
 	Input(resizeprompts[i], 20, INP_EVERY, ResizeFin, (char*)0, i);
       break;
