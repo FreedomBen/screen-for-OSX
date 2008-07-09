@@ -897,6 +897,11 @@ int *inlenp;
 	case 'n':
 	  Search(0);
 	  break;
+	case 'N':
+	  markdata->isdir = -markdata->isdir;
+	  Search(0);
+	  markdata->isdir = -markdata->isdir;
+	  break;
 	case 'y':
 	case 'Y':
 	  if (markdata->second == 0)
