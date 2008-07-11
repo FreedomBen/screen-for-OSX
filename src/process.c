@@ -2802,9 +2802,27 @@ int key;
       else
         {
 	  int old = fore->w_number;
-
-	  if (ParseNum(act, &n) || n >= maxwin)
+	  int rel = 0, parse;
+	  if (args[0][0] == '+')
+	    rel = 1;
+	  else if (args[0][0] == '-')
+	    rel = -1;
+	  if (rel)
+	    ++act->args[0];
+	  parse = ParseNum(act, &n);
+	  if (rel)
+	    --act->args[0];
+	  if (parse)
 	    break;
+	  if (rel > 0)
+	    n += old;
+	  else if (rel < 0)
+	    n = old - n;
+	  if (n < 0 || n >= maxwin)
+	    {
+	      Msg(0, "Given window position is invalid.");
+	      return;
+	    }
 	  p = wtab[n];
 	  wtab[n] = fore;
 	  fore->w_number = n;
