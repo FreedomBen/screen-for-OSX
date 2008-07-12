@@ -4974,7 +4974,7 @@ NextWindow()
 {
   register struct win **pp;
   int n = fore ? fore->w_number : MAXWIN;
-  char *group = fore ? fore->w_group : 0;
+  struct win *group = fore ? fore->w_group : 0;
 
   for (pp = fore ? wtab + n + 1 : wtab; pp != wtab + n; pp++)
     {
@@ -4996,7 +4996,7 @@ PreviousWindow()
 {
   register struct win **pp;
   int n = fore ? fore->w_number : -1;
-  char *group = fore ? fore->w_group : 0;
+  struct win *group = fore ? fore->w_group : 0;
 
   for (pp = wtab + n - 1; pp != wtab + n; pp--)
     {
