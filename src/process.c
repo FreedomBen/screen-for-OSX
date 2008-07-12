@@ -2074,15 +2074,15 @@ int key;
 #endif
     case RC_WINDOWLIST:
       if (!*args)
-        display_wlist(0, WLIST_NUM, (char *)0);
+        display_wlist(0, WLIST_NUM, (struct win *)0);
       else if (!strcmp(*args, "-m") && !args[1])
-        display_wlist(0, WLIST_MRU, (char *)0);
+        display_wlist(0, WLIST_MRU, (struct win *)0);
       else if (!strcmp(*args, "-b") && !args[1])
-        display_wlist(1, WLIST_NUM, (char *)0);
+        display_wlist(1, WLIST_NUM, (struct win *)0);
       else if (!strcmp(*args, "-b") && !strcmp(args[1], "-m") && !args[2])
-        display_wlist(1, WLIST_MRU, (char *)0);
+        display_wlist(1, WLIST_MRU, (struct win *)0);
       else if (!strcmp(*args, "-m") && !strcmp(args[1], "-b") && !args[2])
-        display_wlist(1, WLIST_MRU, (char *)0);
+        display_wlist(1, WLIST_MRU, (struct win *)0);
       else if (!strcmp(*args, "string"))
 	{
 	  if (args[1])

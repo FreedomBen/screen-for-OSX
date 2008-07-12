@@ -1318,7 +1318,7 @@ struct msg *m;
 #endif
 	{
 	  flayer = D_forecv->c_layer;
-	  display_wlist(1, WLIST_NUM, (char *)0);
+	  display_wlist(1, WLIST_NUM, (struct win *)0);
 	  noshowwin = 1;
 	}
     }
