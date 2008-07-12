@@ -151,6 +151,42 @@ int data;
 }
 
 static void
+erase_chars(inpdata, from, to, x, mv)
+struct inpdata *inpdata;
+char *from;
+char *to;
+int x;
+int mv;
+{
+  int chng;
+  ASSERT(from < to);
+  if (inpdata->inp.len > to - inpdata->inp.buf)
+    bcopy(to, from, inpdata->inp.len - (to - inpdata->inp.buf));
+  chng = to - from;
+  if (mv)
+    {
+      x -= chng;
+      inpdata->inp.pos -= chng;
+    }
+  inpdata->inp.len -= chng;
+  if (!(inpdata->inpmode & INP_NOECHO))
+    {
+      struct mchar mc;
+      char *s = from < to ? from : to;
+      mc = mchar_so;
+      while (s < inpdata->inp.buf+inpdata->inp.len)
+	{
+	  mc.image = *s++;
+	  LPutChar(flayer, &mc, x++, INPUTLINE);
+	}
+      while (chng--)
+	LPutChar(flayer, &mchar_blank, x++, INPUTLINE);
+      x = inpdata->inpstringlen + inpdata->inp.pos;
+      LGotoPos(flayer, x, INPUTLINE);
+    }
+}
+
+static void
 InpProcess(ppbuf, plen)
 char **ppbuf;
 int *plen;
@@ -224,26 +260,7 @@ int *plen;
 	}
       else if ((ch == '\b' || ch == 0177) && inpdata->inp.pos > 0)
 	{
-	  if (inpdata->inp.len > inpdata->inp.pos)
-	    bcopy(p, p-1, inpdata->inp.len - inpdata->inp.pos);
-	  inpdata->inp.len--;
-	  inpdata->inp.pos--;
-	  p--;
-
-	  if (!(inpdata->inpmode & INP_NOECHO))
-	    {
-	      struct mchar mc;
-	      mc = mchar_so;
-	      x--;
-	      while (p < inpdata->inp.buf+inpdata->inp.len)
-		{
-		  mc.image = *p++;
-		  LPutChar(flayer, &mc, x++, INPUTLINE);
-		}
-	      LPutChar(flayer, &mchar_blank, x, INPUTLINE);
-	      x = inpdata->inpstringlen + inpdata->inp.pos;
-	      LGotoPos(flayer, x, INPUTLINE);
-	    }
+	  erase_chars(inpdata, p-1, p, x, 1);
 	}
       else if (ch == '\025')			/* CTRL-U */
 	{
@@ -264,6 +281,19 @@ int *plen;
 	      LGotoPos(flayer, x, INPUTLINE);
 	    }
 	  inpdata->inp.len = inpdata->inp.pos;
+	}
+      else if (ch == '\027' && inpdata->inp.pos > 0)		/* CTRL-W */
+	{
+	  char *oldp = p--;
+	  while (p > inpdata->inp.buf && *p == ' ')
+	    p--;
+	  while (p > inpdata->inp.buf && *(p - 1) != ' ')
+	    p--;
+	  erase_chars(inpdata, p, oldp, x, 1);
+	}
+      else if (ch == '\004' && inpdata->inp.pos < inpdata->inp.len)	/* CTRL-D */
+	{
+	  erase_chars(inpdata, p, p+1, x, 0);
 	}
       else if (ch == '\001' || (unsigned char)ch == 0201)	/* CTRL-A */
 	{
@@ -313,10 +343,10 @@ int *plen;
 	  LGotoPos(flayer, x, INPUTLINE);
 	}
 
-      else if (ch == '\004' || ch == '\003' || ch == '\007' || ch == '\033' ||
+      else if (ch == '\003' || ch == '\007' || ch == '\033' ||
 	       ch == '\000' || ch == '\n' || ch == '\r')
 	{
-          if (ch != '\004' && ch != '\n' && ch != '\r')
+          if (ch != '\n' && ch != '\r')
 	    inpdata->inp.len = 0;
 	  inpdata->inp.buf[inpdata->inp.len] = 0;
 
