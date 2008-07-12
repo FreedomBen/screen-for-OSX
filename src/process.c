@@ -2030,6 +2030,10 @@ int key;
       break;
     case RC_MONITOR:
       n = fore->w_monitor != MON_OFF;
+#ifdef MULTIUSER
+      if (display)
+	n = n && (ACLBYTE(fore->w_mon_notify, D_user->u_id) & ACLBIT(D_user->u_id));
+#endif
       if (ParseSwitch(act, &n))
 	break;
       if (n)
@@ -5188,7 +5192,11 @@ struct win *p;
 #endif
   if (p->w_layer.l_cvlist && p->w_layer.l_cvlist->c_lnext)
     *s++ = '&';
-  if (p->w_monitor == MON_DONE)
+  if (p->w_monitor == MON_DONE
+#ifdef MULTIUSER
+      && (ACLBYTE(p->w_mon_notify, D_user->u_id) & ACLBIT(D_user->u_id))
+#endif
+     )
     *s++ = '@';
   if (p->w_bell == BELL_DONE)
     *s++ = '!';
@@ -5307,7 +5315,12 @@ ShowInfo()
   if (wp->w_origin) sprintf(p += strlen(p), " org");
   if (wp->w_keypad) sprintf(p += strlen(p), " app");
   if (wp->w_log)    sprintf(p += strlen(p), " log");
-  if (wp->w_monitor != MON_OFF) sprintf(p += strlen(p), " mon");
+  if (wp->w_monitor != MON_OFF
+#ifdef MULTIUSER
+      && (ACLBYTE(wp->w_mon_notify, D_user->u_id) & ACLBIT(D_user->u_id))
+#endif
+     )
+    sprintf(p += strlen(p), " mon");
   if (wp->w_mouse) sprintf(p += strlen(p), " mouse");
 #ifdef COLOR
   if (wp->w_bce) sprintf(p += strlen(p), " bce");
