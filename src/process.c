@@ -163,7 +163,7 @@ extern struct layout *laytab[];
 
 extern char screenterm[], HostName[], version[];
 extern struct NewWindow nwin_undef, nwin_default;
-extern struct LayFuncs WinLf;
+extern struct LayFuncs WinLf, MarkLf;
 
 extern int Z0width, Z1width;
 extern int real_uid, real_gid;
@@ -2916,6 +2916,11 @@ int key;
       (void)ParseNum(act, &nwin_default.histheight);
       break;
     case RC_SCROLLBACK:
+      if (flayer->l_layfn == &MarkLf)
+	{
+	  Msg(0, "Cannot resize scrollback buffer in copy/scrollback mode.");
+	  break;
+	}
       (void)ParseNum(act, &n);
       ChangeWindowSize(fore, fore->w_width, fore->w_height, n);
       if (msgok)

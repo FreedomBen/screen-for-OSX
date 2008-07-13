@@ -63,7 +63,7 @@ extern struct mchar mchar_so;
 int pastefont = 1;
 #endif
 
-static struct LayFuncs MarkLf =
+struct LayFuncs MarkLf =
 {
   MarkProcess,
   MarkAbort,
