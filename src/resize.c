@@ -188,7 +188,7 @@ int change_fore;
   debug2("Default size: (%d,%d)\n", D_defwidth, D_defheight);
   if (change_fore)
     ResizeLayersToCanvases();
-  if (D_CWS == NULL && displays->d_next == 0)
+  if (change_fore == 2 && D_CWS == NULL && displays->d_next == 0)
     {
       /* adapt all windows  -  to be removed ? */
       for (p = windows; p; p = p->w_next)
