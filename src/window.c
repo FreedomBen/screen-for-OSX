@@ -964,6 +964,14 @@ struct win *wp;
     logfclose(wp->w_log);
   ChangeWindowSize(wp, 0, 0, 0);
 
+  if (wp->w_type == W_TYPE_GROUP)
+    {
+      struct win *win;
+      for (win = windows; win; win = win->w_next)
+	if (win->w_group == wp)
+	  win->w_group = wp->w_group;
+    }
+
   if (wp->w_hstatus)
     free(wp->w_hstatus);
   for (i = 0; wp->w_cmdargs[i]; i++)

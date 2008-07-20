@@ -1673,14 +1673,13 @@ void
 Finit(i)
 int i;
 {
-  struct win *p, *next;
-
   signal(SIGCHLD, SIG_DFL);
   signal(SIGHUP, SIG_IGN);
   debug1("Finit(%d);\n", i);
-  for (p = windows; p; p = next)
+  while (windows)
     {
-      next = p->w_next;
+      struct win *p = windows;
+      windows = windows->w_next;
       FreeWindow(p);
     }
   if (ServerSocket != -1)
@@ -3030,7 +3029,7 @@ char *data;
 	  /* don't annoy the user with two messages */
 	  if (p->w_monitor == MON_FOUND)
 	    p->w_monitor = MON_DONE;
-          WindowChanged(p, 'f');
+	  WindowChanged(p, 'f');
 	}
       if (p->w_monitor == MON_FOUND)
 	{
@@ -3050,7 +3049,7 @@ char *data;
 	      Msg(0, "%s", MakeWinMsg(ActivityString, p, '%'));
 	      p->w_monitor = MON_DONE;
 	    }
-          WindowChanged(p, 'f');
+	  WindowChanged(p, 'f');
 	}
     }
 
