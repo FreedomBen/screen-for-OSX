@@ -3997,6 +3997,9 @@ int key;
 	      if (fore->w_group && fore->w_group->w_type != W_TYPE_GROUP)
 		fore->w_group = 0;
 	    }
+	  WindowChanged((struct win *)0, 'w');
+	  WindowChanged((struct win *)0, 'W');
+	  WindowChanged((struct win *)0, 0);
 	}
       if (msgok)
 	{
