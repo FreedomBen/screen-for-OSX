@@ -1934,7 +1934,7 @@ int key;
 	ChangeAKA(fore, *args, strlen(*args));
       break;
     case RC_COLON:
-      Input(":", 100, INP_COOKED, Colonfin, NULL, 0);
+      Input(":", 100, INP_EVERY, Colonfin, NULL, 0);
       if (*args && **args)
 	{
 	  s = *args;
@@ -5484,16 +5484,69 @@ int len;
 char *data;	/* dummy */
 {
   char mbuf[256];
-  if (len)
+
+  RemoveStatus();
+  if (buf[len] == '\t')
     {
-      len = strlen(buf) + 1;
-      if (len > (int)sizeof(mbuf))
-        RcLine(buf, len);
-      else
+      int m, x;
+      int l = 0, r = RC_LAST;
+      int showmessage = 0;
+      char *s = buf;
+
+      while (*s && s - buf < len)
+	if (*s++ == ' ')
+	  return;
+
+      /* Showing a message when there's no hardstatus or caption cancels the input */
+      if (display &&
+	  (captionalways || D_has_hstatus == HSTATUS_LASTLINE || (D_canvas.c_slperp && D_canvas.c_slperp->c_slnext)))
+	showmessage = 1;
+
+      while (l <= r)
 	{
-	  bcopy(buf, mbuf, len);
-          RcLine(mbuf, sizeof mbuf);
+	  m = (l + r) / 2;
+	  x = strncmp(buf, comms[m].name, len);
+	  if (x > 0)
+	    l = m + 1;
+	  else if (x < 0)
+	    r = m - 1;
+	  else
+	    {
+	      s = mbuf;
+	      for (l = m - 1; l >= 0 && strncmp(buf, comms[l].name, len) == 0; l--)
+		;
+	      for (m = ++l; m <= r && strncmp(buf, comms[m].name, len) == 0 && s - mbuf < sizeof(mbuf); m++)
+		s += snprintf(s, sizeof(mbuf) - (s - mbuf), " %s", comms[m].name);
+	      if (l < m - 1)
+		{
+		  if (showmessage)
+		    Msg(0, "Possible commands:%s", mbuf);
+		}
+	      else
+		{
+		  s = mbuf;
+		  len = snprintf(mbuf, sizeof(mbuf), "%s \t", comms[l].name + len);
+		  if (len > 0 && len < sizeof(mbuf))
+		    LayProcess(&s, &len);
+		}
+	      break;
+	    }
 	}
+      if (l > r && showmessage)
+	Msg(0, "No commands matching '%*s'", len, buf);
+      return;
+    }
+
+  if (!len || buf[len])
+    return;
+
+  len = strlen(buf) + 1;
+  if (len > (int)sizeof(mbuf))
+    RcLine(buf, len);
+  else
+    {
+      bcopy(buf, mbuf, len);
+      RcLine(mbuf, sizeof mbuf);
     }
 }
 

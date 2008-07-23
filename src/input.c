@@ -350,7 +350,7 @@ int *plen;
 	    inpdata->inp.len = 0;
 	  inpdata->inp.buf[inpdata->inp.len] = 0;
 
-	  if (inpdata->inp.len && inpdata->inpmode == 0)
+	  if (inpdata->inp.len && !(inpdata->inpmode & (INP_NOECHO | INP_RAW)))
 	    inphist = inpdata->inp;	/* structure copy */
 	  
   	  flayer->l_data = 0;	/* so inpdata does not get freed */
