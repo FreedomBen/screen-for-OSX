@@ -2769,17 +2769,13 @@ RemoveStatus()
     return;
   if (!(where = D_status))
     return;
-  
+
   debug("RemoveStatus\n");
   if (D_status_obuffree >= 0)
     {
       D_obuflen = D_status_obuflen;
       D_obuffree = D_status_obuffree;
       D_status_obuffree = -1;
-      D_status = 0;
-      D_status_bell = 0;
-      evdeq(&D_statusev);
-      return;
     }
   D_status = 0;
   D_status_bell = 0;
@@ -2941,7 +2937,11 @@ int y, from, to, isblank;
   debug2(" %d %d\n", to, isblank);
 
   if (D_status == STATUS_ON_WIN && y == STATLINE)
-    return;	/* can't refresh status */
+    {
+      if (to >= D_status_len)
+	D_status_len = to + 1;
+      return;	/* can't refresh status */
+    }
 
   if (y == D_height - 1 && D_has_hstatus == HSTATUS_LASTLINE)
     {
