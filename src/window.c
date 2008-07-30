@@ -1057,7 +1057,12 @@ char **namep;
     }
   else
 #endif
-  if ((stat(arg, &st)) == 0 && S_ISCHR(st.st_mode))
+  if (strncmp(arg, "//", 2) == 0)
+    {
+      Msg(0, "Invalid argument '%s'", arg);
+      return -1;
+    }
+  else if ((stat(arg, &st)) == 0 && S_ISCHR(st.st_mode))
     {
       if (access(arg, R_OK | W_OK) == -1)
 	{
