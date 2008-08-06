@@ -12,7 +12,7 @@ AC_CONFIG_HEADER(config.h)
 dnl
 dnl Define some useful macros
 dnl
-AC_DEFUN(AC_PROGRAM_SOURCE,
+AC_DEFUN([AC_PROGRAM_SOURCE],
 [AC_REQUIRE([AC_PROG_CPP])AC_PROVIDE([$0])cat > conftest.c <<EOF
 #include "confdefs.h"
 [$1]
