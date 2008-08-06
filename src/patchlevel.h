@@ -527,7 +527,7 @@
 
 #define ORIGIN "FAU"
 #define REV 4
-#define VERS 0
-#define PATCHLEVEL 3
+#define VERS 1
+#define PATCHLEVEL 0
 #define DATE "2-May-06"
-#define STATE "jw4"
+#define STATE "devel"
