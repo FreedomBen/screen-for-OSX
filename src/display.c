@@ -502,7 +502,7 @@ struct canvas *cv;
   if (cv->c_slnext)
     cv->c_slnext->c_slprev = cv->c_slprev;
   if (cv->c_slback && cv->c_slback->c_slperp == cv)
-    cv->c_slback->c_slperp = cv->c_slnext;
+    cv->c_slback->c_slperp = cv->c_slnext ? cv->c_slnext : cv->c_slprev;
   if (cv->c_slperp)
     {
       while (cv->c_slperp)
@@ -793,6 +793,7 @@ struct canvas *cv;
 {
   struct canvas *pcv;
   debug("Creating new perp node\n");
+
   if ((pcv = (struct canvas *)calloc(1, sizeof *cv)) == 0)
     return 0;
   pcv->c_next = 0;
@@ -976,7 +977,7 @@ RemCanvas()
     D_forecv = D_forecv->c_slperp;
 
   /* if only one canvas left, set orient back to unknown */
-  if (!cv->c_slnext && !cv->c_slprev && !cv->c_slback->c_slback)
+  if (!cv->c_slnext && !cv->c_slprev && !cv->c_slback->c_slback && !cv->c_slperp)
     {
       cv->c_slorient = SLICE_UNKN;
       if (!captionalways)
@@ -4358,7 +4359,7 @@ struct canvas *cv;
       }
 }
 
-void
+static void
 DupLayoutCv(cvf, cvt, save)
 struct canvas *cvf, *cvt;
 int save;
