@@ -548,8 +548,6 @@ int map;
       else
 	break;
     }
-  if (n < KMAP_KEYS)
-    domap = 1;
   if (map == 0 && domap)
     return 0;
   if (map && !domap)
