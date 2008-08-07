@@ -37,7 +37,7 @@
 #include "config.h"
 
 /* for solaris 2.1, Unixware (SVR4.2) and possibly others: */
-#ifdef SVR4
+#ifdef HAVE_STROPTS_H
 # include <sys/stropts.h>
 #endif
 

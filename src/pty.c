@@ -34,7 +34,7 @@
 #endif
 
 /* for solaris 2.1, Unixware (SVR4.2) and possibly others */
-#ifdef HAVE_SVR4_PTYS
+#ifdef HAVE_STROPTS_H
 # include <sys/stropts.h>
 #endif
 

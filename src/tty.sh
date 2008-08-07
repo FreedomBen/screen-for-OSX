@@ -76,7 +76,7 @@ exit 0
 #endif
 
 #include "config.h"
-#ifdef SVR4
+#ifdef HAVE_STROPTS_H
 #include <sys/stropts.h>	/* for I_POP */
 #endif
 

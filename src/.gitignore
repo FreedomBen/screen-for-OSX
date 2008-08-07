@@ -1,6 +1,6 @@
 *.o
 .*.swp
-#*#
+\#*\#
 *~
 Makefile
 autom4te.cache
@@ -17,4 +17,5 @@ kmapdef.c
 osdef.h
 term.h
 screen
+stamp-h.in
 tty.c
