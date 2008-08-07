@@ -112,6 +112,9 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "charset",          NEED_FORE|ARGS_1 },
   { "chdir",		ARGS_01 },
+#ifdef DW_CHARS
+  { "cjkwidth",		ARGS_01 },
+#endif
   { "clear",		NEED_FORE|ARGS_0 },
   { "colon",		NEED_LAYER|ARGS_01 },
   { "command",		NEED_DISPLAY|ARGS_02 },

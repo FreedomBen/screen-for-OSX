@@ -681,7 +681,7 @@ register int len;
 	      curr->w_rend.font = 0;
 	    }
 #  ifdef DW_CHARS
-	  if (curr->w_encoding == UTF8 && c >= 0x1100 && utf8_isdouble(c))
+	  if (curr->w_encoding == UTF8 && utf8_isdouble(c))
 	    curr->w_mbcs = 0xff;
 #  endif
 	  if (curr->w_encoding == UTF8 && c >= 0x0300 && utf8_iscomb(c))

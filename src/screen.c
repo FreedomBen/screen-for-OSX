@@ -223,6 +223,10 @@ char *preselect = NULL;		/* only used in Attach() */
 char *screenencodings;
 #endif
 
+#ifdef DW_CHARS
+int cjkwidth;
+#endif
+
 #ifdef NETHACK
 int nethackflag = 0;
 #endif
@@ -470,6 +474,9 @@ char **av;
 #ifdef UTF8
   InitBuiltinTabs();
   screenencodings = SaveStr(SCREENENCODINGS);
+#endif
+#ifdef DW_CHARS
+  cjkwidth = 0;
 #endif
   nwin = nwin_undef;
   nwin_options = nwin_undef;
@@ -765,6 +772,19 @@ char **av;
       debug1("environment says encoding=%d\n", nwin_options.encoding);
 #endif
     }
+# ifdef DW_CHARS
+  {
+    char *s;
+    if((s = getenv("LC_ALL")) || (s = getenv("LC_CTYPE")) ||
+       (s = getenv("LANG")))
+    {
+      if(!strncmp(s, "zh_", 3) || !strncmp(s, "ja_", 3) || !strncmp(s, "ko_", 3))
+      {
+        cjkwidth = 1;
+      }
+    }
+  }
+#endif
 #endif
   if (SockMatch && strlen(SockMatch) >= MAXSTR)
     Panic(0, "Ridiculously long socketname - try again.");

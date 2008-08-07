@@ -105,6 +105,9 @@ extern int VerboseCreate;
 #ifdef UTF8
 extern char *screenencodings;
 #endif
+#ifdef DW_CHARS
+extern int cjkwidth;
+#endif
 
 static int  CheckArgNum __P((int, char **));
 static void ClearAction __P((struct action *));
@@ -4181,6 +4184,15 @@ int key;
       else
 	Msg(0, "unknown layout subcommand");
       break;
+#ifdef DW_CHARS
+    case RC_CJKWIDTH:
+      if(ParseSwitch(act, &cjkwidth) == 0)
+      {
+        if(msgok)
+          Msg(0, "Treat ambiguous width characters as %s width", cjkwidth ? "full" : "half");
+      }
+      break;
+#endif
     default:
 #ifdef HAVE_BRAILLE
       /* key == -2: input from braille keybord, msgok always 0 */
