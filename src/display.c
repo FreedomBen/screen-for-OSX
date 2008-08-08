@@ -2944,11 +2944,24 @@ int y, from, to, isblank;
       return;	/* can't refresh status */
     }
 
+  /* The following check makes plenty of sense. Unfortunately,
+     vte-based terminals (notably gnome-terminal) experience a quirk
+     that causes the final line not to update properly when it falls outside
+     the scroll region; clearing the line with D_CE avoids the glitch,
+     so we'll disable this perfectly sensible shortcut until such a time
+     as widespread vte installations lack the glitch.
+
+     See http://bugzilla.gnome.org/show_bug.cgi?id=542087 for current
+     status of the VTE bug report, and
+     https://savannah.gnu.org/bugs/index.php?23699 for the history from
+     the Savannah BTS. */
+#if 0
   if (y == D_height - 1 && D_has_hstatus == HSTATUS_LASTLINE)
     {
       RefreshHStatus();
       return;
     }
+#endif
 
   if (isblank == 0 && D_CE && to == D_width - 1 && from < to)
     {
@@ -3146,8 +3159,8 @@ int from, to, y, bce;
 void
 DisplayLine(oml, ml, y, from, to)
 struct mline *oml, *ml;
-int from, to, y;
-{
+int from, to, y;{
+
   register int x;
   int last2flag = 0, delete_lp = 0;
 
