@@ -847,7 +847,7 @@ ReceiveMsg()
 		{
 		  int passedfd;
 		  bcopy(cp, &passedfd, sizeof(int));
-		  if (recvfd >= 0 && passedfd != recv)
+		  if (recvfd >= 0 && passedfd != recvfd)
 		    close(recvfd);
 		  recvfd = passedfd;
 		  cl -= CMSG_LEN(sizeof(int));
