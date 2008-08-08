@@ -7,7 +7,7 @@
 @finalout
 @setchapternewpage odd
 @c %**end of header
-@set version 4.0.2
+@set version 4.1.0
 
 @direntry
 * Screen: (screen).             Full-screen window manager.
@@ -15,7 +15,7 @@
 
 @c For examples, use a literal escape in info.
 @ifinfo
-@set esc 
+@set esc ^[
 @end ifinfo
 @iftex
 @set esc <ESC>
@@ -4121,8 +4121,8 @@ sequence.  For instance, from within the shell, try something like:
 echo "@value{esc}^Hello world from window $WINDOW@value{esc}\"
 @end example
 
-where @samp{@value{esc}} is ASCII ESC and @samp{^} is a literal caret or
-up-arrow.
+where @samp{@value{esc}} is ASCII ESC and the @samp{^} that follows it
+is a literal caret or up-arrow.
 
 @node Hardware Status Line, Last Message, Privacy Message, Message Line
 @section Hardware Status Line
