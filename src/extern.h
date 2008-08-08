@@ -307,6 +307,7 @@ extern int   color256to88 __P((int));
 extern void  ResetIdle __P((void));
 extern void  KillBlanker __P((void));
 extern void  DisplaySleep1000 __P((int, int));
+extern struct layout *FindLayout __P((char *));
 
 /* resize.c */
 extern int   ChangeWindowSize __P((struct win *, int, int, int));
