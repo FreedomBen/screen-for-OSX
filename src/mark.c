@@ -22,6 +22,7 @@
  */
 
 #include <sys/types.h>
+#include <ctype.h>
 
 #include "config.h"
 #include "screen.h"
@@ -153,7 +154,7 @@ nextchar(int *xp, int *yp, int direction, char target, int num)
   x = *xp;
   adjust = 0;
   width = fore->w_width;
-  displayed_line = WIN(*yp) -> image;
+  displayed_line = (char *)WIN(*yp) -> image;
  
   switch(direction) {
   case 't': adjust = -1; /* fall through */

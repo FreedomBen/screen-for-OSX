@@ -146,9 +146,8 @@ int wi, he;
 int change_fore;
 {
   struct win *p;
-  struct canvas *cv, **cvpp;
+  struct canvas *cv;
   int wwi;
-  int y, h, hn, xe, ye;
 
   debug2("ChangeScreenSize from (%d,%d) ", D_width, D_height);
   debug3("to (%d,%d) (change_fore: %d)\n",wi, he, change_fore);

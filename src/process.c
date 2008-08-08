@@ -4104,7 +4104,6 @@ int key;
 	}
       else if (!strcmp(args[0], "select"))
 	{
-          struct layout *lay;
           if (!args[1])
 	    {
 	      Input("Switch to layout: ", 20, INP_COOKED, SelectLayoutFin, NULL, 0);
@@ -5589,14 +5588,13 @@ char *buf;
 int len;
 char *data;	/* dummy */
 {
-  int n;
   struct layout *lay;
 
   if (!len || !display)
     return;
   if (len == 1 && *buf == '-')
     {
-      LoadLayout((struct layout *)0);
+      LoadLayout((struct layout *)0, (struct canvas *)0);
       Activate(0);
       return;
     }
@@ -6549,7 +6547,7 @@ char *arg;
 int flags;
 {
   struct canvas *cv;
-  int nreg, dsize, diff, siz, nsiz, l, done;
+  int diff, l;
   int gflag = 0, abs = 0, percent = 0;
   int orient = 0;
 

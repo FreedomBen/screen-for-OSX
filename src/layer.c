@@ -398,7 +398,6 @@ int x, y;
 {
   struct canvas *cv;
   struct viewport *vp;
-  char *s2;
   int xs2, xe2, y2, len, len2;
   struct mchar or;
 

@@ -1193,7 +1193,6 @@ struct msg *m;
   char *p;
   int pid;
   int noshowwin;
-  int r = 0;
   struct win *wi;
 
   ASSERT(display);

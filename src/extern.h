@@ -292,8 +292,12 @@ extern int   MakeDefaultCanvas __P((void));
 extern int   AddCanvas __P((int));
 extern void  RemCanvas __P((void));
 extern void  OneCanvas __P((void));
+extern void  ResizeCanvas __P((struct canvas *));
+extern void  RecreateCanvasChain __P((void));
 extern int   RethinkDisplayViewports __P((void));
 extern void  RethinkViewportOffsets __P((struct canvas *));
+extern int   CountCanvasPerp __P((struct canvas *));
+extern void  EqualizeCanvas __P((struct canvas *, int));
 #ifdef RXVT_OSC
 extern void  ClearAllXtermOSC __P((void));
 extern void  SetXtermOSC __P((int, char *));
@@ -307,6 +311,11 @@ extern int   color256to88 __P((int));
 extern void  ResetIdle __P((void));
 extern void  KillBlanker __P((void));
 extern void  DisplaySleep1000 __P((int, int));
+extern void  AutosaveLayout __P((struct layout *));
+extern void  LoadLayout __P((struct layout *, struct canvas *));
+extern void  NewLayout __P((char *, int));
+extern void  SaveLayout __P((char *, struct canvas *));
+extern void  ShowLayouts __P((int));
 extern struct layout *FindLayout __P((char *));
 
 /* resize.c */
