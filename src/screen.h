@@ -293,3 +293,4 @@ struct baud_values
  */
 #define WLIST_NUM 0
 #define WLIST_MRU 1
+#define WLIST_NESTED 2

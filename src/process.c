@@ -2078,14 +2078,6 @@ int key;
     case RC_WINDOWLIST:
       if (!*args)
         display_wlist(0, WLIST_NUM, (struct win *)0);
-      else if (!strcmp(*args, "-m") && !args[1])
-        display_wlist(0, WLIST_MRU, (struct win *)0);
-      else if (!strcmp(*args, "-b") && !args[1])
-        display_wlist(1, WLIST_NUM, (struct win *)0);
-      else if (!strcmp(*args, "-b") && !strcmp(args[1], "-m") && !args[2])
-        display_wlist(1, WLIST_MRU, (struct win *)0);
-      else if (!strcmp(*args, "-m") && !strcmp(args[1], "-b") && !args[2])
-        display_wlist(1, WLIST_MRU, (struct win *)0);
       else if (!strcmp(*args, "string"))
 	{
 	  if (args[1])
@@ -2109,7 +2101,26 @@ int key;
 	    Msg(0, "windowlist title is '%s'", wlisttit);
 	}
       else
-	Msg(0, "usage: windowlist [-b] [string [string] | title [title]]");
+	{
+	  int flag = 0;
+	  int blank = 0;
+	  for (i = 0; i < argc; i++)
+	    if (!args[i])
+	      continue;
+	    else if (!strcmp(args[i], "-m"))
+	      flag |= WLIST_MRU;
+	    else if (!strcmp(args[i], "-b"))
+	      blank = 1;
+	    else if (!strcmp(args[i], "-g"))
+	      flag |= WLIST_NESTED;
+	    else
+	      {
+		Msg(0, "usage: windowlist [-b] [string [string] | title [title]]");
+		break;
+	      }
+	  if (i == argc)
+	    display_wlist(blank, flag, (struct win *)0);
+	}
       break;
     case RC_HELP:
       if (argc == 2 && !strcmp(*args, "-c"))
