@@ -957,7 +957,8 @@ int wi, he, hi;
 
   /* signal new size to window */
 #ifdef TIOCSWINSZ
-  if (wi && (p->w_width != wi || p->w_height != he) && p->w_ptyfd >= 0 && p->w_pid)
+  if (wi && (p->w_width != wi || p->w_height != he)
+      && p->w_width != 0 && p->w_height != 0 && p->w_ptyfd >= 0 && p->w_pid)
     {
       glwz.ws_col = wi;
       glwz.ws_row = he;
