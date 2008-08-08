@@ -4762,6 +4762,8 @@ month name
 window number
 @item s
 seconds
+@item S
+session name
 @item t
 window title
 @item u
