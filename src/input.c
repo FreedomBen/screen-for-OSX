@@ -142,7 +142,7 @@ int data;
   inpdata->inpmode = mode;
   inpdata->privdata = data;
   if (!priv)
-    priv = &inpdata->privdata;
+    priv = (char*)&inpdata->privdata;
   inpdata->priv = priv;
   inpdata->inpstringlen = 0;
   inpdata->inpstring = NULL;
