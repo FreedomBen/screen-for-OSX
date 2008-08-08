@@ -1302,7 +1302,7 @@ wlistpage()
 	      if (wtab[pos] && WTAB_GROUP_MATCHES(pos))
 		break;
 	  if (pos == -1)
-	    pos == MAXWIN;
+	    pos = MAXWIN;
 	}
     }
   wlistdata->pos = pos;
