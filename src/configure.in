@@ -300,7 +300,14 @@ dnl
 
 AC_CHECKING(fifos)
 AC_TRY_RUN([
+/* For select - According to POSIX 1003.1-2001 */
+#include <sys/select.h>
+
+/* For select - According to earlier standards */
+#include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
+
 #include <sys/stat.h>
 #include <fcntl.h>
 
@@ -316,13 +323,10 @@ char *fin = "/tmp/conftest$$";
 main()
 {
   struct stat stb;
-#ifdef FD_SET
   fd_set f;
-#else
-  int f;
-#endif
 
   (void)alarm(5);
+  unlink(fin);
 #ifdef POSIX
   if (mkfifo(fin, 0777))
 #else
@@ -354,11 +358,7 @@ main()
 	exit(1);
       exit(0);
     }
-#ifdef FD_SET
   FD_SET(0, &f);
-#else
-  f = 1;
-#endif
   if (select(1, &f, 0, 0, 0) == -1)
     exit(1);
   exit(0);
@@ -370,10 +370,16 @@ rm -f /tmp/conftest*
 if test -n "$fifo"; then
 AC_CHECKING(for broken fifo implementation)
 AC_TRY_RUN([
-#include <sys/types.h>
-#include <fcntl.h>
+/* For select - According to POSIX 1003.1-2001 */
+#include <sys/select.h>
+
+/* For select - According to earlier standards */
 #include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <sys/stat.h>
+#include <fcntl.h>
 
 #ifndef O_NONBLOCK
 #define O_NONBLOCK O_NDELAY
@@ -387,11 +393,7 @@ char *fin = "/tmp/conftest$$";
 main()
 {
   struct timeval tv;
-#ifdef FD_SET
   fd_set f;
-#else
-  int f;
-#endif
 
 #ifdef POSIX
   if (mkfifo(fin, 0600))
@@ -402,11 +404,7 @@ main()
   close(0);
   if (open(fin, O_RDONLY|O_NONBLOCK))
     exit(1);
-#ifdef FD_SET
   FD_SET(0, &f);
-#else
-  f = 1;
-#endif
   tv.tv_sec = 1;
   tv.tv_usec = 0;
   if (select(1, &f, 0, 0, &tv))
@@ -426,10 +424,18 @@ dnl
 
 AC_CHECKING(sockets)
 AC_TRY_RUN([
+/* For select - According to POSIX 1003.1-2001 */
+#include <sys/select.h>
+
+/* For select - According to earlier standards */
+#include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
+
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <fcntl.h>
 
 char *son = "/tmp/conftest$$";
 
@@ -437,11 +443,7 @@ main()
 {
   int s1, s2, l;
   struct sockaddr_un a;
-#ifdef FD_SET
   fd_set f;
-#else
-  int f;
-#endif
 
   (void)alarm(5);
   if ((s1 = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
@@ -466,11 +468,7 @@ main()
   close(0);
   if (accept(s1, &a, &l))
     exit(1);
-#ifdef FD_SET
   FD_SET(0, &f);
-#else
-  f = 1;
-#endif
   if (select(1, &f, 0, 0, 0) == -1)
     exit(1);
   exit(0);
@@ -482,7 +480,14 @@ rm -f /tmp/conftest*
 if test -n "$sock"; then
 AC_CHECKING(socket implementation)
 AC_TRY_RUN([
+/* For select - According to POSIX 1003.1-2001 */
+#include <sys/select.h>
+
+/* For select - According to earlier standards */
+#include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
+
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -542,7 +547,14 @@ dnl
 
 AC_CHECKING(select return value)
 AC_TRY_RUN([
+/* For select - According to POSIX 1003.1-2001 */
+#include <sys/select.h>
+
+/* For select - According to earlier standards */
+#include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
+
 #include <sys/stat.h>
 #include <fcntl.h>
 
@@ -560,11 +572,7 @@ char *nam = "/tmp/conftest$$";
 
 main()
 {
-#ifdef FD_SET
   fd_set f;
-#else
-  int f;
-#endif
 
 #ifdef __FreeBSD__
 /* From Andrew A. Chernov (ache@astral.msk.su):
@@ -596,11 +604,7 @@ main()
 {
   int s1, s2, l;
   struct sockaddr_un a;
-#ifdef FD_SET
   fd_set f;
-#else
-  int f;
-#endif
 
   (void)alarm(5);
   if ((s1 = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
@@ -628,11 +632,7 @@ main()
 #endif
 
 
-#ifdef FD_SET
   FD_SET(0, &f);
-#else
-  f = 1;
-#endif
   if (select(1, &f, 0, 0, 0) == -1)
     exit(1);
   if (select(1, &f, &f, 0, 0) != 2)
