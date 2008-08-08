@@ -6554,6 +6554,8 @@ int flags;
   int orient = 0;
 
   ASSERT(display);
+  if (!*arg)
+    return;
   if (D_forecv->c_slorient == SLICE_UNKN)
     {
       Msg(0, "resize: need more than one region");
