@@ -170,7 +170,7 @@ nextchar(int *xp, int *yp, int direction, char target, int num)
  
   debug1("ml->image = %s\n", displayed_line);
   debug2("num = %d, width = %d\n",num, width);
-  debug2("x = %d targe = %c\n", x, target );
+  debug2("x = %d target = %c\n", x, target );
  
   for ( ;x>=0 && x <= width; x += step) {
     if (displayed_line[x] == target) {
@@ -618,6 +618,8 @@ int *inlenp;
 	debug("entering char search\n");
 	continue;
 	case ';':
+	  if (!markdata->f_cmd.target)
+	    break;
 	  if (!rep_cnt)
 	    rep_cnt = 1;
 	  nextchar(&cx, &cy, markdata->f_cmd.direction, markdata->f_cmd.target, rep_cnt );
@@ -625,6 +627,8 @@ int *inlenp;
 	break;
 	case ',': {
 	  int search_dir;
+	  if (!markdata->f_cmd.target)
+	    break;
 	  if (!rep_cnt)
 	    rep_cnt = 1;
 	  switch (markdata->f_cmd.direction) {
@@ -634,7 +638,6 @@ int *inlenp;
 	  case 'F': search_dir = 'f'; break;
 	  }
 	  nextchar(&cx, &cy, search_dir, markdata->f_cmd.target, rep_cnt );
-	 
 	  revto(cx, cy);
 	  break;
 	  }
