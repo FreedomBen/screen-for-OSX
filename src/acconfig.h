@@ -574,7 +574,9 @@
  * If you are on a SYS V machine that restricts filename length to 14 
  * characters, you may need to enforce that by setting NAME_MAX to 14
  */
-#undef NAME_MAX		/* KEEP_UNDEF_HERE override system value */
+/* KEEP_UNDEF_HERE override system value
+ * (Will this even work as expected? -mjc) */
+#undef NAME_MAX
 #undef NAME_MAX
 
 /*
