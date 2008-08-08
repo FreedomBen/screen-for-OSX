@@ -549,6 +549,16 @@
 #undef USESETENV
 
 /*
+ * If setenv() takes 3 arguments sefine HAVE_SETENV_3
+ */
+#undef HAVE_SETENV_3
+
+/*
+ * If setenv() takes 2 arguments sefine HAVE_SETENV_2
+ */
+#undef HAVE_SETENV_2
+
+/*
  * If your system does not come with a setenv()/putenv()/getenv()
  * functions, you may bring in our own code by defining NEEDPUTENV.
  */
