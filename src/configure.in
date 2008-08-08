@@ -663,10 +663,13 @@ AC_TRY_LINK(,tgetent((char *)0, (char *)0);,,
 LIBS="-ltermlib $olibs"
 AC_CHECKING(libtermlib)
 AC_TRY_LINK(,tgetent((char *)0, (char *)0);,,
+LIBS="-lncursesw $olibs"
+AC_CHECKING(libncursesw)
+AC_TRY_LINK(,tgetent((char *)0, (char *)0);,,
 LIBS="-lncurses $olibs"
 AC_CHECKING(libncurses)
 AC_TRY_LINK(,tgetent((char *)0, (char *)0);,,
-AC_MSG_ERROR(!!! no tgetent - no screen))))))
+AC_MSG_ERROR(!!! no tgetent - no screen)))))))
 
 AC_TRY_RUN([
 main()
