@@ -2679,16 +2679,18 @@ int rec;
 	  p += strlen(p) - 1;
 	  break;
 	case 'S':
-	  *p = 0;
-	  char * session_name;
-	  session_name = strchr(SockName, '.') + 1;
-	  if ((int)strlen(session_name) < l)
-	    {
-	      strcpy(p, session_name);
-	      if (*p)
-		qmflag = 1;
-	    }
-	  p += strlen(p) - 1;
+	  {
+	    char *session_name;
+	    *p = 0;
+	    session_name = strchr(SockName, '.') + 1;
+	    if ((int)strlen(session_name) < l)
+	      {
+		strcpy(p, session_name);
+		if (*p)
+		  qmflag = 1;
+	      }
+	    p += strlen(p) - 1;
+	  }
 	  break;
 	case 'F':
 	  p--;
