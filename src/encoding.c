@@ -1009,8 +1009,6 @@ int c;
     { 0xE0100, 0xE01EF }
   };
 
-  if (c < 0x0300 || c > 0xfffb)
-    return 0;
   return bisearch(c, combining, sizeof(combining) / sizeof(struct interval) - 1);
 }
 
