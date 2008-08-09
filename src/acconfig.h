@@ -59,15 +59,6 @@
 #define SOCKDIR_IS_LOCAL_TO_HOST
 
 /*
- * Screen sources two startup files. First a global file with a path
- * specified here, second your local $HOME/.screenrc
- * Don't define this, if you don't want it.
- */
-#ifndef ETCSCREENRC
-# define ETCSCREENRC "/usr/local/etc/screenrc"
-#endif
-
-/*
  * Screen can look for the environment variable $SYSSCREENRC and -if it
  * exists- load the file specified in that variable as global screenrc.
  * If you want to enable this feature, define ALLOW_SYSSCREENRC to one (1).
@@ -75,14 +66,6 @@
  */
 #define ALLOW_SYSSCREENRC 1
 
-/*
- * Screen needs encoding files for the translation of utf8
- * into some encodings, e.g. JIS, BIG5.
- * Only needed if FONT, ENCODINGS and UTF8 are defined.
- */
-#ifndef SCREENENCODINGS
-# define SCREENENCODINGS "/usr/local/lib/screen/encodings"
-#endif
 /*
  * Define CHECKLOGIN to force Screen users to enter their Unix password
  * in addition to the screen password.
