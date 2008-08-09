@@ -860,8 +860,6 @@ char **av;
   own_uid = multi_uid = real_uid;
   if (SockMatch && (sockp = index(SockMatch, '/')))
     {
-      if (eff_uid)
-        Panic(0, "Must run suid root for multiuser support.");
       *sockp = 0;
       multi = SockMatch;
       SockMatch = sockp + 1;
@@ -882,6 +880,9 @@ char **av;
 	  detached = 0;
 	  multiattach = 1;
 	}
+      /* Special case: effective user is multiuser. */
+      if (eff_uid && (multi_uid != eff_uid))
+        Panic(0, "Must run suid root for multiuser support.");
     }
   if (SockMatch && *SockMatch == 0)
     SockMatch = 0;
