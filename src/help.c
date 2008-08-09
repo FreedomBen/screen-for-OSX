@@ -997,6 +997,8 @@ int *plen;
 	case 0033:
 	case 0007:
 	  h = wlistdata->start;
+	  if (h == -1 && Layer2Window(flayer) && Layer2Window(flayer)->w_type == W_TYPE_GROUP)
+	    break;
 	  HelpAbort();
 	  display = olddisplay;
 	  if (h >= 0 && wtab[h])

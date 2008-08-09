@@ -2115,7 +2115,7 @@ int key;
 	      flag |= WLIST_NESTED;
 	    else
 	      {
-		Msg(0, "usage: windowlist [-b] [string [string] | title [title]]");
+		Msg(0, "usage: windowlist [-b] [-g] [-m] [string [string] | title [title]]");
 		break;
 	      }
 	  if (i == argc)
