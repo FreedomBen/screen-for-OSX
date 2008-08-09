@@ -425,12 +425,6 @@
 #endif
 
 /*
- * Define HAVE_DIRENT_H if your system has <dirent.h> instead of
- * <sys/dir.h>
- */
-#undef HAVE_DIRENT_H
-
-/*
  * If your system has getutent(), pututline(), etc. to write to the
  * utmp file, define GETUTENT.
  */
@@ -516,11 +510,6 @@
 #undef USEVARARGS
 
 /*
- * If your system has strerror() define this.
- */
-#undef HAVE_STRERROR
-
-/*
  * If the select return value doesn't treat a descriptor that is
  * usable for reading and writing as two hits, define SELECT_BROKEN.
  */
@@ -580,56 +569,6 @@
 #undef NAME_MAX
 
 /*
- * define HAVE_RENAME if your system has a rename() function
- */
-#undef HAVE_RENAME
-
-/*
- * define HAVE__EXIT if your system has the _exit() call.
- */
-#undef HAVE__EXIT
-
-/*
- * define HAVE_LSTAT if your system has symlinks and the lstat() call.
- */
-#undef HAVE_LSTAT
-
-/*
- * define HAVE_UTIMES if your system has the utimes() call.
- */
-#undef HAVE_UTIMES
-
-/*
- * define HAVE_FCHOWN if your system has the fchown() call.
- */
-#undef HAVE_FCHOWN
-
-/*
- * define HAVE_FCHMOD if your system has the fchmod() call.
- */
-#undef HAVE_FCHMOD
-
-/*
- * define HAVE_VSNPRINTF if your system has vsnprintf() (GNU lib).
- */
-#undef HAVE_VSNPRINTF
-
-/*
- * define HAVE_GETCWD if your system has the getcwd() call.
- */
-#undef HAVE_GETCWD
-
-/*
- * define HAVE_SETLOCALE if your system has the setlocale() call.
- */
-#undef HAVE_SETLOCALE
-
-/*
- * define HAVE_STRFTIME if your system has the strftime() call.
- */
-#undef HAVE_STRFTIME
-
-/*
  * define HAVE_NL_LANGINFO if your system has the nl_langinfo() call
  * and <langinfo.h> defines CODESET.
  */
@@ -653,16 +592,6 @@
  * device and support the ptsname(), grantpt(), unlockpt() functions.
  */
 #undef HAVE_SVR4_PTYS
-
-/*
- * define HAVE_GETPT if you have the getpt() function.
- */
-#undef HAVE_GETPT
-
-/*
- * define HAVE_OPENPTY if your system has the openpty() call.
- */
-#undef HAVE_OPENPTY
 
 /* 
  * define PTYRANGE0 and or PTYRANGE1 if you want to adapt screen
