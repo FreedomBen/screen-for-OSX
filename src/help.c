@@ -976,13 +976,21 @@ int *plen;
 	case 0205:	/* end */
 	  WListMove(MAXWIN, -1);
 	  break;
+	case 'g':
+	  wlistdata->nested ^= WLIST_NESTED;
+	  wlistpage();
+	  break;
+	case 'm':
+	  wlistdata->order ^= 1;
+	  wlistpage();
+	  break;
 	case '\r':
 	case '\n':
 	case ' ':
 	  h = wlistdata->pos;
 	  if (h == MAXWIN && Layer2Window(flayer) && Layer2Window(flayer)->w_type == W_TYPE_GROUP)
 	    break;
-	  if (display && h != MAXWIN && wtab[h] == D_fore)
+	  if (display && h != MAXWIN && wtab[h] && (wtab[h]->w_type == W_TYPE_GROUP || wtab[h] == D_fore))
 	    {
 	      wlistdata->group = wtab[h];
 	      wlistdata->pos = wtab[h]->w_number;
@@ -1007,7 +1015,15 @@ int *plen;
 	case 0007:
 	  h = wlistdata->start;
 	  if (h == -1 && Layer2Window(flayer) && Layer2Window(flayer)->w_type == W_TYPE_GROUP)
-	    break;
+	    {
+	      struct win *p = Layer2Window(flayer);
+	      if (wlistdata->group != p)
+		{
+		  wlistdata->group = p;
+		  wlistpage();
+		}
+	      break;
+	    }
 	  HelpAbort();
 	  display = olddisplay;
 	  if (h >= 0 && wtab[h])
