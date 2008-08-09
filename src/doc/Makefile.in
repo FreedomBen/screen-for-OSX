@@ -6,6 +6,7 @@ VPATH = @srcdir@
 DESTDIR = 
 
 prefix = @prefix@
+datarootdir = @datarootdir@
 mandir = @mandir@
 infodir = @infodir@
 

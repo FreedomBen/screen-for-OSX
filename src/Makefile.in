@@ -13,6 +13,8 @@ DESTDIR =
 
 prefix = @prefix@
 exec_prefix = @exec_prefix@
+datarootdir = @datarootdir@
+datadir = @datadir@
 
 # don't forget to change mandir and infodir in doc/Makefile.
 bindir  = $(exec_prefix)/bin
@@ -20,12 +22,13 @@ bindir  = $(exec_prefix)/bin
 VERSION = @VERSION@
 SCREEN = screen-$(VERSION)
 
-ETCSCREENRC = `sed < config.h -n -e '/define ETCSCREENRC/s/^.*"\([^"]*\)"/\1/p'`
-SCREENENCODINGS = `sed < config.h -n -e '/define SCREENENCODINGS/s/^.*"\([^"]*\)"/\1/p'`
+ETCSCREENRC = $(prefix)/etc/screenrc
+SCREENENCODINGS = $(datadir)/screen/utf8encodings
 
 CC = @CC@
 CFLAGS = @CFLAGS@
-CPPFLAGS = @CPPFLAGS@
+CPPFLAGS = @CPPFLAGS@ -DETCSCREENRC='"$(ETCSCREENRC)"' \
+           -DSCREENENCODINGS='"$(SCREENENCODINGS)"'
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
 
@@ -68,7 +71,8 @@ screen: $(OFILES)
 	$(CC) $(LDFLAGS) -o $@ $(OFILES) $(LIBS)
 
 .c.o:
-	$(CC) -c -I. -I$(srcdir) $(M_CFLAGS) $(DEFS) $(OPTIONS) $(CFLAGS) $<
+	$(CC) -c -I. -I$(srcdir) $(M_CFLAGS) $(CPPFLAGS) $(DEFS) \
+	    $(OPTIONS) $(CFLAGS) $<
 
 install_bin: .version screen
 	-if [ -f $(DESTDIR)$(bindir)/$(SCREEN) ] && [ ! -f $(DESTDIR)$(bindir)/$(SCREEN).old ]; \

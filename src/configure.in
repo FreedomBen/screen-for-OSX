@@ -1297,24 +1297,6 @@ test -n "$seqptx" && LIBS="-ltermcap -lc -lsocket -linet -lnsl -lsec -lseq"
 
 AC_TRY_RUN(main(){exit(0);},,AC_MSG_ERROR(Can't run the compiler - internal error. Sorry.))
 
-ETCSCREENRC="\"/usr/local/etc/screenrc\""
-if test -n "$prefix"; then
-ETCSCREENRC="\"$prefix/etc/screenrc\""
-fi
-AC_MSG_CHECKING(for the global screenrc file)
-AC_ARG_WITH(sys-screenrc, [  --with-sys-screenrc=path  where to put the global screenrc file], [ ETCSCREENRC="\"${withval}\"" ])
-AC_DEFINE_UNQUOTED(ETCSCREENRC,$ETCSCREENRC)
-AC_MSG_RESULT($ETCSCREENRC)
-
-SCREENENCODINGS="\"/usr/local/lib/screen/utf8encodings\""
-if test -n "$datadir"; then
-eval SCREENENCODINGS="$datadir/screen/utf8encodings"
-SCREENENCODINGS="\"$SCREENENCODINGS\""
-fi
-AC_MSG_CHECKING(for the utf8-encodings location)
-AC_DEFINE_UNQUOTED(SCREENENCODINGS,$SCREENENCODINGS)
-AC_MSG_RESULT($SCREENENCODINGS)
-
 AC_OUTPUT(Makefile doc/Makefile, [[
 # a hook for preserving undef directive in config.h
 mv config.h conftest

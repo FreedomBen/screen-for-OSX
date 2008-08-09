@@ -59,15 +59,6 @@
 #define SOCKDIR_IS_LOCAL_TO_HOST
 
 /*
- * Screen sources two startup files. First a global file with a path
- * specified here, second your local $HOME/.screenrc
- * Don't define this, if you don't want it.
- */
-#ifndef ETCSCREENRC
-# define ETCSCREENRC "/usr/local/etc/screenrc"
-#endif
-
-/*
  * Screen can look for the environment variable $SYSSCREENRC and -if it
  * exists- load the file specified in that variable as global screenrc.
  * If you want to enable this feature, define ALLOW_SYSSCREENRC to one (1).
@@ -75,14 +66,6 @@
  */
 #define ALLOW_SYSSCREENRC 1
 
-/*
- * Screen needs encoding files for the translation of utf8
- * into some encodings, e.g. JIS, BIG5.
- * Only needed if FONT, ENCODINGS and UTF8 are defined.
- */
-#ifndef SCREENENCODINGS
-# define SCREENENCODINGS "/usr/local/lib/screen/encodings"
-#endif
 /*
  * Define CHECKLOGIN to force Screen users to enter their Unix password
  * in addition to the screen password.
@@ -425,12 +408,6 @@
 #endif
 
 /*
- * Define HAVE_DIRENT_H if your system has <dirent.h> instead of
- * <sys/dir.h>
- */
-#undef HAVE_DIRENT_H
-
-/*
  * If your system has getutent(), pututline(), etc. to write to the
  * utmp file, define GETUTENT.
  */
@@ -516,11 +493,6 @@
 #undef USEVARARGS
 
 /*
- * If your system has strerror() define this.
- */
-#undef HAVE_STRERROR
-
-/*
  * If the select return value doesn't treat a descriptor that is
  * usable for reading and writing as two hits, define SELECT_BROKEN.
  */
@@ -580,56 +552,6 @@
 #undef NAME_MAX
 
 /*
- * define HAVE_RENAME if your system has a rename() function
- */
-#undef HAVE_RENAME
-
-/*
- * define HAVE__EXIT if your system has the _exit() call.
- */
-#undef HAVE__EXIT
-
-/*
- * define HAVE_LSTAT if your system has symlinks and the lstat() call.
- */
-#undef HAVE_LSTAT
-
-/*
- * define HAVE_UTIMES if your system has the utimes() call.
- */
-#undef HAVE_UTIMES
-
-/*
- * define HAVE_FCHOWN if your system has the fchown() call.
- */
-#undef HAVE_FCHOWN
-
-/*
- * define HAVE_FCHMOD if your system has the fchmod() call.
- */
-#undef HAVE_FCHMOD
-
-/*
- * define HAVE_VSNPRINTF if your system has vsnprintf() (GNU lib).
- */
-#undef HAVE_VSNPRINTF
-
-/*
- * define HAVE_GETCWD if your system has the getcwd() call.
- */
-#undef HAVE_GETCWD
-
-/*
- * define HAVE_SETLOCALE if your system has the setlocale() call.
- */
-#undef HAVE_SETLOCALE
-
-/*
- * define HAVE_STRFTIME if your system has the strftime() call.
- */
-#undef HAVE_STRFTIME
-
-/*
  * define HAVE_NL_LANGINFO if your system has the nl_langinfo() call
  * and <langinfo.h> defines CODESET.
  */
@@ -653,16 +575,6 @@
  * device and support the ptsname(), grantpt(), unlockpt() functions.
  */
 #undef HAVE_SVR4_PTYS
-
-/*
- * define HAVE_GETPT if you have the getpt() function.
- */
-#undef HAVE_GETPT
-
-/*
- * define HAVE_OPENPTY if your system has the openpty() call.
- */
-#undef HAVE_OPENPTY
 
 /* 
  * define PTYRANGE0 and or PTYRANGE1 if you want to adapt screen
