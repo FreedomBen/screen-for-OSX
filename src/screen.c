@@ -335,6 +335,18 @@ pw_try_again:
   return ppp;
 }
 
+static char *
+locale_name(void)
+{
+  char *s;
+
+  s = getenv("LC_ALL");
+  if (s == NULL)
+    s = getenv("LC_CTYPE");
+  if (s == NULL)
+    s = getenv("LANG");
+  return s;
+}
 
 int
 main(ac, av)
@@ -765,8 +777,7 @@ char **av;
 # else
 #  ifdef UTF8
       char *s;
-      if (((s = getenv("LC_ALL")) || (s = getenv("LC_CTYPE")) ||
-          (s = getenv("LANG"))) && InStr(s, "UTF-8"))
+      if ((s = locale_name()) && InStr(s, "UTF-8"))
         nwin_options.encoding = UTF8;
 #  endif
       debug1("environment says encoding=%d\n", nwin_options.encoding);
@@ -775,8 +786,7 @@ char **av;
 # ifdef DW_CHARS
   {
     char *s;
-    if((s = getenv("LC_ALL")) || (s = getenv("LC_CTYPE")) ||
-       (s = getenv("LANG")))
+    if ((s = locale_name()))
     {
       if(!strncmp(s, "zh_", 3) || !strncmp(s, "ja_", 3) || !strncmp(s, "ko_", 3))
       {
