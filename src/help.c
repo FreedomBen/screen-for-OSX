@@ -979,8 +979,17 @@ int *plen;
 	case '\r':
 	case '\n':
 	case ' ':
-	  done = 1;
 	  h = wlistdata->pos;
+	  if (h == MAXWIN && Layer2Window(flayer) && Layer2Window(flayer)->w_type == W_TYPE_GROUP)
+	    break;
+	  if (display && h != MAXWIN && wtab[h] == D_fore)
+	    {
+	      wlistdata->group = wtab[h];
+	      wlistdata->pos = wtab[h]->w_number;
+	      wlistpage();
+	      break;
+	    }
+	  done = 1;
 	  if (!display || h == MAXWIN || !wtab[h] || wtab[h] == D_fore || (flayer->l_cvlist && flayer->l_cvlist->c_lnext))
 	    HelpAbort();
 #ifdef MULTIUSER
