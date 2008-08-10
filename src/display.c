@@ -631,6 +631,8 @@ struct canvas *cv;
       cv->c_ye = ye;
       cv->c_xoff = cv->c_xs;
       cv->c_yoff = cv->c_ys;
+      cv->c_blank.l_width = cv->c_xe - cv->c_xs + 1;
+      cv->c_blank.l_height = cv->c_ye - cv->c_ys + 1;
       return;
     }
 
@@ -773,6 +775,8 @@ struct canvas *cv;
         }
       cv->c_xoff = cv->c_xs;
       cv->c_yoff = cv->c_ys;
+      cv->c_blank.l_width = cv->c_xe - cv->c_xs + 1;
+      cv->c_blank.l_height = cv->c_ye - cv->c_ys + 1;
       if (cv->c_slperp)
 	{
           ResizeCanvas(cv);
