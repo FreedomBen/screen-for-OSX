@@ -4363,13 +4363,20 @@ void
 FreeLayoutCv(cv)
 struct canvas *cv;
 {
-  for (; cv; cv = cv->c_slnext)
-    if (cv->c_slperp)
-      {
-	FreeLayoutCv(cv->c_slperp);
-	free(cv->c_slperp);
-	cv->c_slperp = 0;
-      }
+  struct canvas *cnext, *c = cv;
+  for (; cv; cv = cnext)
+    {
+      if (cv->c_slperp)
+	{
+	  FreeLayoutCv(cv->c_slperp);
+	  free(cv->c_slperp);
+	  cv->c_slperp = 0;
+	}
+      cnext = cv->c_slnext;
+      cv->c_slnext = 0;
+      if (cv != c)
+	free(cv);
+    }
 }
 
 static void
