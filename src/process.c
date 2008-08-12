@@ -2973,6 +2973,7 @@ int key;
 	  debug2("rename(%s, %s) done\n", SockPath, buf);
 	  strcpy(SockPath, buf);
 	  MakeNewEnv();
+	  WindowChanged((struct win *)0, 'S');
 	}
       break;
     case RC_SETENV:
