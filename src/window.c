@@ -619,9 +619,9 @@ struct NewWindow *newwin;
 
   p->w_number = n;
   p->w_group = 0;
-  if (p->w_type != W_TYPE_GROUP && fore && fore->w_type == W_TYPE_GROUP)
+  if (fore && fore->w_type == W_TYPE_GROUP)
     p->w_group = fore;
-  else if (p->w_type != W_TYPE_GROUP && fore && fore->w_group)
+  else if (fore && fore->w_group)
     p->w_group = fore->w_group;
 #ifdef MULTIUSER
   /*
