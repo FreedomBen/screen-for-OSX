@@ -1160,7 +1160,8 @@ char **av;
     }
   else if (dflag && !mflag)
     {
-      (void) Attach(MSG_DETACH);
+      SET_TTYNAME(0);
+      Attach(MSG_DETACH);
       Msg(0, "[%s %sdetached.]\n", SockName, (dflag > 1 ? "power " : ""));
       eexit(0);
       /* NOTREACHED */

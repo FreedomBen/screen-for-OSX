@@ -306,7 +306,7 @@ int how;
     Panic(0, "That screen is %sdetached.", dflag ? "already " : "not ");
 #ifdef REMOTE_DETACH
   if (dflag &&
-      (how == MSG_ATTACH || how == MSG_DETACH || how == MSG_POW_DETACH))
+      (how == MSG_DETACH || how == MSG_POW_DETACH))
     {
       m.m.detach.dpid = getpid();
       strncpy(m.m.detach.duser, LoginName, sizeof(m.m.detach.duser) - 1); 
@@ -317,9 +317,16 @@ int how;
       else
 # endif
 	m.type = MSG_DETACH;
+      /* If there is no password for the session, or the user enters the correct
+       * password, then we get a SIGCONT. Otherwise we get a SIG_BYE */
+      signal(SIGCONT, AttachSigCont);
       if (WriteMessage(lasts, &m))
 	Panic(errno, "WriteMessage");
       close(lasts);
+      while (!ContinuePlease)
+        pause();	/* wait for SIGCONT */
+      signal(SIGCONT, SIG_DFL);
+      ContinuePlease = 0;
       if (how != MSG_ATTACH)
 	return 0;	/* we detached it. jw. */
       sleep(1);	/* we dont want to overrun our poor backend. jw. */
@@ -347,6 +354,18 @@ int how;
   if ((s = getenv("COLUMNS")))
     m.m.attach.columns = atoi(s);
   m.m.attach.encoding = nwin_options.encoding > 0 ? nwin_options.encoding + 1 : 0;
+
+#ifdef REMOTE_DETACH
+#ifdef POW_DETACH
+  if (dflag == 2)
+    m.m.attach.detachfirst = MSG_POW_DETACH;
+  else
+#endif
+  if (dflag)
+    m.m.attach.detachfirst = MSG_DETACH;
+  else
+#endif
+    m.m.attach.detachfirst = MSG_ATTACH;
 
 #ifdef MULTIUSER
   /* setup CONT signal handler to repair the terminal mode */

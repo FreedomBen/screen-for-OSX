@@ -53,6 +53,7 @@ static void  DoCommandMsg __P((struct msg *));
 static int   sconnect __P((int, struct sockaddr *, int));
 #endif
 static void  FinishAttach __P((struct msg *));
+static void  FinishDetach __P((struct msg *));
 static void  AskPassword __P((struct msg *));
 
 
@@ -777,6 +778,150 @@ char *s1, *s2;
 # define TTYCMP(a, b) strcmp(a, b)
 #endif
 
+static int
+CreateTempDisplay(m, recvfd, wi)
+struct msg *m;
+int recvfd;
+struct win *wi;
+{
+  int pid;
+  int attach;
+  char *user;
+  int i;
+  struct mode Mode;
+  struct display *olddisplays = displays;
+
+  switch (m->type)
+    {
+      case MSG_ATTACH:
+	pid = m->m.attach.apid;
+	user = m->m.attach.auser;
+	attach = 1;
+	break;
+#ifdef REMOTE_DETACH
+      case MSG_DETACH:
+# ifdef POW_DETACH
+      case MSG_POW_DETACH:
+# endif				/* POW_DETACH */
+	pid = m->m.detach.dpid;
+	user = m->m.detach.duser;
+	attach = 0;
+	break;
+#endif
+      default:
+	return -1;
+    }
+
+  if (CheckPid(pid))
+    {
+      Msg(0, "Attach attempt with bad pid(%d)!", pid);
+      return -1;
+    }
+  if (recvfd != -1)
+    {
+      char *myttyname;
+      i = recvfd;
+      recvfd = -1;
+      myttyname = ttyname(i);
+      if (myttyname == 0 || strcmp(myttyname, m->m_tty))
+	{
+	  Msg(errno, "Attach: passed fd does not match tty: %s - %s!", m->m_tty, myttyname ? myttyname : "NULL");
+	  close(i);
+	  Kill(pid, SIG_BYE);
+	  return -1;
+	}
+    }
+  else if ((i = secopen(m->m_tty, O_RDWR | O_NONBLOCK, 0)) < 0)
+    {
+      Msg(errno, "Attach: Could not open %s!", m->m_tty);
+      Kill(pid, SIG_BYE);
+      return -1;
+    }
+#ifdef MULTIUSER
+  if (attach)
+    Kill(pid, SIGCONT);
+#endif
+
+#if defined(ultrix) || defined(pyr) || defined(NeXT)
+  brktty(i);	/* for some strange reason this must be done */
+#endif
+
+  if (attach)
+    {
+      if (display || wi)
+	{
+	  write(i, "Attaching from inside of screen?\n", 33);
+	  close(i);
+	  Kill(pid, SIG_BYE);
+	  Msg(0, "Attach msg ignored: coming from inside.");
+	  return -1;
+	}
+
+#ifdef MULTIUSER
+      if (strcmp(user, LoginName))
+	if (*FindUserPtr(user) == 0)
+	  {
+	      write(i, "Access to session denied.\n", 26);
+	      close(i);
+	      Kill(pid, SIG_BYE);
+	      Msg(0, "Attach: access denied for user %s.", user);
+	      return -1;
+	  }
+#endif
+
+      debug2("RecMsg: apid %d is o.k. and we just opened '%s'\n", pid, m->m_tty);
+#ifndef MULTI
+      if (displays)
+	{
+	  write(i, "Screen session in use.\n", 23);
+	  close(i);
+	  Kill(pid, SIG_BYE);
+	  return -1;
+	}
+#endif
+    }
+
+  /* create new display */
+  GetTTY(i, &Mode);
+  if (MakeDisplay(user, m->m_tty, attach ? m->m.attach.envterm : "", i, pid, &Mode) == 0)
+    {
+      write(i, "Could not make display.\n", 24);
+      close(i);
+      Msg(0, "Attach: could not make display for user %s", user);
+      Kill(pid, SIG_BYE);
+      return -1;
+    }
+#ifdef ENCODINGS
+  if (attach)
+    {
+# ifdef UTF8
+      D_encoding = m->m.attach.encoding == 1 ? UTF8 : m->m.attach.encoding ? m->m.attach.encoding - 1 : 0;
+# else
+      D_encoding = m->m.attach.encoding ? m->m.attach.encoding - 1 : 0;
+# endif
+      if (D_encoding < 0 || !EncodingName(D_encoding))
+	D_encoding = 0;
+#endif
+    }
+
+  if (iflag && olddisplays)
+    {
+      iflag = 0;
+#if defined(TERMIO) || defined(POSIX)
+      olddisplays->d_NewMode.tio.c_cc[VINTR] = VDISABLE;
+      olddisplays->d_NewMode.tio.c_lflag &= ~ISIG;
+#else /* TERMIO || POSIX */
+      olddisplays->d_NewMode.m_tchars.t_intrc = -1;
+#endif /* TERMIO || POSIX */
+      SetTTY(olddisplays->d_userfd, &olddisplays->d_NewMode);
+    }
+  SetMode(&D_OldMode, &D_NewMode, D_flow, iflag);
+  SetTTY(D_userfd, &D_NewMode);
+  if (fcntl(D_userfd, F_SETFL, FNBLOCK))
+    Msg(errno, "Warning: NBLOCK fcntl failed");
+  return 0;
+}
+
 void
 ReceiveMsg()
 {
@@ -791,6 +936,7 @@ ReceiveMsg()
 #endif
   struct display *olddisplays = displays;
   int recvfd = -1;
+  struct acluser *user;
 
 #ifdef NAMEDPIPE
   debug("Ha, there was someone knocking on my fifo??\n");
@@ -970,107 +1116,8 @@ ReceiveMsg()
       /* FALLTHROUGH */
 
     case MSG_ATTACH:
-      if (CheckPid(m.m.attach.apid))
-	{
-	  Msg(0, "Attach attempt with bad pid(%d)!", m.m.attach.apid);
-          break;
-	}
-      if (recvfd != -1)
-	{
-	  char *myttyname;
-	  i = recvfd;
-	  recvfd = -1;
-	  myttyname = ttyname(i);
-	  if (myttyname == 0 || strcmp(myttyname, m.m_tty))
-	    {
-	      Msg(errno, "Attach: passed fd does not match tty: %s - %s!", m.m_tty, myttyname ? myttyname : "NULL");
-	      close(i);
-	      Kill(m.m.attach.apid, SIG_BYE);
-	      break;
-	    }
-	}
-      else if ((i = secopen(m.m_tty, O_RDWR | O_NONBLOCK, 0)) < 0)
-	{
-	  Msg(errno, "Attach: Could not open %s!", m.m_tty);
-	  Kill(m.m.attach.apid, SIG_BYE);
-	  break;
-	}
-# ifdef MULTIUSER
-      Kill(m.m.attach.apid, SIGCONT);
-# endif
-
-#if defined(ultrix) || defined(pyr) || defined(NeXT)
-      brktty(i);	/* for some strange reason this must be done */
-#endif
-
-      if (display || wi)
-	{
-	  write(i, "Attaching from inside of screen?\n", 33);
-	  close(i);
-	  Kill(m.m.attach.apid, SIG_BYE);
-	  Msg(0, "Attach msg ignored: coming from inside.");
-	  break;
-	}
-
-#ifdef MULTIUSER
-      if (strcmp(m.m.attach.auser, LoginName))
-        if (*FindUserPtr(m.m.attach.auser) == 0)
-	  {
-              write(i, "Access to session denied.\n", 26);
-	      close(i);
-	      Kill(m.m.attach.apid, SIG_BYE);
-	      Msg(0, "Attach: access denied for user %s.", m.m.attach.auser);
-	      break;
-	  }
-#endif
-
-      debug2("RecMsg: apid %d is o.k. and we just opened '%s'\n", m.m.attach.apid, m.m_tty);
-#ifndef MULTI
-      if (displays)
-	{
-	  write(i, "Screen session in use.\n", 23);
-	  close(i);
-	  Kill(m.m.attach.apid, SIG_BYE);
-	  break;
-	}
-#endif
-
-      /* create new display */
-      GetTTY(i, &Mode);
-      if (MakeDisplay(m.m.attach.auser, m.m_tty, m.m.attach.envterm, i, m.m.attach.apid, &Mode) == 0)
-        {
-	  write(i, "Could not make display.\n", 24);
-	  close(i);
-	  Msg(0, "Attach: could not make display for user %s", m.m.attach.auser);
-	  Kill(m.m.attach.apid, SIG_BYE);
-	  break;
-        }
-#ifdef ENCODINGS
-# ifdef UTF8
-      D_encoding = m.m.attach.encoding == 1 ? UTF8 : m.m.attach.encoding ? m.m.attach.encoding - 1 : 0;
-# else
-      D_encoding = m.m.attach.encoding ? m.m.attach.encoding - 1 : 0;
-# endif
-      if (D_encoding < 0 || !EncodingName(D_encoding))
-	D_encoding = 0;
-#endif
-      /* turn off iflag on a multi-attach... */
-      if (iflag && olddisplays)
-	{
-	  iflag = 0;
-#if defined(TERMIO) || defined(POSIX)
-	  olddisplays->d_NewMode.tio.c_cc[VINTR] = VDISABLE;
-	  olddisplays->d_NewMode.tio.c_lflag &= ~ISIG;
-#else /* TERMIO || POSIX */
-	  olddisplays->d_NewMode.m_tchars.t_intrc = -1;
-#endif /* TERMIO || POSIX */
-	  SetTTY(olddisplays->d_userfd, &olddisplays->d_NewMode);
-	}
-      SetMode(&D_OldMode, &D_NewMode, D_flow, iflag);
-      SetTTY(D_userfd, &D_NewMode);
-      if (fcntl(D_userfd, F_SETFL, FNBLOCK))
-        Msg(errno, "Warning: NBLOCK fcntl failed");
-
+      if (CreateTempDisplay(&m, recvfd, wi))
+	break;
 #ifdef PASSWORD
       if (D_user->u_password && *D_user->u_password)
 	AskPassword(&m);
@@ -1090,17 +1137,17 @@ ReceiveMsg()
 # ifdef POW_DETACH
     case MSG_POW_DETACH:
 # endif				/* POW_DETACH */
-      for (display = displays; display; display = next)
+#ifdef PASSWORD
+      user = *FindUserPtr(m.m.detach.duser);
+      if (user && user->u_password && *user->u_password)
 	{
-	  next = display->d_next;
-# ifdef POW_DETACH
-	  if (m.type == MSG_POW_DETACH)
-	    Detach(D_REMOTE_POWER);
-	  else
-# endif				/* POW_DETACH */
-	  if (m.type == MSG_DETACH)
-	    Detach(D_REMOTE);
+	  if (CreateTempDisplay(&m, recvfd, 0))
+	    break;
+	  AskPassword(&m);
 	}
+      else
+#endif /* PASSWORD */
+	FinishDetach(&m);
       break;
 #endif
     case MSG_COMMAND:
@@ -1197,6 +1244,9 @@ struct msg *m;
 
   ASSERT(display);
   pid = D_userpid;
+
+  if (m->m.attach.detachfirst != MSG_ATTACH)
+    FinishDetach(m);
 
 #if defined(pyr) || defined(xelos) || defined(sequent)
   /*
@@ -1342,6 +1392,59 @@ struct msg *m;
 # endif /* SIG_NODEBUG */
 }
 
+static void
+FinishDetach(m)
+struct msg *m;
+{
+  struct display *next, **d, *det;
+  int pid;
+
+  if (m->type == MSG_ATTACH)
+    pid = D_userpid;
+  else
+    pid = m->m.detach.dpid;
+
+  /* Remove the temporary display prompting for the password from the list */
+  for (d = &displays; (det = *d); d = &det->d_next)
+    {
+      if (det->d_userpid == pid)
+	break;
+    }
+  if (det)
+    {
+      *d = det->d_next;
+      det->d_next = 0;
+    }
+
+  for (display = displays; display; display = next)
+    {
+      next = display->d_next;
+# ifdef POW_DETACH
+      if (m->type == MSG_POW_DETACH)
+	Detach(D_REMOTE_POWER);
+      else
+# endif				/* POW_DETACH */
+      if (m->type == MSG_DETACH)
+	Detach(D_REMOTE);
+      else if (m->type == MSG_ATTACH)
+	{
+#ifdef POW_DETACH
+	  if (m->m.attach.detachfirst == MSG_POW_DETACH)
+	    Detach(D_REMOTE_POWER);
+	  else
+#endif
+	  if (m->m.attach.detachfirst == MSG_DETACH)
+	    Detach(D_REMOTE);
+	}
+    }
+  display = displays = det;
+  if (m->type != MSG_ATTACH)
+    {
+      if (display)
+	FreeDisplay();
+      Kill(pid, SIGCONT);
+    }
+}
 
 #ifdef PASSWORD
 static void PasswordProcessInput __P((char *, int));
@@ -1404,7 +1507,10 @@ int ilen;
 	  AddStr("\r\n");
 	  D_processinputdata = 0;
 	  D_processinput = ProcessInput;
-	  FinishAttach(&pwdata->m);
+	  if (pwdata->m.type == MSG_ATTACH)
+	    FinishAttach(&pwdata->m);
+	  else
+	    FinishDetach(&pwdata->m);
 	  free(pwdata);
 	  return;
 	}
