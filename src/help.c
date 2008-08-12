@@ -976,11 +976,19 @@ int *plen;
 	case 0205:	/* end */
 	  WListMove(MAXWIN, -1);
 	  break;
+	case 'a':
+	  /* All-window view */
+	  wlistdata->group = 0;
+	  wlistdata->nested = WLIST_NESTED;
+	  wlistpage();
+	  break;
 	case 'g':
+	  /* Toggle nested view */
 	  wlistdata->nested ^= WLIST_NESTED;
 	  wlistpage();
 	  break;
 	case 'm':
+	  /* Toggle MRU view */
 	  wlistdata->order ^= 1;
 	  wlistpage();
 	  break;
