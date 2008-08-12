@@ -925,16 +925,11 @@ struct win *wi;
 void
 ReceiveMsg()
 {
-  int left, len, i;
+  int left, len;
   static struct msg m;
   char *p;
   int ns = ServerSocket;
-  struct mode Mode;
   struct win *wi;
-#ifdef REMOTE_DETACH
-  struct display *next;
-#endif
-  struct display *olddisplays = displays;
   int recvfd = -1;
   struct acluser *user;
 
@@ -1102,12 +1097,8 @@ ReceiveMsg()
        * the window that issued the create message need not be an active
        * window. Then we create the window without having a display.
        * Resulting in another inactive window.
-       * 
-       * Currently we enforce that at least one display exists. But why?
-       * jw.
        */
-      if (displays)
-	ExecCreate(&m);
+      ExecCreate(&m);
       break;
     case MSG_CONT:
 	if (display && D_userpid != 0 && kill(D_userpid, 0) == 0)
