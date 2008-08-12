@@ -338,13 +338,16 @@ pw_try_again:
 static char *
 locale_name(void)
 {
-  char *s;
+  static char *s;
 
-  s = getenv("LC_ALL");
-  if (s == NULL)
-    s = getenv("LC_CTYPE");
-  if (s == NULL)
-    s = getenv("LANG");
+  if (!s)
+    {
+      s = getenv("LC_ALL");
+      if (s == NULL)
+        s = getenv("LC_CTYPE");
+      if (s == NULL)
+        s = getenv("LANG");
+    }
   return s;
 }
 
@@ -796,6 +799,31 @@ char **av;
   }
 #endif
 #endif
+  if (nwin_options.aka)
+    {
+#ifdef ENCODINGS
+      if (nwin_options.encoding > 0)
+        {
+          size_t len = strlen(nwin_options.aka);
+          size_t newsz;
+          char *newbuf = malloc(3 * len);
+          if (!newbuf)
+            Panic(0, strnomem);
+          newsz = RecodeBuf(nwin_options.aka, len,
+                            nwin_options.encoding, 0, newbuf);
+          newbuf[newsz] = '\0';
+          nwin_options.aka = newbuf;
+        }
+      else
+#endif
+        {
+          /* If we just use the original value from av,
+             subsequent shelltitle invocations will attempt to free
+             space we don't own... */
+          nwin_options.aka = SaveStr(nwin_options.aka);
+        }
+    }
+  
   if (SockMatch && strlen(SockMatch) >= MAXSTR)
     Panic(0, "Ridiculously long socketname - try again.");
   if (cmdflag && !rflag && !dflag && !xflag)
