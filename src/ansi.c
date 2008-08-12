@@ -2292,10 +2292,21 @@ int n1, n2;
   sprintf(rbuf, fmt, n1, n2);
   len = strlen(rbuf);
 
-  if ((unsigned)(curr->w_inlen + len) <= sizeof(curr->w_inbuf))
+  if (W_UWP(curr))
     {
-      bcopy(rbuf, curr->w_inbuf + curr->w_inlen, len);
-      curr->w_inlen += len;
+      if ((unsigned)(curr->w_pwin->p_inlen + len) <= sizeof(curr->w_pwin->p_inbuf))
+	{
+	  bcopy(rbuf, curr->w_pwin->p_inbuf + curr->w_pwin->p_inlen, len);
+	  curr->w_pwin->p_inlen += len;
+	}
+    }
+  else
+    {
+      if ((unsigned)(curr->w_inlen + len) <= sizeof(curr->w_inbuf))
+	{
+	  bcopy(rbuf, curr->w_inbuf + curr->w_inlen, len);
+	  curr->w_inlen += len;
+	}
     }
 }
 
