@@ -120,13 +120,14 @@ char *match;
   int firsts = -1, sockfd;
   char *firstn = NULL;
   int nfound = 0, ngood = 0, ndead = 0, nwipe = 0, npriv = 0;
+  int nperfect = 0;
   struct sent
     {
       struct sent *next;
       int mode;
       char *name;
     } *slist, **slisttail, *sent, *nsent;
-	  
+
   if (match)
     {
       matchlen = strlen(match);
@@ -155,6 +156,7 @@ char *match;
   slisttail = &slist;
   while ((dp = readdir(dirp)))
     {
+      int cmatch = 0;
       name = dp->d_name;
       debug1("- %s\n",  name);
       if (*name == 0 || *name == '.' || strlen(name) > 2*MAXSTR)
@@ -175,6 +177,7 @@ char *match;
 	    n += 3;
 	  if (strncmp(match, n, matchlen))
 	    continue;
+	  cmatch = (*(n + matchlen) == 0);
 	  debug1("  -> matched %s\n", match);
 	}
       sprintf(SockPath + sdirlen, "/%s", name);
@@ -297,8 +300,12 @@ char *match;
 	  continue;
 	}
       ngood++;
-      if (fdp && firsts == -1)
+      if (cmatch)
+	nperfect++;
+      if (fdp && (firsts == -1 || (cmatch && nperfect == 1)))
 	{
+	  if (firsts != -1)
+	    close(firsts);
 	  firsts = sockfd;
 	  firstn = sent->name;
 	  debug("  taken.\n");
@@ -307,9 +314,11 @@ char *match;
         {
 	  debug("  discarded.\n");
 	  close(sockfd);
-	} 
+	}
     }
   (void)closedir(dirp);
+  if (!lsflag && nperfect == 1)
+    ngood = nperfect;
   if (nfound && (lsflag || ngood != 1) && !quietflag)
     {
       switch(ngood)
@@ -389,7 +398,7 @@ char *match;
     *nfoundp = nfound - nwipe;
   return ngood;
 }
-  
+
 
 /*
 **
