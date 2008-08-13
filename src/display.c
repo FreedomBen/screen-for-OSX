@@ -4337,7 +4337,7 @@ char **cmdv;
       (void)ioctl(0, TIOCSWINSZ, (char *)&glwz);
 #else
       sprintf(libuf, "LINES=%d", D_height);
-      sprintf(libuf, "COLUMNS=%d", D_width);
+      sprintf(cobuf, "COLUMNS=%d", D_width);
       *np++ = libuf;
       *np++ = cobuf;
 #endif
