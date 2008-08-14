@@ -2732,6 +2732,12 @@ int rec;
 	    p += strlen(p) - 1;
 	  }
 	  break;
+        case 'p':
+          {
+            sprintf(p, "%d", (plusflg && display) ? D_userpid : getpid());
+            p += strlen(p) - 1;
+          }
+          break;
 	case 'F':
 	  p--;
 	  /* small hack */
