@@ -102,7 +102,7 @@ static int utmpfd = -1;
 #endif
 
 
-# if defined(GETUTENT) && (!defined(SVR4) || defined(__hpux))
+# if defined(GETUTENT) && (!defined(SVR4) || defined(__hpux)) && ! defined(__CYGWIN__)
 #  if defined(hpux) /* cruel hpux release 8.0 */
 #   define pututline _pututline
 #  endif /* hpux */
@@ -581,7 +581,11 @@ struct win *wi;
     }
 #endif
   setutent();
+#ifndef __CYGWIN__
   return pututline(u) != 0;
+#else
+  return 1;
+#endif
 }
 
 static void
@@ -589,7 +593,7 @@ makedead(u)
 struct utmp *u;
 {
   u->ut_type = DEAD_PROCESS;
-#if !defined(linux) || defined(EMPTY)
+#if (!defined(linux) || defined(EMPTY)) && !defined(__CYGWIN__)
   u->ut_exit.e_termination = 0;
   u->ut_exit.e_exit = 0;
 #endif
