@@ -18,7 +18,7 @@ WIP notes on hacking the Screen source.
   termcap features of the current display. These are found in term.h,
   which is automatically generated from term.c by term.sh.
 
-* The main input-reading function from the user-facing display,
+* The main input-reading function for handling user input from a display,
   is disp_readev_fn in display.c. This also handles automatic transformation
   of mouse-tracking codes from display coordinates to screen-window
   coordinates, and decodes characters from the display's encoding, passing
