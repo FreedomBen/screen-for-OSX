@@ -169,7 +169,7 @@ realclean: .version mostlyclean
 
 tags TAGS: $(CFILES)
 	-ctags    *.sh $(CFILES) *.h
-	-ctags -e *.sh $(CFILES) *.h
+	-etags    *.sh $(CFILES) *.h
 
 dist: .version $(SCREEN).tar.gz
 
