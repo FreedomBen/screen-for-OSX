@@ -4308,7 +4308,10 @@ char **cmdv;
       displays = 0;
 #ifdef DEBUG
       if (dfp && dfp != stderr)
-        fclose(dfp);
+	{
+	  fclose(dfp);
+	  dfp = 0;
+	}
 #endif
       if (setgid(real_gid) || setuid(real_uid))
         Panic(errno, "setuid/setgid");
