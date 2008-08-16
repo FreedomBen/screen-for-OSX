@@ -5075,9 +5075,11 @@ struct win *wi;
 	    KillLayerChain(l);
 	  l = &cv->c_blank;
 	  l->l_data = 0;
-	  ASSERT(l->l_cvlist != cv);
-	  cv->c_lnext = l->l_cvlist;
-	  l->l_cvlist = cv;
+	  if (l->l_cvlist != cv)
+	    {
+	      cv->c_lnext = l->l_cvlist;
+	      l->l_cvlist = cv;
+	    }
 	  cv->c_layer = l;
 	  /* Do not end here. Multiple canvases can have the same window */
 	}

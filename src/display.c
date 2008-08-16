@@ -412,6 +412,22 @@ FreeDisplay()
   display = 0;
 }
 
+static void
+CanvasInitBlank(cv)
+struct canvas *cv;
+{
+  cv->c_blank.l_cvlist = cv;
+  cv->c_blank.l_width = cv->c_xe - cv->c_xs + 1;
+  cv->c_blank.l_height = cv->c_ye - cv->c_ys + 1;
+  cv->c_blank.l_x = cv->c_blank.l_y = 0;
+  cv->c_blank.l_layfn = &BlankLf;
+  cv->c_blank.l_data = 0;
+  cv->c_blank.l_next = 0;
+  cv->c_blank.l_bottom = &cv->c_blank;
+  cv->c_blank.l_blocking = 0;
+  cv->c_layer = &cv->c_blank;
+}
+
 int
 MakeDefaultCanvas()
 {
@@ -445,16 +461,7 @@ MakeDefaultCanvas()
   cv->c_captev.data = (char *)cv;
   cv->c_captev.handler = cv_winid_fn;
 
-  cv->c_blank.l_cvlist = cv;
-  cv->c_blank.l_width = cv->c_xe - cv->c_xs + 1;
-  cv->c_blank.l_height = cv->c_ye - cv->c_ys + 1;
-  cv->c_blank.l_x = cv->c_blank.l_y = 0;
-  cv->c_blank.l_layfn = &BlankLf;
-  cv->c_blank.l_data = 0;
-  cv->c_blank.l_next = 0;
-  cv->c_blank.l_bottom = &cv->c_blank;
-  cv->c_blank.l_blocking = 0;
-  cv->c_layer = &cv->c_blank;
+  CanvasInitBlank(cv);
   cv->c_lnext = 0;
 
   D_cvlist = cv;
@@ -820,6 +827,7 @@ struct canvas *cv;
   if (pcv->c_slprev)
     pcv->c_slprev->c_slnext = pcv;
   pcv->c_slweight = cv->c_slweight;
+  CanvasInitBlank(pcv);
   cv->c_slweight = 1;
   cv->c_slnext = 0;
   cv->c_slprev = 0;
@@ -920,16 +928,7 @@ int orient;
   cv->c_captev.data = (char *)cv;
   cv->c_captev.handler = cv_winid_fn;
 
-  cv->c_blank.l_cvlist = cv;
-  cv->c_blank.l_width = cv->c_xe - cv->c_xs + 1;
-  cv->c_blank.l_height = cv->c_ye - cv->c_ys + 1;
-  cv->c_blank.l_x = cv->c_blank.l_y = 0;
-  cv->c_blank.l_layfn = &BlankLf;
-  cv->c_blank.l_data = 0;
-  cv->c_blank.l_next = 0;
-  cv->c_blank.l_bottom = &cv->c_blank;
-  cv->c_blank.l_blocking = 0;
-  cv->c_layer = &cv->c_blank;
+  CanvasInitBlank(cv);
   cv->c_lnext = 0;
 
   cv->c_next    = 0;
@@ -4417,6 +4416,7 @@ int save;
 	{
 	  cvt->c_slperp = (struct canvas *)calloc(1, sizeof(struct canvas));
 	  cvt->c_slperp->c_slback = cvt;
+	  CanvasInitBlank(cvt->c_slperp);
 	  DupLayoutCv(cvf->c_slperp, cvt->c_slperp, save);
 	}
       if (cvf->c_slnext)
@@ -4424,6 +4424,7 @@ int save;
 	  cvt->c_slnext = (struct canvas *)calloc(1, sizeof(struct canvas));
 	  cvt->c_slnext->c_slprev = cvt;
 	  cvt->c_slnext->c_slback = cvt->c_slback;
+	  CanvasInitBlank(cvt->c_slnext);
 	}
       cvf = cvf->c_slnext;
       cvt = cvt->c_slnext;
