@@ -2788,9 +2788,12 @@ RemoveStatus()
   oldflayer = flayer;
   if (where == STATUS_ON_WIN)
     {
-      GotoPos(0, STATLINE);
-      RefreshLine(STATLINE, 0, D_status_len - 1, 0);
-      GotoPos(D_status_lastx, D_status_lasty);
+      if (captionalways || (D_canvas.c_slperp && D_canvas.c_slperp->c_slnext))
+	{
+	  GotoPos(0, STATLINE);
+	  RefreshLine(STATLINE, 0, D_status_len - 1, 0);
+	  GotoPos(D_status_lastx, D_status_lasty);
+	}
     }
   else
     RefreshHStatus();
