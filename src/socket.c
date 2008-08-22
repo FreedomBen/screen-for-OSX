@@ -802,6 +802,7 @@ struct win *wi;
 
   switch (m->type)
     {
+      case MSG_CONT:
       case MSG_ATTACH:
 	pid = m->m.attach.apid;
 	user = m->m.attach.auser;
@@ -1245,8 +1246,14 @@ struct msg *m;
   ASSERT(display);
   pid = D_userpid;
 
-  if (m->m.attach.detachfirst != MSG_ATTACH)
+#ifdef REMOTE_DETACH
+  if (m->m.attach.detachfirst == MSG_DETACH
+# ifdef POW_DETACH
+      || m->m.attach.detachfirst == MSG_POW_DETACH
+# endif
+     )
     FinishDetach(m);
+#endif
 
 #if defined(pyr) || defined(xelos) || defined(sequent)
   /*
@@ -1507,10 +1514,16 @@ int ilen;
 	  AddStr("\r\n");
 	  D_processinputdata = 0;
 	  D_processinput = ProcessInput;
-	  if (pwdata->m.type == MSG_ATTACH)
-	    FinishAttach(&pwdata->m);
-	  else
+#ifdef REMOTE_DETACH
+	  if (pwdata->m.type == MSG_DETACH
+# ifdef POW_DETACH
+	      || pwdata->m.type == MSG_POW_DETACH
+# endif
+	     )
 	    FinishDetach(&pwdata->m);
+	  else
+#endif
+	    FinishAttach(&pwdata->m);
 	  free(pwdata);
 	  return;
 	}
