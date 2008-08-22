@@ -978,7 +978,7 @@ char **av;
     Panic(0, "$HOME too long - sorry.");
 
   attach_tty = "";
-  if (!detached && !lsflag && !cmdflag && !(dflag && !mflag && !rflag && !xflag) && !(!mflag && !SockMatch && sty))
+  if (!detached && !lsflag && !cmdflag && !(dflag && !mflag && !rflag && !xflag) && !(!mflag && !SockMatch && sty && !xflag))
     {
 #ifndef NAMEDPIPE
       int fl;
