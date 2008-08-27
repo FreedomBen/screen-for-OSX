@@ -120,6 +120,9 @@ int data;
   int maxlen;
   struct inpdata *inpdata;
   
+  if (!flayer)
+    return;
+
   if (len > 100)
     len = 100;
   if (!(mode & INP_NOECHO))
