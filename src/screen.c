@@ -1832,6 +1832,17 @@ int mode;
   if (display == 0)
     return;
 
+#define AddStrSock(msg) do { \
+    if (SockName) \
+      { \
+	AddStr("[" msg " from "); \
+	AddStr(SockName); \
+	AddStr("]\r\n"); \
+      } \
+    else \
+      AddStr("[" msg "]\r\n"); \
+  } while (0)
+
   signal(SIGHUP, SIG_IGN);
   debug1("Detach(%d)\n", mode);
   if (D_status)
@@ -1845,7 +1856,7 @@ int mode;
       sign = SIG_BYE;
       break;
     case D_DETACH:
-      AddStr("[detached]\r\n");
+      AddStrSock("detached");
       sign = SIG_BYE;
       break;
 #ifdef BSDJOBS
@@ -1855,14 +1866,14 @@ int mode;
 #endif
 #ifdef REMOTE_DETACH
     case D_REMOTE:
-      AddStr("[remote detached]\r\n");
+      AddStrSock("remote detached");
       sign = SIG_BYE;
       break;
 #endif
 #ifdef POW_DETACH
     case D_POWER:
-      AddStr("[power detached]\r\n");
-      if (PowDetachString) 
+      AddStrSock("power detached");
+      if (PowDetachString)
 	{
 	  AddStr(PowDetachString);
 	  AddStr("\r\n");
@@ -1871,8 +1882,8 @@ int mode;
       break;
 #ifdef REMOTE_DETACH
     case D_REMOTE_POWER:
-      AddStr("[remote power detached]\r\n");
-      if (PowDetachString) 
+      AddStrSock("remote power detached");
+      if (PowDetachString)
 	{
 	  AddStr(PowDetachString);
 	  AddStr("\r\n");
@@ -1948,6 +1959,7 @@ int mode;
   debug2("Detach: Signal %d to Attacher(%d)!\n", sign, pid);
   debug("Detach returns, we are successfully detached.\n");
   signal(SIGHUP, SigHup);
+#undef AddStrSock
 }
 
 static int
