@@ -1625,6 +1625,8 @@ struct msg *mp;
 	  fore = FindNiceWindow(fore, 0);
 	}
     }
+  if (!fore)
+    fore = windows;		/* sigh */
 #ifdef MULTIUSER
   EffectiveAclUser = user;
 #endif
