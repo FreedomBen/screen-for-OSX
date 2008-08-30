@@ -181,7 +181,7 @@ struct comm comms[RC_LAST + 1] =
   { "escape",		ARGS_1 },
   { "eval",		ARGS_1|ARGS_ORMORE },
 #ifdef PSEUDOS
-  { "exec", 		NEED_FORE|ARGS_0|ARGS_ORMORE },
+  { "exec",		ARGS_0|ARGS_ORMORE },
 #endif
   { "fit",		NEED_DISPLAY|ARGS_0 },
   { "flow",		NEED_FORE|ARGS_01 },
