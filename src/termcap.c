@@ -530,9 +530,9 @@ int map;
 	a1 = 0;
       if (a2 && a2->nr == RC_ILLEGAL)
 	a2 = 0;
-      if (a1 && a1->nr == RC_STUFF && strcmp(a1->args[0], s) == 0)
+      if (a1 && a1->nr == RC_STUFF && a1->args[0] && strcmp(a1->args[0], s) == 0)
 	a1 = 0;
-      if (a2 && a2->nr == RC_STUFF && strcmp(a2->args[0], s) == 0)
+      if (a2 && a2->nr == RC_STUFF && a2->args[0] && strcmp(a2->args[0], s) == 0)
 	a2 = 0;
       domap |= (a1 || a2);
       if (tab == umtab)

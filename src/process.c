@@ -1053,6 +1053,18 @@ char **args;
   return i;
 }
 
+static void
+StuffFin(buf, len, data)
+char *buf;
+int len;
+char *data;
+{
+  if (!flayer)
+    return;
+  while(len)
+    LayProcess(&buf, &len);
+}
+
 /*ARGSUSED*/
 void
 DoAction(act, key)
@@ -1661,6 +1673,11 @@ int key;
       break;
     case RC_STUFF:
       s = *args;
+      if (!args[0])
+	{
+	  Input("Stuff:", 100, INP_COOKED, StuffFin, NULL, 0);
+	  break;
+	}
       n = *argl;
       if (args[1])
 	{

@@ -292,7 +292,7 @@ struct comm comms[RC_LAST + 1] =
   { "source",		ARGS_1 },
   { "split",		NEED_DISPLAY|ARGS_01 },
   { "startup_message",	ARGS_1 },
-  { "stuff",		NEED_LAYER|ARGS_12 },
+  { "stuff",		NEED_LAYER|ARGS_012 },
 #ifdef MULTIUSER
   { "su",		NEED_DISPLAY|ARGS_012 },
 #endif
