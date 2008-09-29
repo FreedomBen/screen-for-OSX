@@ -4637,7 +4637,7 @@ ShowLayouts(where)
 int where;
 {
   char buf[1024];
-  char *s, *ss; 
+  char *s, *ss;
 
   if (!display)
     return;
@@ -4650,17 +4650,49 @@ int where;
     where = D_layout->lay_number;
   ss = AddLayoutsInfo(buf, sizeof(buf), where);
   s = buf + strlen(buf);
-  if (ss - buf > D_width / 2) 
-    {    
-      ss -= D_width / 2; 
+  if (ss - buf > D_width / 2)
+    {
+      ss -= D_width / 2;
       if (s - ss < D_width)
         {
           ss = s - D_width;
-          if (ss < buf) 
-            ss = buf; 
+          if (ss < buf)
+            ss = buf;
         }
-    }    
-  else 
-    ss = buf; 
-  Msg(0, "%s", ss); 
+    }
+  else
+    ss = buf;
+  Msg(0, "%s", ss);
 }
+
+void
+RemoveLayout(lay)
+struct layout *lay;
+{
+  struct layout **layp = &layouts;
+
+  for (; *layp; layp = &(*layp)->lay_next)
+    {
+      if (*layp == lay)
+	{
+	  *layp = lay->lay_next;
+	  break;
+	}
+    }
+  laytab[lay->lay_number] = (struct layout *)0;
+
+  if (display && D_layout == lay)
+    D_layout = (struct layout *)0;
+
+  FreeLayoutCv(&lay->lay_canvas);
+
+  if (lay->lay_title)
+    free(lay->lay_title);
+  free(lay);
+
+  if (layouts)
+    LoadLayout((display && D_layout) ? D_layout : *layp ? *layp : layouts,
+	display ? &D_canvas : (struct canvas *)0);
+  Activate(0);
+}
+

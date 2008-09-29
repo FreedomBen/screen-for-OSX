@@ -4209,6 +4209,21 @@ int key;
 	{
 	  ShowLayouts(-1);
 	}
+      else if (!strcmp(args[0], "remove"))
+	{
+	  struct layout *lay = display ? D_layout : layouts;
+	  if (args[1])
+	    {
+	      lay = layouts ? FindLayout(args[1]) : (struct layout *)0;
+	      if (!lay)
+		{
+		  Msg(0, "unknown layout '%s'", args[1]);
+		  break;
+		}
+	    }
+	  if (lay)
+	    RemoveLayout(lay);
+	}
       else
 	Msg(0, "unknown layout subcommand");
       break;
