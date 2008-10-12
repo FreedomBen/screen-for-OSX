@@ -3838,6 +3838,8 @@ int key;
 	  ResizeLayersToCanvases();	/* redisplays */
 	}
       fore = D_fore = Layer2Window(D_forecv->c_layer);
+      if (D_other == fore)
+	D_other = 0;
       flayer = D_forecv->c_layer;
 #ifdef RXVT_OSC
       if (D_xtermosc[2] || D_xtermosc[3])
