@@ -972,13 +972,12 @@ int block;
   data = 0;
   if (datasize)
     {
-      if ((data = malloc(datasize)) == 0)
+      if ((data = calloc(1, datasize)) == 0)
 	{
 	  free((char *)newlay);
 	  Msg(0, "No memory for layer data");
 	  return -1;
 	}
-      bzero(data, datasize);
     }
 
   p = Layer2Window(flayer);

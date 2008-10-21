@@ -449,18 +449,16 @@ int xf, xt, l, w;
   bcopy((char *)mlf->image + xf, (char *)mlt->image + xt, l);
   if (mlf->attr != null && mlt->attr == null)
     {
-      if ((mlt->attr = (unsigned char *)malloc(w)) == 0)
+      if ((mlt->attr = (unsigned char *)calloc(w, 1)) == 0)
 	mlt->attr = null, r = -1;
-      bzero((char *)mlt->attr, w);
     }
   if (mlt->attr != null)
     bcopy((char *)mlf->attr + xf, (char *)mlt->attr + xt, l);
 #ifdef FONT
   if (mlf->font != null && mlt->font == null)
     {
-      if ((mlt->font = (unsigned char *)malloc(w)) == 0)
+      if ((mlt->font = (unsigned char *)calloc(w, 1)) == 0)
 	mlt->font = null, r = -1;
-      bzero((char *)mlt->font, w);
     }
   if (mlt->font != null)
     bcopy((char *)mlf->font + xf, (char *)mlt->font + xt, l);
@@ -468,18 +466,16 @@ int xf, xt, l, w;
 #ifdef COLOR
   if (mlf->color != null && mlt->color == null)
     {
-      if ((mlt->color = (unsigned char *)malloc(w)) == 0)
+      if ((mlt->color = (unsigned char *)calloc(w, 1)) == 0)
 	mlt->color = null, r = -1;
-      bzero((char *)mlt->color, w);
     }
   if (mlt->color != null)
     bcopy((char *)mlf->color + xf, (char *)mlt->color + xt, l);
 # ifdef COLORS256
   if (mlf->colorx != null && mlt->colorx == null)
     {
-      if ((mlt->colorx = (unsigned char *)malloc(w)) == 0)
+      if ((mlt->colorx = (unsigned char *)calloc(w, 1)) == 0)
 	mlt->colorx = null, r = -1;
-      bzero((char *)mlt->colorx, w);
     }
   if (mlt->colorx != null)
     bcopy((char *)mlf->colorx + xf, (char *)mlt->colorx + xt, l);

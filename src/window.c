@@ -593,13 +593,12 @@ struct NewWindow *newwin;
   if (type == W_TYPE_GROUP)
     f = -1;
 
-  if ((p = (struct win *)malloc(sizeof(struct win))) == 0)
+  if ((p = (struct win *)calloc(1, sizeof(struct win))) == 0)
     {
       close(f);
       Msg(0, strnomem);
       return -1;
     }
-  bzero((char *)p, (int)sizeof(struct win));
 
 #ifdef UTMPOK
   if (type != W_TYPE_PTY)
@@ -1505,12 +1504,11 @@ char **av;
       Msg(0, "You feel dead inside.");
       return -1;
     }
-  if (!(pwin = (struct pseudowin *)malloc(sizeof(struct pseudowin))))
+  if (!(pwin = (struct pseudowin *)calloc(1, sizeof(struct pseudowin))))
     {
       Msg(0, strnomem);
       return -1;
     }
-  bzero((char *)pwin, (int)sizeof(*pwin));
 
   /* allow ^a:!!./ttytest as a short form for ^a:exec !.. ./ttytest */
   for (s = *av; *s == ' '; s++)

@@ -2332,18 +2332,17 @@ struct mchar *mc;
   struct mline *ml = &p->w_mlines[y];
   if (mc->attr && ml->attr == null)
     {
-      if ((ml->attr = (unsigned char *)malloc(p->w_width + 1)) == 0)
+      if ((ml->attr = (unsigned char *)calloc(p->w_width + 1, 1)) == 0)
 	{
 	  ml->attr = null;
 	  mc->attr = p->w_rend.attr = 0;
 	  WMsg(p, 0, "Warning: no space for attr - turned off");
 	}
-      bzero((char *)ml->attr, p->w_width + 1);
     }
 #ifdef FONT
   if (mc->font && ml->font == null)
     {
-      if ((ml->font = (unsigned char *)malloc(p->w_width + 1)) == 0)
+      if ((ml->font = (unsigned char *)calloc(p->w_width + 1, 1)) == 0)
 	{
 	  ml->font = null;
 	  p->w_FontL = p->w_charsets[p->w_ss ? p->w_ss : p->w_Charset] = 0;
@@ -2351,30 +2350,27 @@ struct mchar *mc;
 	  mc->font = p->w_rend.font  = 0;
 	  WMsg(p, 0, "Warning: no space for font - turned off");
 	}
-      bzero((char *)ml->font, p->w_width + 1);
     }
 #endif
 #ifdef COLOR
   if (mc->color && ml->color == null)
     {
-      if ((ml->color = (unsigned char *)malloc(p->w_width + 1)) == 0)
+      if ((ml->color = (unsigned char *)calloc(p->w_width + 1, 1)) == 0)
 	{
 	  ml->color = null;
 	  mc->color = p->w_rend.color = 0;
 	  WMsg(p, 0, "Warning: no space for color - turned off");
 	}
-      bzero((char *)ml->color, p->w_width + 1);
     }
 # ifdef COLORS256
   if (mc->colorx && ml->colorx == null)
     {
-      if ((ml->colorx = (unsigned char *)malloc(p->w_width + 1)) == 0)
+      if ((ml->colorx = (unsigned char *)calloc(p->w_width + 1, 1)) == 0)
 	{
 	  ml->colorx = null;
 	  mc->colorx = p->w_rend.colorx = 0;
 	  WMsg(p, 0, "Warning: no space for extended colors - turned off");
 	}
-      bzero((char *)ml->colorx, p->w_width + 1);
     }
 # endif
 #endif

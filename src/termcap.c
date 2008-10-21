@@ -1190,12 +1190,11 @@ char *s;
   char **ctable;
   int l, c;
 
-  if ((D_xtable = (char ***)malloc(256 * sizeof(char **))) == 0)
+  if ((D_xtable = (char ***)calloc(256, sizeof(char **))) == 0)
     {
       Msg(0, strnomem);
       return -1;
     }
-  bzero((char *)D_xtable, 256 * sizeof(char **));
 
   while (*s)
     {
@@ -1209,13 +1208,12 @@ char *s;
       templnsub = 0;
       if (D_xtable[curchar] == 0)
         {
-          if ((D_xtable[curchar] = (char **)malloc(257 * sizeof(char *))) == 0)
+          if ((D_xtable[curchar] = (char **)calloc(257, sizeof(char *))) == 0)
 	    {
 	      Msg(0, strnomem);
 	      FreeTransTable();
 	      return -1;
 	    }
-	  bzero((char *)D_xtable[curchar], 257 * sizeof(char *));
         }
       ctable = D_xtable[curchar];
       for(; *s && *s != ','; s++)

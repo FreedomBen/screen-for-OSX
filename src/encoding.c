@@ -814,12 +814,11 @@ int encoding;
 	    continue;
 	  if (ml->font == null)
 	    {
-	      if ((ml->font = (unsigned char *)malloc(p->w_width + 1)) == 0)
+	      if ((ml->font = (unsigned char *)calloc(p->w_width + 1, 1)) == 0)
 		{
 		  ml->font = null;
 		  break;
 		}
-	      bzero(ml->font, p->w_width + 1);
 	    }
 #ifdef DW_CHARS
 	  if ((p->w_encoding != UTF8 && (c & 0x1f00) != 0 && (c & 0xe000) == 0) || (p->w_encoding == UTF8 && utf8_isdouble(c)))
@@ -1044,10 +1043,9 @@ struct mchar *mc;
   isdouble = c1 >= 0x1100 && utf8_isdouble(c1);
   if (!combchars)
     {
-      combchars = (struct combchar **)malloc(sizeof(struct combchar *) * 0x802);
+      combchars = (struct combchar **)calloc(0x802, sizeof(struct combchar *));
       if (!combchars)
 	return;
-      bzero((char *)combchars, sizeof(struct combchar *) * 0x802);
       combchars[0x800] = (struct combchar *)malloc(sizeof(struct combchar));
       combchars[0x801] = (struct combchar *)malloc(sizeof(struct combchar));
       if (!combchars[0x800] || !combchars[0x801])
