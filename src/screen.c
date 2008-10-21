@@ -399,8 +399,8 @@ char **av;
 #ifdef DEBUG
   opendebug(1, 0);
 #endif
-  sprintf(version, "%d.%.2d.%.2d%s (%s) %s", REV, VERS,
-	  PATCHLEVEL, STATE, ORIGIN, DATE);
+  snprintf(version, 59, "%d.%.2d.%.2d%s (%s%s) %s", REV, VERS,
+	  PATCHLEVEL, STATE, ORIGIN, GIT_REV, DATE);
   nversion = REV * 10000 + VERS * 100 + PATCHLEVEL;
   debug2("-- screen debug started %s (%s)\n", *av, version);
 #ifdef POSIX

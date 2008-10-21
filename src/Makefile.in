@@ -22,6 +22,10 @@ bindir  = $(exec_prefix)/bin
 VERSION = @VERSION@
 SCREEN = screen-$(VERSION)
 
+GIT = which git
+GIT_REV = "`git-describe --always 2>/dev/null`"
+DEFS = @DEFS@ -DGIT_REV=\"$(GIT_REV)\"
+
 ETCSCREENRC = $(prefix)/etc/screenrc
 SCREENENCODINGS = $(datadir)/screen/utf8encodings
 

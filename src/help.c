@@ -28,7 +28,7 @@
 #include "screen.h"
 #include "extern.h"
 
-char version[40];      /* initialised by main() */
+char version[60];      /* initialised by main() */
 
 extern struct layer *flayer;
 extern struct display *display, *displays;
