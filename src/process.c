@@ -1648,8 +1648,8 @@ int key;
 #endif
 	    }
 	}
-#endif
       else
+#endif
 	{
 	  struct plop *plp = plop_tab + (int)(unsigned char)ch;
 

@@ -2297,6 +2297,7 @@ int n1, n2;
   sprintf(rbuf, fmt, n1, n2);
   len = strlen(rbuf);
 
+#ifdef PSEUDOS
   if (W_UWP(curr))
     {
       if ((unsigned)(curr->w_pwin->p_inlen + len) <= sizeof(curr->w_pwin->p_inbuf))
@@ -2306,6 +2307,7 @@ int n1, n2;
 	}
     }
   else
+#endif
     {
       if ((unsigned)(curr->w_inlen + len) <= sizeof(curr->w_inbuf))
 	{

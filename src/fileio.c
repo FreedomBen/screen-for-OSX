@@ -528,6 +528,7 @@ int dump;
 		}
 	      if (dump == DUMP_SCROLLBACK)
 		{
+#ifdef COPY_PASTE
 		  for (i = 0; i < fore->w_histheight; i++)
 		    {
 		      p = (char *)(WIN(i)->image);
@@ -537,6 +538,7 @@ int dump;
 			putc(p[j], f);
 		      putc('\n', f);
 		    }
+#endif
 		}
 	      for (i = 0; i < fore->w_height; i++)
 		{

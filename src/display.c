@@ -2534,6 +2534,7 @@ struct mchar *mc;
 {
   if (!display)
     return;
+#ifdef COLOR
   if (nattr2color && D_hascolor && (mc->attr & nattr2color) != 0)
     {
       static struct mchar mmc;
@@ -2554,6 +2555,7 @@ struct mchar *mc;
       mc = &mmc;
       debug2("SetRendition: mapped to %02x %02x\n", (unsigned char)mc->attr, 0x99 - (unsigned char)mc->color);
     }
+# ifdef COLORS16
   if (D_hascolor && D_CC8 && (mc->attr & (A_BFG|A_BBG)))
     {
       int a = mc->attr;
@@ -2564,8 +2566,12 @@ struct mchar *mc;
       if (D_rend.attr != a)
         SetAttr(a);
     }
-  else if (D_rend.attr != mc->attr)
+  else
+# endif /* COLORS16 */
+#endif /* COLOR */
+    if (D_rend.attr != mc->attr)
     SetAttr(mc->attr);
+
 #ifdef COLOR
   if (D_rend.color != mc->color
 # ifdef COLORS256
@@ -2590,6 +2596,7 @@ int x;
 {
   if (!display)
     return;
+#ifdef COLOR
   if (nattr2color && D_hascolor && (ml->attr[x] & nattr2color) != 0)
     {
       struct mchar mc;
@@ -2597,6 +2604,7 @@ int x;
       SetRendition(&mc);
       return;
     }
+# ifdef COLORS16
   if (D_hascolor && D_CC8 && (ml->attr[x] & (A_BFG|A_BBG)))
     {
       int a = ml->attr[x];
@@ -2607,7 +2615,10 @@ int x;
       if (D_rend.attr != a)
         SetAttr(a);
     }
-  else if (D_rend.attr != ml->attr[x])
+  else
+# endif /* COLORS16 */
+#endif /* COLOR */
+    if (D_rend.attr != ml->attr[x])
     SetAttr(ml->attr[x]);
 #ifdef COLOR
   if (D_rend.color != ml->color[x]

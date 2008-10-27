@@ -916,8 +916,8 @@ struct win *wi;
 # endif
       if (D_encoding < 0 || !EncodingName(D_encoding))
 	D_encoding = 0;
-#endif
     }
+#endif
 
   if (iflag && olddisplays)
     {

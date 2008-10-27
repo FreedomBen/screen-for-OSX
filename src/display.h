@@ -34,8 +34,6 @@
 
 #define KMAP_NOTIMEOUT 0x4000
 
-#define MAXLAY 10
-
 struct kmap_ext
 {
   char *str;
@@ -52,6 +50,8 @@ struct kmap_ext
 #endif
 
 struct win;			/* forward declaration */
+
+#define MAXLAY 10
 
 #define SLICE_UNKN 0
 #define SLICE_VERT (1 << 0)
