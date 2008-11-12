@@ -75,26 +75,12 @@ extern int errno;
 #undef strerror
 #endif
 
-#if !defined(SYSV) && !defined(linux)
-# ifdef NEWSOS
-#  define strlen ___strlen___
-#  include <strings.h>
-#  undef strlen
-# else /* NEWSOS */
-#  include <strings.h>
-# endif /* NEWSOS */
-#else /* SYSV */
-# if defined(SVR4) || defined(NEWSOS)
-#  define strlen ___strlen___
-#  include <string.h>
-#  undef strlen
-#  if !defined(NEWSOS) && !defined(__hpux)
-    extern size_t strlen(const char *);
-#  endif
-# else /* SVR4 */
-#  include <string.h>
-# endif /* SVR4 */
-#endif /* SYSV */
+#ifdef HAVE_STRINGS_H
+# include <strings.h>
+#endif
+#ifdef HAVE_STRING_H
+# include <string.h>
+#endif
 
 #ifdef USEVARARGS
 # if defined(__STDC__)
