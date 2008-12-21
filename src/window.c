@@ -1855,13 +1855,21 @@ char *data;
 	return;
 #endif
       debug2("Window %d: read error (errno %d) - killing window\n", p->w_number, errno);
+#ifdef BSDWAIT
+      WindowDied(p, (union wait)0, 0);
+#else
       WindowDied(p, 0, 0);
+#endif
       return;
     }
   if (len == 0)
     {
       debug1("Window %d: EOF - killing window\n", p->w_number);
+#ifdef BSDWAIT
+      WindowDied(p, (union wait)0, 0);
+#else
       WindowDied(p, 0, 0);
+#endif
       return;
     }
   debug1(" -> %d bytes\n", len);

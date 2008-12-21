@@ -1455,7 +1455,11 @@ char **av;
 void
 WindowDied(p, wstat, wstat_valid)
 struct win *p;
-int wstat;
+#ifdef BSDWAIT
+  union wait wstat;
+#else
+  int wstat;
+#endif
 int wstat_valid;
 {
   int killit = 0;
