@@ -320,578 +320,581 @@ register int len;
       curr->w_monitor = MON_FOUND;
     }
 
-  do
+  if (cols && rows)
     {
-      c = (unsigned char)*buf++;
+      do
+	{
+	  c = (unsigned char)*buf++;
 #ifdef FONT
 # ifdef DW_CHARS
-      if (!curr->w_mbcs)
+	  if (!curr->w_mbcs)
 # endif
-        curr->w_rend.font = curr->w_FontL;	/* Default: GL */
+	    curr->w_rend.font = curr->w_FontL;	/* Default: GL */
 #endif
 
-      /* The next part is only for speedup */
-      if (curr->w_state == LIT &&
+	  /* The next part is only for speedup */
+	  if (curr->w_state == LIT &&
 #ifdef UTF8
-          curr->w_encoding != UTF8 &&
+	      curr->w_encoding != UTF8 &&
 #endif
 #ifdef DW_CHARS
-          !is_dw_font(curr->w_rend.font) &&
+	      !is_dw_font(curr->w_rend.font) &&
 # ifdef ENCODINGS
-          curr->w_rend.font != KANA && !curr->w_mbcs &&
+	      curr->w_rend.font != KANA && !curr->w_mbcs &&
 # endif
 #endif
 #ifdef FONT
-	  curr->w_rend.font != '<' &&
+	      curr->w_rend.font != '<' &&
 #endif
-          c >= ' ' && c != 0x7f &&
-          ((c & 0x80) == 0 || ((c >= 0xa0 || !curr->w_c1) && !curr->w_gr)) && !curr->w_ss &&
-          !curr->w_insert && curr->w_x < cols - 1)
-	{
-	  register int currx = curr->w_x;
-          char *imp = buf - 1;
+	      c >= ' ' && c != 0x7f &&
+	      ((c & 0x80) == 0 || ((c >= 0xa0 || !curr->w_c1) && !curr->w_gr)) && !curr->w_ss &&
+	      !curr->w_insert && curr->w_x < cols - 1)
+	    {
+	      register int currx = curr->w_x;
+	      char *imp = buf - 1;
 
-	  while (currx < cols - 1)
-	    {
-	      currx++;
-	      if (--len == 0)
-		break;
-              c = (unsigned char)*buf++;
-	      if (c < ' ' || c == 0x7f || ((c & 0x80) && ((c < 0xa0 && curr->w_c1) || curr->w_gr)))
-		break;
-	    }
-	  currx -= curr->w_x;
-	  if (currx > 0)
-	    {
-	      MPutStr(curr, imp, currx, &curr->w_rend, curr->w_x, curr->w_y);
-	      LPutStr(&curr->w_layer, imp, currx, &curr->w_rend, curr->w_x, curr->w_y);
-	      curr->w_x += currx;
-	    }
-	  if (len == 0)
-	    break;
-	}
-      /* end of speedup code */
-
-#ifdef UTF8
-      if (curr->w_encoding == UTF8)
-	{
-	  c = FromUtf8(c, &curr->w_decodestate);
-	  if (c == -1)
-	    continue;
-	  if (c == -2)
-	    {
-	      c = UCS_REPL;
-	      /* try char again */
-	      buf--;
-	      len++;
-	    }
-	  if (c > 0xff)
-	    debug1("read UNICODE %04x\n", c);
-	}
-#endif
-
-    tryagain:
-      switch (curr->w_state)
-	{
-	case PRIN:
-	  switch (c)
-	    {
-	    case '\033':
-	      curr->w_state = PRINESC;
-	      break;
-	    default:
-	      PrintChar(c);
-	    }
-	  break;
-	case PRINESC:
-	  switch (c)
-	    {
-	    case '[':
-	      curr->w_state = PRINCSI;
-	      break;
-	    default:
-	      PrintChar('\033');
-	      PrintChar(c);
-	      curr->w_state = PRIN;
-	    }
-	  break;
-	case PRINCSI:
-	  switch (c)
-	    {
-	    case '4':
-	      curr->w_state = PRIN4;
-	      break;
-	    default:
-	      PrintChar('\033');
-	      PrintChar('[');
-	      PrintChar(c);
-	      curr->w_state = PRIN;
-	    }
-	  break;
-	case PRIN4:
-	  switch (c)
-	    {
-	    case 'i':
-	      curr->w_state = LIT;
-	      PrintFlush();
-	      if (curr->w_pdisplay && curr->w_pdisplay->d_printfd >= 0)
+	      while (currx < cols - 1)
 		{
-		  close(curr->w_pdisplay->d_printfd);
-		  curr->w_pdisplay->d_printfd = -1;
-		}
-	      curr->w_pdisplay = 0;
-	      break;
-	    default:
-	      PrintChar('\033');
-	      PrintChar('[');
-	      PrintChar('4');
-	      PrintChar(c);
-	      curr->w_state = PRIN;
-	    }
-	  break;
-	case ASTR:
-	  if (c == 0)
-	    break;
-	  if (c == '\033')
-	    {
-	      curr->w_state = STRESC;
-	      break;
-	    }
-	  /* special xterm hack: accept SetStatus sequence. Yucc! */
-	  /* allow ^E for title escapes */
-	  if (!(curr->w_StringType == OSC && c < ' ' && c != '\005'))
-	    if (!curr->w_c1 || c != ('\\' ^ 0xc0))
-	      {
-		StringChar(c);
-		break;
-	      }
-	  c = '\\';
-	  /* FALLTHROUGH */
-	case STRESC:
-	  switch (c)
-	    {
-	    case '\\':
-	      if (StringEnd() == 0 || len <= 1)
-		break;
-	      /* check if somewhere a status is displayed */
-	      for (cv = curr->w_layer.l_cvlist; cv; cv = cv->c_lnext)
-		{
-		  display = cv->c_display;
-		  if (D_status == STATUS_ON_WIN)
+		  currx++;
+		  if (--len == 0)
+		    break;
+		  c = (unsigned char)*buf++;
+		  if (c < ' ' || c == 0x7f || ((c & 0x80) && ((c < 0xa0 && curr->w_c1) || curr->w_gr)))
 		    break;
 		}
-	      if (cv)
+	      currx -= curr->w_x;
+	      if (currx > 0)
 		{
-		  if (len > IOSIZE + 1)
-		    len = IOSIZE + 1;
-		  curr->w_outlen = len - 1;
-		  bcopy(buf, curr->w_outbuf, len - 1);
-		  return;	/* wait till status is gone */
+		  MPutStr(curr, imp, currx, &curr->w_rend, curr->w_x, curr->w_y);
+		  LPutStr(&curr->w_layer, imp, currx, &curr->w_rend, curr->w_x, curr->w_y);
+		  curr->w_x += currx;
 		}
-	      break;
-	    case '\033':
-	      StringChar('\033');
-	      break;
-	    default:
-	      curr->w_state = ASTR;
-	      StringChar('\033');
-	      StringChar(c);
-	      break;
-	    }
-	  break;
-	case ESC:
-	  switch (c)
-	    {
-	    case '[':
-	      curr->w_NumArgs = 0;
-	      curr->w_intermediate = 0;
-	      bzero((char *) curr->w_args, MAXARGS * sizeof(int));
-	      curr->w_state = CSI;
-	      break;
-	    case ']':
-	      StringStart(OSC);
-	      break;
-	    case '_':
-	      StringStart(APC);
-	      break;
-	    case 'P':
-	      StringStart(DCS);
-	      break;
-	    case '^':
-	      StringStart(PM);
-	      break;
-	    case '!':
-	      StringStart(GM);
-	      break;
-	    case '"':
-	    case 'k':
-	      StringStart(AKA);
-	      break;
-	    default:
-	      if (Special(c))
-	        {
-		  curr->w_state = LIT;
-		  break;
-		}
-	      debug1("not special. c = %x\n", c);
-	      if (c >= ' ' && c <= '/')
-		{
-		  if (curr->w_intermediate)
-		    {
-#ifdef DW_CHARS
-		      if (curr->w_intermediate == '$')
-			c |= '$' << 8;
-		      else
-#endif
-		      c = -1;
-		    }
-		  curr->w_intermediate = c;
-		}
-	      else if (c >= '0' && c <= '~')
-		{
-		  DoESC(c, curr->w_intermediate);
-		  curr->w_state = LIT;
-		}
-	      else
-		{
-		  curr->w_state = LIT;
-		  goto tryagain;
-		}
-	    }
-	  break;
-	case CSI:
-	  switch (c)
-	    {
-	    case '0': case '1': case '2': case '3': case '4':
-	    case '5': case '6': case '7': case '8': case '9':
-	      if (curr->w_NumArgs < MAXARGS)
-		{
-		  if (curr->w_args[curr->w_NumArgs] < 100000000)
-		    curr->w_args[curr->w_NumArgs] =
-		      10 * curr->w_args[curr->w_NumArgs] + (c - '0');
-		}
-	      break;
-	    case ';':
-	    case ':':
-	      if (curr->w_NumArgs < MAXARGS)
-	        curr->w_NumArgs++;
-	      break;
-	    default:
-	      if (Special(c))
+	      if (len == 0)
 		break;
-	      if (c >= '@' && c <= '~')
-		{
-		  if (curr->w_NumArgs < MAXARGS)
-		    curr->w_NumArgs++;
-		  DoCSI(c, curr->w_intermediate);
-		  if (curr->w_state != PRIN)
-		    curr->w_state = LIT;
-		}
-	      else if ((c >= ' ' && c <= '/') || (c >= '<' && c <= '?'))
-		curr->w_intermediate = curr->w_intermediate ? -1 : c;
-	      else
-		{
-		  curr->w_state = LIT;
-		  goto tryagain;
-		}
 	    }
-	  break;
-	case LIT:
-	default:
-#ifdef DW_CHARS
-	  if (curr->w_mbcs)
-	    if (c <= ' ' || c == 0x7f || (c >= 0x80 && c < 0xa0 && curr->w_c1))
-	      curr->w_mbcs = 0;
-#endif
-	  if (c < ' ')
+	  /* end of speedup code */
+
+#ifdef UTF8
+	  if (curr->w_encoding == UTF8)
 	    {
-	      if (c == '\033')
+	      c = FromUtf8(c, &curr->w_decodestate);
+	      if (c == -1)
+		continue;
+	      if (c == -2)
 		{
-		  curr->w_intermediate = 0;
-		  curr->w_state = ESC;
-		  if (curr->w_autoaka < 0)
-		    curr->w_autoaka = 0;
+		  c = UCS_REPL;
+		  /* try char again */
+		  buf--;
+		  len++;
 		}
-	      else
-		Special(c);
-	      break;
+	      if (c > 0xff)
+		debug1("read UNICODE %04x\n", c);
 	    }
-	  if (c >= 0x80 && c < 0xa0 && curr->w_c1)
-#ifdef FONT
-	    if ((curr->w_FontR & 0xf0) != 0x20
-# ifdef UTF8
-		   || curr->w_encoding == UTF8
-# endif
-	       )
 #endif
+
+	tryagain:
+	  switch (curr->w_state)
 	    {
+	    case PRIN:
 	      switch (c)
 		{
-		case 0xc0 ^ 'D':
-		case 0xc0 ^ 'E':
-		case 0xc0 ^ 'H':
-		case 0xc0 ^ 'M':
-		case 0xc0 ^ 'N':		/* SS2 */
-		case 0xc0 ^ 'O':		/* SS3 */
-		  DoESC(c ^ 0xc0, 0);
+		case '\033':
+		  curr->w_state = PRINESC;
 		  break;
-		case 0xc0 ^ '[':
-		  if (curr->w_autoaka < 0)
-		    curr->w_autoaka = 0;
+		default:
+		  PrintChar(c);
+		}
+	      break;
+	    case PRINESC:
+	      switch (c)
+		{
+		case '[':
+		  curr->w_state = PRINCSI;
+		  break;
+		default:
+		  PrintChar('\033');
+		  PrintChar(c);
+		  curr->w_state = PRIN;
+		}
+	      break;
+	    case PRINCSI:
+	      switch (c)
+		{
+		case '4':
+		  curr->w_state = PRIN4;
+		  break;
+		default:
+		  PrintChar('\033');
+		  PrintChar('[');
+		  PrintChar(c);
+		  curr->w_state = PRIN;
+		}
+	      break;
+	    case PRIN4:
+	      switch (c)
+		{
+		case 'i':
+		  curr->w_state = LIT;
+		  PrintFlush();
+		  if (curr->w_pdisplay && curr->w_pdisplay->d_printfd >= 0)
+		    {
+		      close(curr->w_pdisplay->d_printfd);
+		      curr->w_pdisplay->d_printfd = -1;
+		    }
+		  curr->w_pdisplay = 0;
+		  break;
+		default:
+		  PrintChar('\033');
+		  PrintChar('[');
+		  PrintChar('4');
+		  PrintChar(c);
+		  curr->w_state = PRIN;
+		}
+	      break;
+	    case ASTR:
+	      if (c == 0)
+		break;
+	      if (c == '\033')
+		{
+		  curr->w_state = STRESC;
+		  break;
+		}
+	      /* special xterm hack: accept SetStatus sequence. Yucc! */
+	      /* allow ^E for title escapes */
+	      if (!(curr->w_StringType == OSC && c < ' ' && c != '\005'))
+		if (!curr->w_c1 || c != ('\\' ^ 0xc0))
+		  {
+		    StringChar(c);
+		    break;
+		  }
+	      c = '\\';
+	      /* FALLTHROUGH */
+	    case STRESC:
+	      switch (c)
+		{
+		case '\\':
+		  if (StringEnd() == 0 || len <= 1)
+		    break;
+		  /* check if somewhere a status is displayed */
+		  for (cv = curr->w_layer.l_cvlist; cv; cv = cv->c_lnext)
+		    {
+		      display = cv->c_display;
+		      if (D_status == STATUS_ON_WIN)
+			break;
+		    }
+		  if (cv)
+		    {
+		      if (len > IOSIZE + 1)
+			len = IOSIZE + 1;
+		      curr->w_outlen = len - 1;
+		      bcopy(buf, curr->w_outbuf, len - 1);
+		      return;	/* wait till status is gone */
+		    }
+		  break;
+		case '\033':
+		  StringChar('\033');
+		  break;
+		default:
+		  curr->w_state = ASTR;
+		  StringChar('\033');
+		  StringChar(c);
+		  break;
+		}
+	      break;
+	    case ESC:
+	      switch (c)
+		{
+		case '[':
 		  curr->w_NumArgs = 0;
 		  curr->w_intermediate = 0;
 		  bzero((char *) curr->w_args, MAXARGS * sizeof(int));
 		  curr->w_state = CSI;
 		  break;
-		case 0xc0 ^ 'P':
+		case ']':
+		  StringStart(OSC);
+		  break;
+		case '_':
+		  StringStart(APC);
+		  break;
+		case 'P':
 		  StringStart(DCS);
 		  break;
-		default:
+		case '^':
+		  StringStart(PM);
 		  break;
+		case '!':
+		  StringStart(GM);
+		  break;
+		case '"':
+		case 'k':
+		  StringStart(AKA);
+		  break;
+		default:
+		  if (Special(c))
+		    {
+		      curr->w_state = LIT;
+		      break;
+		    }
+		  debug1("not special. c = %x\n", c);
+		  if (c >= ' ' && c <= '/')
+		    {
+		      if (curr->w_intermediate)
+			{
+#ifdef DW_CHARS
+			  if (curr->w_intermediate == '$')
+			    c |= '$' << 8;
+			  else
+#endif
+			  c = -1;
+			}
+		      curr->w_intermediate = c;
+		    }
+		  else if (c >= '0' && c <= '~')
+		    {
+		      DoESC(c, curr->w_intermediate);
+		      curr->w_state = LIT;
+		    }
+		  else
+		    {
+		      curr->w_state = LIT;
+		      goto tryagain;
+		    }
 		}
 	      break;
-	    }
+	    case CSI:
+	      switch (c)
+		{
+		case '0': case '1': case '2': case '3': case '4':
+		case '5': case '6': case '7': case '8': case '9':
+		  if (curr->w_NumArgs < MAXARGS)
+		    {
+		      if (curr->w_args[curr->w_NumArgs] < 100000000)
+			curr->w_args[curr->w_NumArgs] =
+			  10 * curr->w_args[curr->w_NumArgs] + (c - '0');
+		    }
+		  break;
+		case ';':
+		case ':':
+		  if (curr->w_NumArgs < MAXARGS)
+		    curr->w_NumArgs++;
+		  break;
+		default:
+		  if (Special(c))
+		    break;
+		  if (c >= '@' && c <= '~')
+		    {
+		      if (curr->w_NumArgs < MAXARGS)
+			curr->w_NumArgs++;
+		      DoCSI(c, curr->w_intermediate);
+		      if (curr->w_state != PRIN)
+			curr->w_state = LIT;
+		    }
+		  else if ((c >= ' ' && c <= '/') || (c >= '<' && c <= '?'))
+		    curr->w_intermediate = curr->w_intermediate ? -1 : c;
+		  else
+		    {
+		      curr->w_state = LIT;
+		      goto tryagain;
+		    }
+		}
+	      break;
+	    case LIT:
+	    default:
+#ifdef DW_CHARS
+	      if (curr->w_mbcs)
+		if (c <= ' ' || c == 0x7f || (c >= 0x80 && c < 0xa0 && curr->w_c1))
+		  curr->w_mbcs = 0;
+#endif
+	      if (c < ' ')
+		{
+		  if (c == '\033')
+		    {
+		      curr->w_intermediate = 0;
+		      curr->w_state = ESC;
+		      if (curr->w_autoaka < 0)
+			curr->w_autoaka = 0;
+		    }
+		  else
+		    Special(c);
+		  break;
+		}
+	      if (c >= 0x80 && c < 0xa0 && curr->w_c1)
+#ifdef FONT
+		if ((curr->w_FontR & 0xf0) != 0x20
+# ifdef UTF8
+		       || curr->w_encoding == UTF8
+# endif
+		   )
+#endif
+		{
+		  switch (c)
+		    {
+		    case 0xc0 ^ 'D':
+		    case 0xc0 ^ 'E':
+		    case 0xc0 ^ 'H':
+		    case 0xc0 ^ 'M':
+		    case 0xc0 ^ 'N':		/* SS2 */
+		    case 0xc0 ^ 'O':		/* SS3 */
+		      DoESC(c ^ 0xc0, 0);
+		      break;
+		    case 0xc0 ^ '[':
+		      if (curr->w_autoaka < 0)
+			curr->w_autoaka = 0;
+		      curr->w_NumArgs = 0;
+		      curr->w_intermediate = 0;
+		      bzero((char *) curr->w_args, MAXARGS * sizeof(int));
+		      curr->w_state = CSI;
+		      break;
+		    case 0xc0 ^ 'P':
+		      StringStart(DCS);
+		      break;
+		    default:
+		      break;
+		    }
+		  break;
+		}
 
 #ifdef FONT
 # ifdef DW_CHARS
-	  if (!curr->w_mbcs)
-	    {
+	      if (!curr->w_mbcs)
+		{
 # endif
-	      if (c < 0x80 || curr->w_gr == 0)
-	        curr->w_rend.font = curr->w_FontL;
+		  if (c < 0x80 || curr->w_gr == 0)
+		    curr->w_rend.font = curr->w_FontL;
 # ifdef ENCODINGS
-	      else if (curr->w_gr == 2 && !curr->w_ss)
-	        curr->w_rend.font = curr->w_FontE;
+		  else if (curr->w_gr == 2 && !curr->w_ss)
+		    curr->w_rend.font = curr->w_FontE;
 # endif
-	      else
-	        curr->w_rend.font = curr->w_FontR;
+		  else
+		    curr->w_rend.font = curr->w_FontR;
 # ifdef DW_CHARS
-	    }
+		}
 # endif
 # ifdef UTF8
-	  if (curr->w_encoding == UTF8)
-	    {
-	      if (curr->w_rend.font == '0')
+	      if (curr->w_encoding == UTF8)
 		{
-		  struct mchar mc, *mcp;
+		  if (curr->w_rend.font == '0')
+		    {
+		      struct mchar mc, *mcp;
 
-		  debug1("SPECIAL %x\n", c);
-		  mc.image = c;
-		  mc.mbcs = 0;
-		  mc.font = '0';
-		  mcp = recode_mchar(&mc, 0, UTF8);
-		  debug2("%02x %02x\n", mcp->image, mcp->font);
-		  c = mcp->image | mcp->font << 8;
+		      debug1("SPECIAL %x\n", c);
+		      mc.image = c;
+		      mc.mbcs = 0;
+		      mc.font = '0';
+		      mcp = recode_mchar(&mc, 0, UTF8);
+		      debug2("%02x %02x\n", mcp->image, mcp->font);
+		      c = mcp->image | mcp->font << 8;
+		    }
+		  curr->w_rend.font = 0;
 		}
-	      curr->w_rend.font = 0;
-	    }
 #  ifdef DW_CHARS
-	  if (curr->w_encoding == UTF8 && utf8_isdouble(c))
-	    curr->w_mbcs = 0xff;
+	      if (curr->w_encoding == UTF8 && utf8_isdouble(c))
+		curr->w_mbcs = 0xff;
 #  endif
-	  if (curr->w_encoding == UTF8 && c >= 0x0300 && utf8_iscomb(c))
-	    {
-	      int ox, oy;
-	      struct mchar omc;
+	      if (curr->w_encoding == UTF8 && c >= 0x0300 && utf8_iscomb(c))
+		{
+		  int ox, oy;
+		  struct mchar omc;
 
-	      ox = curr->w_x - 1;
-	      oy = curr->w_y;
-	      if (ox < 0)
-		{
-		  ox = curr->w_width - 1;
-	          oy--;
-		}
-	      if (oy < 0)
-		oy = 0;
-	      copy_mline2mchar(&omc, &curr->w_mlines[oy], ox);
-	      if (omc.image == 0xff && omc.font == 0xff)
-		{
-		  ox--;
+		  ox = curr->w_x - 1;
+		  oy = curr->w_y;
+		  if (ox < 0)
+		    {
+		      ox = curr->w_width - 1;
+		      oy--;
+		    }
+		  if (oy < 0)
+		    oy = 0;
+		  copy_mline2mchar(&omc, &curr->w_mlines[oy], ox);
+		  if (omc.image == 0xff && omc.font == 0xff)
+		    {
+		      ox--;
+		      if (ox >= 0)
+			{
+			  copy_mline2mchar(&omc, &curr->w_mlines[oy], ox);
+			  omc.mbcs = 0xff;
+			}
+		    }
 		  if (ox >= 0)
 		    {
-	              copy_mline2mchar(&omc, &curr->w_mlines[oy], ox);
-		      omc.mbcs = 0xff;
+		      utf8_handle_comb(c, &omc);
+		      MFixLine(curr, oy, &omc);
+		      copy_mchar2mline(&omc, &curr->w_mlines[oy], ox);
+		      LPutChar(&curr->w_layer, &omc, ox, oy);
+		      LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 		    }
+		  break;
 		}
-	      if (ox >= 0)
-		{
-		  utf8_handle_comb(c, &omc);
-		  MFixLine(curr, oy, &omc);
-		  copy_mchar2mline(&omc, &curr->w_mlines[oy], ox);
-		  LPutChar(&curr->w_layer, &omc, ox, oy);
-		  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
-		}
-	      break;
-	    }
-	  font = curr->w_rend.font;
+	      font = curr->w_rend.font;
 # endif
 # ifdef DW_CHARS
 #  ifdef ENCODINGS
-	  if (font == KANA && curr->w_encoding == SJIS && curr->w_mbcs == 0)
-	    {
-	      /* Lets see if it is the first byte of a kanji */
-	      debug1("%x may be first of SJIS\n", c);
-	      if ((0x81 <= c && c <= 0x9f) || (0xe0 <= c && c <= 0xef))
+	      if (font == KANA && curr->w_encoding == SJIS && curr->w_mbcs == 0)
 		{
-		  debug("YES!\n");
-		  curr->w_mbcs = c;
-		  break;
+		  /* Lets see if it is the first byte of a kanji */
+		  debug1("%x may be first of SJIS\n", c);
+		  if ((0x81 <= c && c <= 0x9f) || (0xe0 <= c && c <= 0xef))
+		    {
+		      debug("YES!\n");
+		      curr->w_mbcs = c;
+		      break;
+		    }
 		}
-	    }
 #  endif
-	  if (font == 031 && c == 0x80 && !curr->w_mbcs)
-	    font = curr->w_rend.font = 0;
-	  if (is_dw_font(font) && c == ' ')
-	    font = curr->w_rend.font = 0;
-	  if (is_dw_font(font) || curr->w_mbcs)
-	    {
-	      int t = c;
-	      if (curr->w_mbcs == 0)
+	      if (font == 031 && c == 0x80 && !curr->w_mbcs)
+		font = curr->w_rend.font = 0;
+	      if (is_dw_font(font) && c == ' ')
+		font = curr->w_rend.font = 0;
+	      if (is_dw_font(font) || curr->w_mbcs)
 		{
-		  curr->w_mbcs = c;
-		  break;
-		}
-	      if (curr->w_x == cols - 1)
-		{
-		  curr->w_x += curr->w_wrap ? 1 : -1;
-		  debug1("Patched w_x to %d\n", curr->w_x);
-		}
+		  int t = c;
+		  if (curr->w_mbcs == 0)
+		    {
+		      curr->w_mbcs = c;
+		      break;
+		    }
+		  if (curr->w_x == cols - 1)
+		    {
+		      curr->w_x += curr->w_wrap ? 1 : -1;
+		      debug1("Patched w_x to %d\n", curr->w_x);
+		    }
 #  ifdef UTF8
-	      if (curr->w_encoding != UTF8)
+		  if (curr->w_encoding != UTF8)
 #  endif
-		{
-		  c = curr->w_mbcs;
+		    {
+		      c = curr->w_mbcs;
 #  ifdef ENCODINGS
-		  if (font == KANA && curr->w_encoding == SJIS)
-		    {
-		      debug2("SJIS !! %x %x\n", c, t);
-		      /*
-		       * SJIS -> EUC mapping:
-		       *   First byte:
-		       *     81,82...9f -> 21,23...5d
-		       *     e0,e1...ef -> 5f,61...7d
-		       *   Second byte:
-		       *     40-7e -> 21-5f
-		       *     80-9e -> 60-7e
-		       *     9f-fc -> 21-7e (increment first byte!)
-		       */
-		      if (0x40 <= t && t <= 0xfc && t != 0x7f)
+		      if (font == KANA && curr->w_encoding == SJIS)
 			{
-			  if (c <= 0x9f) c = (c - 0x81) * 2 + 0x21;
-			  else c = (c - 0xc1) * 2 + 0x21;
-			  if (t <= 0x7e) t -= 0x1f;
-			  else if (t <= 0x9e) t -= 0x20;
-			  else t -= 0x7e, c++;
-			  curr->w_rend.font = KANJI;
+			  debug2("SJIS !! %x %x\n", c, t);
+			  /*
+			   * SJIS -> EUC mapping:
+			   *   First byte:
+			   *     81,82...9f -> 21,23...5d
+			   *     e0,e1...ef -> 5f,61...7d
+			   *   Second byte:
+			   *     40-7e -> 21-5f
+			   *     80-9e -> 60-7e
+			   *     9f-fc -> 21-7e (increment first byte!)
+			   */
+			  if (0x40 <= t && t <= 0xfc && t != 0x7f)
+			    {
+			      if (c <= 0x9f) c = (c - 0x81) * 2 + 0x21;
+			      else c = (c - 0xc1) * 2 + 0x21;
+			      if (t <= 0x7e) t -= 0x1f;
+			      else if (t <= 0x9e) t -= 0x20;
+			      else t -= 0x7e, c++;
+			      curr->w_rend.font = KANJI;
+			    }
+			  else
+			    {
+			      /* Incomplete shift-jis - skip first byte */
+			      c = t;
+			      t = 0;
+			    }
+			  debug2("SJIS after %x %x\n", c, t);
 			}
-		      else
-			{
-			  /* Incomplete shift-jis - skip first byte */
-			  c = t;
-			  t = 0;
-			}
-		      debug2("SJIS after %x %x\n", c, t);
-		    }
 #  endif
-		  if (t && curr->w_gr && font != 030 && font != 031)
-		    {
-		      t &= 0x7f;
-		      if (t < ' ')
-			goto tryagain;
+		      if (t && curr->w_gr && font != 030 && font != 031)
+			{
+			  t &= 0x7f;
+			  if (t < ' ')
+			    goto tryagain;
+			}
+		      if (t == '\177')
+			break;
+		      curr->w_mbcs = t;
 		    }
-		  if (t == '\177')
-		    break;
-		  curr->w_mbcs = t;
 		}
-	    }
 # endif	/* DW_CHARS */
-	  if (font == '<' && c >= ' ')
-	    {
-	      font = curr->w_rend.font = 0;
-	      c |= 0x80;
-	    }
+	      if (font == '<' && c >= ' ')
+		{
+		  font = curr->w_rend.font = 0;
+		  c |= 0x80;
+		}
 # ifdef UTF8
-	  else if (curr->w_gr && curr->w_encoding != UTF8)
+	      else if (curr->w_gr && curr->w_encoding != UTF8)
 # else
-	  else if (curr->w_gr)
+	      else if (curr->w_gr)
 # endif
-	    {
+		{
 #ifdef ENCODINGS
-	      if (c == 0x80 && font == 0 && curr->w_encoding == GBK)
-		c = 0xa4;
-	      else
-	        c &= 0x7f;
-	      if (c < ' ' && font != 031)
-		goto tryagain;
+		  if (c == 0x80 && font == 0 && curr->w_encoding == GBK)
+		    c = 0xa4;
+		  else
+		    c &= 0x7f;
+		  if (c < ' ' && font != 031)
+		    goto tryagain;
 #else
-	      c &= 0x7f;
-	      if (c < ' ')	/* this is ugly but kanji support */
-		goto tryagain;	/* prevents nicer programming */
+		  c &= 0x7f;
+		  if (c < ' ')	/* this is ugly but kanji support */
+		    goto tryagain;	/* prevents nicer programming */
 #endif
-	    }
+		}
 #endif /* FONT */
-	  if (c == '\177')
-	    break;
-	  curr->w_rend.image = c;
+	      if (c == '\177')
+		break;
+	      curr->w_rend.image = c;
 #ifdef UTF8
-	  if (curr->w_encoding == UTF8)
-	    curr->w_rend.font = c >> 8;
+	      if (curr->w_encoding == UTF8)
+		curr->w_rend.font = c >> 8;
 #endif
 #ifdef DW_CHARS
-	  curr->w_rend.mbcs = curr->w_mbcs;
+	      curr->w_rend.mbcs = curr->w_mbcs;
 #endif
-	  if (curr->w_x < cols - 1)
-	    {
-	      if (curr->w_insert)
+	      if (curr->w_x < cols - 1)
 		{
-		  save_mline(&curr->w_mlines[curr->w_y], cols);
-		  MInsChar(curr, &curr->w_rend, curr->w_x, curr->w_y);
-		  LInsChar(&curr->w_layer, &curr->w_rend, curr->w_x, curr->w_y, &mline_old);
-		  curr->w_x++;
+		  if (curr->w_insert)
+		    {
+		      save_mline(&curr->w_mlines[curr->w_y], cols);
+		      MInsChar(curr, &curr->w_rend, curr->w_x, curr->w_y);
+		      LInsChar(&curr->w_layer, &curr->w_rend, curr->w_x, curr->w_y, &mline_old);
+		      curr->w_x++;
+		    }
+		  else
+		    {
+		      MPutChar(curr, &curr->w_rend, curr->w_x, curr->w_y);
+		      LPutChar(&curr->w_layer, &curr->w_rend, curr->w_x, curr->w_y);
+		      curr->w_x++;
+		    }
 		}
-	      else
+	      else if (curr->w_x == cols - 1)
 		{
 		  MPutChar(curr, &curr->w_rend, curr->w_x, curr->w_y);
 		  LPutChar(&curr->w_layer, &curr->w_rend, curr->w_x, curr->w_y);
-		  curr->w_x++;
+		  if (curr->w_wrap)
+		    curr->w_x++;
 		}
-	    }
-	  else if (curr->w_x == cols - 1)
-	    {
-	      MPutChar(curr, &curr->w_rend, curr->w_x, curr->w_y);
-	      LPutChar(&curr->w_layer, &curr->w_rend, curr->w_x, curr->w_y);
-	      if (curr->w_wrap)
-		curr->w_x++;
-	    }
-	  else
-	    {
-	      MWrapChar(curr, &curr->w_rend, curr->w_y, curr->w_top, curr->w_bot, curr->w_insert);
-	      LWrapChar(&curr->w_layer, &curr->w_rend, curr->w_y, curr->w_top, curr->w_bot, curr->w_insert);
-	      if (curr->w_y != curr->w_bot && curr->w_y != curr->w_height - 1)
-	        curr->w_y++;
-	      curr->w_x = 1;
-	    }
+	      else
+		{
+		  MWrapChar(curr, &curr->w_rend, curr->w_y, curr->w_top, curr->w_bot, curr->w_insert);
+		  LWrapChar(&curr->w_layer, &curr->w_rend, curr->w_y, curr->w_top, curr->w_bot, curr->w_insert);
+		  if (curr->w_y != curr->w_bot && curr->w_y != curr->w_height - 1)
+		    curr->w_y++;
+		  curr->w_x = 1;
+		}
 #ifdef FONT
 # ifdef DW_CHARS
-	  if (curr->w_mbcs)
-	    {
-	      curr->w_rend.mbcs = curr->w_mbcs = 0;
-	      curr->w_x++;
-	    }
+	      if (curr->w_mbcs)
+		{
+		  curr->w_rend.mbcs = curr->w_mbcs = 0;
+		  curr->w_x++;
+		}
 # endif
-	  if (curr->w_ss)
-	    {
-	      curr->w_FontL = curr->w_charsets[curr->w_Charset];
-	      curr->w_FontR = curr->w_charsets[curr->w_CharsetR];
-	      curr->w_rend.font = curr->w_FontL;
-	      LSetRendition(&curr->w_layer, &curr->w_rend);
-	      curr->w_ss = 0;
-	    }
+	      if (curr->w_ss)
+		{
+		  curr->w_FontL = curr->w_charsets[curr->w_Charset];
+		  curr->w_FontR = curr->w_charsets[curr->w_CharsetR];
+		  curr->w_rend.font = curr->w_FontL;
+		  LSetRendition(&curr->w_layer, &curr->w_rend);
+		  curr->w_ss = 0;
+		}
 #endif /* FONT */
-	  break;
+	      break;
+	    }
 	}
+      while (--len);
     }
-  while (--len);
   if (!printcmd && curr->w_state == PRIN)
     PrintFlush();
 }
@@ -2593,6 +2596,10 @@ int xs, ys, xe, ye, bce;
   int n, y;
   int xxe;
   struct mline *ml;
+
+  /* Check for zero-height window */
+  if (ys < 0 || ye < ys)
+    return;
 
   /* check for magic margin condition */
   if (xs >= p->w_width)

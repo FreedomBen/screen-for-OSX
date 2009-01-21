@@ -502,6 +502,10 @@ int uself;
   if (bd.bd_refreshing)
     return;
 #endif
+  /* Check for zero-height window */
+  if (ys < 0 || ye < ys)
+    return;
+
   /* check for magic margin condition */
   if (xs >= l->l_width)
     xs = l->l_width - 1;
