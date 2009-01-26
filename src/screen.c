@@ -1420,6 +1420,10 @@ char **av;
 	  /* NOTREACHED */
 	}
     }
+  else if (ac) /* Screen was invoked with a command */
+    {
+      MakeWindow(&nwin);
+    }
 
 #ifdef HAVE_BRAILLE
   StartBraille();
