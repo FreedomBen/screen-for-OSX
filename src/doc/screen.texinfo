@@ -2002,7 +2002,7 @@ Bash users will probably want to echo the escape sequence in the
 PROMPT_COMMAND:
 
 @example
-PROMPT_COMMAND='echo -n -e "\033k\033\134"'
+PROMPT_COMMAND='printf "\033k\033\134"'
 @end example
 
 (I used @samp{\134} to output a @samp{\} because of a bug in v1.04).
