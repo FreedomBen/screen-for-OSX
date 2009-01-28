@@ -543,15 +543,6 @@
 #undef SHADOWPW
 
 /*
- * If you are on a SYS V machine that restricts filename length to 14 
- * characters, you may need to enforce that by setting NAME_MAX to 14
- */
-/* KEEP_UNDEF_HERE override system value
- * (Will this even work as expected? -mjc) */
-#undef NAME_MAX
-#undef NAME_MAX
-
-/*
  * define HAVE_NL_LANGINFO if your system has the nl_langinfo() call
  * and <langinfo.h> defines CODESET.
  */

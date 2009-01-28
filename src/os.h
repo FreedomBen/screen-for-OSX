@@ -41,6 +41,10 @@
 # include <signal.h>
 #endif /* __bsdi__ || __386BSD__ || _CX_UX || hpux || _IBMR2 || linux */
 
+#ifndef HAVE_LONG_FILE_NAMES
+#define NAME_MAX 14
+#endif
+
 #ifdef ISC
 # ifdef ENAMETOOLONG
 #  undef ENAMETOOLONG

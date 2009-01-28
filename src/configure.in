@@ -1202,17 +1202,7 @@ main() {
   exit(0); /* libc version works properly.  */
 }], AC_DEFINE(USEMEMCPY))
 
-AC_MSG_CHECKING(long file names)
-(echo 1 > /tmp/conftest9012345) 2>/dev/null
-(echo 2 > /tmp/conftest9012346) 2>/dev/null
-val=`cat /tmp/conftest9012345 2>/dev/null`
-if test -f /tmp/conftest9012345 && test "$val" = 1; then
-AC_MSG_RESULT(yes)
-else
-AC_MSG_RESULT(no)
-AC_DEFINE(NAME_MAX, 14)
-fi
-rm -f /tmp/conftest*
+AC_SYS_LONG_FILE_NAMES
 
 AC_MSG_CHECKING(for vsprintf)
 AC_TRY_LINK(,[vsprintf(0,0,0);], AC_MSG_RESULT(yes);AC_DEFINE(USEVARARGS), AC_MSG_RESULT(no))
