@@ -100,6 +100,42 @@ char *rcfile;
   char buf[256];
   char *p;
 
+  /* Tilde prefix support courtesy <hesso@pool.math.tu-berlin.de>,
+   * taken from a Debian patch. */
+  if (rcfile && *rcfile == '~')
+    {
+      static char rcfilename_tilde_exp[MAXPATHLEN+1];
+      char *slash_position = strchr(rcfile, '/');
+      if (slash_position == rcfile+1)
+        {
+          char *home = getenv("HOME");
+          if (!home)
+            {
+              Msg(0, "%s: source: tilde expansion failed", rc_name);
+              return;
+            }
+          snprintf(rcfilename_tilde_exp, MAXPATHLEN, "%s/%s", home, rcfile+2);
+        }
+      else if (slash_position)
+        {
+          struct passwd *p;
+          *slash_position = 0;
+          p = getpwnam(rcfile+1);
+          if (!p)
+            {
+              Msg(0, "%s: source: tilde expansion failed for user %s", rc_name, rcfile+1);
+              return;
+            }
+          snprintf(rcfilename_tilde_exp, MAXPATHLEN, "%s/%s", p->pw_dir, slash_position+1);
+        }
+      else
+        {
+          Msg(0, "%s: source: illegal tilde expression.", rc_name);
+          return;
+        }
+      rcfile = rcfilename_tilde_exp;
+    }
+
   if (rcfile)
     {
       char *rcend = rindex(rc_name, '/');
@@ -304,49 +340,9 @@ char *rcfilename;
       Msg(0, "%s: source: recursion limit reached", rc_name);
       return;
     }
-  /* Tilde prefix support courtesy <hesso@pool.math.tu-berlin.de>,
-   * taken from a Debian patch. */
-  if (*rcfilename == '~')
-    {
-      char rcfilename_tilde_exp[MAXPATHLEN+1];
-      char *slash_position = strchr(rcfilename, '/');
-      if (slash_position == rcfilename+1)
-        {
-          char *home = getenv("HOME");
-          if (!home)
-            {
-              Msg(0, "%s: source: tilde expansion failed", rc_name);
-              return;
-            }
-          snprintf(rcfilename_tilde_exp, MAXPATHLEN, "%s/%s", home, rcfilename+2);
-        }
-      else if (slash_position)
-        {
-          struct passwd *p;
-          *slash_position = 0;
-          p = getpwnam(rcfilename+1);
-          if (!p)
-            {
-              Msg(0, "%s: source: tilde expansion failed for user %s", rc_name, rcfilename+1);
-              return;
-            }
-          snprintf(rcfilename_tilde_exp, MAXPATHLEN, "%s/%s", p->pw_dir, slash_position+1);
-        }
-      else
-        {
-          Msg(0, "%s: source: illegal tilde expression.", rc_name);
-          return;
-        }
-      rc_recursion++;
-      FinishRc(rcfilename_tilde_exp);
-      rc_recursion--;
-    }
-  else
-    {
-      rc_recursion++;
-      FinishRc(rcfilename);
-      rc_recursion--;
-    }
+  rc_recursion++;
+  FinishRc(rcfilename);
+  rc_recursion--;
 }
 
 
