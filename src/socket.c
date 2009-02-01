@@ -1563,8 +1563,10 @@ struct msg *mp;
 {
   char *args[MAXARGS];
   int argl[MAXARGS];
-  int n, *lp;
-  register char **pp = args, *p = mp->m.command.cmd;
+  char fullcmd[MAXSTR];
+  register char *fc;
+  int n;
+  register char *p = mp->m.command.cmd;
   struct acluser *user;
 #ifdef MULTIUSER
   extern struct acluser *EffectiveAclUser;	/* acls.c */
@@ -1572,17 +1574,21 @@ struct msg *mp;
   extern struct acluser *users;			/* acls.c */
 #endif
 
-  lp = argl;
   n = mp->m.command.nargs;
   if (n > MAXARGS - 1)
     n = MAXARGS - 1;
-  for (; n > 0; n--)
+  for (fc = fullcmd; n > 0; n--)
     {
-      *pp++ = p;
-      *lp = strlen(p);
-      p += *lp++ + 1;
+      int len = strlen(p);
+      strncpy(fc, p, fullcmd + sizeof(fullcmd) - fc - 1);
+      p += len + 1;
+      fc += len;
+      *fc++ = ' ';
     }
-  *pp = 0;
+  if (fc != fullcmd)
+    *--fc = 0;
+  if (Parse(fullcmd, fc - fullcmd, args, argl) <= 0)
+    return;
 #ifdef MULTIUSER
   user = *FindUserPtr(mp->m.attach.auser);
   if (user == 0)
