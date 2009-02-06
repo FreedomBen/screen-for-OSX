@@ -51,9 +51,7 @@ static void  screen_builtin_lck __P((void));
 #ifdef DEBUG
 static sigret_t AttacherChld __P(SIGPROTOARG);
 #endif
-#ifdef MULTIUSER
 static sigret_t AttachSigCont __P(SIGPROTOARG);
-#endif
 
 extern int real_uid, real_gid, eff_uid, eff_gid;
 extern char *SockName, *SockMatch, SockPath[];
@@ -75,7 +73,6 @@ static int multipipe[2];
 #endif
 
 
-#ifdef MULTIUSER
 static int ContinuePlease;
 
 static sigret_t
@@ -85,7 +82,6 @@ AttachSigCont SIGDEFARG
   ContinuePlease = 1;
   SIGRETURN;
 }
-#endif
 
 
 /*
