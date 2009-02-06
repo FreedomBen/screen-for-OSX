@@ -403,9 +403,7 @@ int how;
 }
 
 
-#if defined(DEBUG) || !defined(DO_NOT_POLL_MASTER)
 static int AttacherPanic = 0;
-#endif
 
 #ifdef DEBUG
 static sigret_t
@@ -595,7 +593,6 @@ Attacher()
 #endif
   for (;;)
     {
-#ifndef DO_NOT_POLL_MASTER
       signal(SIGALRM, AttacherSigAlarm);
       alarm(15);
       pause();
@@ -605,10 +602,6 @@ Attacher()
 	  debug1("attacher: Panic! MasterPid %d does not exist.\n", MasterPid);
 	  AttacherPanic++;
 	}
-#else
-      pause();
-#endif
-#if defined(DEBUG) || !defined(DO_NOT_POLL_MASTER)
       if (AttacherPanic)
         {
 	  fcntl(0, F_SETFL, 0);
@@ -616,7 +609,6 @@ Attacher()
 	  printf("\nSuddenly the Dungeon collapses!! - You die...\n");
 	  eexit(1);
         }
-#endif
 #ifdef BSDJOBS
       if (SuspendPlease)
 	{
