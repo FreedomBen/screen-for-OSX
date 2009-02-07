@@ -41,7 +41,7 @@
 # include <signal.h>
 #endif /* __bsdi__ || __386BSD__ || _CX_UX || hpux || _IBMR2 || linux */
 
-#ifndef HAVE_LONG_FILE_NAMES
+#if !defined(HAVE_LONG_FILE_NAMES) && !defined(NAME_MAX)
 #define NAME_MAX 14
 #endif
 
