@@ -78,6 +78,8 @@ struct mchar mchar_null;
 struct mchar mchar_blank = {' ' /* , 0, 0, ... */};
 struct mchar mchar_so    = {' ', A_SO /* , 0, 0, ... */};
 
+int renditions[NUM_RENDS] = {6750175 /* =B dd */, 6750205 /* =u dd */};
+
 /* keep string_t and string_t_string in sync! */
 static char *string_t_string[] = 
 {

@@ -277,6 +277,7 @@ struct comm comms[RC_LAST + 1] =
 #ifdef COPY_PASTE
   { "removebuf",	ARGS_0 },
 #endif
+  { "rendition",	ARGS_23 },
   { "reset",		NEED_FORE|ARGS_0 },
   { "resize",		NEED_DISPLAY|ARGS_0|ARGS_ORMORE },
   { "screen",		ARGS_0|ARGS_ORMORE },

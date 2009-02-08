@@ -50,6 +50,7 @@ extern void  Finit __P((int));
 extern void  MakeNewEnv __P((void));
 extern char *MakeWinMsg __P((char *, struct win *, int));
 extern char *MakeWinMsgEv __P((char *, struct win *, int, int, struct event *, int));
+extern int   AddWinMsgRend __P((const char *, int));
 extern void  PutWinMsg __P((char *, int, int));
 #ifdef BSDWAIT
 extern void  WindowDied __P((struct win *, union wait, int));

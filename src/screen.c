@@ -2417,6 +2417,22 @@ time_t now;
   return bt->result;
 }
 
+int
+AddWinMsgRend(str, r)
+const char *str;
+int r;
+{
+  if (winmsg_numrend >= MAX_WINMSG_REND || str < winmsg_buf ||
+      str >= winmsg_buf + MAXSTR)
+    return -1;
+
+  winmsg_rend[winmsg_numrend] = r;
+  winmsg_rendpos[winmsg_numrend] = str - winmsg_buf;
+  winmsg_numrend++;
+
+  return 0;
+}
+
 char *
 MakeWinMsgEv(str, win, esc, padlen, ev, rec)
 char *str;

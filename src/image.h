@@ -166,3 +166,11 @@ IFDWCHAR((mc)->mbcs  = 0;				      ) \
 #  define cole2i(c) ((c) ^ 9)
 # endif
 #endif
+
+enum
+{
+  REND_BELL = 0,
+  REND_MONITOR,
+  NUM_RENDS
+};
+

@@ -106,6 +106,7 @@ extern char *kmapadef[];
 extern char *kmapmdef[];
 #endif
 extern struct mchar mchar_so, mchar_null;
+extern int renditions[];
 extern int VerboseCreate;
 #ifdef UTF8
 extern char *screenencodings;
@@ -3746,6 +3747,36 @@ int key;
       nattr2color = n;
       break;
 #endif
+    case RC_RENDITION:
+      i = -1;
+      if (strcmp(args[0], "bell") == 0)
+	{
+	  i = REND_BELL;
+	}
+      else if (strcmp(args[0], "monitor") == 0)
+	{
+	  i = REND_MONITOR;
+	}
+      else if (strcmp(args[0], "so") != 0)
+	{
+	  Msg(0, "Invalid option '%s' for rendition", args[0]);
+	  break;
+	}
+
+      ++args;
+      ++argl;
+
+      if (i != -1)
+	{
+	  renditions[i] = ParseAttrColor(args[0], args[1], 1);
+	  WindowChanged((struct win *)0, 'w');
+	  WindowChanged((struct win *)0, 'W');
+	  WindowChanged((struct win *)0, 0);
+	  break;
+	}
+
+      /* We are here, means we want to set the sorendition. */
+      /* FALLTHROUGH*/
     case RC_SORENDITION:
       i = 0;
       if (*args)
@@ -3754,6 +3785,7 @@ int key;
 	  if (i == -1)
 	    break;
 	  ApplyAttrColor(i, &mchar_so);
+	  WindowChanged((struct win *)0, 0);
 	  debug2("--> %x %x\n", mchar_so.attr, mchar_so.color);
 	}
       if (msgok)
@@ -5238,6 +5270,7 @@ int where;
   s = ss = buf;
   for (pp = ((flags & 4) && where >= 0) ? wtab + where + 1: wtab; pp < wtab + MAXWIN; pp++)
     {
+      int rend = -1;
       if (pp - wtab == where && ss == buf)
 	ss = s;
       if ((p = *pp) == 0)
@@ -5258,6 +5291,16 @@ int where;
 	  *s++ = ' ';
 	  *s++ = ' ';
 	}
+      if (((flags & 4) && where >= 0 && where < p->w_number) ||
+	  (!(flags & 4) && where >= 0 && where > p->w_number))
+	{
+	  if (p->w_monitor == MON_DONE && renditions[REND_MONITOR] != -1)
+	    rend = renditions[REND_MONITOR];
+	  else if ((p->w_bell == BELL_DONE || p->w_bell == BELL_FOUND) && renditions[REND_BELL] != -1)
+	    rend = renditions[REND_BELL];
+	}
+      if (rend != -1)
+	AddWinMsgRend(s, rend);
       sprintf(s, "%d", p->w_number);
       if (p->w_number == where)
         ss = s;
@@ -5273,6 +5316,8 @@ int where;
       *s++ = ' ';
       strncpy(s, cmd, l);
       s += l;
+      if (rend != -1)
+	AddWinMsgRend(s, -1);
     }
   *s = 0;
   return ss;
