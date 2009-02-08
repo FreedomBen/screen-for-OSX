@@ -5272,7 +5272,11 @@ int where;
     {
       int rend = -1;
       if (pp - wtab == where && ss == buf)
-	ss = s;
+	{
+	  ss = s;
+	  if (flags & 8)
+	    break;
+	}
       if ((p = *pp) == 0)
 	continue;
       if ((flags & 1) && display && p == D_fore)
@@ -5291,8 +5295,7 @@ int where;
 	  *s++ = ' ';
 	  *s++ = ' ';
 	}
-      if (((flags & 4) && where >= 0 && where < p->w_number) ||
-	  (!(flags & 4) && where >= 0 && where > p->w_number))
+      if (!(flags & 4) || where < 0 || ((flags & 4) && where < p->w_number))
 	{
 	  if (p->w_monitor == MON_DONE && renditions[REND_MONITOR] != -1)
 	    rend = renditions[REND_MONITOR];
