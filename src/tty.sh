@@ -24,7 +24,7 @@ sed -e '1,26d' \
 chmod -w $1
 exit 0
 
-/* Copyright (c) 2008
+/* Copyright (c) 2008, 2009
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  *      Micah Cowan (micah@cowan.name)

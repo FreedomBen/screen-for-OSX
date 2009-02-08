@@ -1,4 +1,4 @@
-/* Copyright (c) 2008
+/* Copyright (c) 2008, 2009
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  *      Micah Cowan (micah@cowan.name)
@@ -503,7 +503,7 @@ static const char cpmsg[] = "\
 \n\
 Screen version %v\n\
 \n\
-Copyright (c) 2008 Juergen Weigert, Michael Schroeder, Micah Cowan, Sadrul Habib Chowdhury\n\
+Copyright (c) 2008, 2009 Juergen Weigert, Michael Schroeder, Micah Cowan, Sadrul Habib Chowdhury\n\
 Copyright (c) 1993-2002, 2003, 2005, 2006, 2007 Juergen Weigert, Michael Schroeder\n\
 Copyright (c) 1987 Oliver Laumann\n\
 \n\
