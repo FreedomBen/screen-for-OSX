@@ -46,10 +46,14 @@ struct inpline
   char  buf[101];	/* text buffer */
   int  len;		/* length of the editible string */
   int  pos;		/* cursor position in editable string */
+  struct inpline *next, *prev;
 };
 
-static struct inpline inphist; /* XXX: should be a dynamic list */
-
+/* 'inphist' is used to store the current input when scrolling through history.
+ * inpline->prev == history-prev
+ * inpline->next == history-next
+ */
+static struct inpline inphist;
 
 struct inpdata
 {
@@ -147,6 +151,7 @@ int data;
   inpdata->inpmaxlen = len;
   inpdata->inpfinfunc = finfunc;
   inpdata->inp.pos = inpdata->inp.len = 0;
+  inpdata->inp.prev = inphist.prev;
   inpdata->inpmode = mode;
   inpdata->privdata = data;
   if (!priv)
@@ -204,6 +209,7 @@ int *plen;
   char ch;
   struct inpdata *inpdata;
   struct display *inpdisplay;
+  int prev, next;
 
   inpdata = (struct inpdata *)flayer->l_data;
   inpdisplay = display;
@@ -323,22 +329,27 @@ int *plen;
 	  LGotoPos(flayer, ++x, INPUTLINE);
 	  inpdata->inp.pos++;
 	}
-      else if (ch == '\020' || (unsigned char)ch == 0220)	/* CTRL-P */
-        {
+      else if ((prev = ((ch == '\020' || (unsigned char)ch == 0220) &&	/* CTRL-P */
+	      inpdata->inp.prev)) ||
+	  (next = ((ch == '\016' || (unsigned char)ch == 0216) &&  /* CTRL-N */
+		   inpdata->inp.next)))
+	{
 	  struct mchar mc;
 	  mc = mchar_so;
 	  if (inpdata->inp.len && !(inpdata->inpmode & INP_NOECHO))
 	    LClearArea(flayer, inpdata->inpstringlen, INPUTLINE, inpdata->inpstringlen + inpdata->inp.len - 1, INPUTLINE, 0, 0);
 
-	  inpdata->inp = inphist;	/* structure copy */
+	  if (prev && !inpdata->inp.next)
+	    inphist = inpdata->inp;
+	  memcpy(&inpdata->inp, prev ? inpdata->inp.prev : inpdata->inp.next, sizeof(struct inpline));
 	  if (inpdata->inp.len > inpdata->inpmaxlen)
 	    inpdata->inp.len = inpdata->inpmaxlen;
 	  if (inpdata->inp.pos > inpdata->inp.len)
 	    inpdata->inp.pos = inpdata->inp.len;
 
-  	  x = inpdata->inpstringlen;
+	  x = inpdata->inpstringlen;
 	  p = inpdata->inp.buf;
-	  
+
 	  if (!(inpdata->inpmode & INP_NOECHO))
 	    {
 	      while (p < inpdata->inp.buf+inpdata->inp.len)
@@ -347,7 +358,7 @@ int *plen;
 		  LPutChar(flayer, &mc, x++, INPUTLINE);
 		}
 	    }
-  	  x = inpdata->inpstringlen + inpdata->inp.pos;
+	  x = inpdata->inpstringlen + inpdata->inp.pos;
 	  LGotoPos(flayer, x, INPUTLINE);
 	}
 
@@ -359,9 +370,36 @@ int *plen;
 	  inpdata->inp.buf[inpdata->inp.len] = 0;
 
 	  if (inpdata->inp.len && !(inpdata->inpmode & (INP_NOECHO | INP_RAW)))
-	    inphist = inpdata->inp;	/* structure copy */
-	  
-  	  flayer->l_data = 0;	/* so inpdata does not get freed */
+	    {
+	      struct inpline *store;
+
+	      /* Look for a duplicate first */
+	      for (store = inphist.prev; store; store = store->prev)
+		{
+		  if (strcmp(store->buf, inpdata->inp.buf) == 0)
+		    {
+		      if (store->next)
+			store->next->prev = store->prev;
+		      if (store->prev)
+			store->prev->next = store->next;
+		      store->pos = inpdata->inp.pos;
+		      break;
+		    }
+		}
+
+	      if (!store)
+		{
+		  store = malloc(sizeof(struct inpline));
+		  memcpy(store, &inpdata->inp, sizeof(struct inpline));
+		}
+	      store->next = &inphist;
+	      store->prev = inphist.prev;
+	      if (inphist.prev)
+		inphist.prev->next = store;
+	      inphist.prev = store;
+	    }
+
+	  flayer->l_data = 0;	/* so inpdata does not get freed */
           InpAbort();		/* redisplays... */
 	  *ppbuf = pbuf;
 	  *plen = len;
