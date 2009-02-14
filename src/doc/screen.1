@@ -1645,7 +1645,7 @@ Shows a tabular listing of all currently connected user front-ends (displays).
 This is most useful for multiuser sessions.
 .sp
 .ne 3
-.BR "digraph " [ \fIpreset ]
+.BR "digraph " [ \fIpreset [ \fI unicode-value ] ]
 .PP
 This command prompts the user for a digraph sequence. The next
 two characters typed are looked up in a builtin table and the
@@ -1659,6 +1659,11 @@ number instead.  The optional argument
 is treated as user input, thus one can create an \*Qumlaut\*U key.
 For example the command "bindkey ^K digraph '"'" enables the user
 to generate an a-umlaut by typing CTRL-K a.
+When a non-zero
+.I unicode-value
+is specified, a new digraph is created with the specified preset. The digraph is unset
+if a zero value is provided for the
+.I unicode-value.
 .sp
 .ne 3
 .B dumptermcap

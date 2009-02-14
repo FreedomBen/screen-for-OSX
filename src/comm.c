@@ -175,7 +175,7 @@ struct comm comms[RC_LAST + 1] =
 #ifdef DETACH
   { "detach",		NEED_DISPLAY|ARGS_01 },
 #endif
-  { "digraph",		NEED_LAYER|ARGS_01 },
+  { "digraph",		NEED_LAYER|ARGS_012 },
   { "dinfo",		NEED_DISPLAY|ARGS_0 },
   { "displays",		NEED_LAYER|ARGS_0 },
   { "dumptermcap",	NEED_FORE|ARGS_0 },

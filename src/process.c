@@ -154,6 +154,7 @@ static void pass2 __P((char *, int, char *));
 static void pow_detach_fn __P((char *, int, char *));
 #endif
 static void digraph_fn __P((char *, int, char *));
+static int  digraph_find __P((const char *buf));
 static void confirm_fn __P((char *, int, char *));
 static int  IsOnDisplay __P((struct win *));
 static void ResizeRegions __P((char *, int));
@@ -229,9 +230,18 @@ int kmap_extn;
 static int maptimeout = 300;
 #endif
 
+#ifndef MAX_DIGRAPH
+#define MAX_DIGRAPH 512
+#endif
+
+struct digraph
+{
+  unsigned char d[2];
+  int value;
+};
 
 /* digraph table taken from old vim and rfc1345 */
-static const unsigned char digraphs[][3] = {
+static struct digraph digraphs[MAX_DIGRAPH + 1] = {
     {' ', ' ', 160},	/*   */
     {'N', 'S', 160},	/*   */
     {'~', '!', 161},	/* ¡ */
@@ -419,6 +429,44 @@ static char *resizeprompts[] = {
   "resize -l -v # lines: ",
   "resize -l -b # lines: ",
 };
+
+static int
+parse_input_int(buf, len, val)
+const char *buf;
+int len;
+int *val;
+{
+  int x = 0, i;
+  if (len >= 1 && ((*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X'))))
+    {
+      x = 0;
+      for (i = 2; i < len; i++)
+	{
+	  if (buf[i] >= '0' && buf[i] <= '9')
+	    x = x * 16 | (buf[i] - '0');
+	  else if (buf[i] >= 'a' && buf[i] <= 'f')
+	    x = x * 16 | (buf[i] - ('a' - 10));
+	  else if (buf[i] >= 'A' && buf[i] <= 'F')
+	    x = x * 16 | (buf[i] - ('A' - 10));
+	  else
+	    return 0;
+	}
+    }
+  else if (buf[0] == '0')
+    {
+      x = 0;
+      for (i = 1; i < len; i++)
+	{
+	  if (buf[i] < '0' || buf[i] > '7')
+	    return 0;
+	  x = x * 8 | (buf[i] - '0');
+	}
+    }
+  else
+    return 0;
+  *val = x;
+  return 1;
+}
 
 char *noargs[1];
 
@@ -3635,6 +3683,20 @@ int key;
       break;
 
     case RC_DIGRAPH:
+      if (argl && argl[0] > 0 && argl[1] > 0)
+	{
+	  if (argl[0] != 2)
+	    {
+	      Msg(0, "Two characters expected to define a digraph");
+	      break;
+	    }
+	  i = digraph_find(args[0]);
+	  digraphs[i].d[0] = args[0][0];
+	  digraphs[i].d[1] = args[0][1];
+	  if (!parse_input_int(args[1], argl[1], &digraphs[i].value))
+	    digraphs[i].value = atoi(args[1]);
+	  break;
+	}
       Input("Enter digraph: ", 10, INP_EVERY, digraph_fn, NULL, 0);
       if (*args && **args)
 	{
@@ -6240,6 +6302,18 @@ char *data;
 }
 #endif /* PASSWORD */
 
+static int
+digraph_find(buf)
+const char *buf;
+{
+  int i;
+  for (i = 0; i < MAX_DIGRAPH && digraphs[i].d[0]; i++)
+    if ((digraphs[i].d[0] == (unsigned char)buf[0] && digraphs[i].d[1] == (unsigned char)buf[1]) ||
+	(digraphs[i].d[0] == (unsigned char)buf[1] && digraphs[i].d[1] == (unsigned char)buf[0]))
+      break;
+  return i;
+}
+
 static void
 digraph_fn(buf, len, data)
 char *buf;
@@ -6291,43 +6365,14 @@ char *data;	/* dummy */
     }
   if (len < 2)
     return;
-  if (len >= 1 && ((*buf == 'U' && buf[1] == '+') || (*buf == '0' && (buf[1] == 'x' || buf[1] == 'X'))))
+  if (!parse_input_int(buf, len, &x))
     {
-      x = 0;
-      for (i = 2; i < len; i++)
-	{
-	  if (buf[i] >= '0' && buf[i] <= '9')
-	    x = x * 16 | (buf[i] - '0');
-	  else if (buf[i] >= 'a' && buf[i] <= 'f')
-	    x = x * 16 | (buf[i] - ('a' - 10));
-	  else if (buf[i] >= 'A' && buf[i] <= 'F')
-	    x = x * 16 | (buf[i] - ('A' - 10));
-	  else
-	    break;
-	}
-    }
-  else if (buf[0] == '0')
-    {
-      x = 0;
-      for (i = 1; i < len; i++)
-	{
-	  if (buf[i] < '0' || buf[i] > '7')
-	    break;
-	  x = x * 8 | (buf[i] - '0');
-	}
-    }
-  else
-    {
-      for (i = 0; i < (int)(sizeof(digraphs)/sizeof(*digraphs)); i++)
-	if ((digraphs[i][0] == (unsigned char)buf[0] && digraphs[i][1] == (unsigned char)buf[1]) ||
-	    (digraphs[i][0] == (unsigned char)buf[1] && digraphs[i][1] == (unsigned char)buf[0]))
-	  break;
-      if (i == (int)(sizeof(digraphs)/sizeof(*digraphs)))
+      i = digraph_find(buf);
+      if ((x = digraphs[i].value) <= 0)
 	{
 	  Msg(0, "Unknown digraph");
 	  return;
 	}
-      x = digraphs[i][2];
     }
   i = 1;
   *buf = x;
