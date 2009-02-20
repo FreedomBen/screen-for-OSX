@@ -5334,11 +5334,7 @@ int where;
     {
       int rend = -1;
       if (pp - wtab == where && ss == buf)
-	{
-	  ss = s;
-	  if (flags & 8)
-	    break;
-	}
+        ss = s;
       if ((p = *pp) == 0)
 	continue;
       if ((flags & 1) && display && p == D_fore)
@@ -5368,7 +5364,11 @@ int where;
 	AddWinMsgRend(s, rend);
       sprintf(s, "%d", p->w_number);
       if (p->w_number == where)
-        ss = s;
+        {
+          ss = s;
+          if (flags & 8)
+            break;
+        }
       s += strlen(s);
       if (display && p == D_fore)
 	*s++ = '*';
