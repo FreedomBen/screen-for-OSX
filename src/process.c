@@ -5330,6 +5330,11 @@ int where;
   int l;
 
   s = ss = buf;
+  if ((flags & 8) && where < 0)
+    {
+      *s = 0;
+      return ss;
+    }
   for (pp = ((flags & 4) && where >= 0) ? wtab + where + 1: wtab; pp < wtab + MAXWIN; pp++)
     {
       int rend = -1;
