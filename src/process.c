@@ -5358,6 +5358,12 @@ int where;
 	  *s++ = ' ';
 	  *s++ = ' ';
 	}
+      if (p->w_number == where)
+        {
+          ss = s;
+          if (flags & 8)
+            break;
+        }
       if (!(flags & 4) || where < 0 || ((flags & 4) && where < p->w_number))
 	{
 	  if (p->w_monitor == MON_DONE && renditions[REND_MONITOR] != -1)
@@ -5368,12 +5374,6 @@ int where;
       if (rend != -1)
 	AddWinMsgRend(s, rend);
       sprintf(s, "%d", p->w_number);
-      if (p->w_number == where)
-        {
-          ss = s;
-          if (flags & 8)
-            break;
-        }
       s += strlen(s);
       if (display && p == D_fore)
 	*s++ = '*';
