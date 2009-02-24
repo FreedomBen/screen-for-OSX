@@ -1758,7 +1758,8 @@ Rename the current session. Note that for @code{screen -list} the name
 shows up with the process-id prepended. If the argument @var{name} is
 omitted, the name of this session is displayed.@*
 @emph{Caution}: The @code{$STY}
-environment variable still reflects the old name. This may result in
+environment variable will still reflect the old name in pre-existing
+shells. This may result in
 confusion.  The default is constructed from the tty and host names.
 @end deffn
 
