@@ -4162,6 +4162,11 @@ int key;
 	{
 	  int old;
 	  struct layout *lay;
+	  if (!D_layout)
+	    {
+	      Msg(0, "not on a layout");
+	      break;
+	    }
 	  if (!args[1])
 	    {
 	      Msg(0, "This is layout %d (%s).\n", D_layout->lay_number, D_layout->lay_title);
