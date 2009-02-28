@@ -1071,6 +1071,8 @@ Store a string to a register.  @xref{Registers}.
 Kill current region.  @xref{Regions}.
 @item removebuf
 Delete the screen-exchange file.  @xref{Screen Exchange}.
+@item rendition bell | monitor | so @var{attr} [@var{color}]
+Change text attributes in caption for flagged windows.  @xref{Rendition}.
 @item reset
 Reset the terminal settings for the window.  @xref{Reset}.
 @item resize [(+/-)lines]
@@ -4332,6 +4334,7 @@ categories.
 * Version::                     Display the version of @code{screen}.
 * Zombie::                      Keep dead windows.
 * Printcmd::                    Set command for VT100 printer port emulation.
+* Rendition::			Change text attributes in caption for flagged windows.
 * Sorendition::			Change the text highlighting method.
 * Attrcolor::			Map attributes to colors.
 * Setsid::			Change process group management.
@@ -4557,7 +4560,7 @@ If it exits normally ('0'), the window disappears. Any other exit value
 causes the window to become a zombie.
 @end deffn
 
-@node Printcmd, Sorendition, Zombie, Miscellaneous
+@node Printcmd, Rendition, Zombie, Miscellaneous
 @section Printcmd
 @deffn Command printcmd [@var{cmd}]
 (none)@*
@@ -4573,7 +4576,20 @@ Warning: Be careful with this command! If other user have write
 access to your terminal, they will be able to fire off print commands.
 @end deffn
 
-@node Sorendition, Attrcolor, Printcmd, Miscellaneous
+@node Rendition, Sorendition, Printcmd, Miscellaneous
+@section Rendition
+@deffn Command rendition bell | monitor | so @var{attr} [@var{color}]
+(none)@*
+Change the way screen renders the titles of windows that have monitor
+or bell flags set in caption or hardstatus or windowlist.
+See the chapter
+about string escapes (@pxref{String Escapes}) for the syntax of
+the modifiers. The default for monitor is currently @samp{=b} (bold,
+active colors), and for bell is @samp{=ub} (underline, bold and
+active colors).
+@end deffn
+
+@node Sorendition, Attrcolor, Rendition, Miscellaneous
 @section Sorendition
 @deffn Command sorendition [@var{attr} [@var{color}]]
 (none)@*
