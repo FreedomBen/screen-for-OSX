@@ -4367,7 +4367,7 @@ char **cmdv;
 #endif
       display = 0;
       execvpe(*cmdv, cmdv, NewEnv + 3);
-      Panic(errno, *cmdv);
+      Panic(errno, "%s", *cmdv);
     default:
       break;
     }
