@@ -35,3 +35,5 @@ WIP notes on hacking the Screen source.
         window list:            WListProcess
         command input line:     InpProcess
 
+* Handling string escapes (in hardstatus and the like), such as %w or
+  %{= bw}, is done in screen.c, MakeWinMsgEv().
