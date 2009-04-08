@@ -873,7 +873,7 @@ char **cmdv;
 #endif
       execvp(*cmdv, cmdv);
       close(1);
-      Panic(errno, *cmdv);
+      Panic(errno, "%s", *cmdv);
     default:
       break;
     }
