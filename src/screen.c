@@ -1414,8 +1414,13 @@ char **av;
       debug("We open one default window, as screenrc did not specify one.\n");
       if (MakeWindow(&nwin) == -1)
 	{
-	  Msg(0, "Sorry, could not find a PTY.");
-	  sleep(5);
+	  fd_set rfd;
+	  struct timeval tv = { MsgWait/1000, 1000*(MsgWait%1000) };
+	  FD_SET(0, &rfd);
+
+	  Msg(0, "Sorry, could not find a PTY or TTY.");
+	  // allow user to exit early by pressing any key.
+	  select(1, &rfd, NULL, NULL, &tv);
 	  Finit(0);
 	  /* NOTREACHED */
 	}
