@@ -691,6 +691,7 @@ int create;
 	{
 	  kp->ktab[i].nr = RC_ILLEGAL;
 	  kp->ktab[i].args = noargs;
+	  kp->ktab[i].argl = 0;
 	}
       kp->next = 0;
       *kpp = kp;
@@ -3314,6 +3315,7 @@ int key;
 		      kme->str = 0;
 		      kme->dm.nr = kme->mm.nr = kme->um.nr = RC_ILLEGAL;
 		      kme->dm.args = kme->mm.args = kme->um.args = noargs;
+		      kme->dm.argl = kme->mm.argl = kme->um.argl = 0;
 		    }
 		  i -= 8;
 		  kme -= 8;
@@ -4477,6 +4479,7 @@ int bufl, *argl;
   delim = 0;
   for (;;)
     {
+      *lp = 0;
       while (*p && (*p == ' ' || *p == '\t'))
 	++p;
 #ifdef PSEUDOS
