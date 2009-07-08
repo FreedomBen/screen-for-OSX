@@ -2305,11 +2305,12 @@ some time it restarts to accept characters, screen will unblock
 the display and redisplay the updated window contents.
 .sp
 .ne 3
-.BR "number " [ \fIn ]
+.BR "number " [[+|-] \fIn ]
 .PP
-Change the current windows number. If the given number \fIn\fP is already 
+Change the current window's number. If the given number \fIn\fP is already 
 used by another window, both windows exchange their numbers. If no argument is
-specified, the current window number (and title) is shown.
+specified, the current window number (and title) is shown. Using `+' or `-'
+will change the window's number by the relative amount specified.
 .sp
 .ne 3
 .BR "obuflimit " [ \fIlimit ]

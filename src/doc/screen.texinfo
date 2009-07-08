@@ -4475,11 +4475,13 @@ displays is changed. Initial setting is @code{off}.
 @node Number, Silence, Nonblock, Miscellaneous
 @section Number
 @kindex N
-@deffn Command number [@var{n}]
+@deffn Command number [[+|-]@var{n}]
 (@kbd{C-a N})@*
 Change the current window's number. If the given number @var{n} is already
 used by another window, both windows exchange their numbers. If no argument is
-specified, the current window number (and title) is shown.
+specified, the current window number (and title) is shown. Using either a
+plus (`+') or minus (`-') will change the window's number by the relative
+amount specified.
 @end deffn
 
 @node Silence, Time, Number, Miscellaneous
