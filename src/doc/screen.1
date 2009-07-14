@@ -509,7 +509,7 @@ automatic margins on and off).
 .PD
 Send a control-s to the current window.
 .IP "\fBC-a S\fP	(split)"
-Split the current region into two new ones.
+Split the current region horizontally into two new ones.
 See also \fIonly, remove, focus\fP.
 .IP "\fBC-a t\fP"
 .PD 0
@@ -582,6 +582,8 @@ Shows where
 comes from, where it went to and why you can use it.
 .IP "\fBC-a _\fP	(silence)"
 Start/stop monitoring the current window for inactivity.
+.IP "\fBC-a |\fP	(split -v)"
+Split the current region vertically into two new ones.
 .IP "\fBC-a *\fP	(displays)"
 Show a listing of all currently attached displays.
 
@@ -2729,12 +2731,13 @@ The default is currently \*Q=s dd\*U (standout, default colors).
 .sp
 .ne 3
 .B split
+.RB [ -v ]
 .PP
 Split the current region into two new ones. All regions on the
 display are resized to make room for the new region. The blank
-window is displayed on the new region. Use the \*Qremove\*U or the
-\*Qonly\*U command to delete regions.
-Use \*Qfocus\*U to toggle between regions.
+window is displayed on the new region. Splits are made horizontally
+unless -v is used. Use the \*Qremove\*U or the \*Qonly\*U command
+to delete regions. Use \*Qfocus\*U to toggle between regions.
 .sp
 .ne 3
 .B "startup_message on\fP|\fBoff"

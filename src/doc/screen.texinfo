@@ -705,7 +705,7 @@ Send a ^S (ASCII XOFF) to the current window.  @xref{XON/XOFF}.
 
 @item @kbd{C-a S}
 (split)@*
-Split the current region into two new ones.  @xref{Regions}.
+Split the current region horizontally into two new ones.  @xref{Regions}.
 
 @item @kbd{C-a t}
 @itemx @kbd{C-a C-t}
@@ -798,6 +798,10 @@ Delete the screen-exchange file.  @xref{Screen Exchange}.
 @item @kbd{C-a _}
 (silence)@*
 Start/stop monitoring the current window for inactivity. @xref{Silence},
+
+@item @kbd{C-a |}
+(split -v)@*
+Split the current region vertically into two new ones.  @xref{Regions}.
 
 @item @kbd{C-a ,}
 (license)@*
@@ -1808,11 +1812,20 @@ which can contain different windows.
 @node Split, Focus,  , Regions
 @section Split
 @kindex S
-@deffn Command split
-(@kbd{C-a S})@*
+@kindex |
+@deffn Command split [-v]
+(@kbd{C-a S}, @kbd{C-a |})@*
 Split the current region into two new ones. All regions on the
 display are resized to make room for the new region. The blank
-window is displayed on the new region.
+window is displayed on the new region. The default is to create
+a horizontal split, putting the new regions on the top and
+bottom of each other. Using -v will create a vertical split,
+causing the new regions to appear side by side of each other.
+
+With this current implementation of @code{screen}, scrolling data
+will appear much slower in a vertically splited region than one
+that is not. This should be taken into consideration if you need
+to use system commands such as @code{cat} or @code{tail -f}.
 @end deffn
 
 @node Focus, Only, Split, Regions
