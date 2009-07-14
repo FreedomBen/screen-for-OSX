@@ -1108,7 +1108,7 @@ Slow down pasting in windows.  @xref{Paste}.
 @item source @var{file}
 Run commands from a file.  @xref{Source}.
 @item sorendition [@var{attr} [@var{color}]]
-Change text highlighting.  @xref{Sorendition}.
+Deprecated. Use @code{rendition so} instead. @xref{Rendition}.
 @item split
 Split region into two parts.  @xref{Regions}.
 @item startup_message @var{state}
@@ -4608,12 +4608,7 @@ active colors).
 @section Sorendition
 @deffn Command sorendition [@var{attr} [@var{color}]]
 (none)@*
-Change the way screen does highlighting for text marking and printing
-messages.
-See the chapter
-about string escapes (@pxref{String Escapes}) for the syntax of
-the modifiers. The default is currently @samp{=s dd} (standout,
-default colors).
+This command has been deprecated. Use @code{rendition so} instead. 
 @end deffn
 
 @node Attrcolor, Setsid, Sorendition, Miscellaneous
