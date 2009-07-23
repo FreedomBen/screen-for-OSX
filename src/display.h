@@ -164,6 +164,7 @@ struct display
   int	d_status_lasty;		/*   before status was displayed */
   int   d_status_obuflen;	/* saved obuflen */ 
   int   d_status_obuffree;	/* saved obuffree */ 
+  int	d_status_obufpos;	/* end of status position in obuf */
   struct event d_statusev;	/* timeout event */
   struct event d_hstatusev;	/* hstatus changed event */
   int	d_kaablamm;		/* display kaablamm msg */
@@ -286,6 +287,7 @@ extern struct display TheDisplay;
 #define D_status_lasty	DISPLAY(d_status_lasty)
 #define D_status_obuflen	DISPLAY(d_status_obuflen)
 #define D_status_obuffree	DISPLAY(d_status_obuffree)
+#define D_status_obufpos	DISPLAY(d_status_obufpos)
 #define D_statusev	DISPLAY(d_statusev)
 #define D_hstatusev	DISPLAY(d_hstatusev)
 #define D_kaablamm	DISPLAY(d_kaablamm)

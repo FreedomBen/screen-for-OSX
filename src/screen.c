@@ -1473,6 +1473,18 @@ int wstat_valid;
 {
   int killit = 0;
 
+#if defined(BSDJOBS) && !defined(BSDWAIT)
+  if (!wstat_valid && p->w_pid > 0)
+    {
+      /* EOF on file descriptor. The process is probably also dead.
+       * try a waitpid */
+      if (waitpid(p->w_pid, &wstat, WNOHANG | WUNTRACED) == p->w_pid)
+	{
+	  p->w_pid = 0;
+	  wstat_valid = 1;
+	}
+    }
+#endif
   if (ZombieKey_destroy && ZombieKey_onerror && wstat_valid &&
       WIFEXITED(wstat) && WEXITSTATUS(wstat) == 0)
 	killit = 1;
@@ -1781,7 +1793,7 @@ int i;
       RestoreLoginSlot();
 #endif
       AddStr("[screen is terminating]\r\n");
-      Flush();
+      Flush(3);
       SetTTY(D_userfd, &D_OldMode);
       fcntl(D_userfd, F_SETFL, 0);
       freetty();
@@ -2130,7 +2142,7 @@ VA_DECL
         if (D_status)
 	  RemoveStatus();
         FinitTerm();
-        Flush();
+        Flush(3);
 #ifdef UTMPOK
         RestoreLoginSlot();
 #endif

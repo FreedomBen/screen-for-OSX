@@ -2099,7 +2099,7 @@ int len;
 		  D_readev.condpos = D_readev.condneg = 0;
 		  while (len-- > 0)
 		    AddChar(*bp++);
-		  Flush();
+		  Flush(0);
 		  Activate(D_fore ? D_fore->w_norefresh : 0);
 		  return 1;
 		}

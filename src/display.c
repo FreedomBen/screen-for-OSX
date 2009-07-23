@@ -333,7 +333,7 @@ FreeDisplay()
 #endif
   if (D_userfd >= 0)
     {
-      Flush();
+      Flush(3);
       if (!display)
 	return;
       SetTTY(D_userfd, &D_OldMode);
@@ -1181,7 +1181,7 @@ int adapt;
     ResizeDisplay(D_defwidth, D_defheight);
   ChangeScrollRegion(0, D_height - 1);
   D_x = D_y = 0;
-  Flush();
+  Flush(3);
   ClearAll();
   debug1("we %swant to adapt all our windows to the display\n", 
 	 (adapt) ? "" : "don't ");
@@ -1222,7 +1222,7 @@ FinitTerm()
       AddChar('\n');
       AddCStr(D_TE);
     }
-  Flush();
+  Flush(3);
 }
 
 
@@ -2660,7 +2660,7 @@ char *msg;
 	return;		/* XXX: better */
       AddStr(msg);
       AddStr("\r\n");
-      Flush();
+      Flush(0);
       return;
     }
   if (!use_hardstatus || !D_HS)
@@ -2746,15 +2746,15 @@ char *msg;
       D_status = STATUS_ON_HS;
       ShowHStatus(msg);
     }
-  Flush();
-  if (!display)
-    return;
+
+  D_status_obufpos = D_obufp - D_obuf;
+  ASSERT(D_status_obufpos > 0);
+
   if (D_status == STATUS_ON_WIN)
     {
       struct display *olddisplay = display;
       struct layer *oldflayer = flayer;
 
-      ASSERT(D_obuffree == D_obuflen);
       /* this is copied over from RemoveStatus() */
       D_status = 0;
       GotoPos(0, STATLINE);
@@ -2765,17 +2765,8 @@ char *msg;
 	LaySetCursor();
       display = olddisplay;
       flayer = oldflayer;
-      D_status_obuflen = D_obuflen;
-      D_status_obuffree = D_obuffree;
-      D_obuffree = D_obuflen = 0;
       D_status = STATUS_ON_WIN;
     }
-  gettimeofday(&D_status_time, NULL);
-  SetTimeout(&D_statusev, MsgWait);
-  evenq(&D_statusev);
-#ifdef HAVE_BRAILLE
-  RefreshBraille();	/* let user see multiple Msg()s */
-#endif
 }
 
 void
@@ -2798,6 +2789,7 @@ RemoveStatus()
       D_status_obuffree = -1;
     }
   D_status = 0;
+  D_status_obufpos = 0;
   D_status_bell = 0;
   evdeq(&D_statusev);
   olddisplay = display;
@@ -3181,8 +3173,8 @@ int from, to, y, bce;
 void
 DisplayLine(oml, ml, y, from, to)
 struct mline *oml, *ml;
-int from, to, y;{
-
+int from, to, y;
+{
   register int x;
   int last2flag = 0, delete_lp = 0;
 
@@ -3588,9 +3580,11 @@ int n;
 }
 
 void
-Flush()
+Flush(progress)
+int progress;
 {
   register int l;
+  int wr;
   register char *p;
 
   ASSERT(display);
@@ -3606,29 +3600,57 @@ Flush()
       return;
     }
   p = D_obuf;
-  if (fcntl(D_userfd, F_SETFL, 0))
-    debug1("Warning: BLOCK fcntl failed: %d\n", errno);
+  if (!progress)
+    {
+      if (fcntl(D_userfd, F_SETFL, 0))
+	debug1("Warning: BLOCK fcntl failed: %d\n", errno);
+    }
   while (l)
     {
-      register int wr;
+      if (progress)
+	{
+	  fd_set w;
+	  FD_ZERO(&w);
+	  FD_SET(D_userfd, &w);
+	  struct timeval t;
+	  t.tv_sec = progress;
+	  t.tv_usec = 0;
+	  wr = select(FD_SETSIZE, (fd_set *)0, &w, (fd_set *)0, &t);
+	  if (wr == -1)
+	    {
+	      if (errno == EINTR)
+		continue;
+	      debug1("Warning: select failed: %d\n", errno);
+	      break;
+	    }
+	  if (wr == 0)
+	    {
+	      /* no progress after 3 seconds. sorry. */
+	      debug1("Warning: no progress after %d seconds\n", progress);
+	      break;
+	    }
+	}
       wr = write(D_userfd, p, l);
       if (wr <= 0) 
 	{
 	  if (errno == EINTR) 
 	    continue;
 	  debug1("Writing to display: %d\n", errno);
-	  wr = l;
+	  break;
 	}
-      if (!display)
-	return;
       D_obuffree += wr;
       p += wr;
       l -= wr;
     }
+  if (l)
+    debug1("Warning: Flush could not write %d bytes\n", l);
   D_obuffree += l;
   D_obufp = D_obuf;
-  if (fcntl(D_userfd, F_SETFL, FNBLOCK))
-    debug1("Warning: NBLOCK fcntl failed: %d\n", errno);
+  if (!progress)
+    {
+      if (fcntl(D_userfd, F_SETFL, FNBLOCK))
+	debug1("Warning: NBLOCK fcntl failed: %d\n", errno);
+    }
   if (D_blocked == 1)
     D_blocked = 0;
   D_blocked_fuzz = 0;
@@ -3843,6 +3865,8 @@ char *data;
   len = D_obufp - D_obuf;
   if (len < size)
     size = len;
+  if (D_status_obufpos && size > D_status_obufpos)
+    size = D_status_obufpos;
   ASSERT(len >= 0);
   size = write(D_userfd, D_obuf, size);
   if (size >= 0) 
@@ -3855,6 +3879,30 @@ char *data;
 	}
       D_obufp -= size;
       D_obuffree += size;
+      if (D_status_obufpos)
+	{
+	  D_status_obufpos -= size;
+	  if (!D_status_obufpos)
+	    {
+	      debug("finished writing the status message\n");
+	      /* we're finished displaying the message! */
+	      if (D_status == STATUS_ON_WIN)
+		{
+		  /* setup continue trigger */
+		  D_status_obuflen = D_obuflen;
+		  D_status_obuffree = D_obuffree;
+		  /* setting obbuffree to 0 will make AddChar call
+                   * ResizeObuf */
+		  D_obuffree = D_obuflen = 0;
+		}
+	      gettimeofday(&D_status_time, NULL);
+	      SetTimeout(&D_statusev, MsgWait);
+	      evenq(&D_statusev);
+#ifdef HAVE_BRAILLE
+	      RefreshBraille();     /* let user see multiple Msg()s */
+#endif
+	    }
+	}
       if (D_blocked_fuzz)
 	{
 	  D_blocked_fuzz -= size;
@@ -3882,7 +3930,7 @@ char *data;
 	  Activate(D_fore ? D_fore->w_norefresh : 0);
 	  D_blocked_fuzz = D_obufp - D_obuf;
 	}
-    } 
+    }
   else
     {
 #ifdef linux
