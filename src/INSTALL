@@ -44,7 +44,7 @@ Run 'make'. Screen should compile without too many warnings :)
 The creation of term.h, comm.h, tty.c or osdef.h may fail on some machines
 for some odd reason. (E.g. the sed under SCO-unix is known to be 
 case-insensitive and breaks term.h.) If so, please mail a short description 
-of the problem to screen@uni-erlangen.de and use the files ending in .dist 
+of the problem to screen-devel@gnu.org and use the files ending in .dist 
 as a replacement (or in case of osdef.h retry with an empty file).
 You can then try 'make install' (if you dare).
 
