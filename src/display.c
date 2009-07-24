@@ -67,6 +67,7 @@ static void SetBackColor __P((int));
 #endif
 static void FreePerp __P((struct canvas *));
 static struct canvas *AddPerp __P((struct canvas *));
+static void RemoveStatusMinWait __P((void));
 
 
 extern struct layer *flayer;
@@ -2677,19 +2678,11 @@ char *msg;
       if (strcmp(msg, D_status_lastmsg) == 0)
 	{
 	  debug("same message - increase timeout");
-	  SetTimeout(&D_statusev, MsgWait);
+	  if (!D_status_obufpos)
+	    SetTimeout(&D_statusev, MsgWait);
 	  return;
 	}
-      if (!D_status_bell)
-	{
-	  struct timeval now;
-	  int ti;
-	  gettimeofday(&now, NULL);
-	  ti = (now.tv_sec - D_status_time.tv_sec) * 1000 + (now.tv_usec - D_status_time.tv_usec) / 1000;
-	  if (ti < MsgMinWait)
-	    DisplaySleep1000(MsgMinWait - ti, 0);
-	}
-      RemoveStatus();
+      RemoveStatusMinWait();
     }
   for (s = t = msg; *s && t - msg < max; ++s)
     if (*s == BELL)
@@ -2810,6 +2803,23 @@ RemoveStatus()
     LaySetCursor();
   display = olddisplay;
   flayer = oldflayer;
+}
+
+/* Remove the status but make sure that it is seen for MsgMinWait ms */
+static void
+RemoveStatusMinWait()
+{
+  /* XXX: should flush output first if D_status_obufpos is set */
+  if (!D_status_bell && !D_status_obufpos)
+    {
+      struct timeval now;
+      int ti;
+      gettimeofday(&now, NULL);
+      ti = (now.tv_sec - D_status_time.tv_sec) * 1000 + (now.tv_usec - D_status_time.tv_usec) / 1000;
+      if (ti < MsgMinWait)
+	DisplaySleep1000(MsgMinWait - ti, 0);
+    }
+  RemoveStatus();
 }
 
 /* refresh the display's hstatus line */
@@ -3688,16 +3698,7 @@ Resize_obuf()
   if (D_status_obuffree >= 0)
     {
       ASSERT(D_obuffree == -1);
-      if (!D_status_bell)
-	{
-	  struct timeval now;
-	  int ti;
-	  gettimeofday(&now, NULL);
-	  ti = (now.tv_sec - D_status_time.tv_sec) * 1000 + (now.tv_usec - D_status_time.tv_usec) / 1000;
-	  if (ti < MsgMinWait)
-	    DisplaySleep1000(MsgMinWait - ti, 0);
-	}
-      RemoveStatus();
+      RemoveStatusMinWait();
       if (--D_obuffree > 0)	/* redo AddChar decrement */
 	return;
     }

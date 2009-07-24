@@ -1378,9 +1378,11 @@ struct msg *m;
       if (!AclCheckPermCmd(D_user, ACL_EXEC, &comms[RC_WINDOWLIST]))
 #endif
 	{
+	  struct display *olddisplay = display;
 	  flayer = D_forecv->c_layer;
 	  display_wlist(1, WLIST_NUM, (struct win *)0);
 	  noshowwin = 1;
+	  display = olddisplay;	/* display_wlist can change display */
 	}
     }
   Activate(0);
