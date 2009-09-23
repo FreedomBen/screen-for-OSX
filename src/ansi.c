@@ -1674,7 +1674,7 @@ PrintFlush()
       AddCStr(D_PO);
       AddStrn(curr->w_string, curr->w_stringp - curr->w_string);
       AddCStr(D_PF);
-      Flush();
+      Flush(3);
     }
   curr->w_stringp = curr->w_string;
 }

@@ -620,7 +620,7 @@ Cycle flow among @samp{on}, @samp{off} or @samp{auto}.  @xref{Flow}.
 
 @item @kbd{C-a F}
 (fit)@*
-Resize the window to the current region size.  @xref{Window Size}.
+Resize the window to the current region size.  @xref{Fit}.
 
 @item @kbd{C-a C-g}
 (vbell)@*
@@ -705,7 +705,7 @@ Send a ^S (ASCII XOFF) to the current window.  @xref{XON/XOFF}.
 
 @item @kbd{C-a S}
 (split)@*
-Split the current region into two new ones.  @xref{Regions}.
+Split the current region horizontally into two new ones.  @xref{Regions}.
 
 @item @kbd{C-a t}
 @itemx @kbd{C-a C-t}
@@ -797,15 +797,19 @@ Delete the screen-exchange file.  @xref{Screen Exchange}.
 
 @item @kbd{C-a _}
 (silence)@*
-Start/stop monitoring the current window for inactivity. @xref{Silence},
+Start/stop monitoring the current window for inactivity. @xref{Silence}.
+
+@item @kbd{C-a |}
+(split -v)@*
+Split the current region vertically into two new ones.  @xref{Regions}.
 
 @item @kbd{C-a ,}
 (license)@*
-Show the copyright page.
+Show the copyright page.  @xref{License}.
 
 @item @kbd{C-a *}
 (displays)@*
-Show the listing of attached displays.
+Show the listing of attached displays.  @xref{Displays}.
 @end table
 
 @node Command Summary,  , Default Key Bindings, Commands
@@ -1104,7 +1108,7 @@ Slow down pasting in windows.  @xref{Paste}.
 @item source @var{file}
 Run commands from a file.  @xref{Source}.
 @item sorendition [@var{attr} [@var{color}]]
-Change text highlighting.  @xref{Sorendition}.
+Deprecated. Use @code{rendition so} instead. @xref{Rendition}.
 @item split
 Split region into two parts.  @xref{Regions}.
 @item startup_message @var{state}
@@ -1423,8 +1427,10 @@ pressing space.)
 
 @kindex p
 @kindex C-p
+@kindex C-h
+@kindex Backspace
 @deffn Command prev
-(@kbd{C-a p}, @kbd{C-a C-p})@*
+(@kbd{C-a p}, @kbd{C-a C-p}, @kbd{C-a C-h}, @kbd{C-a @key{Backspace}})@*
 Switch to the previous window (the opposite of @kbd{C-a n}).
 @end deffn
 
@@ -1808,11 +1814,20 @@ which can contain different windows.
 @node Split, Focus,  , Regions
 @section Split
 @kindex S
-@deffn Command split
-(@kbd{C-a S})@*
+@kindex |
+@deffn Command split [-v]
+(@kbd{C-a S}, @kbd{C-a |})@*
 Split the current region into two new ones. All regions on the
 display are resized to make room for the new region. The blank
-window is displayed on the new region.
+window is displayed on the new region. The default is to create
+a horizontal split, putting the new regions on the top and
+bottom of each other. Using -v will create a vertical split,
+causing the new regions to appear side by side of each other.
+
+With this current implementation of @code{screen}, scrolling data
+will appear much slower in a vertically splited region than one
+that is not. This should be taken into consideration if you need
+to use system commands such as @code{cat} or @code{tail -f}.
 @end deffn
 
 @node Focus, Only, Split, Regions
@@ -2480,7 +2495,7 @@ Keypad enter         fe         stuff \015
 
 @kindex C-v
 @deffn Command digraph [preset]
-(none)@*
+(@kbd{C-a C-v})@*
 This command prompts the user for a digraph sequence. The next
 two characters typed are looked up in a builtin table and the
 resulting character is inserted in the input stream. For example,
@@ -3199,8 +3214,9 @@ See also
 @section History
 
 @kindex @{
+@kindex @}
 @deffn Command history
-(@kbd{C-a @{})@*
+(@kbd{C-a @{}, @kbd{C-a @}})@*
 Usually users work with a shell that allows easy access to previous
 commands.  For example, @code{csh} has the command @code{!!} to repeat
 the last command executed.  @code{screen} provides a primitive way of
@@ -4201,9 +4217,8 @@ This section describes the commands for keeping a record of your session.
 @node Hardcopy, Log,  , Logging
 @section hardcopy
 @kindex h
-@kindex C-h
 @deffn Command hardcopy [-h] [@var{file}]
-(@kbd{C-a h}, @kbd{C-a C-h})@*
+(@kbd{C-a h})@*
 Writes out the currently displayed image to the file @var{file}, or,
 if no filename is specified, to @file{hardcopy.@var{n}}
 in the default directory, where @var{n} is the number of the
@@ -4381,8 +4396,10 @@ work correctly under @code{at} looping over windows.
 
 @node Break, Debug, At, Miscellaneous
 @section Break
+@kindex b
+@kindex C-b
 @deffn Command break [duration]
-(none)@*
+(@kbd{C-a b}, @kbd{C-a C-b})@*
 Send a break signal for @var{duration}*0.25 seconds to this window.
 For non-Posix systems the time interval is rounded up to full seconds.
 Most useful if a character device is attached to the window rather than
@@ -4390,8 +4407,9 @@ a shell process (@pxref{Window Types}). The maximum duration of
 a break signal is limited to 15 seconds.
 @end deffn
 
+@kindex B
 @deffn Command pow_break
-(none)@*
+(@kbd{C-a B})@*
 Reopen the window's terminal line and send a break condition.
 @end deffn
 
@@ -4431,8 +4449,9 @@ be turned off once and forever.
 
 @node License, Nethack, Debug, Miscellaneous
 @section License
+@kindex ,
 @deffn Command license
-(none)@*
+(@kbd{C-a ,})@*
 Display the disclaimer page. This is done whenever @code{screen} is
 started without options, which should be often enough.
 @end deffn
@@ -4475,17 +4494,20 @@ displays is changed. Initial setting is @code{off}.
 @node Number, Silence, Nonblock, Miscellaneous
 @section Number
 @kindex N
-@deffn Command number [@var{n}]
+@deffn Command number [[+|-]@var{n}]
 (@kbd{C-a N})@*
 Change the current window's number. If the given number @var{n} is already
 used by another window, both windows exchange their numbers. If no argument is
-specified, the current window number (and title) is shown.
+specified, the current window number (and title) is shown. Using either a
+plus (`+') or minus (`-') will change the window's number by the relative
+amount specified.
 @end deffn
 
 @node Silence, Time, Number, Miscellaneous
 @section Silence
+@kindex _
 @deffn Command silence [@var{state}|@var{sec}]
-(none)@*
+(@kbd{C-a _})@*
 Toggles silence monitoring of windows. When silence is turned on and an 
 affected window is switched into the background, you will receive the
 silence notification message in the status line after a specified period
@@ -4593,12 +4615,7 @@ active colors).
 @section Sorendition
 @deffn Command sorendition [@var{attr} [@var{color}]]
 (none)@*
-Change the way screen does highlighting for text marking and printing
-messages.
-See the chapter
-about string escapes (@pxref{String Escapes}) for the syntax of
-the modifiers. The default is currently @samp{=s dd} (standout,
-default colors).
+This command has been deprecated. Use @code{rendition so} instead. 
 @end deffn
 
 @node Attrcolor, Setsid, Sorendition, Miscellaneous

@@ -509,7 +509,7 @@ automatic margins on and off).
 .PD
 Send a control-s to the current window.
 .IP "\fBC-a S\fP	(split)"
-Split the current region into two new ones.
+Split the current region horizontally into two new ones.
 See also \fIonly, remove, focus\fP.
 .IP "\fBC-a t\fP"
 .PD 0
@@ -561,6 +561,8 @@ Enter command line mode.
 .IP "\fBC-a esc\fP	(copy)"
 .PD
 Enter copy/scrollback mode.
+.IP "\fBC-a C-]\fP"
+.PD 0
 .IP "\fBC-a ]\fP	(paste .)"
 .PD
 Write the contents of the paste buffer to the stdin queue of the
@@ -582,6 +584,8 @@ Shows where
 comes from, where it went to and why you can use it.
 .IP "\fBC-a _\fP	(silence)"
 Start/stop monitoring the current window for inactivity.
+.IP "\fBC-a |\fP	(split -v)"
+Split the current region vertically into two new ones.
 .IP "\fBC-a *\fP	(displays)"
 Show a listing of all currently attached displays.
 
@@ -2007,7 +2011,7 @@ Sets a command that is run after the specified number of seconds
 inactivity is reached. This command will normally be the \*Qblanker\*U
 command to create a screen blanker, but it can be any screen command.
 If no command is specified, only the timeout is set. A timeout of
-zero (ot the special timeout \fBoff\fP) disables the timer.
+zero (or the special timeout \fBoff\fP) disables the timer.
 If no arguments are given, the current settings are displayed.
 .sp
 .ne 3
@@ -2305,11 +2309,12 @@ some time it restarts to accept characters, screen will unblock
 the display and redisplay the updated window contents.
 .sp
 .ne 3
-.BR "number " [ \fIn ]
+.BR "number " [[+|-] \fIn ]
 .PP
-Change the current windows number. If the given number \fIn\fP is already 
+Change the current window's number. If the given number \fIn\fP is already 
 used by another window, both windows exchange their numbers. If no argument is
-specified, the current window number (and title) is shown.
+specified, the current window number (and title) is shown. Using `+' or `-'
+will change the window's number by the relative amount specified.
 .sp
 .ne 3
 .BR "obuflimit " [ \fIlimit ]
@@ -2720,20 +2725,17 @@ default screenrc files to have an effect.
 .B sorendition
 .RB [ "\fIattr\fR " [ \fIcolor ]]
 .PP
-Change the way 
-.I screen 
-does highlighting for text marking and printing messages.
-See the \*QSTRING ESCAPES\*U chapter for the syntax of the modifiers.
-The default is currently \*Q=s dd\*U (standout, default colors).
+This command is deprecated. See "rendition so" instead.
 .sp
 .ne 3
 .B split
+.RB [ -v ]
 .PP
 Split the current region into two new ones. All regions on the
 display are resized to make room for the new region. The blank
-window is displayed on the new region. Use the \*Qremove\*U or the
-\*Qonly\*U command to delete regions.
-Use \*Qfocus\*U to toggle between regions.
+window is displayed on the new region. Splits are made horizontally
+unless -v is used. Use the \*Qremove\*U or the \*Qonly\*U command
+to delete regions. Use \*Qfocus\*U to toggle between regions.
 .sp
 .ne 3
 .B "startup_message on\fP|\fBoff"

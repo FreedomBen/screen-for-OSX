@@ -231,7 +231,7 @@ int nopanic;
 	  if (argc != 3)
 	    {
 	      AddStr("\r\n");
-	      Flush();
+	      Flush(0);
 	    }
 	}
       else if (strcmp(args[0], "sleep") == 0)

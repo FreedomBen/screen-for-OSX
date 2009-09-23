@@ -162,6 +162,7 @@ static void ResizeFin __P((char *, int, char *));
 static struct action *FindKtab __P((char *, int));
 static void SelectFin __P((char *, int, char *));
 static void SelectLayoutFin __P((char *, int, char *));
+static struct canvas *FindCanvas __P((int, int));
 
 
 extern struct layer *flayer;
@@ -631,7 +632,7 @@ InitKeytab()
   ktab['\t'].nr = RC_FOCUS;
   {
     char *args[2];
-    args[0] = "up";
+    args[0] = "prev";
     args[1] = 0;
     SaveAction(ktab + T_BACKTAB - T_CAPS + 256, RC_FOCUS, args, 0);
   }
@@ -3932,9 +3933,9 @@ int key;
       LaySetCursor();
       break;
     case RC_FOCUS:
-      if (!*args || !strcmp(*args, "down"))
+      if (!*args || !strcmp(*args, "next"))
 	D_forecv = D_forecv->c_next ? D_forecv->c_next : D_cvlist;
-      else if (!strcmp(*args, "up"))
+      else if (!strcmp(*args, "prev"))
 	{
 	  struct canvas *cv;
 	  for (cv = D_cvlist; cv->c_next && cv->c_next != D_forecv; cv = cv->c_next)
@@ -3950,9 +3951,17 @@ int key;
 	    ;
 	  D_forecv = cv;
 	}
+      else if (!strcmp(*args, "up"))
+	D_forecv = FindCanvas(D_forecv->c_xs, D_forecv->c_ys - 1);
+      else if (!strcmp(*args, "down"))
+	D_forecv = FindCanvas(D_forecv->c_xs, D_forecv->c_ye + 2);
+      else if (!strcmp(*args, "left"))
+	D_forecv = FindCanvas(D_forecv->c_xs - 1, D_forecv->c_ys);
+      else if (!strcmp(*args, "right"))
+	D_forecv = FindCanvas(D_forecv->c_xe + 1, D_forecv->c_ys);
       else
 	{
-	  Msg(0, "%s: usage: focus [up|down|top|bottom]", rc_name);
+	  Msg(0, "%s: usage: focus [next|prev|up|down|left|right|top|bottom]", rc_name);
 	  break;
 	}
       if ((focusminwidth && (focusminwidth < 0 || D_forecv->c_xe - D_forecv->c_xs + 1 < focusminwidth)) ||
@@ -6766,6 +6775,56 @@ int percent;
   fcv->c_slweight += done;
   debug1("ChangeCanvasSize returns %d\n", done);
   return done;
+}
+
+static struct canvas *
+FindCanvas(x, y)
+int x, y;
+{
+  struct canvas *cv, *mcv = 0;
+  int m, mm = 0;
+
+  for (cv = D_cvlist; cv; cv = cv->c_next)
+    {
+      /* ye + 1 because of caption line */
+      if (x >= cv->c_xs && x <= cv->c_xe && y >= cv->c_ys && y <= cv->c_ye + 1)
+	return cv;
+      if (cv == D_forecv)
+	continue;
+      m = 0;
+      if (x >= D_forecv->c_xs && x <= D_forecv->c_xe)
+	{
+	  if (x < cv->c_xs || x > cv->c_xe)
+	    continue;
+          if (y < D_forecv->c_ys && y < cv->c_ys)
+	    continue;
+          if (y > D_forecv->c_ye + 1 && y > cv->c_ye + 1)
+	    continue;
+	  if (y < cv->c_ys)
+	    m = cv->c_ys - y;
+	  if (y > cv->c_ye + 1)
+	    m = y - (cv->c_ye + 1);
+	}
+      if (y >= D_forecv->c_ys && y <= D_forecv->c_ye + 1)
+	{
+	  if (y < cv->c_ys || y > cv->c_ye + 1)
+	    continue;
+          if (x < D_forecv->c_xs && x < cv->c_xs)
+	    continue;
+          if (x > D_forecv->c_xe && x > cv->c_xe)
+	    continue;
+	  if (x < cv->c_xs)
+	    m = cv->c_xs - x;
+	  if (x > cv->c_xe)
+	    m = x - cv->c_xe;
+	}
+      if (m && (!mm || m < mm))
+	{
+	  mcv = cv;
+	  mm = m;
+	}
+    }
+  return mcv ? mcv : D_forecv;
 }
 
 static void

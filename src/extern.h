@@ -291,7 +291,7 @@ extern void  RemoveStatus __P((void));
 extern int   ResizeDisplay __P((int, int));
 extern void  AddStr __P((char *));
 extern void  AddStrn __P((char *, int));
-extern void  Flush __P((void));
+extern void  Flush __P((int));
 extern void  freetty __P((void));
 extern void  Resize_obuf __P((void));
 #ifdef AUTO_NUKE
