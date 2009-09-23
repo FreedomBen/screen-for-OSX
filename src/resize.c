@@ -517,7 +517,7 @@ int wi;
 #ifdef COLOR
   mline_old.color = (unsigned char *)xrealloc((char *)mline_old.color, maxwidth);
 # ifdef COLORS256
-  mline_old.colorx = (unsigned char *)xrealloc((char *)mline_old.color, maxwidth);
+  mline_old.colorx = (unsigned char *)xrealloc((char *)mline_old.colorx, maxwidth);
 # endif
 #endif
   if (!(blank && null && mline_old.image && mline_old.attr IFFONT(&& mline_old.font) IFCOLOR(&& mline_old.color) IFCOLORX(&& mline_old.colorx)))
