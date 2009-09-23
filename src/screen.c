@@ -2028,11 +2028,11 @@ MakeNewEnv()
 void
 /*VARARGS2*/
 #if defined(USEVARARGS) && defined(__STDC__)
-Msg(int err, char *fmt, VA_DOTS)
+Msg(int err, const char *fmt, VA_DOTS)
 #else
 Msg(err, fmt, VA_DOTS)
 int err;
-char *fmt;
+const char *fmt;
 VA_DECL
 #endif
 {
@@ -2082,11 +2082,11 @@ VA_DECL
 void
 /*VARARGS2*/
 #if defined(USEVARARGS) && defined(__STDC__)
-Panic(int err, char *fmt, VA_DOTS)
+Panic(int err, const char *fmt, VA_DOTS)
 #else
 Panic(err, fmt, VA_DOTS)
 int err;
-char *fmt;
+const char *fmt;
 VA_DECL
 #endif
 {

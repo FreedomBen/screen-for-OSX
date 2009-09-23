@@ -2935,7 +2935,7 @@ char *str;
   extern struct layer *flayer;
   struct layer *oldflayer = flayer;
   flayer = &p->w_layer;
-  LMsg(err, str);
+  LMsg(err, "%s", str);
   flayer = oldflayer;
 }
 
