@@ -497,6 +497,7 @@ CheckMaxSize(wi)
 int wi;
 {
   unsigned char *oldnull = null;
+  unsigned char *oldblank = blank;
   struct win *p;
   int i;
   struct mline *ml;
@@ -542,49 +543,34 @@ int wi;
 # endif
 #endif
 
+#define RESET_AFC(x, bl) do { if (x == old##bl) x = bl; } while (0)
+
+#define RESET_LINES(lines, count) \
+  do { \
+    ml = lines; \
+    for (i = 0; i < count; i++, ml++) \
+      { \
+	RESET_AFC(ml->image, blank); \
+	RESET_AFC(ml->attr, null); \
+	IFFONT(RESET_AFC(ml->font, null)); \
+	IFCOLOR(RESET_AFC(ml->color, null)); \
+	IFCOLORX(RESET_AFC(ml->colorx, null)); \
+      } \
+  } while (0)
+
   /* We have to run through all windows to substitute
-   * the null references.
+   * the null and blank references.
    */
   for (p = windows; p; p = p->w_next)
     {
-      ml = p->w_mlines;
-      for (i = 0; i < p->w_height; i++, ml++)
-	{
-	  if (ml->attr == oldnull)
-	    ml->attr = null;
-#ifdef FONT
-	  if (ml->font == oldnull)
-	    ml->font = null;
-#endif
-#ifdef COLOR
-	  if (ml->color == oldnull)
-	    ml->color= null;
-#ifdef COLORS256
-	  if (ml->colorx == oldnull)
-	    ml->colorx = null;
-#endif
-#endif
-	}
+      RESET_LINES(p->w_mlines, p->w_height);
+
 #ifdef COPY_PASTE
-      ml = p->w_hlines;
-      for (i = 0; i < p->w_histheight; i++, ml++)
-	{
-	  if (ml->attr == oldnull)
-	    ml->attr = null;
-# ifdef FONT
-	  if (ml->font == oldnull)
-	    ml->font = null;
-# endif
-# ifdef COLOR
-	  if (ml->color == oldnull)
-	    ml->color= null;
-#  ifdef COLORS256
-	  if (ml->colorx == oldnull)
-	    ml->colorx = null;
-#  endif
-# endif
-	}
+      RESET_LINES(p->w_hlines, p->w_histheight);
+      RESET_LINES(p->w_alt_hlines, p->w_alt_histheight);
 #endif
+
+      RESET_LINES(p->w_alt_mlines, p->w_alt_height);
     }
 }
 
