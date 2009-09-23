@@ -162,14 +162,18 @@ nextchar(int *xp, int *yp, int direction, char target, int num)
   displayed_line = (char *)WIN(*yp) -> image;
  
   switch(direction) {
-  case 't': adjust = -1; /* fall through */
-  case 'f': step = 1; /* fall through */
-  break;
-  case 'T': adjust = 1; /* fall through */
-  case 'F': step = -1; /* fall through */
-  break;
-  default:
-  ASSERT(0);
+    case 't':
+      adjust = -1; /* fall through */
+    case 'f':
+      step = 1;
+      break;
+    case 'T':
+      adjust = 1; /* fall through */
+    case 'F':
+      step = -1;
+      break;
+    default:
+      ASSERT(0);
   }
  
   x += step;
@@ -611,43 +615,29 @@ int *inlenp;
 	case 'F': /* fall through */
 	case 't': /* fall through */
 	case 'T': /* fall through */
-	/* 
-	 * Set f_cmd to do a search on the next key stroke.
-	 * If we break, rep_cnt will be reset, so we
-	 * continue instead. It might be cleaner to
-	 * store the rep_count in f_cmd and
-	 * break here so later followon code will be
-	 * hit. 
-	 */
-	markdata->f_cmd.flag = 1;
-        markdata->f_cmd.direction = od;
-	debug("entering char search\n");
-	continue;
+	  /* 
+	   * Set f_cmd to do a search on the next key stroke.
+	   * If we break, rep_cnt will be reset, so we
+	   * continue instead. It might be cleaner to
+	   * store the rep_count in f_cmd and
+	   * break here so later followon code will be
+	   * hit. 
+	   */
+	  markdata->f_cmd.flag = 1;
+	  markdata->f_cmd.direction = od;
+	  debug("entering char search\n");
+	  continue;
 	case ';':
+	case ',':
 	  if (!markdata->f_cmd.target)
 	    break;
 	  if (!rep_cnt)
 	    rep_cnt = 1;
-	  nextchar(&cx, &cy, markdata->f_cmd.direction, markdata->f_cmd.target, rep_cnt );
-	  revto(cx, cy);
-	break;
-	case ',': {
-	  int search_dir;
-	  if (!markdata->f_cmd.target)
-	    break;
-	  if (!rep_cnt)
-	    rep_cnt = 1;
-	  switch (markdata->f_cmd.direction) {
-	  case 't': search_dir = 'T'; break;
-	  case 'T': search_dir = 't'; break;
-	  case 'f': search_dir = 'F'; break;
-	  case 'F': search_dir = 'f'; break;
-	  }
-	  nextchar(&cx, &cy, search_dir, markdata->f_cmd.target, rep_cnt );
+	  nextchar(&cx, &cy,
+	      od == ';' ? markdata->f_cmd.direction : (markdata->f_cmd.direction ^ 0x20),
+	      markdata->f_cmd.target, rep_cnt );
 	  revto(cx, cy);
 	  break;
-	  }
-
 	case 'o':
 	case 'x':
 	  if (!markdata->second)
