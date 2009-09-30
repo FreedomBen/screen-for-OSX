@@ -239,7 +239,7 @@ extern void  FreeTransTable __P((void));
 extern int   Attach __P((int));
 extern void  Attacher __P((void));
 extern sigret_t AttacherFinit __P(SIGPROTOARG);
-extern void  SendCmdMessage __P((char *, char *, char **));
+extern void  SendCmdMessage __P((char *, char *, char **, int));
 
 /* display.c */
 extern struct display *MakeDisplay __P((char *, char *, char *, int, int, struct mode *));

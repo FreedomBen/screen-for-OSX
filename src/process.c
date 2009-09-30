@@ -1144,6 +1144,18 @@ int key;
       return;
     }
   n = comms[nr].flags;
+  /* XXX: Commands will have a CAN_QUERY flag, depending on whether they have
+     something to return on a query. For example, 'windows' can return a result,
+     but 'other' cannot.
+   */
+#if 0
+  if (!(n & CAN_QUERY) && queryflag)
+    {
+      /* Query flag is set, but this command cannot be queried. */
+      Msg(0, "%s command cannot be queried.", comms[nr].name);
+      return;
+    }
+#endif
   if ((n & NEED_DISPLAY) && display == 0)
     {
       Msg(0, "%s: %s: display required", rc_name, comms[nr].name);

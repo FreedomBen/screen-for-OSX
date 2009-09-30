@@ -206,12 +206,12 @@ struct comm comms[RC_LAST + 1] =
   { "hstatus",		NEED_FORE|ARGS_1 },
   { "idle",		ARGS_0|ARGS_ORMORE },
   { "ignorecase",	ARGS_01 },
-  { "info",		NEED_LAYER|ARGS_0 },
+  { "info",		CAN_QUERY|NEED_LAYER|ARGS_0 },
 #ifdef ENCODINGS
   { "kanji",		NEED_FORE|ARGS_12 },
 #endif
   { "kill",		NEED_FORE|ARGS_0 },
-  { "lastmsg",		NEED_DISPLAY|ARGS_0 },
+  { "lastmsg",		CAN_QUERY|NEED_DISPLAY|ARGS_0 },
   { "layout",           ARGS_1|ARGS_ORMORE},
   { "license",		NEED_LAYER|ARGS_0 },
 #ifdef LOCK

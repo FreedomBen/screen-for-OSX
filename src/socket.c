@@ -1156,12 +1156,56 @@ ReceiveMsg()
 	FinishDetach(&m);
       break;
 #endif
+    case MSG_QUERY:
+      /* Reset error buffer */
+      /* Reset output buffer */
+      /* FALLTHROUGH */
     case MSG_COMMAND:
       DoCommandMsg(&m);
+      if (m.type == MSG_QUERY)
+	{
+	  char *oldSockPath = SaveStr(SockPath);
+	  strcpy(SockPath, m.m.command.writeback);
+	  int s = MakeClientSocket(0);
+	  strcpy(SockPath, oldSockPath);
+	  Free(oldSockPath);
+	  if (s >= 0)
+	    {
+	      write(s, "So ...", 7);
+	      close(s);
+	    }
+	  Kill(m.m.command.apid, SIGCONT);	/* Send SIG_BYE if an error happened, instead */
+	}
       break;
     default:
       Msg(0, "Invalid message (type %d).", m.type);
     }
+}
+
+void
+ReceiveRaw(s)
+int s;
+{
+  char rd[256];
+  int len = 0;
+#ifdef NAMEDPIPE
+  if (fcntl(s, F_SETFL, 0) == -1)
+    Panic(errno, "BLOCK fcntl");
+#else
+  struct sockaddr_un a;
+  len = sizeof(a);
+  if ((s = accept(s, (struct sockaddr *) &a, (void *)&len)) < 0)
+    {
+      Msg(errno, "accept");
+      return;
+    }
+#endif
+  while ((len = read(s, rd, 255)) > 0)
+    {
+      rd[len] = 0;
+      printf("%s", rd);
+    }
+  close(s);
 }
 
 #if defined(_SEQUENT_) && !defined(NAMEDPIPE)
@@ -1590,12 +1634,16 @@ struct msg *mp;
   if (fc != fullcmd)
     *--fc = 0;
   if (Parse(fullcmd, fc - fullcmd, args, argl) <= 0)
-    return;
+    {
+      /* XXX: Return some useful message back if MSG_QUERY */
+      return;
+    }
 #ifdef MULTIUSER
   user = *FindUserPtr(mp->m.attach.auser);
   if (user == 0)
     {
       Msg(0, "Unknown user %s tried to send a command!", mp->m.attach.auser);
+      /* XXX: Return some useful message back if MSG_QUERY */
       return;
     }
 #else
@@ -1605,6 +1653,7 @@ struct msg *mp;
   if (user->u_password && *user->u_password)
     {
       Msg(0, "User %s has a password, cannot use -X option.", mp->m.attach.auser);
+      /* XXX: Return some useful message back if MSG_QUERY */
       return;
     }
 #endif
