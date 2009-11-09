@@ -4598,6 +4598,8 @@ int bufl, *argl;
 		    sprintf(xbuf, "%d", display ? D_height : -1);
 		  else if (!strcmp(ps, "PID"))
 		    sprintf(xbuf, "%d", getpid());
+		  else if (!strcmp(ps, "STY"))
+		    v = SockName;
 		  else
 		    v = getenv(ps);
 		}
