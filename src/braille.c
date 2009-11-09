@@ -388,7 +388,7 @@ bd_signal()
   else
     {
       AddCStr(D_BL);
-      Flush();
+      Flush(0);
     }
 }
 
