@@ -4596,6 +4596,8 @@ int bufl, *argl;
 		    sprintf(xbuf, "%d", display ? D_width : -1);
 		  else if (!strcmp(ps, "LINES"))
 		    sprintf(xbuf, "%d", display ? D_height : -1);
+		  else if (!strcmp(ps, "PID"))
+		    sprintf(xbuf, "%d", getpid());
 		  else
 		    v = getenv(ps);
 		}
