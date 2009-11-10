@@ -312,6 +312,7 @@ struct comm comms[RC_LAST + 1] =
   { "time",		ARGS_01 },
   { "title",		NEED_FORE|ARGS_01 },
   { "umask",		ARGS_1|ARGS_ORMORE },
+  { "unbindall",	ARGS_0 },
   { "unsetenv",		ARGS_1 },
 #ifdef UTF8
   { "utf8",		NEED_FORE|ARGS_012 },

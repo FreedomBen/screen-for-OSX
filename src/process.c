@@ -1398,6 +1398,15 @@ int key;
 	Msg(0, "zmodem mode is %s", zmodes[zmodem_mode]);
       break;
 #endif
+    case RC_UNBINDALL:
+      {
+        register unsigned int i;
+
+        for (i = 0; i < sizeof(ktab)/sizeof(*ktab); i++)
+	  ClearAction(&ktab[i]);
+        Msg(0, "Unbound all keys." );
+        break;
+      }
     case RC_ZOMBIE:
       {
         if (!(s = *args))
