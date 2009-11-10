@@ -2921,6 +2921,14 @@ prompts for one. This command was known as `aka' in previous
 releases.
 .sp
 .ne 3
+.BI "unbindall "
+.PP
+Unbind all the bindings. This can be useful when
+screen is used solely for its detaching abilities, such as when
+letting a console application run as a daemon. If, for some reason,
+it is necessary to bind commands after this, use 'screen -X'.
+.sp
+.ne 3
 .BI "unsetenv " var
 .PP
 Unset an environment variable.

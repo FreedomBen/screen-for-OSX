@@ -1133,6 +1133,8 @@ Display time and load average.  @xref{Time}.
 Set the name of the current window.  @xref{Title Command}.
 @item umask [@var{users}]+/-@var{bits} ...
 Synonym to @code{aclumask}. @xref{Umask}.
+@item unbindall
+Unset all keybindings. @xref{Bind}.
 @item unsetenv @var{var}
 Unset environment variable for new windows.  @xref{Setenv}.
 @item utf8 [@var{state} [@var{dstate}]]
@@ -3373,6 +3375,14 @@ By default, most suitable commands are bound to one or more keys
 (@pxref{Default Key Bindings}; for instance, the command to create a
 new window is bound to @kbd{C-c} and @kbd{c}.  The @code{bind} command
 can be used to redefine the key bindings and to define new bindings.
+@end deffn
+
+@deffn Command unbindall
+(none)@*
+Unbind all the bindings. This can be useful when
+screen is used solely for its detaching abilities, such as when
+letting a console application run as a daemon. If, for some reason,
+it is necessary to bind commands after this, use 'screen -X'.
 @end deffn
 
 @node Bind Examples, Command Character, Bind, Key Binding
