@@ -657,6 +657,19 @@ int (*outc) __P((int));
  * zeros but sleeps instead. This breaks CalcCost, of course.
  * Also, the ncurses wait functions use a global variable
  * to store the current outc function. Oh well...
+ *
+ * This comment dates from late 1998.  See ncurses NEWS (990102):
+ *
+ *	+ provide support for termcap ospeed variable by copying it from the
+ *	  internal cur_term member, and using ospeed as the baudrate reference
+ *	  for the delay_output and tputs functions.  If an application does not
+ *	  set ospeed, the library behaves as before, except that _nc_timed_wait
+ *	  is no longer used, or needed, since ospeed always has a value.  But
+ *	  the application can modify ospeed to adjust the output of padding
+ *	  characters (from a bug report for screen 3.7.6 and email from Michael
+ *	  Schroeder <Michael.Schroeder@informatik.uni-erlangen.de>).
+ *
+ * Also read the source code for delay_output() -TD
  */
 
 int (*save_outc) __P((int));
