@@ -298,6 +298,8 @@ extern void  Resize_obuf __P((void));
 extern void  NukePending __P((void));
 #endif
 extern void  SetCanvasWindow __P((struct canvas *, struct win *));
+extern void  SetForeCanvas __P((struct display *, struct canvas *));
+extern struct canvas *FindCanvas __P((int, int));
 extern int   MakeDefaultCanvas __P((void));
 extern int   AddCanvas __P((int));
 extern void  RemCanvas __P((void));

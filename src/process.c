@@ -162,7 +162,6 @@ static void ResizeFin __P((char *, int, char *));
 static struct action *FindKtab __P((char *, int));
 static void SelectFin __P((char *, int, char *));
 static void SelectLayoutFin __P((char *, int, char *));
-static struct canvas *FindCanvas __P((int, int));
 
 
 extern struct layer *flayer;
@@ -3942,63 +3941,37 @@ int key;
       LaySetCursor();
       break;
     case RC_FOCUS:
-      if (!*args || !strcmp(*args, "next"))
-	D_forecv = D_forecv->c_next ? D_forecv->c_next : D_cvlist;
-      else if (!strcmp(*args, "prev"))
-	{
-	  struct canvas *cv;
-	  for (cv = D_cvlist; cv->c_next && cv->c_next != D_forecv; cv = cv->c_next)
-	    ;
-	  D_forecv = cv;
-	}
-      else if (!strcmp(*args, "top"))
-	D_forecv = D_cvlist;
-      else if (!strcmp(*args, "bottom"))
-	{
-	  struct canvas *cv;
-	  for (cv = D_cvlist; cv->c_next; cv = cv->c_next)
-	    ;
-	  D_forecv = cv;
-	}
-      else if (!strcmp(*args, "up"))
-	D_forecv = FindCanvas(D_forecv->c_xs, D_forecv->c_ys - 1);
-      else if (!strcmp(*args, "down"))
-	D_forecv = FindCanvas(D_forecv->c_xs, D_forecv->c_ye + 2);
-      else if (!strcmp(*args, "left"))
-	D_forecv = FindCanvas(D_forecv->c_xs - 1, D_forecv->c_ys);
-      else if (!strcmp(*args, "right"))
-	D_forecv = FindCanvas(D_forecv->c_xe + 1, D_forecv->c_ys);
-      else
-	{
-	  Msg(0, "%s: usage: focus [next|prev|up|down|left|right|top|bottom]", rc_name);
-	  break;
-	}
-      if ((focusminwidth && (focusminwidth < 0 || D_forecv->c_xe - D_forecv->c_xs + 1 < focusminwidth)) ||
-          (focusminheight && (focusminheight < 0 || D_forecv->c_ye - D_forecv->c_ys + 1 < focusminheight)))
-	{
-	  ResizeCanvas(&D_canvas);
-	  RecreateCanvasChain();
-	  RethinkDisplayViewports();
-	  ResizeLayersToCanvases();	/* redisplays */
-	}
-      fore = D_fore = Layer2Window(D_forecv->c_layer);
-      if (D_other == fore)
-	D_other = 0;
-      flayer = D_forecv->c_layer;
-#ifdef RXVT_OSC
-      if (D_xtermosc[2] || D_xtermosc[3])
-	{
-	  Activate(-1);
-	  break;
-	}
-#endif
-      RefreshHStatus();
-#ifdef RXVT_OSC
-      RefreshXtermOSC();
-#endif
-      flayer = D_forecv->c_layer;
-      CV_CALL(D_forecv, LayRestore();LaySetCursor());
-      WindowChanged(0, 'F');
+      {
+	struct canvas *cv = 0;
+	if (!*args || !strcmp(*args, "next"))
+	  cv = D_forecv->c_next ? D_forecv->c_next : D_cvlist;
+	else if (!strcmp(*args, "prev"))
+	  {
+	    for (cv = D_cvlist; cv->c_next && cv->c_next != D_forecv; cv = cv->c_next)
+	      ;
+	  }
+	else if (!strcmp(*args, "top"))
+	  cv = D_cvlist;
+	else if (!strcmp(*args, "bottom"))
+	  {
+	    for (cv = D_cvlist; cv->c_next; cv = cv->c_next)
+	      ;
+	  }
+	else if (!strcmp(*args, "up"))
+	  cv = FindCanvas(D_forecv->c_xs, D_forecv->c_ys - 1);
+	else if (!strcmp(*args, "down"))
+	  cv = FindCanvas(D_forecv->c_xs, D_forecv->c_ye + 2);
+	else if (!strcmp(*args, "left"))
+	  cv = FindCanvas(D_forecv->c_xs - 1, D_forecv->c_ys);
+	else if (!strcmp(*args, "right"))
+	  cv = FindCanvas(D_forecv->c_xe + 1, D_forecv->c_ys);
+	else
+	  {
+	    Msg(0, "%s: usage: focus [next|prev|up|down|left|right|top|bottom]", rc_name);
+	    break;
+	  }
+	SetForeCanvas(display, cv);
+      }
       break;
     case RC_RESIZE:
       i = 0;
@@ -6790,7 +6763,7 @@ int percent;
   return done;
 }
 
-static struct canvas *
+struct canvas *
 FindCanvas(x, y)
 int x, y;
 {
@@ -7020,6 +6993,49 @@ char *data;
   inp_setprompt(resizeprompts[flags], NULL);
   *(int *)data = flags;
   buf[len] = '\034';
+}
+
+void
+SetForeCanvas(d, cv)
+struct display *d;
+struct canvas *cv;
+{
+  struct display *odisplay = display;
+  if (d->d_forecv == cv)
+    return;
+
+  display = d;
+  D_forecv = cv;
+  if ((focusminwidth && (focusminwidth < 0 || D_forecv->c_xe - D_forecv->c_xs + 1 < focusminwidth)) ||
+      (focusminheight && (focusminheight < 0 || D_forecv->c_ye - D_forecv->c_ys + 1 < focusminheight)))
+    {
+      ResizeCanvas(&D_canvas);
+      RecreateCanvasChain();
+      RethinkDisplayViewports();
+      ResizeLayersToCanvases();	/* redisplays */
+    }
+  fore = D_fore = Layer2Window(D_forecv->c_layer);
+  if (D_other == fore)
+    D_other = 0;
+  flayer = D_forecv->c_layer;
+#ifdef RXVT_OSC
+  if (D_xtermosc[2] || D_xtermosc[3])
+    {
+      Activate(-1);
+    }
+  else
+#endif
+    {
+      RefreshHStatus();
+#ifdef RXVT_OSC
+      RefreshXtermOSC();
+#endif
+      flayer = D_forecv->c_layer;
+      CV_CALL(D_forecv, LayRestore();LaySetCursor());
+      WindowChanged(0, 'F');
+    }
+
+  display = odisplay;
 }
 
 #ifdef RXVT_OSC
