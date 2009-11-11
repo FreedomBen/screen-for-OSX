@@ -3510,7 +3510,7 @@ SetXtermOSC(i, s)
 int i;
 char *s;
 {
-  static char oscs[] = "1;\000\00020;\00039;\00049;\000";
+  static char oscs[] = "0;\000\00020;\00039;\00049;\000";
 
   ASSERT(display);
   if (!D_CXT)
