@@ -234,11 +234,6 @@ extern int errno;
 # undef TIOCPKT
 #endif
 
-/* linux ncurses is broken, we have to use our own tputs */
-#if defined(linux) && defined(TERMINFO)
-# define tputs xtputs
-#endif
-
 /* Alexandre Oliva: SVR4 style ptys don't work with osf */
 #ifdef __osf__
 # undef HAVE_SVR4_PTYS
