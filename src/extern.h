@@ -297,19 +297,7 @@ extern void  Resize_obuf __P((void));
 #ifdef AUTO_NUKE
 extern void  NukePending __P((void));
 #endif
-extern void  SetCanvasWindow __P((struct canvas *, struct win *));
-extern void  SetForeCanvas __P((struct display *, struct canvas *));
-extern struct canvas *FindCanvas __P((int, int));
-extern int   MakeDefaultCanvas __P((void));
-extern int   AddCanvas __P((int));
-extern void  RemCanvas __P((void));
-extern void  OneCanvas __P((void));
-extern void  ResizeCanvas __P((struct canvas *));
-extern void  RecreateCanvasChain __P((void));
 extern int   RethinkDisplayViewports __P((void));
-extern void  RethinkViewportOffsets __P((struct canvas *));
-extern int   CountCanvasPerp __P((struct canvas *));
-extern void  EqualizeCanvas __P((struct canvas *, int));
 #ifdef RXVT_OSC
 extern void  ClearAllXtermOSC __P((void));
 extern void  SetXtermOSC __P((int, char *));

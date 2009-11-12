@@ -49,6 +49,7 @@
 #include "screen.h"
 #include "extern.h"
 #include "logfile.h"
+#include "canvas.h"
 
 extern struct comm comms[];
 extern char *rc_name;
@@ -5006,118 +5007,6 @@ int n;
   Activate(fore->w_norefresh);  
 }
 
-
-void
-SetCanvasWindow(cv, wi)
-struct canvas *cv;
-struct win *wi;
-{
-  struct win *p = 0, **pp;
-  struct layer *l;
-  struct canvas *cvp, **cvpp;
-
-  l = cv->c_layer;
-  display = cv->c_display;
-
-  if (l)
-    {
-      /* remove old layer */
-      for (cvpp = &l->l_cvlist; (cvp = *cvpp); cvpp = &cvp->c_lnext)
-	if (cvp == cv)
-	  break;
-      ASSERT(cvp);
-      *cvpp = cvp->c_lnext;
-
-      p = Layer2Window(l);
-      l = cv->c_layer;
-      cv->c_layer = 0;
-
-      if (p && cv == D_forecv)
-	{
-#ifdef MULTIUSER
-	  ReleaseAutoWritelock(display, p);
-#endif
-	  if (p->w_silence)
-	    {
-	      SetTimeout(&p->w_silenceev, p->w_silencewait * 1000);
-	      evenq(&p->w_silenceev);
-	    }
-	  D_other = fore;
-	  D_fore = 0;
-	}
-      if (l->l_cvlist == 0 && (p == 0 || l != p->w_savelayer))
-	KillLayerChain(l);
-    }
-
-  /* find right layer to display on canvas */
-  if (wi && wi->w_type != W_TYPE_GROUP)
-    {
-      l = &wi->w_layer;
-      if (wi->w_savelayer && (wi->w_blocked || wi->w_savelayer->l_cvlist == 0))
-	l = wi->w_savelayer;
-    }
-  else
-    {
-      l = &cv->c_blank;
-      if (wi)
-	l->l_data = (char *)wi;
-      else
-	l->l_data = 0;
-    }
-
-  /* add our canvas to the layer's canvaslist */
-  ASSERT(l->l_cvlist != cv);
-  cv->c_lnext = l->l_cvlist;
-  l->l_cvlist = cv;
-  cv->c_layer = l;
-  cv->c_xoff = cv->c_xs;
-  cv->c_yoff = cv->c_ys;
-  RethinkViewportOffsets(cv);
-
-  if (flayer == 0)
-    flayer = l;
-
-  if (wi && wi->w_type == W_TYPE_GROUP)
-    {
-      /* auto-start windowlist on groups */
-      struct display *d = display;
-      struct layer *oldflayer = flayer;
-      flayer = l;
-      display_wlist(0, 0, wi);
-      flayer = oldflayer;
-      display = d;
-    }
-
-  if (wi && D_other == wi)
-    D_other = wi->w_next;	/* Might be 0, but that's OK. */
-  if (cv == D_forecv)
-    {
-      D_fore = wi;
-      fore = D_fore;	/* XXX ? */
-      if (wi)
-	{
-#ifdef MULTIUSER
-	  ObtainAutoWritelock(display, wi);
-#endif
-	  /*
-	   * Place the window at the head of the most-recently-used list
-	   */
-	  if (windows != wi)
-	    {
-	      for (pp = &windows; (p = *pp); pp = &p->w_next)
-		if (p == wi)
-		  break;
-	      ASSERT(p);
-	      *pp = p->w_next;
-	      p->w_next = windows;
-	      windows = p;
-	      WListLinkChanged();
-	    }
-	}
-    }
-}
-
-
 /*
  * SetForeWindow changes the window in the input focus of the display.
  * Puts window wi in canvas display->d_forecv.
@@ -6778,56 +6667,6 @@ int percent;
   fcv->c_slweight += done;
   debug1("ChangeCanvasSize returns %d\n", done);
   return done;
-}
-
-struct canvas *
-FindCanvas(x, y)
-int x, y;
-{
-  struct canvas *cv, *mcv = 0;
-  int m, mm = 0;
-
-  for (cv = D_cvlist; cv; cv = cv->c_next)
-    {
-      /* ye + 1 because of caption line */
-      if (x >= cv->c_xs && x <= cv->c_xe && y >= cv->c_ys && y <= cv->c_ye + 1)
-	return cv;
-      if (cv == D_forecv)
-	continue;
-      m = 0;
-      if (x >= D_forecv->c_xs && x <= D_forecv->c_xe)
-	{
-	  if (x < cv->c_xs || x > cv->c_xe)
-	    continue;
-          if (y < D_forecv->c_ys && y < cv->c_ys)
-	    continue;
-          if (y > D_forecv->c_ye + 1 && y > cv->c_ye + 1)
-	    continue;
-	  if (y < cv->c_ys)
-	    m = cv->c_ys - y;
-	  if (y > cv->c_ye + 1)
-	    m = y - (cv->c_ye + 1);
-	}
-      if (y >= D_forecv->c_ys && y <= D_forecv->c_ye + 1)
-	{
-	  if (y < cv->c_ys || y > cv->c_ye + 1)
-	    continue;
-          if (x < D_forecv->c_xs && x < cv->c_xs)
-	    continue;
-          if (x > D_forecv->c_xe && x > cv->c_xe)
-	    continue;
-	  if (x < cv->c_xs)
-	    m = cv->c_xs - x;
-	  if (x > cv->c_xe)
-	    m = x - cv->c_xe;
-	}
-      if (m && (!mm || m < mm))
-	{
-	  mcv = cv;
-	  mm = m;
-	}
-    }
-  return mcv ? mcv : D_forecv;
 }
 
 static void
