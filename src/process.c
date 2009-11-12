@@ -75,6 +75,7 @@ extern char *printcmd;
 extern int default_startup;
 extern int defobuflimit;
 extern int defnonblock;
+extern int defmousetrack;
 extern int ZombieKey_destroy;
 extern int ZombieKey_resurrect;
 extern int ZombieKey_onerror;
@@ -2726,6 +2727,22 @@ int key;
     case RC_DEFMONITOR:
       if (ParseOnOff(act, &n) == 0)
         nwin_default.monitor = (n == 0) ? MON_OFF : MON_ON;
+      break;
+    case RC_DEFMOUSETRACK:
+      if (ParseOnOff(act, &n) == 0)
+	defmousetrack = (n == 0) ? 0 : 1000;
+      break;
+    case RC_MOUSETRACK:
+      if (!args[0])
+	{
+	  Msg(0, "Mouse tracking for this display is turned %s", D_mousetrack ? "on" : "off");
+	}
+      else if (ParseOnOff(act, &n) == 0)
+	{
+	  D_mousetrack = n == 0 ? 0 : 1000;
+	  if (D_fore)
+	    MouseMode(D_fore->w_mouse);
+	}
       break;
     case RC_DEFSILENCE:
       if (ParseOnOff(act, &n) == 0)

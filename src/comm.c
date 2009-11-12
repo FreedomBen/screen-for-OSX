@@ -157,6 +157,7 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "defmode",		ARGS_1 },
   { "defmonitor",	ARGS_1 },
+  { "defmousetrack",	ARGS_1 },
 #ifdef MULTI
   { "defnonblock",	ARGS_1 },
 #endif
@@ -234,6 +235,7 @@ struct comm comms[RC_LAST + 1] =
   { "maxwin",		ARGS_1 },
   { "meta",		NEED_LAYER|ARGS_0 },
   { "monitor",		NEED_FORE|ARGS_01 },
+  { "mousetrack",	NEED_DISPLAY | ARGS_01 },
   { "msgminwait",	ARGS_1 },
   { "msgwait",		ARGS_1 },
 #ifdef MULTIUSER

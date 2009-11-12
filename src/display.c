@@ -123,6 +123,7 @@ struct display TheDisplay;
  */
 int defobuflimit = OBUF_MAX;
 int defnonblock = -1;
+int defmousetrack = 0;
 #ifdef AUTO_NUKE
 int defautonuke = 0;
 #endif
@@ -314,6 +315,7 @@ struct mode *Mode;
   D_termname[sizeof(D_termname) - 1] = 0;
   D_user = *u;
   D_processinput = ProcessInput;
+  D_mousetrack = defmousetrack;
   return display;
 }
 
@@ -412,6 +414,11 @@ FreeDisplay()
     if (p->w_zdisplay == display)
       zmodem_abort(p, 0);
 #endif
+  if (D_mousetrack)
+    {
+      D_mousetrack = 0;
+      MouseMode(0);
+    }
 #ifdef MULTI
   free((char *)display);
 #endif
@@ -1205,6 +1212,8 @@ FinitTerm()
       KeypadMode(0);
       CursorkeysMode(0);
       CursorVisibility(0);
+      if (D_mousetrack)
+	D_mousetrack = 0;
       MouseMode(0);
       SetRendition(&mchar_null);
       SetFlow(FLOW_NOW);
@@ -1522,7 +1531,13 @@ void
 MouseMode(mode)
 int mode;
 {
-  if (display && D_mouse != mode)
+  if (!display)
+    return;
+
+  if (mode < D_mousetrack)
+    mode = D_mousetrack;
+
+  if (D_mouse != mode)
     {
       char mousebuf[20];
       if (!D_CXT)
@@ -4065,15 +4080,29 @@ char *data;
 	  y = bp[4] - 33;
 	  if (x >= D_forecv->c_xs && x <= D_forecv->c_xe && y >= D_forecv->c_ys && y <= D_forecv->c_ye)
 	    {
-	      x -= D_forecv->c_xoff;
-	      y -= D_forecv->c_yoff;
-	      if (x >= 0 && x < D_forecv->c_layer->l_width && y >= 0 && y < D_forecv->c_layer->l_height)
+	      if (D_fore && D_fore->w_mouse)
 		{
-		  bp[3] = x + 33;
-		  bp[4] = y + 33;
-		  i -= 4;
-		  bp += 4;
-		  continue;
+		  /* Send clicks only if the window is expecting clicks */
+		  x -= D_forecv->c_xoff;
+		  y -= D_forecv->c_yoff;
+		  if (x >= 0 && x < D_forecv->c_layer->l_width && y >= 0 && y < D_forecv->c_layer->l_height)
+		    {
+		      bp[3] = x + 33;
+		      bp[4] = y + 33;
+		      i -= 4;
+		      bp += 4;
+		      continue;
+		    }
+		}
+	    }
+	  else if (D_mousetrack && bp[2] == '#')
+	    {
+	      /* 'focus' to the clicked region, only on mouse up */
+	      struct canvas *cv = FindCanvas(x, y);
+	      if (cv)
+		{
+		  SetForeCanvas(display, cv);
+		  /* XXX: Do we want to reset the input buffer? */
 		}
 	    }
 	  if (bp[0] == '[')

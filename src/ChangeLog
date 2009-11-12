@@ -1,8 +1,9 @@
 Version 4.1.0 (??/??/20??):
   New Commands:
-  * 'unbindall'
+  * 'unbindall' to unbind all commands
   * 'up', 'down', 'left', 'right' sub-commands for 'focus'
-  * 'rendition'
+  * 'rendition' to specify rendition to use in caption/hardstatus for
+    window-names that have bell/monitor/so turned on.
   * 'layout', with the following sub-commands
 	- 'title'
 	- 'number'
@@ -15,7 +16,12 @@ Version 4.1.0 (??/??/20??):
 	- 'attach'
 	- 'show'
 	- 'remove'
-  * 'group'
+  * 'group' for moving window(s) into a group.
+  * 'defmousetrack' and 'mousetrack', to turn on/off mouse-tracking for
+    displays. It's turned off by default. With mouse-tracking turned on, it's
+    possible to switch to a region ('focus') using mouse clicks. Additional
+    features might be to allow clicking on window-titles in the caption to
+    switch to that window.
 
   Changed Commands:
   * '-v' parameter to 'split' command for vertical splits.
