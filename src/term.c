@@ -176,6 +176,9 @@ struct term term[T_N] =
   { "eA", T_STR  },
   { "XC", T_STR  },
 
+/* mouse */
+  { "Km", T_STR  },
+
 /* keycaps */
 /* define T_CAPS */
 /* nolist */
