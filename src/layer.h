@@ -27,6 +27,9 @@
  * $Id$ FAU
  */
 
+#ifndef SCREEN_LAYER_H
+#define SCREEN_LAYER_H
+
 /*
  * This is the overlay structure. It is used to create a seperate
  * layer over the current windows.
@@ -107,4 +110,6 @@ struct layer
 	    }						\
 	  display = olddisplay;				\
 	} while(0)
+
+#endif /* SCREEN_LAYER_H */
 

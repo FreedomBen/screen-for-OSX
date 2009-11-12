@@ -27,6 +27,8 @@
  * $Id$ FAU
  */
 
+#ifndef SCREEN_WINDOW_H
+#define SCREEN_WINDOW_H
 
 /* keep this in sync with the initialisations in window.c */
 struct NewWindow
@@ -323,3 +325,6 @@ struct win
     : &fore->w_mlines[y - fore->w_histheight])
 
 #define Layer2Window(l) ((struct win *)(l)->l_bottom->l_data)
+
+#endif /* SCREEN_WINDOW_H */
+
