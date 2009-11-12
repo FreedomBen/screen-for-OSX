@@ -892,3 +892,21 @@ int save;
     }
 }
 
+void
+PutWindowCv(cv)
+struct canvas *cv;
+{
+  struct win *p;
+  for (; cv; cv = cv->c_slnext)
+    {
+      if (cv->c_slperp)
+	{
+	  PutWindowCv(cv->c_slperp);
+	  continue;
+	}
+      p = cv->c_layer ? (struct win *)cv->c_layer->l_data : 0;
+      cv->c_layer = 0;
+      SetCanvasWindow(cv, p);
+    }
+}
+

@@ -49,7 +49,8 @@
 #include "screen.h"
 #include "extern.h"
 #include "logfile.h"
-#include "canvas.h"
+#include "layout.h"
+#include "viewport.h"
 
 extern struct comm comms[];
 extern char *rc_name;
@@ -5133,36 +5134,6 @@ MoreWindows()
     }
   Msg(0, m, fore->w_number);	/* other arg for nethack */
   return 0;
-}
-
-static void
-UpdateLayoutCanvas(cv, wi)
-struct canvas *cv;
-struct win *wi;
-{
-  for (; cv; cv = cv->c_slnext)
-    {
-      if (cv->c_layer && Layer2Window(cv->c_layer) == wi)
-	{
-	  /* A simplistic version of SetCanvasWindow(cv, 0) */
-	  struct layer *l = cv->c_layer;
-	  cv->c_layer = 0;
-	  if (l->l_cvlist == 0 && (wi == 0 || l != wi->w_savelayer))
-	    KillLayerChain(l);
-	  l = &cv->c_blank;
-	  l->l_data = 0;
-	  if (l->l_cvlist != cv)
-	    {
-	      cv->c_lnext = l->l_cvlist;
-	      l->l_cvlist = cv;
-	    }
-	  cv->c_layer = l;
-	  /* Do not end here. Multiple canvases can have the same window */
-	}
-
-      if (cv->c_slperp)
-	UpdateLayoutCanvas(cv->c_slperp, wi);
-    }
 }
 
 void

@@ -78,6 +78,24 @@ extern void  RethinkViewportOffsets __P((struct canvas *));
 extern int   CountCanvasPerp __P((struct canvas *));
 extern void  EqualizeCanvas __P((struct canvas *, int));
 extern void  DupLayoutCv __P((struct canvas *, struct canvas *, int));
+extern void  PutWindowCv __P((struct canvas *));
 
-#endif
+#define CV_CALL(cv, cmd)			\
+{						\
+  struct display *olddisplay = display;		\
+  struct layer *oldflayer = flayer;		\
+  struct layer *l = cv->c_layer;		\
+  struct canvas *cvlist = l->l_cvlist;		\
+  struct canvas *cvlnext = cv->c_lnext;		\
+  flayer = l;					\
+  l->l_cvlist = cv;				\
+  cv->c_lnext = 0;				\
+  cmd;						\
+  flayer = oldflayer;				\
+  l->l_cvlist = cvlist;				\
+  cv->c_lnext = cvlnext;			\
+  display = olddisplay;				\
+}
+
+#endif /* SCREEN_CANVAS_H */
 

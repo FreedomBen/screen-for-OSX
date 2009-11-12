@@ -27,6 +27,13 @@
  * $Id$ FAU
  */
 
+#ifndef SCREEN_DISPLAY_H
+#define SCREEN_DISPLAY_H
+
+#include "layout.h"
+#include "canvas.h"
+#include "viewport.h"
+
 #ifdef MAPKEYS
 
 #define KMAP_KEYS (T_OCAPS-T_CAPS)
@@ -50,31 +57,6 @@ struct kmap_ext
 #endif
 
 struct win;			/* forward declaration */
-
-#define MAXLAY 10
-
-struct layout
-{
-  struct layout   *lay_next;
-  char            *lay_title;
-  int              lay_number;
-  struct canvas    lay_canvas;
-  struct canvas   *lay_forecv;
-  struct canvas   *lay_cvlist;
-  int              lay_autosave;
-};
-
-struct viewport
-{
-  struct viewport *v_next;	/* next vp on canvas */
-  struct canvas   *v_canvas;	/* back pointer to canvas */
-  int              v_xoff;	/* layer x offset on display */
-  int              v_yoff;	/* layer y offset on display */
-  int              v_xs;	/* vp upper left */
-  int              v_xe;	/* vp upper right */
-  int              v_ys;	/* vp lower left */
-  int              v_ye;	/* vp lower right */
-};
 
 struct display
 {
@@ -330,23 +312,6 @@ do				\
   }				\
 while (0)
 
-#define CV_CALL(cv, cmd)			\
-{						\
-  struct display *olddisplay = display;		\
-  struct layer *oldflayer = flayer;		\
-  struct layer *l = cv->c_layer;		\
-  struct canvas *cvlist = l->l_cvlist;		\
-  struct canvas *cvlnext = cv->c_lnext;		\
-  flayer = l;					\
-  l->l_cvlist = cv;				\
-  cv->c_lnext = 0;				\
-  cmd;						\
-  flayer = oldflayer;				\
-  l->l_cvlist = cvlist;				\
-  cv->c_lnext = cvlnext;			\
-  display = olddisplay;				\
-}
-
 #define STATUS_OFF	0
 #define STATUS_ON_WIN	1
 #define STATUS_ON_HS	2
@@ -356,3 +321,6 @@ while (0)
 #define HSTATUS_MESSAGE		2
 #define HSTATUS_HS		3
 #define HSTATUS_ALWAYS		(1<<2)
+
+#endif /* SCREEN_DISPLAY_H */
+
