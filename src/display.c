@@ -2797,7 +2797,12 @@ SetXtermOSC(i, s)
 int i;
 char *s;
 {
-  static char oscs[] = "0;\000\00020;\00039;\00049;\000";
+  static char *oscs[][2] = {
+    { "2;", "screen" }, /* set window title */
+    { "20;", "" },      /* background */
+    { "39;", "black" }, /* default foreground (black?) */
+    { "49;", "white" }  /* default background (white?) */
+  };
 
   ASSERT(display);
   if (!D_CXT)
@@ -2806,17 +2811,9 @@ char *s;
     s = "";
   if (!D_xtermosc[i] && !*s)
     return;
-  if (i == 0 && !*s)
-    s = "screen";		/* always set icon name */
-  if (i == 1 && !*s)
-    s = "";			/* no background */
-  if (i == 2 && !*s)
-    s = "black";		/* black text */
-  if (i == 3 && !*s)
-    s = "white";		/* on white background */
   D_xtermosc[i] = 1;
   AddStr("\033]");
-  AddStr(oscs + i * 4);
+  AddStr(oscs[i][0]);
   AddStr(s);
   AddChar(7);
 }
