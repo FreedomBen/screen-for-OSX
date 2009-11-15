@@ -1530,7 +1530,7 @@ StringEnd()
 	}
 #endif
 #ifdef RXVT_OSC
-      if (typ == 0 || typ == 1 || typ == 20 || typ == 39 || typ == 49)
+      if (typ == 0 || typ == 1 || typ == 2 || typ == 20 || typ == 39 || typ == 49)
 	{
 	  int typ2;
 	  typ2 = typ / 10;
@@ -1540,7 +1540,7 @@ StringEnd()
 	    {
 	      strncpy(curr->w_xtermosc[typ2], p, sizeof(curr->w_xtermosc[typ2]) - 1);
 	      curr->w_xtermosc[typ2][sizeof(curr->w_xtermosc[typ2]) - 1] = 0;
-	
+
 	      for (display = displays; display; display = display->d_next)
 		{
 		  if (!D_CXT)
