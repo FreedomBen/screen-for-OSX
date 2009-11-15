@@ -2811,6 +2811,8 @@ char *s;
     s = "";
   if (!D_xtermosc[i] && !*s)
     return;
+  if (i == 0 && !D_xtermosc[0])
+    AddStr("\033[22;2t");	/* stack titles (xterm patch #251) */
   D_xtermosc[i] = 1;
   AddStr("\033]");
   AddStr(oscs[i][0]);
@@ -2824,6 +2826,8 @@ ClearAllXtermOSC()
   int i;
   for (i = 3; i >= 0; i--)
     SetXtermOSC(i, 0);
+  if (D_xtermosc[0])
+    AddStr("\033[23;2t");	/* unstack titles (xterm patch #251) */
 }
 #endif
 
