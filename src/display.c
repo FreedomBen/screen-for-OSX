@@ -2815,6 +2815,8 @@ char *s;
     return;
   if (i == 0 && !D_xtermosc[0])
     AddStr("\033[22;" WT_FLAG "t");	/* stack titles (xterm patch #251) */
+  if (!*s)
+    s = oscs[i][1];
   D_xtermosc[i] = 1;
   AddStr("\033]");
   AddStr(oscs[i][0]);
