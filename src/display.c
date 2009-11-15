@@ -2792,13 +2792,15 @@ int newtop, newbot;
 }
 
 #ifdef RXVT_OSC
+#define WT_FLAG "2"	/* change to "0" to set both title and icon */
+
 void
 SetXtermOSC(i, s)
 int i;
 char *s;
 {
   static char *oscs[][2] = {
-    { "2;", "screen" }, /* set window title */
+    { WT_FLAG ";", "screen" }, /* set window title */
     { "20;", "" },      /* background */
     { "39;", "black" }, /* default foreground (black?) */
     { "49;", "white" }  /* default background (white?) */
@@ -2812,7 +2814,7 @@ char *s;
   if (!D_xtermosc[i] && !*s)
     return;
   if (i == 0 && !D_xtermosc[0])
-    AddStr("\033[22;2t");	/* stack titles (xterm patch #251) */
+    AddStr("\033[22;" WT_FLAG "t");	/* stack titles (xterm patch #251) */
   D_xtermosc[i] = 1;
   AddStr("\033]");
   AddStr(oscs[i][0]);
@@ -2827,8 +2829,9 @@ ClearAllXtermOSC()
   for (i = 3; i >= 0; i--)
     SetXtermOSC(i, 0);
   if (D_xtermosc[0])
-    AddStr("\033[23;2t");	/* unstack titles (xterm patch #251) */
+    AddStr("\033[23;" WT_FLAG "t");	/* unstack titles (xterm patch #251) */
 }
+#undef WT_FLAG
 #endif
 
 /*
