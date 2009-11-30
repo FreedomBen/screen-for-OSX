@@ -943,8 +943,8 @@ Set default writelock behavior.  @xref{Multiuser Session}.
 Keep dead windows.  @xref{Zombie}.
 @item detach [-h]
 Disconnect @code{screen} from the terminal.  @xref{Detach}.
-@item digraph
-Enter digraph sequence.  @xref{Digraph}.
+@item digraph [@var{preset} [@var{unicode-value}]]
+Enter a digraph sequence.  @xref{Digraph}.
 @item dinfo
 Display terminal information.  @xref{Info}.
 @item displays
@@ -2694,7 +2694,7 @@ Keypad enter         fe         stuff \015
 @section Digraph
 
 @kindex C-v
-@deffn Command digraph [preset]
+@deffn Command digraph [preset [unicode-value]] 
 (@kbd{C-a C-v})@*
 This command prompts the user for a digraph sequence. The next
 two characters typed are looked up in a builtin table and the
@@ -2705,7 +2705,190 @@ will treat the following characters (up to three) as an octal
 number instead.  The optional argument @var{preset}
 is treated as user input, thus one can create an "umlaut" key.
 For example the command @samp{bindkey ^K digraph '"'} enables the user
-to generate an a-umlaut by typing @samp{CTRL-K a}.
+to generate an a-umlaut by typing @samp{CTRL-K a}. When a non-zero
+@var{unicode-value} is specified, a new  digraph  is  created with the
+specified preset. The digraph is unset if a zero value is provided
+for the @var{unicode-value}.
+
+The following table is the builtin sequences.
+
+@documentencoding ISO-8859-1
+@example
+     Sequence   Octal   Digraph   Unicode Equivalent
+     -----------------------------------------------
+     ' ', ' '    160    (space)         U+00A0
+     'N', 'S'    160    (space)         U+00A0
+     '~', '!'    161       ¡            U+00A1
+     '!', '!'    161       ¡            U+00A1
+     '!', 'I'    161       ¡            U+00A1
+     'c', '|'    162       ¢            U+00A2
+     'c', 't'    162       ¢            U+00A2
+     '$', '$'    163       £            U+00A3
+     'P', 'd'    163       £            U+00A3
+     'o', 'x'    164       ¤            U+00A4
+     'C', 'u'    164       ¤            U+00A4
+     'C', 'u'    164       ¤            U+00A4
+     'E', 'u'    164       ¤            U+00A4
+     'Y', '-'    165       ¥            U+00A5
+     'Y', 'e'    165       ¥            U+00A5
+     '|', '|'    166       ¦            U+00A6
+     'B', 'B'    166       ¦            U+00A6
+     'p', 'a'    167       §            U+00A7
+     'S', 'E'    167       §            U+00A7
+     '"', '"'    168       ¨            U+00A8
+     ''', ':'    168       ¨            U+00A8
+     'c', 'O'    169       ©            U+00A9
+     'C', 'o'    169       ©            U+00A9
+     'a', '-'    170       ª            U+00AA
+     '<', '<'    171       «            U+00AB
+     '-', ','    172       ¬            U+00AC
+     'N', 'O'    172       ¬            U+00AC
+     '-', '-'    173       ­            U+00AD
+     'r', 'O'    174       ®            U+00AE
+     'R', 'g'    174       ®            U+00AE
+     '-', '='    175       ¯            U+00AF
+     ''', 'm'    175       ¯            U+00AF
+     '~', 'o'    176       °            U+00B0
+     'D', 'G'    176       °            U+00B0
+     '+', '-'    177       ±            U+00B1
+     '2', '2'    178       ²            U+00B2
+     '2', 'S'    178       ²            U+00B2
+     '3', '3'    179       ³            U+00B3
+     '3', 'S'    179       ³            U+00B3
+     ''', '''    180       ´            U+00B4
+     'j', 'u'    181       µ            U+00B5
+     'M', 'y'    181       µ            U+00B5
+     'p', 'p'    182       ¶            U+00B6
+     'P', 'I'    182       ¶            U+00B6
+     '~', '.'    183       ·            U+00B7
+     '.', 'M'    183       ·            U+00B7
+     ',', ','    184       ¸            U+00B8
+     ''', ','    184       ¸            U+00B8
+     '1', '1'    185       ¹            U+00B9
+     '1', 'S'    185       ¹            U+00B9
+     'o', '-'    186       º            U+00BA
+     '>', '>'    187       »            U+00BB
+     '1', '4'    188       ¼            U+00BC
+     '1', '2'    189       ½            U+00BD
+     '3', '4'    190       ¾            U+00BE
+     '~', '?'    191       ¿            U+00BF
+     '?', '?'    191       ¿            U+00BF
+     '?', 'I'    191       ¿            U+00BF
+     'A', '`'    192       À            U+00C0
+     'A', '!'    192       À            U+00C0
+     'A', '''    193       Á            U+00C1
+     'A', '^'    194       Â            U+00C2
+     'A', '>'    194       Â            U+00C2
+     'A', '~'    195       Ã            U+00C3
+     'A', '?'    195       Ã            U+00C3
+     'A', '"'    196       Ä            U+00C4
+     'A', ':'    196       Ä            U+00C4
+     'A', '@@'    197       Å            U+00C5
+     'A', 'A'    197       Å            U+00C5
+     'A', 'E'    198       Æ            U+00C6
+     'C', ','    199       Ç            U+00C7
+     'E', '`'    200       È            U+00C8
+     'E', '!'    200       È            U+00C8
+     'E', '''    201       É            U+00C9
+     'E', '^'    202       Ê            U+00CA
+     'E', '>'    202       Ê            U+00CA
+     'E', '"'    203       Ë            U+00CB
+     'E', ':'    203       Ë            U+00CB
+     'I', '`'    204       Ì            U+00CC
+     'I', '!'    204       Ì            U+00CC
+     'I', '''    205       Í            U+00CD
+     'I', '^'    206       Î            U+00CE
+     'I', '>'    206       Î            U+00CE
+     'I', '"'    207       Ï            U+00CF
+     'I', ':'    207       Ï            U+00CF
+     'D', '-'    208       Ð            U+00D0
+     'N', '~'    209       Ñ            U+00D1
+     'N', '?'    209       Ñ            U+00D1
+     'O', '`'    210       Ò            U+00D2
+     'O', '!'    210       Ò            U+00D2
+     'O', '''    211       Ó            U+00D3
+     'O', '^'    212       Ô            U+00D4
+     'O', '>'    212       Ô            U+00D4
+     'O', '~'    213       Õ            U+00D5
+     'O', '?'    213       Õ            U+00D5
+     'O', '"'    214       Ö            U+00D6
+     'O', ':'    214       Ö            U+00D6
+     '/', '\'    215       ×            U+00D7
+     '*', 'x'    215       ×            U+00D7
+     'O', '/'    216       Ø            U+00D8
+     'U', '`'    217       Ù            U+00D9
+     'U', '!'    217       Ù            U+00D9
+     'U', '''    218       Ú            U+00DA
+     'U', '^'    219       Û            U+00DB
+     'U', '>'    219       Û            U+00DB
+     'U', '"'    220       Ü            U+00DC
+     'U', ':'    220       Ü            U+00DC
+     'Y', '''    221       Ý            U+00DD
+     'I', 'p'    222       Þ            U+00DE
+     'T', 'H'    222       Þ            U+00DE
+     's', 's'    223       ß            U+00DF
+     's', '"'    223       ß            U+00DF
+     'a', '`'    224       à            U+00E0
+     'a', '!'    224       à            U+00E0
+     'a', '''    225       á            U+00E1
+     'a', '^'    226       â            U+00E2
+     'a', '>'    226       â            U+00E2
+     'a', '~'    227       ã            U+00E3
+     'a', '?'    227       ã            U+00E3
+     'a', '"'    228       ä            U+00E4
+     'a', ':'    228       ä            U+00E4
+     'a', 'a'    229       å            U+00E5
+     'a', 'e'    230       æ            U+00E6
+     'c', ','    231       ç            U+00E7
+     'e', '`'    232       è            U+00E8
+     'e', '!'    232       è            U+00E8
+     'e', '''    233       é            U+00E9
+     'e', '^'    234       ê            U+00EA
+     'e', '>'    234       ê            U+00EA
+     'e', '"'    235       ë            U+00EB
+     'e', ':'    235       ë            U+00EB
+     'i', '`'    236       ì            U+00EC
+     'i', '!'    236       ì            U+00EC
+     'i', '''    237       í            U+00ED
+     'i', '^'    238       î            U+00EE
+     'i', '>'    238       î            U+00EE
+     'i', '"'    239       ï            U+00EF
+     'i', ':'    239       ï            U+00EF
+     'd', '-'    240       ð            U+00F0
+     'n', '~'    241       ñ            U+00F1
+     'n', '?'    241       ñ            U+00F1
+     'o', '`'    242       ò            U+00F2
+     'o', '!'    242       ò            U+00F2
+     'o', '''    243       ó            U+00F3
+     'o', '^'    244       ô            U+00F4
+     'o', '>'    244       ô            U+00F4
+     'o', '~'    245       õ            U+00F5
+     'o', '?'    245       õ            U+00F5
+     'o', '"'    246       ö            U+00F6
+     'o', ':'    246       ö            U+00F6
+     ':', '-'    247       ÷            U+00F7
+     'o', '/'    248       ø            U+00F8
+     'u', '`'    249       ù            U+00F9
+     'u', '!'    249       ù            U+00F9
+     'u', '''    250       ú            U+00FA
+     'u', '^'    251       û            U+00FB
+     'u', '>'    251       û            U+00FB
+     'u', '"'    252       ü            U+00FC
+     'u', ':'    252       ü            U+00FC
+     'y', '''    253       ý            U+00FD
+     'i', 'p'    254       þ            U+00FE
+     't', 'h'    254       þ            U+00FE
+     'y', '"'    255       ÿ            U+00FF
+     'y', ':'    255       ÿ            U+00FF
+     '"', '['    196       Ä            U+00C4
+     '"', '\'    214       Ö            U+00D6
+     '"', ']'    220       Ü            U+00DC
+     '"', '@{'    228       ä            U+00E4
+     '"', '|'    246       ö            U+00F6
+     '"', '@}'    252       ü            U+00FC
+     '"', '~'    223       ß            U+00DF
+@end example 
+
 @end deffn
 
 @node Bell, Clear, Digraph, Virtual Terminal
