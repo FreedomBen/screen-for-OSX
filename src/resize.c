@@ -1026,16 +1026,20 @@ struct win *p;
   struct mline *ml;
   int t;
 
-  ml = p->w_alt_mlines; p->w_alt_mlines = p->w_mlines; p->w_mlines = ml;
-  t = p->w_alt_width; p->w_alt_width = p->w_width; p->w_width = t;
-  t = p->w_alt_height; p->w_alt_height = p->w_height; p->w_height = t;
-  t = p->w_alt_histheight; p->w_alt_histheight = p->w_histheight; p->w_histheight = t;
-  t = p->w_alt_x; p->w_alt_x = p->w_x; p->w_x = t;
-  t = p->w_alt_y; p->w_alt_y = p->w_y; p->w_y = t;
+#define SWAP(item, t) do { (t) = p->w_alt_##item; p->w_alt_##item = p->w_##item; p->w_##item = (t); } while (0)
+
+  SWAP(mlines, ml);
+  SWAP(width, t);
+  SWAP(height, t);
+  SWAP(histheight, t);
+  SWAP(x, t);
+  SWAP(y, t);
+
 #ifdef COPY_PASTE
-  ml = p->w_alt_hlines; p->w_alt_hlines = p->w_hlines; p->w_hlines = ml;
-  t = p->w_alt_histidx; p->w_alt_histidx = p->w_histidx; p->w_histidx = t;
+  SWAP(hlines, ml);
+  SWAP(histidx, t);
 #endif
+#undef SWAP
 }
 
 void
@@ -1043,20 +1047,34 @@ EnterAltScreen(p)
 struct win *p;
 {
   int ox = p->w_x, oy = p->w_y;
-  FreeAltScreen(p);
-  SwapAltScreen(p);
+  if (!p->w_alt_current)
+    {
+      /* If not already using the alternate screen buffer, then create
+	 a new one and swap it with the 'real' screen buffer. */
+      FreeAltScreen(p);
+      SwapAltScreen(p);
+    }
+  else
+    {
+      /* Already using the alternate buffer. Just clear the screen. To do so, it
+	 is only necessary to reset the height(s) without resetting the width. */
+      p->w_height = 0;
+      p->w_histheight = 0;
+    }
   ChangeWindowSize(p, p->w_alt_width, p->w_alt_height, p->w_alt_histheight);
   p->w_x = ox;
   p->w_y = oy;
+  p->w_alt_current = 1;
 }
 
 void
 LeaveAltScreen(p)
 struct win *p;
 {
-  if (!p->w_alt_mlines)
+  if (!p->w_alt_current)
     return;
   SwapAltScreen(p);
   ChangeWindowSize(p, p->w_alt_width, p->w_alt_height, p->w_alt_histheight);
   FreeAltScreen(p);
+  p->w_alt_current = 0;
 }

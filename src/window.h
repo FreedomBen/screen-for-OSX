@@ -282,6 +282,7 @@ struct win
   struct mline *w_alt_hlines;
   int    w_alt_histidx;
 #endif
+  int    w_alt_current;    /* Is the alternate buffer currently being used? */
 };
 
 
