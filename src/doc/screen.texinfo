@@ -919,6 +919,8 @@ Select default utmp logging behavior.  @xref{Login}.
 Select default file mode for ptys.  @xref{Mode}.
 @item defmonitor @var{state}
 Select default activity monitoring behavior.  @xref{Monitor}.
+@item defmousetrack @var{on}|@var{off}
+Select the default mouse tracking behavior.  @xref{Mousetrack}.
 @item defnonblock @var{state}|@var{numsecs}
 Select default nonblock mode.  @xref{Nonblock}.
 @item defobuflimit @var{limit}
@@ -967,6 +969,8 @@ Set flow control behavior.  @xref{Flow}.
 Move focus to next region.  @xref{Regions}.
 @item gr [@var{state}]
 Change GR charset processing.  @xref{Character Processing}.
+@item group [@var{grouptitle}]
+Change or show the group the current window belongs to.  @xref{Window Groups}.
 @item hardcopy [-h] [@var{file}]
 Write out the contents of the current window.  @xref{Hardcopy}.
 @item hardcopy_append @var{state}
@@ -1021,6 +1025,8 @@ Set the maximum window number. @xref{Maxwin}.
 Insert the command character.  @xref{Command Character}.
 @item monitor [@var{state}]
 Monitor activity in window.  @xref{Monitor}.
+@item mousetrack [@var{on}|@var{off}]
+Enable selecting splitted regions with mouse clicks.  @xref{Mousetrack}.
 @item msgminwait @var{sec}
 Set minimum message wait.  @xref{Message Wait}.
 @item msgwait @var{sec}
@@ -1081,11 +1087,11 @@ Change text attributes in caption for flagged windows.  @xref{Rendition}.
 Reset the terminal settings for the window.  @xref{Reset}.
 @item resize [(+/-)lines]
 Grow or shrink a region
-@item screen [@var{opts}] [@var{n}] [@var{cmd} [@var{args}]]
+@item screen [@var{opts}] [@var{n}] [@var{cmd} [@var{args}] | //group]
 Create a new window.  @xref{Screen Command}.
 @item scrollback @var{num}
 Set size of scrollback buffer.  @xref{Scrollback}.
-@item select [@var{n}]
+@item select [@var{n}|-|.]
 Switch to a specified window.  @xref{Selecting}.
 @item sessionname [@var{name}]
 Name this session.  @xref{Session Name}.
@@ -1151,7 +1157,7 @@ Display @code{screen} version.  @xref{Version}.
 Write a message to all displays.  @xref{Multiuser Session}.
 @item width [@var{cols} [@var{lines}]]
 Set the width of the window.  @xref{Window Size}.
-@item windowlist [-b] | string [@var{string}] | title [@var{title}]
+@item windowlist [[-b] [-m] [-g]] | string [@var{string}] | title [@var{title}]
 Present a list of all windows for selection.  @xref{Windowlist}.
 @item windows
 List active windows.  @xref{Windows}.
@@ -1187,6 +1193,7 @@ configuration parameter.
 * Shell::                       Parameters for shell windows.
 * Term::                        Set the terminal type for new windows.
 * Window Types::                Creating different types of windows.
+* Window Groups::               Grouping windows together
 @end menu
 
 @node Chdir, Screen Command,  , New Window
@@ -1211,7 +1218,7 @@ affect all the windows you create interactively.
 @section Screen Command
 @kindex c
 @kindex C-c
-@deffn Command screen [opts] [n] [cmd [args]]
+@deffn Command screen [opts] [n] [cmd [args] @var{| //group}]
 (@kbd{C-a c}, @kbd{C-a C-c})@*
 Establish a new window.  The flow-control options (@samp{-f}, @samp{-fn}
 and @samp{-fa}), title option (@samp{-t}), login options
@@ -1225,6 +1232,8 @@ the window number @var{n} is assigned to the newly created window (or,
 if this number is already in-use, the next available number).  If a
 command is specified after @code{screen}, this command (with the given
 arguments) is started in the window; otherwise, a shell is created.
+If @samp{//group} is supplied, a container-type window is created in
+which other windows may be created inside it. @xref{Window Groups}.
 
 Screen has built in some functionality of @samp{cu} and @samp{telnet}.
 @xref{Window Types}.
@@ -1300,7 +1309,7 @@ the next @code{screen rlogin othermachine} command. Use the command
 and resetting the default.
 @end deffn
 
-@node Window Types, , Term, New Window
+@node Window Types, Window Groups, Term, New Window
 @section Window Types
 @cindex window types
 Screen provides three different window types. New windows are created
@@ -1400,6 +1409,36 @@ For telnet windows, the command @code{break} sends the telnet code
 
 @end itemize
 
+@node Window Groups, , Window Types, New Window
+@section Window Groups
+@cindex window groups
+Screen provides a method for grouping windows together. Windows can be
+organized in a heirarchial fashion, resembling a tree structure. New
+screens are created using the @code{screen} command while new groups
+are created using @code{screen //group}. @xref{Screen Command}. 
+
+Once a new group is created, it will act as a container for windows
+and even other groups. When a group is selected, you will see the
+output of the @code{windowlist} command, allowing you to select a
+window inside. If there are no windows inside a group, use the 
+@code{screen} command to create one. Once inside a group, using the
+commands @code{next} and @code{prev} will switch between windows only
+in that group. Using the @code{windowlist} command will give you the
+opportunity to leave the group you are in. @xref{Windowlist}.
+
+@deffn Command group [grouptitle]
+Change or show the group the current window belongs to. Windows can
+be moved around between different groups by specifying the name of
+the destination group. Without specifying a group, the title of the
+current group is displayed.
+@end deffn
+
+Using groups in combination with layouts will help create a 
+multi-desktop experience. One group can be assigned for each
+layout made. Windows can be made, split, and organized within each
+group as desired. Afterwhich, switching between groups can be as easy
+as switching layouts.
+
 @node Selecting, Session Management, New Window, Top
 @chapter Selecting a Window
 
@@ -1451,7 +1490,7 @@ this command becomes @kbd{]]} (@pxref{Command Character}).
 @section Select
 @kindex 0@dots{}9
 @kindex '
-@deffn Command select [n]
+@deffn Command select [n @var{|-|.}]
 (@kbd{C-a @var{n}}, @kbd{C-a '})@*
 Switch to the window with the number @var{n}.
 If no window number is specified, you get prompted for an 
@@ -1471,19 +1510,22 @@ current window. The latter is useful if used with screen's
 @node Windowlist, , Select, Selecting
 @section Windowlist
 @kindex "
-@deffn Command windowlist [-b] [-m]
+@deffn Command windowlist [-b] [-m] [-g]
 @deffnx Command windowlist string [@var{string}]
 @deffnx Command windowlist title [@var{title}]
 (@kbd{C-a "})@*
 Display all windows in a table for visual window selection.
 The desired window can be selected via the standard
 movement keys (@pxref{Movement}) and activated via
-the return key.  If the @code{-b} option is given, screen will
+the return key.  If screen was in a window group, screen will
+back out of the group and then display the windows in that
+group. If the @code{-b} option is given, screen will
 switch to the blank window before presenting the list, so
 that the current window is also selectable.
 The @code{-m} option changes the order of the windows, instead of
 sorting by window numbers screen uses its internal most-recently-used
-list.
+list. The @code{-g} option will show the windows inside any groups
+in that level and downwards.
 
 The table format can be changed with the string and title
 option, the title is displayed as table heading, while the
@@ -2213,7 +2255,7 @@ If this list is too long to fit on the terminal's status line only the
 portion around the current window is displayed.
 @end deffn
 
-@node Hardstatus, , Windows, Window Settings
+@node Hardstatus, Mousetrack, Windows, Window Settings
 @section Hardstatus
 
 @code{Screen} maintains a hardstatus line for every window. If a window
@@ -2242,6 +2284,25 @@ Per default the hardstatus line of new windows is empty.
 @deffn Command hstatus status
 (none)@*
 Changes the current window's hardstatus line to @var{status}.
+@end deffn
+
+@node Mousetrack, , Hardstatus, Miscellaneous
+@section Mousetrack
+
+@deffn Command mousetrack [ @code{on|off} ]
+(none)@*
+This command determines whether @code{screen} will watch for
+mouse clicks. When this command is enabled, regions that have
+been split in various ways can be selected by pointing to them
+with a mouse and left-clicking them. Without specifying @var{on}
+or @var{off}, the current state is displayed. The default state
+is determined by the @code{defmousetrack} command.
+@end deffn
+
+@deffn Command defmousetrack @code{on|off} 
+(none)@*
+This command determines the default state of the @code{mousetrack}
+command, currently defaulting of @var{off}.
 @end deffn
 
 @node Virtual Terminal, Copy and Paste, Window Settings, Top
@@ -4368,6 +4429,7 @@ categories.
 * Backtick::			Program a command for a backtick string escape.
 * Screen Saver::		Define a screen safer.
 * Zmodem::			Define how screen treats zmodem requests.
+* Mousetrack::			Set whether screen should track mouse events.
 @end menu
 
 @node At, Break,  , Miscellaneous
