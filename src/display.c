@@ -2109,6 +2109,66 @@ RemoveStatusMinWait()
   RemoveStatus();
 }
 
+#ifdef UTF8
+static int
+strlen_onscreen(unsigned char *c, unsigned char *end)
+{
+  int len = 0;
+  char *s = c;
+  while (*c && (!end || c < end))
+    {
+      int v, dec = 0;
+      do
+	{
+	  v = FromUtf8(*c++, &dec);
+	  if (v == -2)
+	    c--;
+	}
+      while (v < 0 && (!end || c < end));
+      if (utf8_isdouble(v))
+	len++;
+      len++;
+    }
+
+  return len;
+}
+
+static int
+PrePutWinMsg(s, start, max)
+char *s;
+int start, max;
+{
+  /* Avoid double-encoding problem for a UTF-8 message on a UTF-8 locale.
+     Ideally, this would not be necessary. But fixing it the Right Way will
+     probably take way more time. So this will have to do for now. */
+  if (D_encoding == UTF8)
+    {
+      int chars = strlen_onscreen(s + start, s + max);
+      D_encoding = 0;
+      PutWinMsg(s, start, max);
+      D_encoding = UTF8;
+      D_x -= (max - chars);	/* Yak! But this is necessary to count for
+				   the fact that not every byte represents a
+				   character. */
+      return start + chars;
+    }
+  else
+    {
+      PutWinMsg(s, start, max);
+      return max;
+    }
+}
+#else
+static int
+PrePutWinMsg(s, start, max)
+char *s;
+int start, max;
+{
+  PutWinMsg(s, start, max);
+  return max;
+}
+#endif
+
 /* refresh the display's hstatus line */
 void
 ShowHStatus(str)
@@ -2153,7 +2213,7 @@ char *str;
 	l = D_width;
       GotoPos(0, D_height - 1);
       SetRendition(captionalways || D_cvlist == 0 || D_cvlist->c_next ? &mchar_null: &mchar_so);
-      PutWinMsg(str, 0, l);
+      l = PrePutWinMsg(str, 0, l);
       if (!captionalways && D_cvlist && !D_cvlist->c_next)
         while (l++ < D_width)
 	  PUTCHARLP(' ');
@@ -2300,7 +2360,7 @@ int y, from, to, isblank;
 	      SetRendition(&mchar_so);
 	      if (l > xx - cv->c_xs + 1)
 		l = xx - cv->c_xs + 1;
-	      PutWinMsg(buf, from - cv->c_xs, l);
+	      l = PrePutWinMsg(buf, from - cv->c_xs, l);
 	      from = cv->c_xs + l;
 	      for (; from <= xx; from++)
 		PUTCHARLP(' ');
@@ -2934,9 +2994,9 @@ int progress;
 	    }
 	}
       wr = write(D_userfd, p, l);
-      if (wr <= 0) 
+      if (wr <= 0)
 	{
-	  if (errno == EINTR) 
+	  if (errno == EINTR)
 	    continue;
 	  debug1("Writing to display: %d\n", errno);
 	  break;
