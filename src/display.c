@@ -617,7 +617,15 @@ int c;
 	  AddCStr(D_CE0);
 	  goto addedutf8;
 	}
-      AddUtf8(c);
+      if (c < 0x80)
+	{
+	  if (D_xtable && D_xtable[(int)(unsigned char)D_rend.font] && D_xtable[(int)(unsigned char)D_rend.font][(int)(unsigned char)c])
+	    AddStr(D_xtable[(int)(unsigned char)D_rend.font][(int)(unsigned char)c]);
+	  else
+	    AddChar(c);
+	}
+      else
+	AddUtf8(c);
       goto addedutf8;
     }
 # endif
