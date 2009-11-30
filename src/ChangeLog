@@ -59,6 +59,7 @@ Version 4.1.0 (??/??/20??):
   * In copy mode, search in reverse direction when 'N' is pressed.
   * Tab-completion for command input.
   * Some more readline-like bindings in input mode (e.g. ^W, ^D, ^P, ^N etc.)
+  * Fix displaying unicode characters in the caption/hardstatus on UTF8 locale.
 
   In-Progress:
   * Scripting support (thanks to Google Summer of Code 2009 project by Rui Guo)
