@@ -344,12 +344,19 @@ This also starts @code{screen} in @emph{detached} mode, but doesn't fork
 a new process. The command exits if the session terminates.
 @end table
 
-@item -p @var{name_or_number}
+@item -O
+Select a more optimal output mode for your terminal rather than true VT100
+emulation (only affects auto-margin  terminals  without @samp{LP}). This
+can also be set in your @file{.screenrc} by specifying @samp{OP} in the 
+@code{termcap} command.
+
+@item -p @var{name_or_number}|-|=|+
 Preselect a window. This is useful when you want to reattach to a
 specific window or you want to send a command via the @samp{-X}
 option to a specific window. As with screen's select command, @samp{-}
 selects the blank window. As a special case for reattach, @samp{=}
-brings up the windowlist on the blank window.
+brings up the windowlist on the blank window, while a @samp{+} will
+create new window.
 
 @item -q
 Suppress printing of error messages. In combination with @samp{-ls} the exit 

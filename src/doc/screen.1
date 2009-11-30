@@ -231,7 +231,11 @@ The use of this option is discouraged.
 turns login mode on or off (for /etc/utmp updating).
 This can also be defined through the \*Qdeflogin\*U .screenrc command.
 .TP 5
-.BR \-ls " and " \-list
+.BR \-ls " [" \fImatch ]
+.PD 0
+.TP 5
+.BR \-list " [" \fImatch ] 
+.PD
 does not start
 .IR screen ,
 but prints a list of
@@ -326,7 +330,7 @@ had not been specified. The option is set by default if
 is run as a login-shell (actually screen uses \*Q-xRR\*U in that case).
 For combinations with the \fB\-d\fP/\fB\-D\fP option see there.
 .TP 5
-.B \-s
+.BI "\-s " program 
 sets the default shell to the program specified, instead of the value
 in the environment variable $SHELL (or \*Q/bin/sh\*U if not defined).
 This can also be defined through the \*Qshell\*U .screenrc command.
