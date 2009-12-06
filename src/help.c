@@ -680,183 +680,7 @@ int y, xs, xe, isblank;
 }
 
 
-
-/*
-**
-**    here is all the displays stuff 
-**
-*/
-
-#ifdef MULTI
-
-static void DisplaysProcess __P((char **, int *));
-static void DisplaysRedisplayLine __P((int, int, int, int));
-static void displayspage __P((void));
-
-struct displaysdata
-{
-  int dummy_element_for_solaris;
-};
-
-static struct LayFuncs DisplaysLf =
-{
-  DisplaysProcess,
-  HelpAbort,
-  DisplaysRedisplayLine,
-  DefClearLine,
-  DefRewrite,
-  DefResize,
-  DefRestore
-};
-
-static void
-DisplaysProcess(ppbuf, plen)
-char **ppbuf;
-int *plen;
-{
-  int done = 0;
-
-  ASSERT(flayer);
-  while (!done && *plen > 0)
-    {
-      switch (**ppbuf)
-	{
-	case ' ':
-	  displayspage();
-	  break;
-	case '\r':
-	case '\n':
-	  HelpAbort();
-	  done = 1;
-	  break;
-	default:
-	  break;
-	}
-      ++*ppbuf;
-      --*plen;
-    }
-}
-
-
-void
-display_displays()
-{
-  if (flayer->l_width < 10 || flayer->l_height < 5)
-    {
-      LMsg(0, "Window size too small for displays page");
-      return;
-    }
-  if (InitOverlayPage(sizeof(struct displaysdata), &DisplaysLf, 0))
-    return;
-  flayer->l_x = 0;
-  flayer->l_y = flayer->l_height - 1;
-  displayspage();
-}
-
-/*
- * layout of the displays page is as follows:
-
-xterm 80x42      jnweiger@/dev/ttyp4    0(m11)    &rWx
-facit 80x24 nb   mlschroe@/dev/ttyhf   11(tcsh)    rwx
-xterm 80x42      jnhollma@/dev/ttyp5    0(m11)    &R.x
-
-  |     |    |      |         |         |   |     | ¦___ window permissions 
-  |     |    |      |         |         |   |     |      (R. is locked r-only,
-  |     |    |      |         |         |   |     |       W has wlock)
-  |     |    |      |         |         |   |     |___ Window is shared
-  |     |    |      |         |         |   |___ Name/Title of window
-  |     |    |      |         |         |___ Number of window
-  |     |    |      |         |___ Name of the display (the attached device)
-  |     |    |      |___ Username who is logged in at the display
-  |     |    |___ Display is in nonblocking mode. Shows 'NB' if obuf is full.
-  |     |___ Displays geometry as width x height.
-  |___ the terminal type known by screen for this display.
- 
- */
-
-static void
-displayspage()
-{
-  int y, l;
-  char tbuf[80];
-  struct display *d;
-  struct win *w;
-  static char *blockstates[5] = {"nb", "NB", "Z<", "Z>", "BL"};
-
-  LClearAll(flayer, 0);
-
-  leftline("term-type   size         user interface           window", 0);  
-  leftline("---------- ------- ---------- ----------------- ----------", 1);
-  y = 2;
-  
-  for (d = displays; d; d = d->d_next)
-    {
-      w = d->d_fore;
-
-      if (y >= flayer->l_height - 3)
-	break;
-      sprintf(tbuf, "%-10.10s%4dx%-4d%10.10s@%-16.16s%s",
-	      d->d_termname, d->d_width, d->d_height, d->d_user->u_name, 
-	      d->d_usertty, 
-	      (d->d_blocked || d->d_nonblock >= 0) && d->d_blocked <= 4 ? blockstates[d->d_blocked] : "  ");
-
-      if (w)
-	{
-	  l = 10 - strlen(w->w_title);
-	  if (l < 0) 
-	    l = 0;
-	  sprintf(tbuf + strlen(tbuf), "%3d(%.10s)%*s%c%c%c%c",
-		  w->w_number, w->w_title, l, "", 
-		  /* w->w_dlist->next */ 0 ? '&' : ' ', 
-		  /*
-		   * The rwx triple:
-		   * -,r,R	no read, read, read only due to foreign wlock
-		   * -,.,w,W	no write, write suppressed by foreign wlock,
-		   *            write, own wlock
-		   * -,x	no execute, execute
-		   */
-#ifdef MULTIUSER
-		  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' : 
-		   ((w->w_wlock == WLOCK_OFF || d->d_user == w->w_wlockuser) ?
-		    'r' : 'R')),
-		  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' :
-		   ((w->w_wlock == WLOCK_OFF) ? 'w' :
-		    ((d->d_user == w->w_wlockuser) ? 'W' : 'v'))),
-		  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' : 'x')
-#else
-		  'r', 'w', 'x'
-#endif
-	  );
-	}
-      leftline(tbuf, y);
-      y++;
-    }
-  sprintf(tbuf,"[Press Space %s Return to end.]",
-	  1 ? "to refresh;" : "or");
-  centerline(tbuf, flayer->l_height - 2);
-  LaySetCursor();
-}
-
-static void
-DisplaysRedisplayLine(y, xs, xe, isblank)
-int y, xs, xe, isblank;
-{
-  ASSERT(flayer);
-  if (y < 0)
-    {
-      displayspage();
-      return;
-    }
-  if (y != 0 && y != flayer->l_height - 1)
-    return;
-  if (isblank)
-    return;
-  LClearArea(flayer, xs, y, xe, y, 0, 0);
-  /* To be filled in... */
-}
-
-#endif /* MULTI */
-
+#include "list_display.c"
 
 /*
 **
@@ -1025,6 +849,8 @@ int *plen;
 	  display = olddisplay;
 	  if (h != MAXWIN)
 	    SwitchWindow(h);
+	  break;
+	case 0222: /* Mouse event */
 	  break;
 	case 0033:
 	case 0007:
@@ -1358,6 +1184,7 @@ struct win *group;
   if (InitOverlayPage(sizeof(*wlistdata), &WListLf, 0))
     return;
   wlistdata = (struct wlistdata *)flayer->l_data;
+  flayer->l_mode = 1;
   flayer->l_x = 0;
   flayer->l_y = flayer->l_height - 1;
   wlistdata->start = onblank && p ? p->w_number : -1;
@@ -1483,15 +1310,6 @@ WListLinkChanged()
       }
   display = olddisplay;
 }
-
-int
-InWList()
-{
-  if (flayer && flayer->l_layfn == &WListLf)
-    return 1;
-  return 0;
-}
-
 
 
 /*

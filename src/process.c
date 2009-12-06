@@ -6338,7 +6338,7 @@ int i;
   fore = D_fore;
   act = 0;
 #ifdef COPY_PASTE
-  if (InMark() || InInput() || InWList())
+  if (flayer && flayer->l_mode == 1)
     act = i < KMAP_KEYS+KMAP_AKEYS ? &mmtab[i] : &kmap_exts[i - (KMAP_KEYS+KMAP_AKEYS)].mm;
 #endif
   if ((!act || act->nr == RC_ILLEGAL) && !D_mapdefault)

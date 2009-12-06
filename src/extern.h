@@ -348,7 +348,7 @@ extern char *InStr __P((char *, const char *));
 extern char *strerror __P((int));
 #endif
 extern void  centerline __P((char *, int));
-extern void  leftline __P((char *, int));
+extern void  leftline __P((char *, int, struct mchar *));
 extern char *Filename __P((char *));
 extern char *stripdev __P((char *));
 #ifdef NEED_OWN_BCOPY

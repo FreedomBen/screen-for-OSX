@@ -502,6 +502,7 @@ MarkRoutine()
   if (InitOverlayPage(sizeof(*markdata), &MarkLf, 1))
     return;
   flayer->l_encoding = fore->w_encoding;
+  flayer->l_mode = 1;
   markdata = (struct markdata *)flayer->l_data;
   markdata->md_user = D_user;	/* XXX: Correct? */
   markdata->md_window = fore;
@@ -615,13 +616,13 @@ int *inlenp;
 	case 'F': /* fall through */
 	case 't': /* fall through */
 	case 'T': /* fall through */
-	  /* 
+	  /*
 	   * Set f_cmd to do a search on the next key stroke.
 	   * If we break, rep_cnt will be reset, so we
 	   * continue instead. It might be cleaner to
 	   * store the rep_count in f_cmd and
 	   * break here so later followon code will be
-	   * hit. 
+	   * hit.
 	   */
 	  markdata->f_cmd.flag = 1;
 	  markdata->f_cmd.direction = od;
@@ -1443,14 +1444,6 @@ int n;
   while (i-- > 0)
     MarkRedisplayLine(i, 0, flayer->l_width - 1, 1);
   return n;
-}
-
-int
-InMark()
-{
-  if (flayer && flayer->l_layfn == &MarkLf)
-    return 1;
-  return 0;
 }
 
 void

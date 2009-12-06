@@ -3426,7 +3426,7 @@ char *data;
 	  y = bp[4] - 33;
 	  if (x >= D_forecv->c_xs && x <= D_forecv->c_xe && y >= D_forecv->c_ys && y <= D_forecv->c_ye)
 	    {
-	      if (D_fore && D_fore->w_mouse)
+	      if (D_fore && (D_fore->w_mouse || (D_mousetrack && D_forecv->c_layer->l_mode == 1)))
 		{
 		  /* Send clicks only if the window is expecting clicks */
 		  x -= D_forecv->c_xoff;

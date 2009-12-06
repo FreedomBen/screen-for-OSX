@@ -147,6 +147,7 @@ int data;
     }
   if (InitOverlayPage(sizeof(*inpdata), &InpLf, 1))
     return;
+  flayer->l_mode = 1;
   inpdata = (struct inpdata *)flayer->l_data;
   inpdata->inpmaxlen = len;
   inpdata->inpfinfunc = finfunc;
@@ -476,13 +477,5 @@ int y, xs, xe, isblank;
       LClearArea(flayer, q, y, q + l - 1, y, 0, 0);
       q += l;
     }
-}
-
-int
-InInput()
-{
-  if (flayer && flayer->l_layfn == &InpLf)
-    return 1;
-  return 0;
 }
 

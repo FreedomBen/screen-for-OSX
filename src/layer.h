@@ -57,11 +57,21 @@ struct layer
   int    l_y;
   int    l_encoding;
   struct LayFuncs *l_layfn;
-  char	*l_data;
+  void	*l_data;
 
   struct layer *l_next;		/* layer stack, should be in data? */
   struct layer *l_bottom;	/* bottom element of layer stack */
   int	 l_blocking;
+  int	 l_mode;		/* non-zero == edit mode */
+
+  struct {
+    unsigned char buffer[3];	/* [0]: the button
+				   [1]: x
+				   [2]: y
+				*/
+    int len;
+    int start;
+  } l_mouseevent;
 };
 
 #define LayProcess		(*flayer->l_layfn->lf_LayProcess)

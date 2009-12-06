@@ -176,11 +176,12 @@ struct term term[T_N] =
   { "eA", T_STR  },
   { "XC", T_STR  },
 
-/* mouse */
-  { "Km", T_STR  },
-
 /* keycaps */
 /* define T_CAPS */
+
+/* mouse */
+  { "Km", T_STR  }, KMAPDEF("\033[M")		KMAPMDEF("\222")
+
 /* nolist */
   { "k0", T_STR  }, KMAPDEF("\033[10~")
   { "k1", T_STR  }, KMAPDEF("\033OP")

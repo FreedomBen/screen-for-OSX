@@ -1115,3 +1115,27 @@ ExitOverlayPage()
   LayRestore();
   LaySetCursor();
 }
+
+int
+LayProcessMouse(struct layer *l, unsigned char ch)
+{
+  /* XXX: Make sure the layer accepts mouse events */
+  int len;
+
+  if (l->l_mouseevent.len >= sizeof(l->l_mouseevent.buffer))
+    return -1;
+
+  len = l->l_mouseevent.len++;
+  l->l_mouseevent.buffer[len] = (len > 0 ? ch - 33 : ch);
+  return (l->l_mouseevent.len == sizeof(l->l_mouseevent.buffer));
+}
+
+int
+LayProcessMouseSwitch(struct layer *l, int s)
+{
+  if ((l->l_mouseevent.start = s))
+    {
+      l->l_mouseevent.len = 0;
+    }
+}
+

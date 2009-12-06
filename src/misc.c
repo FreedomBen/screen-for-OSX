@@ -125,9 +125,10 @@ int y;
 }
 
 void
-leftline(str, y)
+leftline(str, y, rend)
 char *str;
 int y;
+struct mchar *rend;
 {
   int l, n;
   struct mchar mchar_dol;
@@ -139,7 +140,7 @@ int y;
   l = n = strlen(str);
   if (n > flayer->l_width - 1)
     n = flayer->l_width - 1;
-  LPutStr(flayer, str, n, &mchar_blank, 0, y);
+  LPutStr(flayer, str, n, rend ? rend : &mchar_blank, 0, y);
   if (n != l)
     LPutChar(flayer, &mchar_dol, n, y);
 }
