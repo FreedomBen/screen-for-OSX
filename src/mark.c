@@ -561,19 +561,22 @@ int *inlenp;
   in_mark = 1;
   while (in_mark && (inlen /* || extrap */))
     {
-/*
-      if (extrap)
+      unsigned char ch = (unsigned char )*pt++;
+      inlen--;
+      if (flayer->l_mouseevent.start)
 	{
-	  od = *extrap++;
-	  if (*extrap == 0)
-	    extrap = 0;
+	  int r = LayProcessMouse(flayer, ch);
+	  if (r == -1)
+	    LayProcessMouseSwitch(flayer, 0);
+	  else
+	    {
+	      if (r)
+		ch = 0222;
+	      else
+		continue;
+	    }
 	}
-      else
-*/
-	{
-          od = mark_key_tab[(int)(unsigned char)*pt++];
-          inlen--;
-	}
+      od = mark_key_tab[(int)ch];
       rep_cnt = markdata->rep_cnt;
       if (od >= '0' && od <= '9' && !markdata->f_cmd.flag)
         {
@@ -610,7 +613,8 @@ int *inlenp;
 	}
       }
 
-      switch (od) 
+processchar:
+      switch (od)
         {
 	case 'f': /* fall through */
 	case 'F': /* fall through */
@@ -1041,6 +1045,39 @@ int *inlenp;
 	      in_mark = 0;
 	      break;
 	    }
+
+	case 0222:
+	  if (flayer->l_mouseevent.start)
+	    {
+	      int button = flayer->l_mouseevent.buffer[0];
+	      if (button == 'a')
+		{
+		  /* Scroll down */
+		  od = 'j';
+		}
+	      else if (button == '`')
+		{
+		  /* Scroll up */
+		  od = 'k';
+		}
+	      else if (button == ' ')
+		{
+		  /* Left click */
+		  cx = flayer->l_mouseevent.buffer[1];
+		  cy = D2W(flayer->l_mouseevent.buffer[2]);
+		  revto(cx, cy);
+		  od = ' ';
+		}
+	      else
+		od = 0;
+	      LayProcessMouseSwitch(flayer, 0);
+	      if (od)
+		goto processchar;
+	    }
+	  else
+	    LayProcessMouseSwitch(flayer, 1);
+	  break;
+
 	default:
 	  MarkAbort();
 	  LMsg(0, "Copy mode aborted");

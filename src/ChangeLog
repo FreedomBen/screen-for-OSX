@@ -19,7 +19,9 @@ Version 4.1.0 (??/??/20??):
   * 'group' for moving window(s) into a group.
   * 'defmousetrack' and 'mousetrack', to turn on/off mouse-tracking for
     displays. It's turned off by default. With mouse-tracking turned on, it's
-    possible to switch to a region ('focus') using mouse clicks. Additional
+    possible to switch to a region ('focus') using mouse clicks. It's also
+    possible to select a text region in copy-mode using a mouse click to place
+    a mark and the scroll wheel to scroll through the buffer. Additional
     features might be to allow clicking on window-titles in the caption to
     switch to that window.
 
