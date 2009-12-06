@@ -31,8 +31,6 @@
 #include "screen.h"
 #include "extern.h"
 
-#undef DEBUGG
-
 extern struct display *display, *displays;
 extern int real_uid, real_gid, eff_uid, eff_gid;
 extern struct term term[];	/* terminal capabilities */
