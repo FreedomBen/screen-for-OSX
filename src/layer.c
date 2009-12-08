@@ -97,7 +97,10 @@ int x, y;
   int x2, y2;
 
   if (l->l_pause.d)
-    return;
+    {
+      LayPauseUpdateRegion(l, x, x, y, y);
+      return;
+    }
 
 #ifdef HAVE_BRAILLE
   if (bd.bd_refreshing)
