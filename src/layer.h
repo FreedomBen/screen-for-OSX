@@ -72,6 +72,16 @@ struct layer
     int len;
     int start;
   } l_mouseevent;
+
+  struct {
+    int d : 1;		/* Is the output for the layer blocked? */
+
+    /* After unpausing, what region should we refresh? */
+    int top;
+    int bottom;
+    int left;
+    int right;
+  } l_pause;
 };
 
 #define LayProcess		(*flayer->l_layfn->lf_LayProcess)
@@ -122,4 +132,23 @@ struct layer
 	} while(0)
 
 #endif /* SCREEN_LAYER_H */
+
+/**
+ * (Un)Pauses a layer.
+ *
+ * @param layer The layer that should be (un)paused.
+ * @param pause Should we pause the layer?
+ */
+void LayPause __P((struct layer *layer, int pause));
+
+/**
+ * Update the region to refresh after a layer is unpaused.
+ *
+ * @param layer The layer.
+ * @param xs	The left-end of the region.
+ * @param xe	The right-end of the region.
+ * @param ys	The top-end of the region.
+ * @param ye	The bottom-end of the region.
+ */
+void LayPauseUpdateRegion __P((struct layer *layer, int xs, int xe, int ys, int ye));
 

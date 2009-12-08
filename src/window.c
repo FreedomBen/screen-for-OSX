@@ -1906,7 +1906,11 @@ char *data;
       p->w_pwin->p_inlen += len;
     }
 #endif
+
+  LayPause(&p->w_layer, 1);
   WriteString(p, bp, len);
+  LayPause(&p->w_layer, 0);
+
   return;
 }
 
