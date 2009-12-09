@@ -2133,9 +2133,12 @@ strlen_onscreen(unsigned char *c, unsigned char *end)
 	    c--;
 	}
       while (v < 0 && (!end || c < end));
-      if (utf8_isdouble(v))
-	len++;
-      len++;
+      if (!utf8_iscomb(v))
+        {
+          if (utf8_isdouble(v))
+            len++;
+          len++;
+        }
     }
 
   return len;
