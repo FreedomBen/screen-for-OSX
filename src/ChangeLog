@@ -16,6 +16,7 @@ Version 4.1.0 (??/??/20??):
 	- 'attach'
 	- 'show'
 	- 'remove'
+	- 'dump'
   * 'group' for moving window(s) into a group.
   * 'defmousetrack' and 'mousetrack', to turn on/off mouse-tracking for
     displays. It's turned off by default. With mouse-tracking turned on, it's

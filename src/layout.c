@@ -332,3 +332,36 @@ struct win *wi;
 }
 
 
+static void
+dump_canvas(cv, file)
+struct canvas *cv;
+FILE *file;
+{
+  struct canvas *c;
+  for (c = cv->c_slperp; c && c->c_slnext; c = c->c_slnext)
+    {
+      fprintf(file, "split%s\n", c->c_slorient == SLICE_HORI ? " -v" : "");
+    }
+
+  for (c = cv->c_slperp; c; c = c->c_slnext)
+    {
+      if (c->c_slperp)
+	dump_canvas(c, file);
+      else
+	fprintf(file, "focus\n");
+    }
+}
+
+int
+LayoutDumpCanvas(cv, filename)
+struct canvas *cv;
+char *filename;
+{
+  FILE *file = secfopen(filename, "a");
+  if (!file)
+    return 0;
+  dump_canvas(cv, file);
+  fclose(file);
+  return 1;
+}
+

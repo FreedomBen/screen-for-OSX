@@ -4367,6 +4367,15 @@ int key;
 	  if (lay)
 	    RemoveLayout(lay);
 	}
+      else if (!strcmp(args[0], "dump"))
+	{
+	  if (!display)
+	    Msg(0, "Must have a display for 'layout dump'.");
+	  else if (!LayoutDumpCanvas(&D_canvas, args[1] ? args[1] : "layout-dump"))
+	    Msg(errno, "Error dumping layout.");
+	  else
+	    Msg(0, "Layout dumped to \"%s\"", args[1] ? args[1] : "layout-dump");
+	}
       else
 	Msg(0, "unknown layout subcommand");
       break;
