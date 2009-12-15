@@ -24,7 +24,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  *
  ****************************************************************
- * $Id$ FAU
+ * $Id$ GNU
  */
 
 #if !defined(__GNUC__) || __GNUC__ < 2

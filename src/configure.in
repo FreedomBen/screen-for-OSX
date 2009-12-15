@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 dnl
-dnl $Id$ FAU
+dnl $Id$ GNU
 dnl
 dnl Many thanks to David MacKenzie for writing autoconf and
 dnl providing a sample configure.in file for screen.
