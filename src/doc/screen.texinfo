@@ -407,6 +407,10 @@ Set the title (name) for the default shell or specified program.
 This option is equivalent to the @code{shelltitle} command
 (@pxref{Shell}).
 
+@item -T @var{term}
+Set the $TERM enviroment varible using the spcified @emph{term} as 
+opposed to the defualt setting of @code{screen}.
+
 @item -U
 Run screen in UTF-8 mode. This option tells screen that your terminal
 sends and understands UTF-8 encoded characters. It also sets the default
@@ -974,6 +978,8 @@ Change window size to current display size.  @xref{Window Size}.
 Set flow control behavior.  @xref{Flow}.
 @item focus
 Move focus to next region.  @xref{Regions}.
+@item focusminsize
+Force the current region to a certain size.  @xref{Focusminsize}.
 @item gr [@var{state}]
 Change GR charset processing.  @xref{Character Processing}.
 @item group [@var{grouptitle}]
@@ -1044,7 +1050,7 @@ Configure logfile time-stamps.  @xref{Log}.
 Use only the default mapping table for the next keystroke.  @xref{Bindkey Control}.
 @item mapnotnext
 Don't try to do keymapping on the next keystroke.  @xref{Bindkey Control}.
-@item maptimeout @var{timo}
+@item maptimeout @var{n}
 Set the inter-character timeout used for keymapping. @xref{Bindkey Control}.
 @item markkeys @var{string}
 Rebind keys in copy mode.  @xref{Copy Mode Keys}.
@@ -1636,7 +1642,7 @@ logout if @code{screen} was started from your login shell.
 The @var{message} specified here is output whenever a power detach is
 performed. It may be used as a replacement for a logout message or to reset 
 baud rate, etc.
-Without parameter, the current message is shown.
+Without a parameter, the current message is shown.
 @end deffn
 
 @node Lock, Multiuser Session, Power Detach, Session Management
@@ -1882,6 +1888,7 @@ which can contain different windows.
 * Resize::			Grow or shrink a region
 * Caption::			Control the window's caption
 * Fit::				Resize a window to fit the region
+* Focusminsize::		Force a minimum size on a current region
 * Layout::			Manage groups of regions
 @end menu
 
@@ -1974,7 +1981,7 @@ You can mix both forms by providing the string as an additional
 argument.
 @end deffn
 
-@node Fit, Layout, Caption, Regions
+@node Fit, Focusminsize, Caption, Regions
 @section Fit
 @kindex F
 @deffn Command fit
@@ -1984,7 +1991,23 @@ command is needed because screen doesn't adapt the window size
 automatically if the window is displayed more than once.
 @end deffn
 
-@node Layout, , Fit, Regions
+@node Focusminsize, Layout, Fit, Regions
+@section Focusminsize
+@deffn Command focusminsize [ (width|@code{max}|@code{_})  (height|@code{max}|@code{_}) ]
+(none)@*
+This forces any currently selected region to be automatically
+resized at least a certain @var{width} and @var{height}. All
+other surrounding regions will be resized in order to accomodate.
+This constraint follows everytime the @code{focus} command is
+used. The @code{resize} command can be used to increase either
+dimension of a region, but never below what is set with
+@code{focusminsize}. The underscore @samp{_} is a synonym for
+@code{max}. Setting a @var{width} and @var{height} of @code{0 0}
+(zero zero) will undo any constraints and allow for manual resizing.
+Without any parameters, the minimum width and height is shown.
+@end deffn
+
+@node Layout, , Focusminsize, Regions
 @section Layout
 @cindex layout
 Using regions, and perhaps a large enough terminal, you can create
@@ -2917,7 +2940,7 @@ The default message is
 
 An empty message can be supplied to the @code{bell_msg} command to suppress
 output of a message line (@code{bell_msg ""}).
-Without parameter, the current message is shown.
+Without a parameter, the current message is shown.
 @end deffn
 
 @kindex C-g
@@ -2941,7 +2964,7 @@ Sets the visual bell message. @var{Message} is printed to the status
 line if the window receives a bell character (^G), @code{vbell} is
 set to @samp{on} and the terminal does not support a visual bell.
 The default message is @samp{Wuff, Wuff!!}.
-Without parameter, the current message is shown.
+Without a parameter, the current message is shown.
 @end deffn
 
 @deffn Command vbellwait sec
@@ -3001,7 +3024,7 @@ For system information use @code{time}.
 
 @deffn Command dinfo
 (none)@*
-Show what screen thinks about your terminal. Useful if you want to know
+Show what @code{screen} thinks about your terminal. Useful if you want to know
 why features like color or the alternate charset don't work.
 @end deffn
 
@@ -3259,7 +3282,7 @@ outlined below.
 @subsection CR/LF
 @deffn Command crlf [state]
 (none)@*
-This affects the copying of text regions with the @kbd{C-a [} command.
+This affects the copying of text regions with the @code{copy} command.
 If it is set to @samp{on}, lines will be separated by the two character
 sequence @samp{CR}/@samp{LF}.  Otherwise only @samp{LF} is used.
 @code{crlf} is off by default.
@@ -3277,7 +3300,7 @@ for new windows is changed.  Defaults to 100.
 @deffn Command scrollback num
 (none)@*
 Set the size of the scrollback buffer for the current window to
-@var{num} lines.  The default scrollback is 100 lines.  Use @kbd{C-a i}
+@var{num} lines.  The default scrollback is 100 lines.  Use @copy{info}
 to view the current setting.
 @end deffn
 
@@ -3760,7 +3783,7 @@ command to activate a class. Command classes can be used
 to create multiple command keys or multi-character bindings.
 
 By default, most suitable commands are bound to one or more keys
-(@pxref{Default Key Bindings}; for instance, the command to create a
+(@pxref{Default Key Bindings}); for instance, the command to create a
 new window is bound to @kbd{C-c} and @kbd{c}.  The @code{bind} command
 can be used to redefine the key bindings and to define new bindings.
 @end deffn
@@ -3957,10 +3980,10 @@ in the default bindkey table.
 (none)@*
 Like mapdefault, but don't even look in the default bindkey table.
 @end deffn
-@deffn Command maptimeout timo
+@deffn Command maptimeout n
 (none)@*
 Set the inter-character timer for input sequence detection to a timeout
-of @var{timo} ms. The default timeout is 300ms. Maptimeout with no
+of @var{n} ms. The default timeout is 300ms. Maptimeout with no
 arguments shows the current setting.
 @end deffn
 
@@ -4069,7 +4092,7 @@ Send a ^S (ASCII XOFF) to the program in the current window.
 @node Termcap, Message Line, Flow Control, Top
 @chapter Termcap
 
-@code{screen} demands the most out of your terminal so that it can
+@code{Screen} demands the most out of your terminal so that it can
 perform its VT100 emulation most efficiently.  These functions provide
 means for tweaking the termcap entries for both your physical terminal
 and the one simulated by @code{screen}.
@@ -4512,7 +4535,7 @@ template is just @samp{%}, so the mapping is straightforward:
 @chapter The Message Line
 @cindex message line
 
-@code{screen} displays informational messages and other diagnostics in a
+@code{Screen} displays informational messages and other diagnostics in a
 @dfn{message line} at the bottom of the screen.  If your terminal has a
 status line defined in its termcap, screen will use this for displaying
 its messages, otherwise the last line of the screen will be temporarily
@@ -4945,7 +4968,7 @@ like it is described in the string escapes chapter (@pxref{String Escapes}). Scr
 @deffn Command verbose [on|off]
 If verbose is switched on, the command name is echoed, whenever a window
 is created (or resurrected from zombie state). Default is off.
-Without parameter, the current setting is shown.
+Without a parameter, the current setting is shown.
 @end deffn
 
 @node Version, Zombie, Verbose, Miscellaneous
@@ -5027,7 +5050,7 @@ the text. If the attribute
 is in use, the specified attribute/color modifier is also applied. If no
 modifier is given, the current one is deleted. See the chapter
 about string escapes (@pxref{String Escapes}) for the syntax of
-the modifier. Screen understands two pseudo-attributes, @code{i}
+the modifier. @code{Screen} understands two pseudo-attributes, @code{i}
 stands for high-intensity foreground color and @code{I} for
 high-intensity background color.
 
@@ -5050,7 +5073,7 @@ Make bright colored text also bold.
 @section Setsid
 @deffn Command setsid state
 (none)@*
-Normally screen uses different sessions and process groups for
+Normally @code{screen} uses different sessions and process groups for
 the windows. If setsid is turned @code{off}, this is not done
 anymore and all windows will be in the same process group as the
 screen backend process. This also breaks job-control, so be careful.
@@ -5136,7 +5159,7 @@ no arguments are given.
 @deffnx Command zmodem sendcmd [string]
 @deffnx Command zmodem recvcmd [string]
 (none)@*
-Define zmodem support for screen. Screen understands two
+Define zmodem support for @code{screen}. @code{Screen} understands two
 different modes when it detects a zmodem request: @code{pass}
 and @code{catch}. If the mode is set to @code{pass}, screen will
 relay all data to the attacher until the end of the
