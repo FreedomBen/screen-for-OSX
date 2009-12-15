@@ -2231,6 +2231,7 @@ int key;
 	  break;
 	}
       MarkRoutine();
+      WindowChanged(fore, 'P');
       break;
     case RC_HISTORY:
       {

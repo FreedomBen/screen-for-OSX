@@ -118,6 +118,8 @@ int VBellWait, MsgWait, MsgMinWait, SilenceWait;
 extern struct acluser *users;
 extern struct display *displays, *display; 
 
+extern struct LayFuncs MarkLf;
+
 
 extern int visual_bell;
 #ifdef COPY_PASTE
@@ -2803,6 +2805,16 @@ int rec;
 	    minusflg = !minusflg;
 	  if (minusflg)
 	    qmflag = 1;
+	  break;
+	case 'P':
+	  p--;
+	  if (display && ev && ev != &D_hstatusev)	/* Hack */
+	    {
+	      /* Is the layer in the current canvas in copy mode? */
+	      struct canvas *cv = (struct canvas *)ev->data;
+	      if (ev == &cv->c_captev && cv->c_layer->l_layfn == &MarkLf)
+		qmflag = 1;
+	    }
 	  break;
 	case '>':
 	  truncpos = p - winmsg_buf;

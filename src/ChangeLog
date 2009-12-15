@@ -47,6 +47,7 @@ Version 4.1.0 (??/??/20??):
   * '%p' in caption/hardstatus string expands to the PID of the backend, and
     '%+p' expands to the PID of the frontend (display).
   * '%S' in caption/hardstatus string expands to the session name.
+  * '%P' in the caption string evaluates to true if the region is in copy mode.
 
   Window List:
   * Nested views when there are window groups (with 'windowlist -g').

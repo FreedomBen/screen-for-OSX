@@ -1035,6 +1035,7 @@ processchar:
 		  LAY_CALL_UP(LRefreshAll(flayer, 0));
 		}
 	      ExitOverlayPage();
+	      WindowChanged(fore, 'P');
 	      if (append_mode)
 		LMsg(0, "Appended %d characters to buffer",
 		    newcopylen);
@@ -1277,6 +1278,7 @@ MarkAbort()
       rem(markdata->x1, markdata->y1, markdata->cx, markdata->cy, redisp, (char *)0, yend);
     }
   ExitOverlayPage();
+  WindowChanged(fore, 'P');
 }
 
 
