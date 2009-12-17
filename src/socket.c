@@ -181,8 +181,21 @@ char *match;
 	  if (strncmp(match, "tty", 3) && strncmp(n, "tty", 3) == 0)
 	    n += 3;
 	  if (strncmp(match, n, matchlen))
-	    continue;
-	  cmatch = (*(n + matchlen) == 0);
+	    {
+	      if (n == name && *match > '0' && *match <= '9')
+		{
+		  while (*n >= '0' && *n <= '9')
+		    n++;
+		  if (*n == '.')
+		    n++;
+		  if (strncmp(match, n, matchlen))
+		    continue;
+		}
+	      else
+		continue;
+	    }
+	  else
+	    cmatch = (*(n + matchlen) == 0);
 	  debug1("  -> matched %s\n", match);
 	}
       sprintf(SockPath + sdirlen, "/%s", name);
