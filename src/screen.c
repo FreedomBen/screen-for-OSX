@@ -1475,6 +1475,14 @@ int wstat_valid;
 {
   int killit = 0;
 
+  if (p->w_destroyev.data == (char *)p)
+    {
+      wstat = p->w_exitstatus;
+      wstat_valid = 1;
+      evdeq(&p->w_destroyev);
+      p->w_destroyev.data = 0;
+    }
+
 #if defined(BSDJOBS) && !defined(BSDWAIT)
   if (!wstat_valid && p->w_pid > 0)
     {
@@ -1727,7 +1735,16 @@ DoWait()
 	      else
 #endif
 		{
-		  WindowDied(p, wstat, 1);
+		  /* Screen will detect the window has died when the window's
+		   * file descriptor signals EOF (which it will do when the process in
+		   * the window terminates). So do this in a timeout of 10 seconds.
+		   * (not doing this at all might also work)
+		   * See #27061 for more details.
+		   */
+		  p->w_destroyev.data = (char *)p;
+		  p->w_exitstatus = wstat;
+		  SetTimeout(&p->w_destroyev, 10 * 1000);
+		  evenq(&p->w_destroyev);
 		}
 	      break;
 	    }

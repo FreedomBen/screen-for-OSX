@@ -93,6 +93,7 @@ static void pseu_readev_fn __P((struct event *, char *));
 static void pseu_writeev_fn __P((struct event *, char *));
 #endif
 static void win_silenceev_fn __P((struct event *, char *));
+static void win_destroyev_fn __P((struct event *, char *));
 
 static int  OpenDevice __P((char **, int, int *, char **));
 static int  ForkWindow __P((struct win *, char **, char *));
@@ -840,6 +841,9 @@ struct NewWindow *newwin;
       SetTimeout(&p->w_silenceev, p->w_silencewait * 1000);
       evenq(&p->w_silenceev);
     }
+  p->w_destroyev.type = EV_TIMEOUT;
+  p->w_destroyev.data = 0;
+  p->w_destroyev.handler = win_destroyev_fn;
 
   SetForeWindow(p);
   Activate(p->w_norefresh);
@@ -1026,6 +1030,7 @@ struct win *wp;
   evdeq(&wp->w_readev);		/* just in case */
   evdeq(&wp->w_writeev);	/* just in case */
   evdeq(&wp->w_silenceev);
+  evdeq(&wp->w_destroyev);
 #ifdef COPY_PASTE
   FreePaster(&wp->w_paster);
 #endif
@@ -2051,6 +2056,15 @@ char *data;
 #endif
       Msg(0, "Window %d: silence for %d seconds", p->w_number, p->w_silencewait);
     }
+}
+
+static void
+win_destroyev_fn(ev, data)
+struct event *ev;
+char *data;
+{
+  struct win *p = (struct win *)ev->data;
+  WindowDied(p, p->w_exitstatus, 1);
 }
 
 #ifdef ZMODEM

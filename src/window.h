@@ -283,6 +283,13 @@ struct win
   int    w_alt_histidx;
 #endif
   int    w_alt_current;    /* Is the alternate buffer currently being used? */
+
+  struct event w_destroyev;	/* window destroy event */
+#ifdef BSDWAIT
+  union wait w_exitstatus;	/* window exit status */
+#else
+  int w_exitstatus;
+#endif
 };
 
 
