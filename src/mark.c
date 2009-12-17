@@ -1155,6 +1155,8 @@ int tx, ty, line;
 
   if (markdata->second == 0)
     {
+      flayer->l_x = tx;
+      flayer->l_y = W2D(ty);
       LGotoPos(flayer, tx, W2D(ty));
       return;
     }
@@ -1251,6 +1253,8 @@ int tx, ty, line;
 #endif
 	}
     }
+  flayer->l_x = tx;
+  flayer->l_y = W2D(ty);
   LGotoPos(flayer, tx, W2D(ty));
 }
 
