@@ -940,6 +940,8 @@ int isblank;
   LPutWinMsg(flayer, str, (i == pos || !isblank) ? flayer->l_width : n, mchar, xoff, y + yoff);
   if (xoff)
     LPutWinMsg(flayer, "", xoff, mchar, 0, y + yoff);
+  if (mchar == &mchar_so)
+    flayer->l_y = y + yoff;
 #if 0
   LPutStr(flayer, str, n, i == pos ? &mchar_so : &mchar_blank, 0, y + yoff);
   if (i == pos || !isblank)

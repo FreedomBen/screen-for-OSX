@@ -222,7 +222,7 @@ struct displaysdata *ddata;
 
       if (y >= flayer->l_height - 3)
 	break;
-      sprintf(tbuf, "%-10.10s%4dx%-4d%10.10s@%-16.16s%s",
+      sprintf(tbuf, " %-10.10s%4dx%-4d%10.10s@%-16.16s%s",
 	      d->d_termname, d->d_width, d->d_height, d->d_user->u_name,
 	      d->d_usertty,
 	      (d->d_blocked || d->d_nonblock >= 0) && d->d_blocked <= 4 ? blockstates[d->d_blocked] : "  ");
@@ -256,6 +256,8 @@ struct displaysdata *ddata;
 	  );
 	}
       leftline(tbuf, y, d == ddata->selected ? &mchar_so : d == ddata->current ? &m_current : 0);
+      if (d == ddata->selected)
+	flayer->l_y = y;
       y++;
     }
   sprintf(tbuf,"[Press Space %s Return to end.]",
