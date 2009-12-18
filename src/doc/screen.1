@@ -97,7 +97,9 @@ but will instead supply the command name and its arguments to the window
 manager (specified in the $STY environment variable) who will use it to
 create the new window.
 The above example would start the emacs editor (editing prog.c) and switch
-to its window.
+to its window. - Note that you cannot transport environment variables from
+the invoking shell to the application (emacs in this case), because it is
+forked from the parent screen process, not from the invoking shell.
 .PP
 If \*Q/etc/utmp\*U is writable by
 .IR screen ,
