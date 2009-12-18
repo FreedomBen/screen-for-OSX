@@ -3070,7 +3070,7 @@ int what;
 	  p = D_fore;
 	  if (inhstr || (inhstrh && p && p->w_hstatus && *p->w_hstatus && WindowChangedCheck(p->w_hstatus, what, (int *)0)))
 	    RefreshHStatus();
-	  if (ox != -1 && ox != -1)
+	  if (ox != -1 && oy != -1)
 	    GotoPos(ox, oy);
 	}
       display = olddisplay;
@@ -3102,7 +3102,7 @@ int what;
 	}
       if (got && inhstr && p == D_fore)
 	RefreshHStatus();
-      if (ox != -1 && ox != -1)
+      if (ox != -1 && oy != -1)
 	GotoPos(ox, oy);
     }
   display = olddisplay;
