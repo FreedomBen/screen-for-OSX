@@ -1078,7 +1078,7 @@ char **av;
       else
 	{
 	  SockDir = SOCKDIR;
-	  if (lstat(SockDir, &st))
+	  if (stat(SockDir, &st))
 	    {
 	      n = (eff_uid == 0 && (real_uid || eff_gid == real_gid)) ? 0755 :
 	          (eff_gid != real_gid) ? 0775 :
