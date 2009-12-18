@@ -1847,7 +1847,9 @@ omitted, the name of this session is displayed.@*
 @emph{Caution}: The @code{$STY}
 environment variable will still reflect the old name in pre-existing
 shells. This may result in
-confusion.  The default is constructed from the tty and host names.
+confusion.  Use of this command is generally
+discouraged. Use the @code{-S} command-line option if you want to
+name a new session.The default is constructed from the tty and host names.
 @end deffn
 
 @node Suspend, Quit, Session Name, Session Management
