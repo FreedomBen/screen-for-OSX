@@ -1217,9 +1217,9 @@ Keep dead windows.  @xref{Zombie}.
 
 This section describes the commands for creating a new window for
 running programs.  When a new window is created, the first available
-number from the range 0@dots{}9 is assigned to it.
+number is assigned to it.
 The number of windows is limited at compile-time by the MAXWIN
-configuration parameter.
+configuration parameter (which defaults to 40).
 
 @menu
 * Chdir::                       Change the working directory for new windows.
@@ -1262,7 +1262,7 @@ the all-capability-flag (@samp{-a}) and scrollback option
 (@samp{-h @var{num}}) may be specified with each command. 
 The option (@samp{-M}) turns monitoring on for this window.
 The option (@samp{-L}) turns output logging on for this window.
-If an optional number @var{n} in the range 0@dots{}9 is given,
+If an optional number @var{n} in the range 0@dots{}MAXWIN-1 is given,
 the window number @var{n} is assigned to the newly created window (or,
 if this number is already in-use, the next available number).  If a
 command is specified after @code{screen}, this command (with the given

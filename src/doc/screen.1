@@ -2576,9 +2576,9 @@ title (a.\|k.\|a.) option (\fB\-t\fP), login options (\fB-l\fP and \fB-ln\fP)
 and scrollback option (\fB-h\fP <num>) may be specified with each command. 
 The option (\fB-M\fP) turns monitoring on for this window.
 The option (\fB-L\fP) turns output logging on for this window.
-If an optional number \fIn\fP in the range 0..9 is given, the window
-number \fIn\fP is assigned to the newly created window (or, if this
-number is already in-use, the next available number).
+If an optional number \fIn\fP in the range 0..MAXWIN-1 is given,
+the window number \fIn\fP is assigned to the newly created window
+(or, if this number is already in-use, the next available number).
 If a command is specified after \*Qscreen\*U, this command (with the given
 arguments) is started in the window; otherwise, a shell is created.
 Thus, if your \*Q.screenrc\*U contains the lines
@@ -2624,7 +2624,7 @@ When a new window is established, the first available number
 is assigned to this window.
 Thus, the first window can be activated by \*Qselect 0\*U.
 The number of windows is limited at compile-time by the MAXWIN
-configuration parameter.
+configuration parameter (which defaults to 40).
 There are two special WindowIDs, \*Q-\*U selects the
 internal blank window and \*Q.\*U selects the current window. The
 latter is useful if used with screen's \*Q-X\*U option.
