@@ -103,7 +103,7 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "blanker",		NEED_DISPLAY|ARGS_0},
 #ifdef BLANKER_PRG
-  { "blankerprg",	ARGS_1|ARGS_ORMORE },
+  { "blankerprg",	ARGS_0|ARGS_ORMORE },
 #endif
   { "break",		NEED_FORE|ARGS_01 },
   { "breaktype",	NEED_FORE|ARGS_01 },
