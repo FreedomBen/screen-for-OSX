@@ -281,8 +281,7 @@ int *lenp;
       debug2("window %d, user %s: ", fore->w_number, D_user->u_name);
       debug2("writelock %d (wlockuser %s)\n", fore->w_wlock,
 	     fore->w_wlockuser ? fore->w_wlockuser->u_name : "NULL");
-      /* XXX FIXME only display !*/
-      WBell(fore, visual_bell);
+      Msg(0, "write: permission denied (user %s)", D_user->u_name);
       *bufpp += *lenp;
       *lenp = 0;
       return;
