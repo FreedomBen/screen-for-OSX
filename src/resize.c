@@ -633,6 +633,27 @@ int wi, he, hi;
 
   if (p->w_type == W_TYPE_GROUP)
     return 0;
+
+  if (wi > 1000)
+    {
+      Msg(0, "Window width too large. Truncated to 1000.");
+      wi = 1000;
+    }
+
+  if (he > 1000)
+    {
+      Msg(0, "Window height too large. Truncated to 1000.");
+      he = 1000;
+    }
+
+#ifdef COPY_PASTE
+  if (hi > 1000)
+    {
+      Msg(0, "Window history too big. Truncated to 1000.");
+      hi = 1000;
+    }
+#endif
+
   if (p->w_width == wi && p->w_height == he && p->w_histheight == hi)
     {
       debug("ChangeWindowSize: No change.\n");
