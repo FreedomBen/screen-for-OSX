@@ -5155,8 +5155,10 @@ command.
 @end deffn
 
 @deffn Command blankerprg [@var{program args}]
-Defines a blanker program. Disables the blanker program if
-no arguments are given.
+Defines a blanker program. Disables the blanker program if an
+empty argument is given. Shows the currently set blanker program if no
+arguments are given.
+
 @end deffn
 
 @node Zmodem, , Screen Saver, Miscellaneous

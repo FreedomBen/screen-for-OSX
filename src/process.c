@@ -4088,6 +4088,21 @@ int key;
       break;
 #ifdef BLANKER_PRG
     case RC_BLANKERPRG:
+      if (!args[0])
+	{
+	  if (blankerprg)
+	    {
+	      char path[MAXPATHLEN];
+	      char *p = path, **pp;
+	      for (pp = blankerprg; *pp; pp++)
+		p += snprintf(p, sizeof(path) - (p - path) - 1, "%s ", *pp);
+	      *(p - 1) = '\0';
+	      Msg(0, "blankerprg: %s", path);
+	    }
+	  else
+	    Msg(0, "No blankerprg set.");
+	  break;
+	}
       if (blankerprg)
 	{
 	  char **pp;
