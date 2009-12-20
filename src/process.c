@@ -1451,12 +1451,14 @@ int key;
       break;
     case RC_AT:
       /* where this AT command comes from: */
+      if (!user)
+	break;
 #ifdef MULTIUSER
-      s = SaveStr(D_user->u_name);
+      s = SaveStr(user->u_name);
       /* DO NOT RETURN FROM HERE WITHOUT RESETTING THIS: */
-      EffectiveAclUser = D_user;
+      EffectiveAclUser = user;
 #else
-      s = SaveStr(D_usertty);
+      s = SaveStr(display ? D_usertty : user->u_name);
 #endif
       n = strlen(args[0]);
       if (n) n--;
@@ -1473,14 +1475,22 @@ int key;
 	    struct acluser *u;
 
 	    if (!n)
-	      u = D_user;
+	      u = user;
 	    else
-	      for (u = users; u; u = u->u_next)
-	        {
-		  debug3("strncmp('%s', '%s', %d)\n", *args, u->u_name, n);
-		  if (!strncmp(*args, u->u_name, n))
+	      {
+		for (u = users; u; u = u->u_next)
+		  {
+		    debug3("strncmp('%s', '%s', %d)\n", *args, u->u_name, n);
+		    if (!strncmp(*args, u->u_name, n))
+		      break;
+		  }
+		if (!u)
+		  {
+		    args[0][n] = '\0';
+		    Msg(0, "Did not find any user matching '%s'", args[0]);
 		    break;
-	        }
+		  }
+	      }
 	    debug1("at all displays of user %s\n", u->u_name);
 	    for (display = displays; display; display = nd)
 	      {
@@ -1539,7 +1549,7 @@ int key;
 	    struct win *nw;
 	    int ch;
 
-	    n++; 
+	    n++;
 	    ch = args[0][n];
 	    args[0][n] = '\0';
 	    if (!*args[0] || (i = WindowByNumber(args[0])) < 0)
