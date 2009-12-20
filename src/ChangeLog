@@ -38,6 +38,7 @@ Version 4.1.0 (??/??/20??):
     relative argument.
   * '-g' parameter to 'windowlist' to show nested list of windows.
   * '//group' parameter to 'screen' to create a grouped window.
+  * 'blankerprg' shows the currently set command on no argument.
 
   .screenrc:
   * $PID expands to the PID of the screen session.
@@ -85,13 +86,16 @@ Version 4.1.0 (??/??/20??):
   * Cyril Brulebois <kibi@debian.org>
   * Trent W Buck <trentbuck@gmail.com>
   * Stephane Chazelas <stephane_chazelas@yahoo.fr>
+  * Kees Cook <kees@ubuntu.com>
   * Thomas Dickey <tom@invisible-island.net>
   * Christian Ebert <blacktrash@gmx.net>
   * Geraint Edwards <gedge-lists-screen@yadn.org>
   * Romain Francoise <romain@orebokech.com>
   * Emanuele Giaquinta <e.giaquinta@glauco.it>
+  * Yi-Hsuan Hsin <mhsin@mhsin.org>
   * Steve Kemp <steve@steve.org.uk>
   * Ryan Niebur <ryan@debian.org>
+  * Jan Christoph Nordholz <hesso@pool.math.tu-berlin.de>
   * William Pursell <bill.pursell@gmail.com>
   * Enrico Scholz <enrico.scholz@informatik.tu-chemnitz.de>
   * Peter Teichman <peter@teichman.org>
