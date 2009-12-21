@@ -73,6 +73,9 @@ except that this permission notice may be stated in a translation approved
 by the Foundation.
 @end titlepage
 
+@shortcontents
+@contents
+
 @node Top, Overview, (dir), (dir)
 
 @ifinfo
@@ -1465,6 +1468,7 @@ in that group. Using the @code{windowlist} command will give you the
 opportunity to leave the group you are in. @xref{Windowlist}.
 
 @deffn Command group [grouptitle]
+(none)@*
 Change or show the group the current window belongs to. Windows can
 be moved around between different groups by specifying the name of
 the destination group. Without specifying a group, the title of the
@@ -3296,6 +3300,7 @@ When no parameter is given, the state is toggled.
 
 @node Scrollback, Copy Mode Keys, Line Termination, Copy
 @subsection Scrollback
+To access and use the contents in the scrollback buffer, use the @code{copy} command. @xref{Copy}.
 @deffn Command defscrollback num
 (none)@*
 Same as the @code{scrollback} command except that the default setting
@@ -3305,7 +3310,7 @@ for new windows is changed.  Defaults to 100.
 @deffn Command scrollback num
 (none)@*
 Set the size of the scrollback buffer for the current window to
-@var{num} lines.  The default scrollback is 100 lines.  Use @copy{info}
+@var{num} lines.  The default scrollback is 100 lines.  Use @code{info}
 to view the current setting.
 @end deffn
 
@@ -5209,7 +5214,7 @@ day number
 @item D
 weekday name
 @item f
-flags of the window
+flags of the window. @xref{Windows}, for meanings of the various flags.
 @item F
 sets %? to true if the window has the focus
 @item h
@@ -5725,7 +5730,5 @@ from the key sequences, since it is the same for all bindings.
 
 @printindex ky
 
-@shortcontents
-@contents
 @bye
 
