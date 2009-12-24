@@ -81,6 +81,7 @@ struct canvas *pcv;
   cv->c_slnext = pcv->c_slnext;
   if (cv->c_slnext)
     cv->c_slnext->c_slprev = cv;
+  LayerCleanupMemory(&pcv->c_blank);
   free(pcv);
 }
 
@@ -102,6 +103,7 @@ struct canvas *cv;
     {
       while (cv->c_slperp)
 	FreeCanvas(cv->c_slperp);
+      LayerCleanupMemory(&cv->c_blank);
       free(cv);
       return;
     }
@@ -133,6 +135,7 @@ struct canvas *cv;
       free(vp);
     }
   evdeq(&cv->c_captev);
+  LayerCleanupMemory(&cv->c_blank);
   free(cv);
 }
 

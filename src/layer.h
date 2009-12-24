@@ -77,10 +77,9 @@ struct layer
     int d : 1;		/* Is the output for the layer blocked? */
 
     /* After unpausing, what region should we refresh? */
-    int top;
-    int bottom;
-    int left;
-    int right;
+    int *left, *right;
+    int top, bottom;
+    int lines;
   } l_pause;
 };
 
@@ -151,4 +150,11 @@ void LayPause __P((struct layer *layer, int pause));
  * @param ye	The bottom-end of the region.
  */
 void LayPauseUpdateRegion __P((struct layer *layer, int xs, int xe, int ys, int ye));
+
+/**
+ * Free any internal memory for the layer.
+ *
+ * @param layer The layer.
+ */
+void LayerCleanupMemory __P((struct layer *layer));
 

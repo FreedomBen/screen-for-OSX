@@ -1022,6 +1022,7 @@ struct win *wp;
   wp->w_layer.l_cvlist = 0;
   if (flayer == &wp->w_layer)
     flayer = 0;
+  LayerCleanupMemory(&wp->w_layer);
 
 #ifdef MULTIUSER
   FreeWindowAcl(wp);

@@ -1172,6 +1172,7 @@ ExitOverlayPage()
       ocv->c_lnext = cv;
     }
   oldlay->l_cvlist = 0;
+  LayerCleanupMemory(oldlay);
   free((char *)oldlay);
   LayRestore();
   LaySetCursor();
@@ -1206,6 +1207,7 @@ int pause;
 {
   struct canvas *cv;
   struct display *olddisplay = display;
+  int line;
 
   pause = !!pause;
 
@@ -1215,16 +1217,13 @@ int pause;
   if ((layer->l_pause.d = pause))
     {
       /* Start pausing */
-      layer->l_pause.top = layer->l_pause.bottom =
-	  layer->l_pause.left = layer->l_pause.right = -1;
+      layer->l_pause.top = layer->l_pause.bottom = -1;
       return;
     }
 
   /* Unpause. So refresh the regions in the displays! */
   if (layer->l_pause.top == -1 &&
-      layer->l_pause.bottom == -1 &&
-      layer->l_pause.left == -1 &&
-      layer->l_pause.right == -1)
+      layer->l_pause.bottom == -1)
     return;
 
   for (cv = layer->l_cvlist; cv; cv = cv->c_lnext)
@@ -1235,18 +1234,24 @@ int pause;
 
       for (vp = cv->c_vplist; vp; vp = vp->v_next)
 	{
-	  int xs = layer->l_pause.left + vp->v_xoff;
-	  int xe = layer->l_pause.right + vp->v_xoff;
-	  int ys = layer->l_pause.top + vp->v_yoff;
-	  int ye = layer->l_pause.bottom + vp->v_yoff;
+	  for (line = layer->l_pause.top; line <= layer->l_pause.bottom; line++)
+	    {
+	      int xs, xe;
 
-	  if (xs < vp->v_xs) xs = vp->v_xs;
-	  if (xe > vp->v_xe) xe = vp->v_xe;
-	  if (ys < vp->v_ys) ys = vp->v_ys;
-	  if (ye > vp->v_ye) ye = vp->v_ye;
+	      if (line + vp->v_yoff >= vp->v_ys && line + vp->v_yoff <= vp->v_ye &&
+		  ((xs = layer->l_pause.left[line]) >= 0) &&
+		  ((xe = layer->l_pause.right[line]) >= 0))
+		{
+		  xs += vp->v_xoff;
+		  xe += vp->v_xoff;
 
-	  if (xs <= xe && ys <= ye)
-	    RefreshArea(xs, ys, xe, ye, 0);
+		  if (xs < vp->v_xs) xs = vp->v_xs;
+		  if (xe > vp->v_xe) xe = vp->v_xe;
+
+		  if (xs <= xe)
+		    RefreshLine(line + vp->v_yoff, xs, xe, 0);
+		}
+	    }
 	}
 
       if (cv == D_forecv)
@@ -1263,6 +1268,8 @@ int pause;
 	}
     }
 
+  for (line = layer->l_pause.top; line <= layer->l_pause.bottom; line++)
+    layer->l_pause.left[line] = layer->l_pause.right[line] = -1;
   olddisplay = display;
 }
 
@@ -1274,7 +1281,6 @@ int ys, ye;
 {
   if (!layer->l_pause.d)
     return;
-
   if (ye >= layer->l_height)
     ye = layer->l_height - 1;
   if (xe >= layer->l_width)
@@ -1283,10 +1289,38 @@ int ys, ye;
   if (layer->l_pause.top == -1 || layer->l_pause.top > ys)
     layer->l_pause.top = ys;
   if (layer->l_pause.bottom < ye)
-    layer->l_pause.bottom = ye;
-  if (layer->l_pause.left == -1 || layer->l_pause.left > xs)
-    layer->l_pause.left = xs;
-  if (layer->l_pause.right < xe)
-    layer->l_pause.right = xe;
+    {
+      layer->l_pause.bottom = ye;
+      if (layer->l_pause.lines <= ye)
+	{
+	  int o = layer->l_pause.lines;
+	  layer->l_pause.lines = ye + 32;
+	  layer->l_pause.left = realloc(layer->l_pause.left, sizeof(int) * layer->l_pause.lines);
+	  layer->l_pause.right = realloc(layer->l_pause.right, sizeof(int) * layer->l_pause.lines);
+	  while (o < layer->l_pause.lines)
+	    {
+	      layer->l_pause.left[o] = layer->l_pause.right[o] = -1;
+	      o++;
+	    }
+	}
+    }
+
+  while (ys <= ye)
+    {
+      if (layer->l_pause.left[ys] == -1 || layer->l_pause.left[ys] > xs)
+	layer->l_pause.left[ys] = xs;
+      if (layer->l_pause.right[ys] < xe)
+	layer->l_pause.right[ys] = xe;
+      ys++;
+    }
 }
 
+void
+LayerCleanupMemory(layer)
+struct layer *layer;
+{
+  if (layer->l_pause.left)
+    free(layer->l_pause.left);
+  if (layer->l_pause.right)
+    free(layer->l_pause.right);
+}
