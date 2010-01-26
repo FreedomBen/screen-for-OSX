@@ -2204,7 +2204,7 @@ static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
 #endif
 
 static char winmsg_buf[MAXSTR];
-#define MAX_WINMSG_REND 16	/* rendition changes */
+#define MAX_WINMSG_REND 256	/* rendition changes */
 static int winmsg_rend[MAX_WINMSG_REND];
 static int winmsg_rendpos[MAX_WINMSG_REND];
 static int winmsg_numrend;
