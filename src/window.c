@@ -41,7 +41,7 @@
 #include "logfile.h"	/* logfopen() */
 
 extern struct display *displays, *display;
-extern struct win *windows, *fore, *wtab[], *console_window;
+extern struct win *windows, *fore, *console_window;
 extern char *ShellArgs[];
 extern char *ShellProg;
 extern char screenterm[];
@@ -104,6 +104,7 @@ static int  zmodem_parse __P((struct win *, char *, int));
 #endif
 
 
+struct win **wtab;	/* window table */
 
 int VerboseCreate = 0;		/* XXX move this to user.h */
 
@@ -552,6 +553,11 @@ struct NewWindow *newwin;
 #ifdef MULTIUSER
   extern struct acluser *users;
 #endif
+
+  if (!wtab)
+    {
+      wtab = calloc(maxwin, sizeof(struct win *));
+    }
 
   debug1("NewWindow: StartAt %d\n", newwin->StartAt);
   debug1("NewWindow: aka     %s\n", newwin->aka?newwin->aka:"NULL");

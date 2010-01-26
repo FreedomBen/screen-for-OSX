@@ -38,11 +38,12 @@ char version[60];      /* initialised by main() */
 extern struct layer *flayer;
 extern struct display *display, *displays;
 extern struct win *windows;
+extern int maxwin;
 extern char *noargs[];
 extern struct mchar mchar_blank, mchar_so;
 extern int renditions[];
 extern unsigned char *blank;
-extern struct win *wtab[];
+extern struct win **wtab;
 #ifdef MAPKEYS
 extern struct term term[];
 #endif
@@ -691,6 +692,7 @@ int y, xs, xe, isblank;
 struct wlistdata;
 
 static void WListProcess __P((char **, int *));
+static void WListAbort __P((void));
 static void WListRedisplayLine __P((int, int, int, int));
 static void wlistpage __P((void));
 static void WListLine __P((int, int, int, int));
@@ -712,13 +714,13 @@ struct wlistdata {
   int order;
   struct win *group;
   int nested;
-  int list[MAXWIN];
+  int *list;
 };
 
 static struct LayFuncs WListLf =
 {
   WListProcess,
-  HelpAbort,
+  WListAbort,
   WListRedisplayLine,
   DefClearLine,
   DefRewrite,
@@ -746,6 +748,16 @@ int wi, he;
 }
 
 static void
+WListAbort()
+{
+  struct wlistdata * wlistdata = (struct wlistdata *)flayer->l_data;
+  if (wlistdata->list)
+    Free(wlistdata->list);
+  LAY_CALL_UP(LRefreshAll(flayer, 0));
+  ExitOverlayPage();
+}
+
+static void
 WListProcess(ppbuf, plen)
 char **ppbuf;
 int *plen;
@@ -766,7 +778,7 @@ int *plen;
 	{
 	  int n = (unsigned char)**ppbuf - '0';
 	  int d = 0;
-	  if (n < MAXWIN && wtab[n] && WTAB_GROUP_MATCHES(n))
+	  if (n < maxwin && wtab[n] && WTAB_GROUP_MATCHES(n))
 	    {
 	      int i;
 	      for (d = -wlistdata->npos, i = WListNext(wlistdata, -1, 0); i != n; i = WListNext(wlistdata, i, 1), d++)
@@ -805,7 +817,7 @@ int *plen;
 	  WListMove(-wlistdata->pos, -1);
 	  break;
 	case 0205:	/* end */
-	  WListMove(MAXWIN, -1);
+	  WListMove(maxwin, -1);
 	  break;
 	case 'a':
 	  /* All-window view */
@@ -827,9 +839,9 @@ int *plen;
 	case '\n':
 	case ' ':
 	  h = wlistdata->pos;
-	  if (h == MAXWIN && Layer2Window(flayer) && Layer2Window(flayer)->w_type == W_TYPE_GROUP)
+	  if (h == maxwin && Layer2Window(flayer) && Layer2Window(flayer)->w_type == W_TYPE_GROUP)
 	    break;
-	  if (display && h != MAXWIN && wtab[h] && (wtab[h]->w_type == W_TYPE_GROUP) && Layer2Window(flayer) == wtab[h])
+	  if (display && h != maxwin && wtab[h] && (wtab[h]->w_type == W_TYPE_GROUP) && Layer2Window(flayer) == wtab[h])
 	    {
 	      wlistdata->group = wtab[h];
 	      wlistdata->pos = wtab[h]->w_number;
@@ -837,17 +849,21 @@ int *plen;
 	      break;
 	    }
 	  done = 1;
-	  if (!display || h == MAXWIN || !wtab[h] || wtab[h] == D_fore || (flayer->l_cvlist && flayer->l_cvlist->c_lnext))
-	    HelpAbort();
+	  if (!display || h == maxwin || !wtab[h] || wtab[h] == D_fore || (flayer->l_cvlist && flayer->l_cvlist->c_lnext))
+	    WListAbort();
 #ifdef MULTIUSER
 	  else if (AclCheckPermWin(D_user, ACL_READ, wtab[h]))
-	    HelpAbort();
+	    WListAbort();
 #endif
 	  else
-	    ExitOverlayPage();	/* no need to redisplay */
+	    {
+	      if (wlistdata->list)
+		Free(wlistdata->list);
+	      ExitOverlayPage();	/* no need to redisplay */
+	    }
 	  /* restore display, don't switch wrong user */
 	  display = olddisplay;
-	  if (h != MAXWIN)
+	  if (h != maxwin)
 	    SwitchWindow(h);
 	  break;
 	case 0222: /* Mouse event */
@@ -865,7 +881,7 @@ int *plen;
 		}
 	      break;
 	    }
-	  HelpAbort();
+	  WListAbort();
 	  display = olddisplay;
 	  if (h >= 0 && wtab[h])
 	    SwitchWindow(h);
@@ -909,7 +925,7 @@ int isblank;
   struct mchar mchar_rend = mchar_blank;
   struct mchar *mchar = (struct mchar *)0;
 
-  if (i == MAXWIN)
+  if (i == maxwin)
     return;
   wlistdata = (struct wlistdata *)flayer->l_data;
   if (wlistdata->nested && wtab[i])
@@ -959,21 +975,21 @@ int old, delta;
 {
   int i;
 
-  if (old == MAXWIN)
-    return MAXWIN;
+  if (old == maxwin)
+    return maxwin;
   if (old == -1)
     old = 0;
   else
     {
-      for (i = 0; i < MAXWIN && wlistdata->list[i] != -1; i++)
+      for (i = 0; i < maxwin && wlistdata->list[i] != -1; i++)
 	if (wlistdata->list[i] == old)
 	  break;
-      if (i < MAXWIN && wlistdata->list[i] != -1)
+      if (i < maxwin && wlistdata->list[i] != -1)
 	old = i;
     }
 
   old += delta;
-  if (old < 0 || old >= MAXWIN || wlistdata->list[old] == -1)
+  if (old < 0 || old >= maxwin || wlistdata->list[old] == -1)
     old -= delta;
   return wlistdata->list[old];
 }
@@ -993,7 +1009,7 @@ int up, oldpos;
   i = WListNext(wlistdata, pos, -ypos);
   for (y = 0; y < wlistdata->numwin; y++)
     {
-      if (i == MAXWIN || !wtab[i])
+      if (i == maxwin || !wtab[i])
 	return;
       if (y == 0)
 	wlistdata->first = i;
@@ -1004,7 +1020,7 @@ int up, oldpos;
 	wlistdata->ypos = y;
       oldi = i;
       i = WListNext(wlistdata, i, 1);
-      if (i == MAXWIN || i == oldi)
+      if (i == maxwin || i == oldi)
 	break;
     }
 }
@@ -1023,11 +1039,11 @@ WListNormalize()
     ypos = 0;
   if (ypos >= wlistdata->numwin)
     ypos = wlistdata->numwin - 1;
-  for (n = 0, oldi = MAXWIN, i = pos; i != MAXWIN && i != oldi && n < wlistdata->numwin; oldi = i, i = WListNext(wlistdata, i, 1))
+  for (n = 0, oldi = maxwin, i = pos; i != maxwin && i != oldi && n < wlistdata->numwin; oldi = i, i = WListNext(wlistdata, i, 1))
     n++;
   if (ypos < wlistdata->numwin - n)
     ypos = wlistdata->numwin - n;
-  for (n = 0, oldi = MAXWIN, i = WListNext(wlistdata, -1, 0); i != MAXWIN && i != oldi && i != pos; oldi = i, i = WListNext(wlistdata, i, 1))
+  for (n = 0, oldi = maxwin, i = WListNext(wlistdata, -1, 0); i != maxwin && i != oldi && i != pos; oldi = i, i = WListNext(wlistdata, i, 1))
     n++;
   if (ypos > n)
     ypos = n;
@@ -1092,10 +1108,10 @@ struct win *group;
 {
   int i;
 
-  if (ind >= MAXWIN)
+  if (ind >= maxwin)
     return ind;
   if (ind == 0)
-    for (i = 0; i < MAXWIN; i++)
+    for (i = 0; i < maxwin; i++)
       wlistdata->list[i] = -1;
 
   if (wlistdata->order == WLIST_MRU)
@@ -1107,23 +1123,23 @@ struct win *group;
     {
       if (start == -1)
 	start = 0;
-      while (start < MAXWIN && !wtab[start])
+      while (start < maxwin && !wtab[start])
 	start++;
     }
 
-  if (start >= MAXWIN || !wtab[start])
+  if (start >= maxwin || !wtab[start])
     return ind;
 
   if (!WTAB_GROUP_MATCHES(start))
     {
-      while (start < MAXWIN && (!wtab[start] || !WTAB_GROUP_MATCHES(start)))
+      while (start < maxwin && (!wtab[start] || !WTAB_GROUP_MATCHES(start)))
 	if (wlistdata->order != WLIST_MRU)
 	  start++;
 	else if (wtab[start]->w_next)
 	  start = wtab[start]->w_next->w_number;
 	else
-	  start = MAXWIN;
-      if (start >= MAXWIN || !wtab[start])
+	  start = maxwin;
+      if (start >= maxwin || !wtab[start])
 	return ind;
     }
 
@@ -1186,6 +1202,7 @@ struct win *group;
   if (InitOverlayPage(sizeof(*wlistdata), &WListLf, 0))
     return;
   wlistdata = (struct wlistdata *)flayer->l_data;
+  wlistdata->list = calloc(maxwin, sizeof(int));
   flayer->l_mode = 1;
   flayer->l_x = 0;
   flayer->l_y = flayer->l_height - 1;
@@ -1216,23 +1233,23 @@ wlistpage()
 
   WListOrder(wlistdata, 0, -1, group);
   pos = wlistdata->pos;
-  if (pos == MAXWIN || !wtab[pos] || !WTAB_GROUP_MATCHES(pos))
+  if (pos == maxwin || !wtab[pos] || !WTAB_GROUP_MATCHES(pos))
     {
       if (wlistdata->order == WLIST_MRU)
         pos = WListNext(wlistdata, -1, wlistdata->npos);
       else
 	{
           /* find new position */
-	  if (pos < MAXWIN)
-	    while(++pos < MAXWIN)
+	  if (pos < maxwin)
+	    while(++pos < maxwin)
 	      if (wtab[pos] && WTAB_GROUP_MATCHES(pos))
 	        break;
-	  if (pos == MAXWIN)
+	  if (pos == maxwin)
 	    while (--pos >= 0)
 	      if (wtab[pos] && WTAB_GROUP_MATCHES(pos))
 		break;
 	  if (pos == -1)
-	    pos = MAXWIN;
+	    pos = maxwin;
 	}
     }
   wlistdata->pos = pos;

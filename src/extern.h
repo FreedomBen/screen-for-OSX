@@ -195,7 +195,7 @@ extern void  ProcessInput2 __P((char *, int));
 #endif
 extern void  DoProcess __P((struct win *, char **, int *, struct paster *));
 extern void  DoAction  __P((struct action *, int));
-extern int   FindCommnr __P((char *));
+extern int   FindCommnr __P((const char *));
 extern void  DoCommand __P((char **, int *));
 extern void  Activate __P((int));
 extern void  KillWindow __P((struct win *));

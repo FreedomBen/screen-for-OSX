@@ -56,7 +56,7 @@
  ************************************************************************/
 
 extern struct comm comms[];
-extern struct win *windows, *wtab[];
+extern struct win *windows, **wtab;
 extern char NullStr[];
 extern char SockPath[];
 extern struct display *display, *displays;

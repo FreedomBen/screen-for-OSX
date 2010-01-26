@@ -465,10 +465,10 @@ char **av;
   screenlogfile = SaveStr("screenlog.%n");
   logtstamp_string = SaveStr("-- %n:%t -- time-stamp -- %M/%d/%y %c:%s --\n");
   hstatusstring = SaveStr("%h");
-  captionstring = SaveStr("%3n %t");
+  captionstring = SaveStr("%4n %t");
   timestring = SaveStr("%c:%s %M %d %H%? %l%?");
-  wlisttit = SaveStr("Num Name%=Flags");
-  wliststr = SaveStr("%3n %t%=%f");
+  wlisttit = SaveStr(" Num Name%=Flags");
+  wliststr = SaveStr("%4n %t%=%f");
 #ifdef COPY_PASTE
   BufferFile = SaveStr(DEFAULT_BUFFERFILE);
 #endif
@@ -760,7 +760,7 @@ char **av;
   eff_uid = geteuid();
   eff_gid = getegid();
   if (eff_uid != real_uid)
-    {		
+    {
       /* if running with s-bit, we must install a special signal
        * handler routine that resets the s-bit, so that we get a
        * core file anyway.

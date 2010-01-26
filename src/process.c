@@ -186,7 +186,7 @@ extern int nethackflag;
 #endif
 
 
-struct win *wtab[MAXWIN];	/* window table, should be dynamic */
+extern struct win **wtab;
 
 #ifdef MULTIUSER
 extern char *multi;
@@ -586,7 +586,7 @@ InitKeytab()
     args[1] = NULL;
     SaveAction(ktab + '-', RC_SELECT, args, 0);
   }
-  for (i = 0; i < ((MAXWIN < 10) ? MAXWIN : 10); i++)
+  for (i = 0; i < ((maxwin < 10) ? maxwin : 10); i++)
     {
       char *args[2], arg1[10];
       args[0] = arg1;
@@ -991,7 +991,7 @@ struct paster *pa;
 
 int
 FindCommnr(str)
-char *str;
+const char *str;
 {
   int x, m, l = 0, r = RC_LAST;
   while (l <= r)
@@ -1588,7 +1588,7 @@ int key;
 		  Msg(0, "%s: at '%s': no such window.\n", rc_name, args[0]);
 		break;
 	      }
-	    else if (i < MAXWIN && (fore = wtab[i]))
+	    else if (i < maxwin && (fore = wtab[i]))
 	      {
 	        args[0][n] = ch;      /* must restore string in case of bind */
 	        debug2("AT window %d (%s)\n", fore->w_number, fore->w_title);
@@ -4054,14 +4054,25 @@ int key;
         Msg(0, "Will %sdo alternate screen switching", use_altscreen ? "" : "not ");
       break;
     case RC_MAXWIN:
+      if (!args[0])
+	{
+	  Msg(0, "maximum windows allowed: %d", maxwin);
+	  break;
+	}
       if (ParseNum(act, &n))
 	break;
       if (n < 1)
         Msg(0, "illegal maxwin number specified");
-      else if (n > maxwin)
-        Msg(0, "may only decrease maxwin number");
+      else if (n > 2048)
+	Msg(0, "maximum 2048 windows allowed");
+      else if (n > maxwin && windows)
+	Msg(0, "may increase maxwin only when there's no window");
       else
-        maxwin = n;
+	{
+	  if (!windows)
+	    wtab = realloc(wtab, n * sizeof(struct win));
+	  maxwin = n;
+	}
       break;
     case RC_BACKTICK:
       if (ParseBase(act, *args, &n, 10, "decimal"))
@@ -4435,10 +4446,11 @@ char **argv;
 int *argl;
 {
   struct action act;
+  const char *cmd = *argv;
 
-  if ((act.nr = FindCommnr(*argv)) == RC_ILLEGAL)  
+  if ((act.nr = FindCommnr(cmd)) == RC_ILLEGAL)
     {
-      Msg(0, "%s: unknown command '%s'", rc_name, *argv);
+      Msg(0, "%s: unknown command '%s'", rc_name, cmd);
       return;
     }
   act.args = argv + 1;
@@ -4907,7 +4919,7 @@ char *str;
   int i;
   struct win *p;
   
-  if ((i = WindowByNumber(str)) < 0 || i >= MAXWIN)
+  if ((i = WindowByNumber(str)) < 0 || i >= maxwin)
     {
       if ((p = WindowByName(str)))
 	return p->w_number;
@@ -5012,7 +5024,7 @@ int n;
   struct win *p;
 
   debug1("SwitchWindow %d\n", n);
-  if (n < 0 || n >= MAXWIN)
+  if (n < 0 || n >= maxwin)
     {
       ShowWindows(-1);
       return;
@@ -5116,12 +5128,12 @@ static int
 NextWindow()
 {
   register struct win **pp;
-  int n = fore ? fore->w_number : MAXWIN;
+  int n = fore ? fore->w_number : maxwin;
   struct win *group = fore ? fore->w_group : 0;
 
   for (pp = fore ? wtab + n + 1 : wtab; pp != wtab + n; pp++)
     {
-      if (pp == wtab + MAXWIN)
+      if (pp == wtab + maxwin)
 	pp = wtab;
       if (*pp)
 	{
@@ -5144,7 +5156,7 @@ PreviousWindow()
   for (pp = wtab + n - 1; pp != wtab + n; pp--)
     {
       if (pp == wtab - 1)
-	pp = wtab + MAXWIN - 1;
+	pp = wtab + maxwin - 1;
       if (*pp)
 	{
 	  if (!fore || group == (*pp)->w_group)
@@ -5284,7 +5296,7 @@ int where;
       *s = 0;
       return ss;
     }
-  for (pp = ((flags & 4) && where >= 0) ? wtab + where + 1: wtab; pp < wtab + MAXWIN; pp++)
+  for (pp = ((flags & 4) && where >= 0) ? wtab + where + 1: wtab; pp < wtab + maxwin; pp++)
     {
       int rend = -1;
       if (pp - wtab == where && ss == buf)
@@ -5921,7 +5933,7 @@ char *fn, **av;
       if (*buf != '\0')
 	nwin.aka = buf;
       num = atoi(*av);
-      if (num < 0 || num > MAXWIN - 1)
+      if (num < 0 || num > maxwin - 1)
 	{
 	  Msg(0, "%s: illegal screen number %d.", fn, num);
 	  num = 0;

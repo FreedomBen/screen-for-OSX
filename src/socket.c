@@ -67,13 +67,14 @@ extern int ServerSocket, real_uid, real_gid, eff_uid, eff_gid;
 extern int dflag, iflag, rflag, lsflag, quietflag, wipeflag, xflag;
 extern char *attach_tty, *LoginName, HostName[];
 extern struct display *display, *displays;
-extern struct win *fore, *wtab[], *console_window, *windows;
+extern struct win *fore, **wtab, *console_window, *windows;
 extern struct layer *flayer;
 extern struct layout *layout_attach, *layout_last, layout_last_marker;
 extern struct NewWindow nwin_undef;
 #ifdef MULTIUSER
 extern char *multi;
 #endif
+extern int maxwin;
 
 extern char *getenv();
 
@@ -736,7 +737,7 @@ struct msg *mp;
 	  if (*buf)
 	    nwin.aka = buf;
 	  num = atoi(p);
-	  if (num < 0 || num > MAXWIN - 1)
+	  if (num < 0 || num > maxwin - 1)
 	    num = 0;
 	  nwin.StartAt = num;
 	  p += l + 1;

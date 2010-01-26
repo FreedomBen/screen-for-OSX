@@ -5104,7 +5104,8 @@ Parses and executes each argument as separate command.
 @deffn Command maxwin @var{n}
 (none)@*
 Set the maximum window number screen will create. Doesn't affect 
-already existing windows. The number may only be decreased.
+already existing windows. The number can be increased only when there are no
+existing windows.
 @end deffn
 
 @node Backtick, Screen Saver, Maxwin, Miscellaneous
