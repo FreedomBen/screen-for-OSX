@@ -556,6 +556,8 @@ struct NewWindow *newwin;
 
   if (!wtab)
     {
+      if (!maxwin)
+	maxwin = MAXWIN;
       wtab = calloc(maxwin, sizeof(struct win *));
     }
 

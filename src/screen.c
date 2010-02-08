@@ -237,7 +237,7 @@ int cjkwidth;
 #ifdef NETHACK
 int nethackflag = 0;
 #endif
-int maxwin = MAXWIN;
+int maxwin;
 
 
 struct layer *flayer;
