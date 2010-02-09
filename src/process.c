@@ -586,7 +586,7 @@ InitKeytab()
     args[1] = NULL;
     SaveAction(ktab + '-', RC_SELECT, args, 0);
   }
-  for (i = 0; i < ((maxwin < 10) ? maxwin : 10); i++)
+  for (i = 0; i < ((maxwin && maxwin < 10) ? maxwin : 10); i++)
     {
       char *args[2], arg1[10];
       args[0] = arg1;
