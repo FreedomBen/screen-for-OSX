@@ -1377,6 +1377,7 @@ struct msg *m;
 	  char *na = 0;
 	  newscreen.nr = RC_SCREEN;
 	  newscreen.args = &na;
+	  newscreen.quiet = 0;
 	  DoAction(&newscreen, -1);
 	}
       else

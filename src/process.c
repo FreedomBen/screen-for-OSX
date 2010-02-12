@@ -695,6 +695,7 @@ int create;
 	  kp->ktab[i].nr = RC_ILLEGAL;
 	  kp->ktab[i].args = noargs;
 	  kp->ktab[i].argl = 0;
+	  kp->ktab[i].quiet = 0;
 	}
       kp->next = 0;
       *kpp = kp;
@@ -4448,6 +4449,18 @@ int *argl;
   struct action act;
   const char *cmd = *argv;
 
+  act.quiet = 0;
+  if (*cmd == '@')	/* Suppress error */
+    {
+      act.quiet |= 0x01;
+      cmd++;
+    }
+  if (*cmd == '-')	/* Suppress normal message */
+    {
+      act.quiet |= 0x02;
+      cmd++;
+    }
+
   if ((act.nr = FindCommnr(cmd)) == RC_ILLEGAL)
     {
       Msg(0, "%s: unknown command '%s'", rc_name, cmd);
@@ -6125,6 +6138,7 @@ char *data;
   act.nr = *(int *)data;
   act.args = noargs;
   act.argl = 0;
+  act.quiet = 0;
   DoAction(&act, -1);
 }
 
