@@ -26,10 +26,9 @@
  ****************************************************************
  */
 
-#include <sys/types.h>
-
 #include "config.h"
 
+#include <sys/types.h>
 
 /* XXX: WHY IS THIS HERE?? :XXX */
 

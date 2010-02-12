@@ -26,6 +26,8 @@
  ****************************************************************
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
@@ -38,8 +40,6 @@
 #include <sys/ioctl.h>
 #endif
 
-
-#include "config.h"
 
 /* for solaris 2.1, Unixware (SVR4.2) and possibly others: */
 #ifdef HAVE_STROPTS_H

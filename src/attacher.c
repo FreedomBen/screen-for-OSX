@@ -26,12 +26,12 @@
  ****************************************************************
  */
 
+#include "config.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <signal.h>
-#include "config.h"
 #include "screen.h"
 #include "extern.h"
 
