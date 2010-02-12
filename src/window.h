@@ -24,9 +24,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  *
  ****************************************************************
- * $Id$ FAU
+ * $Id$ GNU
  */
 
+#ifndef SCREEN_WINDOW_H
+#define SCREEN_WINDOW_H
 
 /* keep this in sync with the initialisations in window.c */
 struct NewWindow
@@ -280,6 +282,14 @@ struct win
   struct mline *w_alt_hlines;
   int    w_alt_histidx;
 #endif
+  int    w_alt_current;    /* Is the alternate buffer currently being used? */
+
+  struct event w_destroyev;	/* window destroy event */
+#ifdef BSDWAIT
+  union wait w_exitstatus;	/* window exit status */
+#else
+  int w_exitstatus;
+#endif
 };
 
 
@@ -323,3 +333,6 @@ struct win
     : &fore->w_mlines[y - fore->w_histheight])
 
 #define Layer2Window(l) ((struct win *)(l)->l_bottom->l_data)
+
+#endif /* SCREEN_WINDOW_H */
+

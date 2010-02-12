@@ -26,10 +26,9 @@
  ****************************************************************
  */
 
-#include <sys/types.h>
-
 #include "config.h"
 
+#include <sys/types.h>
 
 /* XXX: WHY IS THIS HERE?? :XXX */
 
@@ -56,7 +55,7 @@
  ************************************************************************/
 
 extern struct comm comms[];
-extern struct win *windows, *wtab[];
+extern struct win *windows, **wtab;
 extern char NullStr[];
 extern char SockPath[];
 extern struct display *display, *displays;

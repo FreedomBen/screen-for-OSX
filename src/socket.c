@@ -67,13 +67,14 @@ extern int ServerSocket, real_uid, real_gid, eff_uid, eff_gid;
 extern int dflag, iflag, rflag, lsflag, quietflag, wipeflag, xflag;
 extern char *attach_tty, *LoginName, HostName[];
 extern struct display *display, *displays;
-extern struct win *fore, *wtab[], *console_window, *windows;
+extern struct win *fore, **wtab, *console_window, *windows;
 extern struct layer *flayer;
 extern struct layout *layout_attach, *layout_last, layout_last_marker;
 extern struct NewWindow nwin_undef;
 #ifdef MULTIUSER
 extern char *multi;
 #endif
+extern int maxwin;
 
 extern char *getenv();
 
@@ -181,8 +182,21 @@ char *match;
 	  if (strncmp(match, "tty", 3) && strncmp(n, "tty", 3) == 0)
 	    n += 3;
 	  if (strncmp(match, n, matchlen))
-	    continue;
-	  cmatch = (*(n + matchlen) == 0);
+	    {
+	      if (n == name && *match > '0' && *match <= '9')
+		{
+		  while (*n >= '0' && *n <= '9')
+		    n++;
+		  if (*n == '.')
+		    n++;
+		  if (strncmp(match, n, matchlen))
+		    continue;
+		}
+	      else
+		continue;
+	    }
+	  else
+	    cmatch = (*(n + matchlen) == 0);
 	  debug1("  -> matched %s\n", match);
 	}
       sprintf(SockPath + sdirlen, "/%s", name);
@@ -723,7 +737,7 @@ struct msg *mp;
 	  if (*buf)
 	    nwin.aka = buf;
 	  num = atoi(p);
-	  if (num < 0 || num > MAXWIN - 1)
+	  if (num < 0 || num > maxwin - 1)
 	    num = 0;
 	  nwin.StartAt = num;
 	  p += l + 1;
@@ -1407,6 +1421,7 @@ struct msg *m;
 	  char *na = 0;
 	  newscreen.nr = RC_SCREEN;
 	  newscreen.args = &na;
+	  newscreen.quiet = 0;
 	  DoAction(&newscreen, -1);
 	}
       else

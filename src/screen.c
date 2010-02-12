@@ -118,6 +118,8 @@ int VBellWait, MsgWait, MsgMinWait, SilenceWait;
 extern struct acluser *users;
 extern struct display *displays, *display; 
 
+extern struct LayFuncs MarkLf;
+
 
 extern int visual_bell;
 #ifdef COPY_PASTE
@@ -236,7 +238,7 @@ int cjkwidth;
 #ifdef NETHACK
 int nethackflag = 0;
 #endif
-int maxwin = MAXWIN;
+int maxwin;
 
 
 struct layer *flayer;
@@ -464,10 +466,10 @@ char **av;
   screenlogfile = SaveStr("screenlog.%n");
   logtstamp_string = SaveStr("-- %n:%t -- time-stamp -- %M/%d/%y %c:%s --\n");
   hstatusstring = SaveStr("%h");
-  captionstring = SaveStr("%3n %t");
+  captionstring = SaveStr("%4n %t");
   timestring = SaveStr("%c:%s %M %d %H%? %l%?");
-  wlisttit = SaveStr("Num Name%=Flags");
-  wliststr = SaveStr("%3n %t%=%f");
+  wlisttit = SaveStr(" Num Name%=Flags");
+  wliststr = SaveStr("%4n %t%=%f");
 #ifdef COPY_PASTE
   BufferFile = SaveStr(DEFAULT_BUFFERFILE);
 #endif
@@ -763,7 +765,7 @@ char **av;
   eff_uid = geteuid();
   eff_gid = getegid();
   if (eff_uid != real_uid)
-    {		
+    {
       /* if running with s-bit, we must install a special signal
        * handler routine that resets the s-bit, so that we get a
        * core file anyway.
@@ -1081,7 +1083,7 @@ char **av;
       else
 	{
 	  SockDir = SOCKDIR;
-	  if (lstat(SockDir, &st))
+	  if (stat(SockDir, &st))
 	    {
 	      n = (eff_uid == 0 && (real_uid || eff_gid == real_gid)) ? 0755 :
 	          (eff_gid != real_gid) ? 0775 :
@@ -1478,6 +1480,14 @@ int wstat_valid;
 {
   int killit = 0;
 
+  if (p->w_destroyev.data == (char *)p)
+    {
+      wstat = p->w_exitstatus;
+      wstat_valid = 1;
+      evdeq(&p->w_destroyev);
+      p->w_destroyev.data = 0;
+    }
+
 #if defined(BSDJOBS) && !defined(BSDWAIT)
   if (!wstat_valid && p->w_pid > 0)
     {
@@ -1730,7 +1740,16 @@ DoWait()
 	      else
 #endif
 		{
-		  WindowDied(p, wstat, 1);
+		  /* Screen will detect the window has died when the window's
+		   * file descriptor signals EOF (which it will do when the process in
+		   * the window terminates). So do this in a timeout of 10 seconds.
+		   * (not doing this at all might also work)
+		   * See #27061 for more details.
+		   */
+		  p->w_destroyev.data = (char *)p;
+		  p->w_exitstatus = wstat;
+		  SetTimeout(&p->w_destroyev, 10 * 1000);
+		  evenq(&p->w_destroyev);
 		}
 	      break;
 	    }
@@ -2190,7 +2209,7 @@ static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
 #endif
 
 static char winmsg_buf[MAXSTR];
-#define MAX_WINMSG_REND 16	/* rendition changes */
+#define MAX_WINMSG_REND 256	/* rendition changes */
 static int winmsg_rend[MAX_WINMSG_REND];
 static int winmsg_rendpos[MAX_WINMSG_REND];
 static int winmsg_numrend;
@@ -2808,6 +2827,16 @@ int rec;
 	    minusflg = !minusflg;
 	  if (minusflg)
 	    qmflag = 1;
+	  break;
+	case 'P':
+	  p--;
+	  if (display && ev && ev != &D_hstatusev)	/* Hack */
+	    {
+	      /* Is the layer in the current canvas in copy mode? */
+	      struct canvas *cv = (struct canvas *)ev->data;
+	      if (ev == &cv->c_captev && cv->c_layer->l_layfn == &MarkLf)
+		qmflag = 1;
+	    }
 	  break;
 	case '>':
 	  truncpos = p - winmsg_buf;

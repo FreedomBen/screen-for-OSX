@@ -24,8 +24,15 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  *
  ****************************************************************
- * $Id$ FAU
+ * $Id$ GNU
  */
+
+#ifndef SCREEN_DISPLAY_H
+#define SCREEN_DISPLAY_H
+
+#include "layout.h"
+#include "canvas.h"
+#include "viewport.h"
 
 #ifdef MAPKEYS
 
@@ -50,63 +57,6 @@ struct kmap_ext
 #endif
 
 struct win;			/* forward declaration */
-
-#define MAXLAY 10
-
-#define SLICE_UNKN 0
-#define SLICE_VERT (1 << 0)
-#define SLICE_HORI (1 << 1)
-
-#define SLICE_THIS (1 << 2)	/* used in equal test */
-#define SLICE_GLOBAL (1 << 3)
-
-struct canvas
-{
-  struct canvas   *c_next;	/* next canvas on display */
-  struct display  *c_display;	/* back pointer to display */
-
-  struct canvas   *c_slnext;	/* next canvas in display slice */
-  struct canvas   *c_slprev;	/* prev canvas in display slice */
-  struct canvas   *c_slperp;	/* perpendicular slice */
-  struct canvas   *c_slback;	/* perpendicular slice back pointer */
-  int              c_slorient;  /* our slice orientation */
-  int              c_slweight;	/* size ratio */
-
-  struct viewport *c_vplist;
-  struct layer    *c_layer;	/* layer on this canvas */
-  struct canvas   *c_lnext;	/* next canvas that displays layer */
-  struct layer     c_blank;	/* bottom layer, always blank */
-  int              c_xoff;	/* canvas x offset on display */
-  int              c_yoff;	/* canvas y offset on display */
-  int              c_xs;
-  int              c_xe;
-  int              c_ys;
-  int              c_ye;
-  struct event     c_captev;	/* caption changed event */
-};
-
-struct layout
-{
-  struct layout   *lay_next;
-  char            *lay_title;
-  int              lay_number;
-  struct canvas    lay_canvas;
-  struct canvas   *lay_forecv;
-  struct canvas   *lay_cvlist;
-  int              lay_autosave;
-};
-
-struct viewport
-{
-  struct viewport *v_next;	/* next vp on canvas */
-  struct canvas   *v_canvas;	/* back pointer to canvas */
-  int              v_xoff;	/* layer x offset on display */
-  int              v_yoff;	/* layer y offset on display */
-  int              v_xs;	/* vp upper left */
-  int              v_xe;	/* vp upper right */
-  int              v_ys;	/* vp lower left */
-  int              v_ye;	/* vp lower right */
-};
 
 struct display
 {
@@ -150,6 +100,8 @@ struct display
   int	d_hstatus;		/* hardstatus used */
   int	d_lp_missing;		/* last character on bot line missing */
   int   d_mouse;		/* mouse mode */
+  int	d_mousetrack;		/* set when user wants to use mouse even when the window
+				   does not */
 #ifdef RXVT_OSC
   int   d_xtermosc[4];		/* osc used */
 #endif
@@ -275,6 +227,7 @@ extern struct display TheDisplay;
 #define D_hstatus	DISPLAY(d_hstatus)
 #define D_lp_missing	DISPLAY(d_lp_missing)
 #define D_mouse		DISPLAY(d_mouse)
+#define D_mousetrack	DISPLAY(d_mousetrack)
 #define D_xtermosc	DISPLAY(d_xtermosc)
 #define D_lpchar	DISPLAY(d_lpchar)
 #define D_status	DISPLAY(d_status)
@@ -359,23 +312,6 @@ do				\
   }				\
 while (0)
 
-#define CV_CALL(cv, cmd)			\
-{						\
-  struct display *olddisplay = display;		\
-  struct layer *oldflayer = flayer;		\
-  struct layer *l = cv->c_layer;		\
-  struct canvas *cvlist = l->l_cvlist;		\
-  struct canvas *cvlnext = cv->c_lnext;		\
-  flayer = l;					\
-  l->l_cvlist = cv;				\
-  cv->c_lnext = 0;				\
-  cmd;						\
-  flayer = oldflayer;				\
-  l->l_cvlist = cvlist;				\
-  cv->c_lnext = cvlnext;			\
-  display = olddisplay;				\
-}
-
 #define STATUS_OFF	0
 #define STATUS_ON_WIN	1
 #define STATUS_ON_HS	2
@@ -385,3 +321,6 @@ while (0)
 #define HSTATUS_MESSAGE		2
 #define HSTATUS_HS		3
 #define HSTATUS_ALWAYS		(1<<2)
+
+#endif /* SCREEN_DISPLAY_H */
+

@@ -63,6 +63,10 @@ struct action
   int nr;
   char **args;
   int *argl;
+  int quiet;	/* Suppress (currently unused)
+		   0x01 - Error message
+		   0x02 - Normal message
+		*/
 };
 
 #define RC_ILLEGAL -1

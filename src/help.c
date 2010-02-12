@@ -38,11 +38,12 @@ char version[60];      /* initialised by main() */
 extern struct layer *flayer;
 extern struct display *display, *displays;
 extern struct win *windows;
+extern int maxwin;
 extern char *noargs[];
 extern struct mchar mchar_blank, mchar_so;
 extern int renditions[];
 extern unsigned char *blank;
-extern struct win *wtab[];
+extern struct win **wtab;
 #ifdef MAPKEYS
 extern struct term term[];
 #endif
@@ -74,13 +75,13 @@ char *myname, *message, *arg;
 #if defined(LOGOUTOK) && defined(UTMPOK)
   printf("-l            Login mode on (update %s), -ln = off.\n", UTMPFILE);
 #endif
-  printf("-list         or -ls. Do nothing, just list our SockDir.\n");
+  printf("-ls [match]   or -list. Do nothing, just list our SockDir [on possible matches].\n");
   printf("-L            Turn on output logging.\n");
   printf("-m            ignore $STY variable, do create a new screen session.\n");
   printf("-O            Choose optimal output rather than exact vt100 emulation.\n");
   printf("-p window     Preselect the named window if it exists.\n");
   printf("-q            Quiet startup. Exits with non-zero return code if unsuccessful.\n");
-  printf("-r            Reattach to a detached screen process.\n");
+  printf("-r [session]  Reattach to a detached screen process.\n");
   printf("-R            Reattach if possible, otherwise start a new session.\n");
   printf("-s shell      Shell to execute rather than $SHELL.\n");
   printf("-S sockname   Name this session <pid>.sockname instead of <pid>.<tty>.<host>.\n");
@@ -90,7 +91,7 @@ char *myname, *message, *arg;
   printf("-U            Tell screen to use UTF-8 encoding.\n");
 #endif
   printf("-v            Print \"Screen version %s\".\n", version);
-  printf("-wipe         Do nothing, just clean up SockDir.\n");
+  printf("-wipe [match] Do nothing, just clean up SockDir [on possible matches].\n");
 #ifdef MULTI
   printf("-x            Attach to a not detached screen. (Multi display mode).\n");
 #endif /* MULTI */
@@ -680,183 +681,7 @@ int y, xs, xe, isblank;
 }
 
 
-
-/*
-**
-**    here is all the displays stuff 
-**
-*/
-
-#ifdef MULTI
-
-static void DisplaysProcess __P((char **, int *));
-static void DisplaysRedisplayLine __P((int, int, int, int));
-static void displayspage __P((void));
-
-struct displaysdata
-{
-  int dummy_element_for_solaris;
-};
-
-static struct LayFuncs DisplaysLf =
-{
-  DisplaysProcess,
-  HelpAbort,
-  DisplaysRedisplayLine,
-  DefClearLine,
-  DefRewrite,
-  DefResize,
-  DefRestore
-};
-
-static void
-DisplaysProcess(ppbuf, plen)
-char **ppbuf;
-int *plen;
-{
-  int done = 0;
-
-  ASSERT(flayer);
-  while (!done && *plen > 0)
-    {
-      switch (**ppbuf)
-	{
-	case ' ':
-	  displayspage();
-	  break;
-	case '\r':
-	case '\n':
-	  HelpAbort();
-	  done = 1;
-	  break;
-	default:
-	  break;
-	}
-      ++*ppbuf;
-      --*plen;
-    }
-}
-
-
-void
-display_displays()
-{
-  if (flayer->l_width < 10 || flayer->l_height < 5)
-    {
-      LMsg(0, "Window size too small for displays page");
-      return;
-    }
-  if (InitOverlayPage(sizeof(struct displaysdata), &DisplaysLf, 0))
-    return;
-  flayer->l_x = 0;
-  flayer->l_y = flayer->l_height - 1;
-  displayspage();
-}
-
-/*
- * layout of the displays page is as follows:
-
-xterm 80x42      jnweiger@/dev/ttyp4    0(m11)    &rWx
-facit 80x24 nb   mlschroe@/dev/ttyhf   11(tcsh)    rwx
-xterm 80x42      jnhollma@/dev/ttyp5    0(m11)    &R.x
-
-  |     |    |      |         |         |   |     | ¦___ window permissions 
-  |     |    |      |         |         |   |     |      (R. is locked r-only,
-  |     |    |      |         |         |   |     |       W has wlock)
-  |     |    |      |         |         |   |     |___ Window is shared
-  |     |    |      |         |         |   |___ Name/Title of window
-  |     |    |      |         |         |___ Number of window
-  |     |    |      |         |___ Name of the display (the attached device)
-  |     |    |      |___ Username who is logged in at the display
-  |     |    |___ Display is in nonblocking mode. Shows 'NB' if obuf is full.
-  |     |___ Displays geometry as width x height.
-  |___ the terminal type known by screen for this display.
- 
- */
-
-static void
-displayspage()
-{
-  int y, l;
-  char tbuf[80];
-  struct display *d;
-  struct win *w;
-  static char *blockstates[5] = {"nb", "NB", "Z<", "Z>", "BL"};
-
-  LClearAll(flayer, 0);
-
-  leftline("term-type   size         user interface           window", 0);  
-  leftline("---------- ------- ---------- ----------------- ----------", 1);
-  y = 2;
-  
-  for (d = displays; d; d = d->d_next)
-    {
-      w = d->d_fore;
-
-      if (y >= flayer->l_height - 3)
-	break;
-      sprintf(tbuf, "%-10.10s%4dx%-4d%10.10s@%-16.16s%s",
-	      d->d_termname, d->d_width, d->d_height, d->d_user->u_name, 
-	      d->d_usertty, 
-	      (d->d_blocked || d->d_nonblock >= 0) && d->d_blocked <= 4 ? blockstates[d->d_blocked] : "  ");
-
-      if (w)
-	{
-	  l = 10 - strlen(w->w_title);
-	  if (l < 0) 
-	    l = 0;
-	  sprintf(tbuf + strlen(tbuf), "%3d(%.10s)%*s%c%c%c%c",
-		  w->w_number, w->w_title, l, "", 
-		  /* w->w_dlist->next */ 0 ? '&' : ' ', 
-		  /*
-		   * The rwx triple:
-		   * -,r,R	no read, read, read only due to foreign wlock
-		   * -,.,w,W	no write, write suppressed by foreign wlock,
-		   *            write, own wlock
-		   * -,x	no execute, execute
-		   */
-#ifdef MULTIUSER
-		  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' : 
-		   ((w->w_wlock == WLOCK_OFF || d->d_user == w->w_wlockuser) ?
-		    'r' : 'R')),
-		  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' :
-		   ((w->w_wlock == WLOCK_OFF) ? 'w' :
-		    ((d->d_user == w->w_wlockuser) ? 'W' : 'v'))),
-		  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' : 'x')
-#else
-		  'r', 'w', 'x'
-#endif
-	  );
-	}
-      leftline(tbuf, y);
-      y++;
-    }
-  sprintf(tbuf,"[Press Space %s Return to end.]",
-	  1 ? "to refresh;" : "or");
-  centerline(tbuf, flayer->l_height - 2);
-  LaySetCursor();
-}
-
-static void
-DisplaysRedisplayLine(y, xs, xe, isblank)
-int y, xs, xe, isblank;
-{
-  ASSERT(flayer);
-  if (y < 0)
-    {
-      displayspage();
-      return;
-    }
-  if (y != 0 && y != flayer->l_height - 1)
-    return;
-  if (isblank)
-    return;
-  LClearArea(flayer, xs, y, xe, y, 0, 0);
-  /* To be filled in... */
-}
-
-#endif /* MULTI */
-
+#include "list_display.c"
 
 /*
 **
@@ -867,6 +692,7 @@ int y, xs, xe, isblank;
 struct wlistdata;
 
 static void WListProcess __P((char **, int *));
+static void WListAbort __P((void));
 static void WListRedisplayLine __P((int, int, int, int));
 static void wlistpage __P((void));
 static void WListLine __P((int, int, int, int));
@@ -888,13 +714,13 @@ struct wlistdata {
   int order;
   struct win *group;
   int nested;
-  int list[MAXWIN];
+  int *list;
 };
 
 static struct LayFuncs WListLf =
 {
   WListProcess,
-  HelpAbort,
+  WListAbort,
   WListRedisplayLine,
   DefClearLine,
   DefRewrite,
@@ -922,6 +748,16 @@ int wi, he;
 }
 
 static void
+WListAbort()
+{
+  struct wlistdata * wlistdata = (struct wlistdata *)flayer->l_data;
+  if (wlistdata->list)
+    Free(wlistdata->list);
+  LAY_CALL_UP(LRefreshAll(flayer, 0));
+  ExitOverlayPage();
+}
+
+static void
 WListProcess(ppbuf, plen)
 char **ppbuf;
 int *plen;
@@ -942,7 +778,7 @@ int *plen;
 	{
 	  int n = (unsigned char)**ppbuf - '0';
 	  int d = 0;
-	  if (n < MAXWIN && wtab[n] && WTAB_GROUP_MATCHES(n))
+	  if (n < maxwin && wtab[n] && WTAB_GROUP_MATCHES(n))
 	    {
 	      int i;
 	      for (d = -wlistdata->npos, i = WListNext(wlistdata, -1, 0); i != n; i = WListNext(wlistdata, i, 1), d++)
@@ -981,7 +817,7 @@ int *plen;
 	  WListMove(-wlistdata->pos, -1);
 	  break;
 	case 0205:	/* end */
-	  WListMove(MAXWIN, -1);
+	  WListMove(maxwin, -1);
 	  break;
 	case 'a':
 	  /* All-window view */
@@ -1003,9 +839,9 @@ int *plen;
 	case '\n':
 	case ' ':
 	  h = wlistdata->pos;
-	  if (h == MAXWIN && Layer2Window(flayer) && Layer2Window(flayer)->w_type == W_TYPE_GROUP)
+	  if (h == maxwin && Layer2Window(flayer) && Layer2Window(flayer)->w_type == W_TYPE_GROUP)
 	    break;
-	  if (display && h != MAXWIN && wtab[h] && (wtab[h]->w_type == W_TYPE_GROUP || wtab[h] == D_fore))
+	  if (display && h != maxwin && wtab[h] && (wtab[h]->w_type == W_TYPE_GROUP) && Layer2Window(flayer) == wtab[h])
 	    {
 	      wlistdata->group = wtab[h];
 	      wlistdata->pos = wtab[h]->w_number;
@@ -1013,18 +849,24 @@ int *plen;
 	      break;
 	    }
 	  done = 1;
-	  if (!display || h == MAXWIN || !wtab[h] || wtab[h] == D_fore || (flayer->l_cvlist && flayer->l_cvlist->c_lnext))
-	    HelpAbort();
+	  if (!display || h == maxwin || !wtab[h] || wtab[h] == D_fore || (flayer->l_cvlist && flayer->l_cvlist->c_lnext))
+	    WListAbort();
 #ifdef MULTIUSER
 	  else if (AclCheckPermWin(D_user, ACL_READ, wtab[h]))
-	    HelpAbort();
+	    WListAbort();
 #endif
 	  else
-	    ExitOverlayPage();	/* no need to redisplay */
+	    {
+	      if (wlistdata->list)
+		Free(wlistdata->list);
+	      ExitOverlayPage();	/* no need to redisplay */
+	    }
 	  /* restore display, don't switch wrong user */
 	  display = olddisplay;
-	  if (h != MAXWIN)
+	  if (h != maxwin)
 	    SwitchWindow(h);
+	  break;
+	case 0222: /* Mouse event */
 	  break;
 	case 0033:
 	case 0007:
@@ -1039,7 +881,7 @@ int *plen;
 		}
 	      break;
 	    }
-	  HelpAbort();
+	  WListAbort();
 	  display = olddisplay;
 	  if (h >= 0 && wtab[h])
 	    SwitchWindow(h);
@@ -1083,7 +925,7 @@ int isblank;
   struct mchar mchar_rend = mchar_blank;
   struct mchar *mchar = (struct mchar *)0;
 
-  if (i == MAXWIN)
+  if (i == maxwin)
     return;
   wlistdata = (struct wlistdata *)flayer->l_data;
   if (wlistdata->nested && wtab[i])
@@ -1114,6 +956,8 @@ int isblank;
   LPutWinMsg(flayer, str, (i == pos || !isblank) ? flayer->l_width : n, mchar, xoff, y + yoff);
   if (xoff)
     LPutWinMsg(flayer, "", xoff, mchar, 0, y + yoff);
+  if (mchar == &mchar_so)
+    flayer->l_y = y + yoff;
 #if 0
   LPutStr(flayer, str, n, i == pos ? &mchar_so : &mchar_blank, 0, y + yoff);
   if (i == pos || !isblank)
@@ -1131,21 +975,21 @@ int old, delta;
 {
   int i;
 
-  if (old == MAXWIN)
-    return MAXWIN;
+  if (old == maxwin)
+    return maxwin;
   if (old == -1)
     old = 0;
   else
     {
-      for (i = 0; i < MAXWIN && wlistdata->list[i] != -1; i++)
+      for (i = 0; i < maxwin && wlistdata->list[i] != -1; i++)
 	if (wlistdata->list[i] == old)
 	  break;
-      if (i < MAXWIN && wlistdata->list[i] != -1)
+      if (i < maxwin && wlistdata->list[i] != -1)
 	old = i;
     }
 
   old += delta;
-  if (old < 0 || old >= MAXWIN || wlistdata->list[old] == -1)
+  if (old < 0 || old >= maxwin || wlistdata->list[old] == -1)
     old -= delta;
   return wlistdata->list[old];
 }
@@ -1165,7 +1009,7 @@ int up, oldpos;
   i = WListNext(wlistdata, pos, -ypos);
   for (y = 0; y < wlistdata->numwin; y++)
     {
-      if (i == MAXWIN || !wtab[i])
+      if (i == maxwin || !wtab[i])
 	return;
       if (y == 0)
 	wlistdata->first = i;
@@ -1176,7 +1020,7 @@ int up, oldpos;
 	wlistdata->ypos = y;
       oldi = i;
       i = WListNext(wlistdata, i, 1);
-      if (i == MAXWIN || i == oldi)
+      if (i == maxwin || i == oldi)
 	break;
     }
 }
@@ -1195,11 +1039,11 @@ WListNormalize()
     ypos = 0;
   if (ypos >= wlistdata->numwin)
     ypos = wlistdata->numwin - 1;
-  for (n = 0, oldi = MAXWIN, i = pos; i != MAXWIN && i != oldi && n < wlistdata->numwin; oldi = i, i = WListNext(wlistdata, i, 1))
+  for (n = 0, oldi = maxwin, i = pos; i != maxwin && i != oldi && n < wlistdata->numwin; oldi = i, i = WListNext(wlistdata, i, 1))
     n++;
   if (ypos < wlistdata->numwin - n)
     ypos = wlistdata->numwin - n;
-  for (n = 0, oldi = MAXWIN, i = WListNext(wlistdata, -1, 0); i != MAXWIN && i != oldi && i != pos; oldi = i, i = WListNext(wlistdata, i, 1))
+  for (n = 0, oldi = maxwin, i = WListNext(wlistdata, -1, 0); i != maxwin && i != oldi && i != pos; oldi = i, i = WListNext(wlistdata, i, 1))
     n++;
   if (ypos > n)
     ypos = n;
@@ -1264,10 +1108,10 @@ struct win *group;
 {
   int i;
 
-  if (ind >= MAXWIN)
+  if (ind >= maxwin)
     return ind;
   if (ind == 0)
-    for (i = 0; i < MAXWIN; i++)
+    for (i = 0; i < maxwin; i++)
       wlistdata->list[i] = -1;
 
   if (wlistdata->order == WLIST_MRU)
@@ -1279,23 +1123,23 @@ struct win *group;
     {
       if (start == -1)
 	start = 0;
-      while (start < MAXWIN && !wtab[start])
+      while (start < maxwin && !wtab[start])
 	start++;
     }
 
-  if (start >= MAXWIN || !wtab[start])
+  if (start >= maxwin || !wtab[start])
     return ind;
 
   if (!WTAB_GROUP_MATCHES(start))
     {
-      while (start < MAXWIN && (!wtab[start] || !WTAB_GROUP_MATCHES(start)))
+      while (start < maxwin && (!wtab[start] || !WTAB_GROUP_MATCHES(start)))
 	if (wlistdata->order != WLIST_MRU)
 	  start++;
 	else if (wtab[start]->w_next)
 	  start = wtab[start]->w_next->w_number;
 	else
-	  start = MAXWIN;
-      if (start >= MAXWIN || !wtab[start])
+	  start = maxwin;
+      if (start >= maxwin || !wtab[start])
 	return ind;
     }
 
@@ -1358,6 +1202,8 @@ struct win *group;
   if (InitOverlayPage(sizeof(*wlistdata), &WListLf, 0))
     return;
   wlistdata = (struct wlistdata *)flayer->l_data;
+  wlistdata->list = calloc(maxwin, sizeof(int));
+  flayer->l_mode = 1;
   flayer->l_x = 0;
   flayer->l_y = flayer->l_height - 1;
   wlistdata->start = onblank && p ? p->w_number : -1;
@@ -1387,23 +1233,23 @@ wlistpage()
 
   WListOrder(wlistdata, 0, -1, group);
   pos = wlistdata->pos;
-  if (pos == MAXWIN || !wtab[pos] || !WTAB_GROUP_MATCHES(pos))
+  if (pos == maxwin || !wtab[pos] || !WTAB_GROUP_MATCHES(pos))
     {
       if (wlistdata->order == WLIST_MRU)
         pos = WListNext(wlistdata, -1, wlistdata->npos);
       else
 	{
           /* find new position */
-	  if (pos < MAXWIN)
-	    while(++pos < MAXWIN)
+	  if (pos < maxwin)
+	    while(++pos < maxwin)
 	      if (wtab[pos] && WTAB_GROUP_MATCHES(pos))
 	        break;
-	  if (pos == MAXWIN)
+	  if (pos == maxwin)
 	    while (--pos >= 0)
 	      if (wtab[pos] && WTAB_GROUP_MATCHES(pos))
 		break;
 	  if (pos == -1)
-	    pos = MAXWIN;
+	    pos = maxwin;
 	}
     }
   wlistdata->pos = pos;
@@ -1483,15 +1329,6 @@ WListLinkChanged()
       }
   display = olddisplay;
 }
-
-int
-InWList()
-{
-  if (flayer && flayer->l_layfn == &WListLf)
-    return 1;
-  return 0;
-}
-
 
 
 /*

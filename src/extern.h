@@ -24,7 +24,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  *
  ****************************************************************
- * $Id$ FAU
+ * $Id$ GNU
  */
 
 #if !defined(__GNUC__) || __GNUC__ < 2
@@ -195,7 +195,7 @@ extern void  ProcessInput2 __P((char *, int));
 #endif
 extern void  DoProcess __P((struct win *, char **, int *, struct paster *));
 extern void  DoAction  __P((struct action *, int));
-extern int   FindCommnr __P((char *));
+extern int   FindCommnr __P((const char *));
 extern void  DoCommand __P((char **, int *));
 extern void  Activate __P((int));
 extern void  KillWindow __P((struct win *));
@@ -297,17 +297,6 @@ extern void  Resize_obuf __P((void));
 #ifdef AUTO_NUKE
 extern void  NukePending __P((void));
 #endif
-extern void  SetCanvasWindow __P((struct canvas *, struct win *));
-extern int   MakeDefaultCanvas __P((void));
-extern int   AddCanvas __P((int));
-extern void  RemCanvas __P((void));
-extern void  OneCanvas __P((void));
-extern void  ResizeCanvas __P((struct canvas *));
-extern void  RecreateCanvasChain __P((void));
-extern int   RethinkDisplayViewports __P((void));
-extern void  RethinkViewportOffsets __P((struct canvas *));
-extern int   CountCanvasPerp __P((struct canvas *));
-extern void  EqualizeCanvas __P((struct canvas *, int));
 #ifdef RXVT_OSC
 extern void  ClearAllXtermOSC __P((void));
 extern void  SetXtermOSC __P((int, char *));
@@ -321,12 +310,6 @@ extern int   color256to88 __P((int));
 extern void  ResetIdle __P((void));
 extern void  KillBlanker __P((void));
 extern void  DisplaySleep1000 __P((int, int));
-extern void  AutosaveLayout __P((struct layout *));
-extern void  LoadLayout __P((struct layout *, struct canvas *));
-extern void  NewLayout __P((char *, int));
-extern void  SaveLayout __P((char *, struct canvas *));
-extern void  ShowLayouts __P((int));
-extern struct layout *FindLayout __P((char *));
 
 /* resize.c */
 extern int   ChangeWindowSize __P((struct win *, int, int, int));
@@ -365,7 +348,7 @@ extern char *InStr __P((char *, const char *));
 extern char *strerror __P((int));
 #endif
 extern void  centerline __P((char *, int));
-extern void  leftline __P((char *, int));
+extern void  leftline __P((char *, int, struct mchar *));
 extern char *Filename __P((char *));
 extern char *stripdev __P((char *));
 #ifdef NEED_OWN_BCOPY

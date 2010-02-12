@@ -1530,7 +1530,7 @@ StringEnd()
 	}
 #endif
 #ifdef RXVT_OSC
-      if (typ == 0 || typ == 1 || typ == 20 || typ == 39 || typ == 49)
+      if (typ == 0 || typ == 1 || typ == 2 || typ == 20 || typ == 39 || typ == 49)
 	{
 	  int typ2;
 	  typ2 = typ / 10;
@@ -1540,7 +1540,7 @@ StringEnd()
 	    {
 	      strncpy(curr->w_xtermosc[typ2], p, sizeof(curr->w_xtermosc[typ2]) - 1);
 	      curr->w_xtermosc[typ2][sizeof(curr->w_xtermosc[typ2]) - 1] = 0;
-	
+
 	      for (display = displays; display; display = display->d_next)
 		{
 		  if (!D_CXT)
@@ -3070,7 +3070,7 @@ int what;
 	  p = D_fore;
 	  if (inhstr || (inhstrh && p && p->w_hstatus && *p->w_hstatus && WindowChangedCheck(p->w_hstatus, what, (int *)0)))
 	    RefreshHStatus();
-	  if (ox != -1 && ox != -1)
+	  if (ox != -1 && oy != -1)
 	    GotoPos(ox, oy);
 	}
       display = olddisplay;
@@ -3102,7 +3102,7 @@ int what;
 	}
       if (got && inhstr && p == D_fore)
 	RefreshHStatus();
-      if (ox != -1 && ox != -1)
+      if (ox != -1 && oy != -1)
 	GotoPos(ox, oy);
     }
   display = olddisplay;

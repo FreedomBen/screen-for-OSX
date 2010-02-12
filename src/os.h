@@ -24,7 +24,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  *
  ****************************************************************
- * $Id$ FAU
+ * $Id$ GNU
  */
 
 #include <stdio.h>
@@ -232,11 +232,6 @@ extern int errno;
  */
 #if defined(sgi) || defined(DGUX) || defined(_IBMR2)
 # undef TIOCPKT
-#endif
-
-/* linux ncurses is broken, we have to use our own tputs */
-#if defined(linux) && defined(TERMINFO)
-# define tputs xtputs
 #endif
 
 /* Alexandre Oliva: SVR4 style ptys don't work with osf */

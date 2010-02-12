@@ -27,32 +27,25 @@
  * $Id$ GNU
  */
 
-struct markdata
+#ifndef SCREEN_VIEWPORT_H
+#define SCREEN_VIEWPORT_H
+
+#include "canvas.h"
+
+struct viewport
 {
-  struct win *md_window;/* pointer to window we are working on */
-  struct acluser *md_user;	/* The user who brought us up */
-  int	cx, cy;		/* cursor Position in WIN coords*/
-  int	x1, y1;		/* first mark in WIN coords */
-  int	second;		/* first mark dropped flag */
-  int	left_mar, right_mar, nonl;
-  int	rep_cnt;	/* number of repeats */
-  int	append_mode;	/* shall we overwrite or append to copybuffer */
-  int	write_buffer;	/* shall we do a KEY_WRITE_EXCHANGE right away? */
-  int	hist_offset;	/* how many lines are on top of the screen */
-  char	isstr[100];	/* string we are searching for */
-  int	isstrl;
-  char	isistr[200];	/* string of chars user has typed */
-  int	isistrl;
-  int	isdir;		/* current search direction */
-  int	isstartpos;	/* position where isearch was started */
-  int	isstartdir;	/* direction when isearch was started */
-  struct {              /* bookkeeping for fFtT;, commands */
-    int flag, target, direction;
-  } f_cmd;
-    
+  struct viewport *v_next;	/* next vp on canvas */
+  struct canvas   *v_canvas;	/* back pointer to canvas */
+  int              v_xoff;	/* layer x offset on display */
+  int              v_yoff;	/* layer y offset on display */
+  int              v_xs;	/* vp upper left */
+  int              v_xe;	/* vp upper right */
+  int              v_ys;	/* vp lower left */
+  int              v_ye;	/* vp lower right */
 };
 
+extern int    RethinkDisplayViewports __P((void));
+extern void   RethinkViewportOffsets __P((struct canvas *));
 
-#define W2D(y) ((y) - markdata->hist_offset)
-#define D2W(y) ((y) + markdata->hist_offset)
+#endif /* SCREEN_VIEWPORT_H */
 

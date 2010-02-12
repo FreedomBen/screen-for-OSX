@@ -24,8 +24,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  *
  ****************************************************************
- * $Id$ FAU
+ * $Id$ GNU
  */
+
+#ifndef SCREEN_LAYER_H
+#define SCREEN_LAYER_H
 
 /*
  * This is the overlay structure. It is used to create a seperate
@@ -54,11 +57,30 @@ struct layer
   int    l_y;
   int    l_encoding;
   struct LayFuncs *l_layfn;
-  char	*l_data;
+  void	*l_data;
 
   struct layer *l_next;		/* layer stack, should be in data? */
   struct layer *l_bottom;	/* bottom element of layer stack */
   int	 l_blocking;
+  int	 l_mode;		/* non-zero == edit mode */
+
+  struct {
+    unsigned char buffer[3];	/* [0]: the button
+				   [1]: x
+				   [2]: y
+				*/
+    int len;
+    int start;
+  } l_mouseevent;
+
+  struct {
+    int d : 1;		/* Is the output for the layer blocked? */
+
+    /* After unpausing, what region should we refresh? */
+    int *left, *right;
+    int top, bottom;
+    int lines;
+  } l_pause;
 };
 
 #define LayProcess		(*flayer->l_layfn->lf_LayProcess)
@@ -107,4 +129,32 @@ struct layer
 	    }						\
 	  display = olddisplay;				\
 	} while(0)
+
+#endif /* SCREEN_LAYER_H */
+
+/**
+ * (Un)Pauses a layer.
+ *
+ * @param layer The layer that should be (un)paused.
+ * @param pause Should we pause the layer?
+ */
+void LayPause __P((struct layer *layer, int pause));
+
+/**
+ * Update the region to refresh after a layer is unpaused.
+ *
+ * @param layer The layer.
+ * @param xs	The left-end of the region.
+ * @param xe	The right-end of the region.
+ * @param ys	The top-end of the region.
+ * @param ye	The bottom-end of the region.
+ */
+void LayPauseUpdateRegion __P((struct layer *layer, int xs, int xe, int ys, int ye));
+
+/**
+ * Free any internal memory for the layer.
+ *
+ * @param layer The layer.
+ */
+void LayerCleanupMemory __P((struct layer *layer));
 

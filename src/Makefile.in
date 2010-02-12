@@ -61,12 +61,13 @@ CFILES=	screen.c ansi.c fileio.c mark.c misc.c resize.c socket.c \
 	search.c tty.c term.c window.c utmp.c loadav.c putenv.c help.c \
 	termcap.c input.c attacher.c pty.c process.c display.c comm.c \
 	kmapdef.c acls.c braille.c braille_tsi.c logfile.c layer.c \
-	sched.c teln.c nethack.c encoding.c
+	sched.c teln.c nethack.c encoding.c canvas.c layout.c viewport.c \
+	list_display.c
 OFILES=	screen.o ansi.o fileio.o mark.o misc.o resize.o socket.o \
 	search.o tty.o term.o window.o utmp.o loadav.o putenv.o help.o \
 	termcap.o input.o attacher.o pty.o process.o display.o comm.o \
 	kmapdef.o acls.o braille.o braille_tsi.o logfile.o layer.o \
-	sched.o teln.o nethack.o encoding.o
+	sched.o teln.o nethack.o encoding.o canvas.o layout.o viewport.o
 
 all:	screen
 
@@ -273,66 +274,75 @@ depend.in: $(CFILES) term.h
 ###############################################################################
 
 ### Dependencies:
-screen.o: screen.c config.h screen.h os.h osdef.h ansi.h acls.h \
+screen.o: layout.h viewport.h canvas.h screen.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h braille.h \
  patchlevel.h logfile.h extern.h
-ansi.o: ansi.c config.h screen.h os.h osdef.h ansi.h acls.h \
+ansi.o: layout.h viewport.h canvas.h ansi.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h braille.h extern.h \
  logfile.h
-fileio.o: fileio.c config.h screen.h os.h osdef.h ansi.h acls.h \
+fileio.o: layout.h viewport.h canvas.h fileio.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-mark.o: mark.c config.h screen.h os.h osdef.h ansi.h acls.h \
+mark.o: layout.h viewport.h canvas.h mark.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h mark.h extern.h
-misc.o: misc.c config.h screen.h os.h osdef.h ansi.h acls.h \
+misc.o: layout.h viewport.h canvas.h misc.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-resize.o: resize.c config.h screen.h os.h osdef.h ansi.h acls.h \
+resize.o: layout.h viewport.h canvas.h resize.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-socket.o: socket.c config.h screen.h os.h osdef.h ansi.h acls.h \
+socket.o: layout.h viewport.h canvas.h socket.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-search.o: search.c config.h screen.h os.h osdef.h ansi.h acls.h \
+search.o: layout.h viewport.h canvas.h search.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h mark.h extern.h
-tty.o: tty.c config.h screen.h os.h osdef.h ansi.h acls.h comm.h \
+tty.o: layout.h viewport.h canvas.h tty.c config.h screen.h os.h osdef.h ansi.h acls.h comm.h \
  layer.h term.h image.h display.h window.h extern.h
-term.o: term.c term.h
-window.o: window.c config.h screen.h os.h osdef.h ansi.h acls.h \
+term.o: layout.h viewport.h canvas.h term.c term.h
+window.o: layout.h viewport.h canvas.h window.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h logfile.h
-utmp.o: utmp.c config.h screen.h os.h osdef.h ansi.h acls.h \
+utmp.o: layout.h viewport.h canvas.h utmp.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-loadav.o: loadav.c config.h screen.h os.h osdef.h ansi.h acls.h \
+loadav.o: layout.h viewport.h canvas.h loadav.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-putenv.o: putenv.c config.h
-help.o: help.c config.h screen.h os.h osdef.h ansi.h acls.h \
+putenv.o: layout.h viewport.h canvas.h putenv.c config.h
+help.o: layout.h viewport.h canvas.h help.c config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h list_display.c
+termcap.o: layout.h viewport.h canvas.h termcap.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-termcap.o: termcap.c config.h screen.h os.h osdef.h ansi.h acls.h \
+input.o: layout.h viewport.h canvas.h input.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-input.o: input.c config.h screen.h os.h osdef.h ansi.h acls.h \
- comm.h layer.h term.h image.h display.h window.h extern.h
-attacher.o: attacher.c config.h screen.h os.h osdef.h ansi.h \
+attacher.o: layout.h viewport.h canvas.h attacher.c config.h screen.h os.h osdef.h ansi.h \
  acls.h comm.h layer.h term.h image.h display.h window.h extern.h
-pty.o: pty.c config.h screen.h os.h osdef.h ansi.h acls.h comm.h \
+pty.o: layout.h viewport.h canvas.h pty.c config.h screen.h os.h osdef.h ansi.h acls.h comm.h \
  layer.h term.h image.h display.h window.h extern.h
-process.o: process.c config.h screen.h os.h osdef.h ansi.h acls.h \
+process.o: layout.h viewport.h canvas.h process.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h logfile.h
-display.o: display.c config.h screen.h os.h osdef.h ansi.h acls.h \
+display.o: layout.h viewport.h canvas.h display.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h braille.h
-comm.o: comm.c config.h acls.h comm.h
-kmapdef.o: kmapdef.c config.h
-acls.o: acls.c config.h screen.h os.h osdef.h ansi.h acls.h comm.h \
+canvas.o: layout.h viewport.h canvas.h canvas.c config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h \
+ braille.h
+comm.o: layout.h viewport.h canvas.h comm.c config.h acls.h comm.h
+kmapdef.o: layout.h viewport.h canvas.h kmapdef.c config.h
+acls.o: layout.h viewport.h canvas.h acls.c config.h screen.h os.h osdef.h ansi.h acls.h comm.h \
  layer.h term.h image.h display.h window.h extern.h
-braille.o: braille.c config.h screen.h os.h osdef.h ansi.h acls.h \
+braille.o: layout.h viewport.h canvas.h braille.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h braille.h
-braille_tsi.o: braille_tsi.c config.h screen.h os.h osdef.h ansi.h \
+braille_tsi.o: layout.h viewport.h canvas.h braille_tsi.c config.h screen.h os.h osdef.h ansi.h \
  acls.h comm.h layer.h term.h image.h display.h window.h extern.h \
  braille.h
-logfile.o: logfile.c config.h screen.h os.h osdef.h ansi.h acls.h \
+logfile.o: layout.h viewport.h canvas.h logfile.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h logfile.h
-layer.o: layer.c config.h screen.h os.h osdef.h ansi.h acls.h \
+layer.o: layout.h viewport.h canvas.h layer.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-sched.o: sched.c config.h screen.h os.h osdef.h ansi.h acls.h \
+sched.o: layout.h viewport.h canvas.h sched.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h logfile.h
-teln.o: teln.c config.h screen.h os.h osdef.h ansi.h acls.h \
+teln.o: layout.h viewport.h canvas.h teln.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-nethack.o: nethack.c config.h screen.h os.h osdef.h ansi.h acls.h \
+nethack.o: layout.h viewport.h canvas.h nethack.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
-encoding.o: encoding.c config.h screen.h os.h osdef.h ansi.h acls.h \
+encoding.o: layout.h viewport.h canvas.h encoding.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
+layout.o: layout.h viewport.h canvas.h layout.c config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h \
+ braille.h
+viewport.o: layout.h viewport.h canvas.h viewport.c config.h screen.h os.h osdef.h ansi.h acls.h \
+ comm.h layer.h term.h image.h display.h window.h extern.h \
+ braille.h

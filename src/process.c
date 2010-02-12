@@ -26,6 +26,8 @@
  ****************************************************************
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
@@ -39,8 +41,6 @@
 #endif
 
 
-#include "config.h"
-
 /* for solaris 2.1, Unixware (SVR4.2) and possibly others: */
 #ifdef HAVE_STROPTS_H
 # include <sys/stropts.h>
@@ -49,6 +49,8 @@
 #include "screen.h"
 #include "extern.h"
 #include "logfile.h"
+#include "layout.h"
+#include "viewport.h"
 
 extern struct comm comms[];
 extern char *rc_name;
@@ -75,6 +77,7 @@ extern char *printcmd;
 extern int default_startup;
 extern int defobuflimit;
 extern int defnonblock;
+extern int defmousetrack;
 extern int ZombieKey_destroy;
 extern int ZombieKey_resurrect;
 extern int ZombieKey_onerror;
@@ -162,7 +165,6 @@ static void ResizeFin __P((char *, int, char *));
 static struct action *FindKtab __P((char *, int));
 static void SelectFin __P((char *, int, char *));
 static void SelectLayoutFin __P((char *, int, char *));
-static struct canvas *FindCanvas __P((int, int));
 
 
 extern struct layer *flayer;
@@ -184,7 +186,7 @@ extern int nethackflag;
 #endif
 
 
-struct win *wtab[MAXWIN];	/* window table, should be dynamic */
+extern struct win **wtab;
 
 #ifdef MULTIUSER
 extern char *multi;
@@ -584,7 +586,7 @@ InitKeytab()
     args[1] = NULL;
     SaveAction(ktab + '-', RC_SELECT, args, 0);
   }
-  for (i = 0; i < ((MAXWIN < 10) ? MAXWIN : 10); i++)
+  for (i = 0; i < ((maxwin && maxwin < 10) ? maxwin : 10); i++)
     {
       char *args[2], arg1[10];
       args[0] = arg1;
@@ -693,6 +695,7 @@ int create;
 	  kp->ktab[i].nr = RC_ILLEGAL;
 	  kp->ktab[i].args = noargs;
 	  kp->ktab[i].argl = 0;
+	  kp->ktab[i].quiet = 0;
 	}
       kp->next = 0;
       *kpp = kp;
@@ -989,7 +992,7 @@ struct paster *pa;
 
 int
 FindCommnr(str)
-char *str;
+const char *str;
 {
   int x, m, l = 0, r = RC_LAST;
   while (l <= r)
@@ -1410,6 +1413,15 @@ int key;
 	Msg(0, "zmodem mode is %s", zmodes[zmodem_mode]);
       break;
 #endif
+    case RC_UNBINDALL:
+      {
+        register unsigned int i;
+
+        for (i = 0; i < sizeof(ktab)/sizeof(*ktab); i++)
+	  ClearAction(&ktab[i]);
+        Msg(0, "Unbound all keys." );
+        break;
+      }
     case RC_ZOMBIE:
       {
         if (!(s = *args))
@@ -1452,12 +1464,14 @@ int key;
       break;
     case RC_AT:
       /* where this AT command comes from: */
+      if (!user)
+	break;
 #ifdef MULTIUSER
-      s = SaveStr(D_user->u_name);
+      s = SaveStr(user->u_name);
       /* DO NOT RETURN FROM HERE WITHOUT RESETTING THIS: */
-      EffectiveAclUser = D_user;
+      EffectiveAclUser = user;
 #else
-      s = SaveStr(D_usertty);
+      s = SaveStr(display ? D_usertty : user->u_name);
 #endif
       n = strlen(args[0]);
       if (n) n--;
@@ -1474,14 +1488,22 @@ int key;
 	    struct acluser *u;
 
 	    if (!n)
-	      u = D_user;
+	      u = user;
 	    else
-	      for (u = users; u; u = u->u_next)
-	        {
-		  debug3("strncmp('%s', '%s', %d)\n", *args, u->u_name, n);
-		  if (!strncmp(*args, u->u_name, n))
+	      {
+		for (u = users; u; u = u->u_next)
+		  {
+		    debug3("strncmp('%s', '%s', %d)\n", *args, u->u_name, n);
+		    if (!strncmp(*args, u->u_name, n))
+		      break;
+		  }
+		if (!u)
+		  {
+		    args[0][n] = '\0';
+		    Msg(0, "Did not find any user matching '%s'", args[0]);
 		    break;
-	        }
+		  }
+	      }
 	    debug1("at all displays of user %s\n", u->u_name);
 	    for (display = displays; display; display = nd)
 	      {
@@ -1540,7 +1562,7 @@ int key;
 	    struct win *nw;
 	    int ch;
 
-	    n++; 
+	    n++;
 	    ch = args[0][n];
 	    args[0][n] = '\0';
 	    if (!*args[0] || (i = WindowByNumber(args[0])) < 0)
@@ -1579,7 +1601,7 @@ int key;
 		  Msg(0, "%s: at '%s': no such window.\n", rc_name, args[0]);
 		break;
 	      }
-	    else if (i < MAXWIN && (fore = wtab[i]))
+	    else if (i < maxwin && (fore = wtab[i]))
 	      {
 	        args[0][n] = ch;      /* must restore string in case of bind */
 	        debug2("AT window %d (%s)\n", fore->w_number, fore->w_title);
@@ -2232,6 +2254,7 @@ int key;
 	  break;
 	}
       MarkRoutine();
+      WindowChanged(fore, 'P');
       break;
     case RC_HISTORY:
       {
@@ -2730,6 +2753,22 @@ int key;
     case RC_DEFMONITOR:
       if (ParseOnOff(act, &n) == 0)
         nwin_default.monitor = (n == 0) ? MON_OFF : MON_ON;
+      break;
+    case RC_DEFMOUSETRACK:
+      if (ParseOnOff(act, &n) == 0)
+	defmousetrack = (n == 0) ? 0 : 1000;
+      break;
+    case RC_MOUSETRACK:
+      if (!args[0])
+	{
+	  Msg(0, "Mouse tracking for this display is turned %s", D_mousetrack ? "on" : "off");
+	}
+      else if (ParseOnOff(act, &n) == 0)
+	{
+	  D_mousetrack = n == 0 ? 0 : 1000;
+	  if (D_fore)
+	    MouseMode(D_fore->w_mouse);
+	}
       break;
     case RC_DEFSILENCE:
       if (ParseOnOff(act, &n) == 0)
@@ -3945,63 +3984,37 @@ int key;
       LaySetCursor();
       break;
     case RC_FOCUS:
-      if (!*args || !strcmp(*args, "next"))
-	D_forecv = D_forecv->c_next ? D_forecv->c_next : D_cvlist;
-      else if (!strcmp(*args, "prev"))
-	{
-	  struct canvas *cv;
-	  for (cv = D_cvlist; cv->c_next && cv->c_next != D_forecv; cv = cv->c_next)
-	    ;
-	  D_forecv = cv;
-	}
-      else if (!strcmp(*args, "top"))
-	D_forecv = D_cvlist;
-      else if (!strcmp(*args, "bottom"))
-	{
-	  struct canvas *cv;
-	  for (cv = D_cvlist; cv->c_next; cv = cv->c_next)
-	    ;
-	  D_forecv = cv;
-	}
-      else if (!strcmp(*args, "up"))
-	D_forecv = FindCanvas(D_forecv->c_xs, D_forecv->c_ys - 1);
-      else if (!strcmp(*args, "down"))
-	D_forecv = FindCanvas(D_forecv->c_xs, D_forecv->c_ye + 2);
-      else if (!strcmp(*args, "left"))
-	D_forecv = FindCanvas(D_forecv->c_xs - 1, D_forecv->c_ys);
-      else if (!strcmp(*args, "right"))
-	D_forecv = FindCanvas(D_forecv->c_xe + 1, D_forecv->c_ys);
-      else
-	{
-	  Msg(0, "%s: usage: focus [next|prev|up|down|left|right|top|bottom]", rc_name);
-	  break;
-	}
-      if ((focusminwidth && (focusminwidth < 0 || D_forecv->c_xe - D_forecv->c_xs + 1 < focusminwidth)) ||
-          (focusminheight && (focusminheight < 0 || D_forecv->c_ye - D_forecv->c_ys + 1 < focusminheight)))
-	{
-	  ResizeCanvas(&D_canvas);
-	  RecreateCanvasChain();
-	  RethinkDisplayViewports();
-	  ResizeLayersToCanvases();	/* redisplays */
-	}
-      fore = D_fore = Layer2Window(D_forecv->c_layer);
-      if (D_other == fore)
-	D_other = 0;
-      flayer = D_forecv->c_layer;
-#ifdef RXVT_OSC
-      if (D_xtermosc[2] || D_xtermosc[3])
-	{
-	  Activate(-1);
-	  break;
-	}
-#endif
-      RefreshHStatus();
-#ifdef RXVT_OSC
-      RefreshXtermOSC();
-#endif
-      flayer = D_forecv->c_layer;
-      CV_CALL(D_forecv, LayRestore();LaySetCursor());
-      WindowChanged(0, 'F');
+      {
+	struct canvas *cv = 0;
+	if (!*args || !strcmp(*args, "next"))
+	  cv = D_forecv->c_next ? D_forecv->c_next : D_cvlist;
+	else if (!strcmp(*args, "prev"))
+	  {
+	    for (cv = D_cvlist; cv->c_next && cv->c_next != D_forecv; cv = cv->c_next)
+	      ;
+	  }
+	else if (!strcmp(*args, "top"))
+	  cv = D_cvlist;
+	else if (!strcmp(*args, "bottom"))
+	  {
+	    for (cv = D_cvlist; cv->c_next; cv = cv->c_next)
+	      ;
+	  }
+	else if (!strcmp(*args, "up"))
+	  cv = FindCanvas(D_forecv->c_xs, D_forecv->c_ys - 1);
+	else if (!strcmp(*args, "down"))
+	  cv = FindCanvas(D_forecv->c_xs, D_forecv->c_ye + 2);
+	else if (!strcmp(*args, "left"))
+	  cv = FindCanvas(D_forecv->c_xs - 1, D_forecv->c_ys);
+	else if (!strcmp(*args, "right"))
+	  cv = FindCanvas(D_forecv->c_xe + 1, D_forecv->c_ys);
+	else
+	  {
+	    Msg(0, "%s: usage: focus [next|prev|up|down|left|right|top|bottom]", rc_name);
+	    break;
+	  }
+	SetForeCanvas(display, cv);
+      }
       break;
     case RC_RESIZE:
       i = 0;
@@ -4054,14 +4067,25 @@ int key;
         Msg(0, "Will %sdo alternate screen switching", use_altscreen ? "" : "not ");
       break;
     case RC_MAXWIN:
+      if (!args[0])
+	{
+	  Msg(0, "maximum windows allowed: %d", maxwin);
+	  break;
+	}
       if (ParseNum(act, &n))
 	break;
       if (n < 1)
         Msg(0, "illegal maxwin number specified");
-      else if (n > maxwin)
-        Msg(0, "may only decrease maxwin number");
+      else if (n > 2048)
+	Msg(0, "maximum 2048 windows allowed");
+      else if (n > maxwin && windows)
+	Msg(0, "may increase maxwin only when there's no window");
       else
-        maxwin = n;
+	{
+	  if (!windows)
+	    wtab = realloc(wtab, n * sizeof(struct win));
+	  maxwin = n;
+	}
       break;
     case RC_BACKTICK:
       if (ParseBase(act, *args, &n, 10, "decimal"))
@@ -4098,6 +4122,21 @@ int key;
       break;
 #ifdef BLANKER_PRG
     case RC_BLANKERPRG:
+      if (!args[0])
+	{
+	  if (blankerprg)
+	    {
+	      char path[MAXPATHLEN];
+	      char *p = path, **pp;
+	      for (pp = blankerprg; *pp; pp++)
+		p += snprintf(p, sizeof(path) - (p - path) - 1, "%s ", *pp);
+	      *(p - 1) = '\0';
+	      Msg(0, "blankerprg: %s", path);
+	    }
+	  else
+	    Msg(0, "No blankerprg set.");
+	  break;
+	}
       if (blankerprg)
 	{
 	  char **pp;
@@ -4378,6 +4417,15 @@ int key;
 	  if (lay)
 	    RemoveLayout(lay);
 	}
+      else if (!strcmp(args[0], "dump"))
+	{
+	  if (!display)
+	    Msg(0, "Must have a display for 'layout dump'.");
+	  else if (!LayoutDumpCanvas(&D_canvas, args[1] ? args[1] : "layout-dump"))
+	    Msg(errno, "Error dumping layout.");
+	  else
+	    Msg(0, "Layout dumped to \"%s\"", args[1] ? args[1] : "layout-dump");
+	}
       else
 	Msg(0, "unknown layout subcommand");
       break;
@@ -4411,10 +4459,23 @@ char **argv;
 int *argl;
 {
   struct action act;
+  const char *cmd = *argv;
 
-  if ((act.nr = FindCommnr(*argv)) == RC_ILLEGAL)  
+  act.quiet = 0;
+  if (*cmd == '@')	/* Suppress error */
     {
-      Msg(0, "%s: unknown command '%s'", rc_name, *argv);
+      act.quiet |= 0x01;
+      cmd++;
+    }
+  if (*cmd == '-')	/* Suppress normal message */
+    {
+      act.quiet |= 0x02;
+      cmd++;
+    }
+
+  if ((act.nr = FindCommnr(cmd)) == RC_ILLEGAL)
+    {
+      Msg(0, "%s: unknown command '%s'", rc_name, cmd);
       return;
     }
   act.args = argv + 1;
@@ -4608,6 +4669,10 @@ int bufl, *argl;
 		    sprintf(xbuf, "%d", display ? D_width : -1);
 		  else if (!strcmp(ps, "LINES"))
 		    sprintf(xbuf, "%d", display ? D_height : -1);
+		  else if (!strcmp(ps, "PID"))
+		    sprintf(xbuf, "%d", getpid());
+		  else if (!strcmp(ps, "STY"))
+		    v = SockName;
 		  else
 		    v = getenv(ps);
 		}
@@ -4879,7 +4944,7 @@ char *str;
   int i;
   struct win *p;
   
-  if ((i = WindowByNumber(str)) < 0 || i >= MAXWIN)
+  if ((i = WindowByNumber(str)) < 0 || i >= maxwin)
     {
       if ((p = WindowByName(str)))
 	return p->w_number;
@@ -4984,7 +5049,7 @@ int n;
   struct win *p;
 
   debug1("SwitchWindow %d\n", n);
-  if (n < 0 || n >= MAXWIN)
+  if (n < 0 || n >= maxwin)
     {
       ShowWindows(-1);
       return;
@@ -5014,118 +5079,6 @@ int n;
   SetForeWindow(p);
   Activate(fore->w_norefresh);  
 }
-
-
-void
-SetCanvasWindow(cv, wi)
-struct canvas *cv;
-struct win *wi;
-{
-  struct win *p = 0, **pp;
-  struct layer *l;
-  struct canvas *cvp, **cvpp;
-
-  l = cv->c_layer;
-  display = cv->c_display;
-
-  if (l)
-    {
-      /* remove old layer */
-      for (cvpp = &l->l_cvlist; (cvp = *cvpp); cvpp = &cvp->c_lnext)
-	if (cvp == cv)
-	  break;
-      ASSERT(cvp);
-      *cvpp = cvp->c_lnext;
-
-      p = Layer2Window(l);
-      l = cv->c_layer;
-      cv->c_layer = 0;
-
-      if (p && cv == D_forecv)
-	{
-#ifdef MULTIUSER
-	  ReleaseAutoWritelock(display, p);
-#endif
-	  if (p->w_silence)
-	    {
-	      SetTimeout(&p->w_silenceev, p->w_silencewait * 1000);
-	      evenq(&p->w_silenceev);
-	    }
-	  D_other = fore;
-	  D_fore = 0;
-	}
-      if (l->l_cvlist == 0 && (p == 0 || l != p->w_savelayer))
-	KillLayerChain(l);
-    }
-
-  /* find right layer to display on canvas */
-  if (wi && wi->w_type != W_TYPE_GROUP)
-    {
-      l = &wi->w_layer;
-      if (wi->w_savelayer && (wi->w_blocked || wi->w_savelayer->l_cvlist == 0))
-	l = wi->w_savelayer;
-    }
-  else
-    {
-      l = &cv->c_blank;
-      if (wi)
-	l->l_data = (char *)wi;
-      else
-	l->l_data = 0;
-    }
-
-  /* add our canvas to the layer's canvaslist */
-  ASSERT(l->l_cvlist != cv);
-  cv->c_lnext = l->l_cvlist;
-  l->l_cvlist = cv;
-  cv->c_layer = l;
-  cv->c_xoff = cv->c_xs;
-  cv->c_yoff = cv->c_ys;
-  RethinkViewportOffsets(cv);
-
-  if (flayer == 0)
-    flayer = l;
-
-  if (wi && wi->w_type == W_TYPE_GROUP)
-    {
-      /* auto-start windowlist on groups */
-      struct display *d = display;
-      struct layer *oldflayer = flayer;
-      flayer = l;
-      display_wlist(0, 0, wi);
-      flayer = oldflayer;
-      display = d;
-    }
-
-  if (wi && D_other == wi)
-    D_other = wi->w_next;	/* Might be 0, but that's OK. */
-  if (cv == D_forecv)
-    {
-      D_fore = wi;
-      fore = D_fore;	/* XXX ? */
-      if (wi)
-	{
-#ifdef MULTIUSER
-	  ObtainAutoWritelock(display, wi);
-#endif
-	  /*
-	   * Place the window at the head of the most-recently-used list
-	   */
-	  if (windows != wi)
-	    {
-	      for (pp = &windows; (p = *pp); pp = &p->w_next)
-		if (p == wi)
-		  break;
-	      ASSERT(p);
-	      *pp = p->w_next;
-	      p->w_next = windows;
-	      windows = p;
-	      WListLinkChanged();
-	    }
-	}
-    }
-}
-
 
 /*
  * SetForeWindow changes the window in the input focus of the display.
@@ -5200,12 +5153,12 @@ static int
 NextWindow()
 {
   register struct win **pp;
-  int n = fore ? fore->w_number : MAXWIN;
+  int n = fore ? fore->w_number : maxwin;
   struct win *group = fore ? fore->w_group : 0;
 
   for (pp = fore ? wtab + n + 1 : wtab; pp != wtab + n; pp++)
     {
-      if (pp == wtab + MAXWIN)
+      if (pp == wtab + maxwin)
 	pp = wtab;
       if (*pp)
 	{
@@ -5228,7 +5181,7 @@ PreviousWindow()
   for (pp = wtab + n - 1; pp != wtab + n; pp--)
     {
       if (pp == wtab - 1)
-	pp = wtab + MAXWIN - 1;
+	pp = wtab + maxwin - 1;
       if (*pp)
 	{
 	  if (!fore || group == (*pp)->w_group)
@@ -5253,36 +5206,6 @@ MoreWindows()
     }
   Msg(0, m, fore->w_number);	/* other arg for nethack */
   return 0;
-}
-
-static void
-UpdateLayoutCanvas(cv, wi)
-struct canvas *cv;
-struct win *wi;
-{
-  for (; cv; cv = cv->c_slnext)
-    {
-      if (cv->c_layer && Layer2Window(cv->c_layer) == wi)
-	{
-	  /* A simplistic version of SetCanvasWindow(cv, 0) */
-	  struct layer *l = cv->c_layer;
-	  cv->c_layer = 0;
-	  if (l->l_cvlist == 0 && (wi == 0 || l != wi->w_savelayer))
-	    KillLayerChain(l);
-	  l = &cv->c_blank;
-	  l->l_data = 0;
-	  if (l->l_cvlist != cv)
-	    {
-	      cv->c_lnext = l->l_cvlist;
-	      l->l_cvlist = cv;
-	    }
-	  cv->c_layer = l;
-	  /* Do not end here. Multiple canvases can have the same window */
-	}
-
-      if (cv->c_slperp)
-	UpdateLayoutCanvas(cv->c_slperp, wi);
-    }
 }
 
 void
@@ -5398,7 +5321,7 @@ int where;
       *s = 0;
       return ss;
     }
-  for (pp = ((flags & 4) && where >= 0) ? wtab + where + 1: wtab; pp < wtab + MAXWIN; pp++)
+  for (pp = ((flags & 4) && where >= 0) ? wtab + where + 1: wtab; pp < wtab + maxwin; pp++)
     {
       int rend = -1;
       if (pp - wtab == where && ss == buf)
@@ -6035,7 +5958,7 @@ char *fn, **av;
       if (*buf != '\0')
 	nwin.aka = buf;
       num = atoi(*av);
-      if (num < 0 || num > MAXWIN - 1)
+      if (num < 0 || num > maxwin - 1)
 	{
 	  Msg(0, "%s: illegal screen number %d.", fn, num);
 	  num = 0;
@@ -6227,6 +6150,7 @@ char *data;
   act.nr = *(int *)data;
   act.args = noargs;
   act.argl = 0;
+  act.quiet = 0;
   DoAction(&act, -1);
 }
 
@@ -6487,7 +6411,7 @@ int i;
   fore = D_fore;
   act = 0;
 #ifdef COPY_PASTE
-  if (InMark() || InInput() || InWList())
+  if (flayer && flayer->l_mode == 1)
     act = i < KMAP_KEYS+KMAP_AKEYS ? &mmtab[i] : &kmap_exts[i - (KMAP_KEYS+KMAP_AKEYS)].mm;
 #endif
   if ((!act || act->nr == RC_ILLEGAL) && !D_mapdefault)
@@ -6789,56 +6713,6 @@ int percent;
   return done;
 }
 
-static struct canvas *
-FindCanvas(x, y)
-int x, y;
-{
-  struct canvas *cv, *mcv = 0;
-  int m, mm = 0;
-
-  for (cv = D_cvlist; cv; cv = cv->c_next)
-    {
-      /* ye + 1 because of caption line */
-      if (x >= cv->c_xs && x <= cv->c_xe && y >= cv->c_ys && y <= cv->c_ye + 1)
-	return cv;
-      if (cv == D_forecv)
-	continue;
-      m = 0;
-      if (x >= D_forecv->c_xs && x <= D_forecv->c_xe)
-	{
-	  if (x < cv->c_xs || x > cv->c_xe)
-	    continue;
-          if (y < D_forecv->c_ys && y < cv->c_ys)
-	    continue;
-          if (y > D_forecv->c_ye + 1 && y > cv->c_ye + 1)
-	    continue;
-	  if (y < cv->c_ys)
-	    m = cv->c_ys - y;
-	  if (y > cv->c_ye + 1)
-	    m = y - (cv->c_ye + 1);
-	}
-      if (y >= D_forecv->c_ys && y <= D_forecv->c_ye + 1)
-	{
-	  if (y < cv->c_ys || y > cv->c_ye + 1)
-	    continue;
-          if (x < D_forecv->c_xs && x < cv->c_xs)
-	    continue;
-          if (x > D_forecv->c_xe && x > cv->c_xe)
-	    continue;
-	  if (x < cv->c_xs)
-	    m = cv->c_xs - x;
-	  if (x > cv->c_xe)
-	    m = x - cv->c_xe;
-	}
-      if (m && (!mm || m < mm))
-	{
-	  mcv = cv;
-	  mm = m;
-	}
-    }
-  return mcv ? mcv : D_forecv;
-}
-
 static void
 ResizeRegions(arg, flags)
 char *arg;
@@ -7019,6 +6893,49 @@ char *data;
   inp_setprompt(resizeprompts[flags], NULL);
   *(int *)data = flags;
   buf[len] = '\034';
+}
+
+void
+SetForeCanvas(d, cv)
+struct display *d;
+struct canvas *cv;
+{
+  struct display *odisplay = display;
+  if (d->d_forecv == cv)
+    return;
+
+  display = d;
+  D_forecv = cv;
+  if ((focusminwidth && (focusminwidth < 0 || D_forecv->c_xe - D_forecv->c_xs + 1 < focusminwidth)) ||
+      (focusminheight && (focusminheight < 0 || D_forecv->c_ye - D_forecv->c_ys + 1 < focusminheight)))
+    {
+      ResizeCanvas(&D_canvas);
+      RecreateCanvasChain();
+      RethinkDisplayViewports();
+      ResizeLayersToCanvases();	/* redisplays */
+    }
+  fore = D_fore = Layer2Window(D_forecv->c_layer);
+  if (D_other == fore)
+    D_other = 0;
+  flayer = D_forecv->c_layer;
+#ifdef RXVT_OSC
+  if (D_xtermosc[2] || D_xtermosc[3])
+    {
+      Activate(-1);
+    }
+  else
+#endif
+    {
+      RefreshHStatus();
+#ifdef RXVT_OSC
+      RefreshXtermOSC();
+#endif
+      flayer = D_forecv->c_layer;
+      CV_CALL(D_forecv, LayRestore();LaySetCursor());
+      WindowChanged(0, 'F');
+    }
+
+  display = odisplay;
 }
 
 #ifdef RXVT_OSC

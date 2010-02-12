@@ -24,7 +24,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  *
  ****************************************************************
- * $Id$ FAU
+ * $Id$ GNU
  */
 
 #include "os.h"
@@ -146,6 +146,7 @@ struct mode
 
 /* #include "logfile.h" */	/* (requires stat.h) struct logfile */
 #include "image.h"
+#include "canvas.h"
 #include "display.h"
 #include "window.h"
 

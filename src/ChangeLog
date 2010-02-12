@@ -1,3 +1,105 @@
+Version 4.1.0 (??/??/20??):
+  New Commands:
+  * 'unbindall' to unbind all commands
+  * 'up', 'down', 'left', 'right' sub-commands for 'focus'
+  * 'rendition' to specify rendition to use in caption/hardstatus for
+    window-names that have bell/monitor/so turned on.
+  * 'layout', with the following sub-commands
+	- 'title'
+	- 'number'
+	- 'autosave' ('autosave on' or 'autosave off')
+	- 'new'
+	- 'save' ('save <name>')
+	- 'select'
+	- 'next'
+	- 'prev'
+	- 'attach'
+	- 'show'
+	- 'remove'
+	- 'dump'
+  * 'group' for moving window(s) into a group.
+  * 'defmousetrack' and 'mousetrack', to turn on/off mouse-tracking for
+    displays. It's turned off by default. With mouse-tracking turned on, it's
+    possible to switch to a region ('focus') using mouse clicks. It's also
+    possible to select a text region in copy-mode using a mouse click to place
+    a mark and the scroll wheel to scroll through the buffer. Additional
+    features might be to allow clicking on window-titles in the caption to
+    switch to that window.
+
+  Changed Commands:
+  * '-v' parameter to 'split' command for vertical splits.
+  * 'sorendition' deprecated in favour of 'rendition so'.
+  * 'digraph' can take a second parameter to specify custom digraphs. For
+    example,
+	'digraph >= ≥' or 'digraph >= U+2265'
+    Using '0' as the second parameter will remove the digraph.
+  * 'stuff' will prompt for input if there's nothing to stuff.
+  * The argument to ":number" can be prefixed with '+' or '-' to use it as a
+    relative argument.
+  * '-g' parameter to 'windowlist' to show nested list of windows.
+  * '//group' parameter to 'screen' to create a grouped window.
+  * 'blankerprg' shows the currently set command on no argument.
+
+  .screenrc:
+  * $PID expands to the PID of the screen session.
+  * $STY expands to the session name.
+  * Tilde-expansion in pathnames (e.g. for the 'source' command)
+  * C-style escapes can be used (e.g. "\n" to get a newline with 'stuff')
+  * '%p' in caption/hardstatus string expands to the PID of the backend, and
+    '%+p' expands to the PID of the frontend (display).
+  * '%S' in caption/hardstatus string expands to the session name.
+  * '%P' in the caption string evaluates to true if the region is in copy mode.
+
+  Window List:
+  * Nested views when there are window groups (with 'windowlist -g').
+  * Press 'm' to toggle the most-recent view.
+  * Press 'g' to toggle nestedness.
+  * Press 'a' to view all windows in the list.
+
+  Others:
+  * Start using 'ChangeLog' for logging changes again.
+  * Terminfo update for 256-color support.
+  * Multiple input history (partially from Romain Francoise).
+  * vi-like fFtT;, searching in copy mode.
+  * In copy mode, search in reverse direction when 'N' is pressed.
+  * Tab-completion for command input.
+  * Some more readline-like bindings in input mode (e.g. ^W, ^D, ^P, ^N etc.)
+  * Fix displaying unicode characters in the caption/hardstatus on UTF8 locale.
+  * A revamped displays list (for 'displays' command)
+
+  In-Progress:
+  * Scripting support (thanks to Google Summer of Code 2009 project by Rui Guo)
+
+  Developers:
+  * Juergen Weigert <jw@suse.de>
+  * Michael Schroeder <mls@suse.de>
+  * Micah Cowan <micah@cowan.name>
+  * Sadrul Habib Chowdhury <sadrul@users.sourceforge.net>
+
+  Contributors:
+  * Clavelito <maromomo@hotmail.com>
+  * Dick <dick@mrns.nl>
+  * Gabriel <g2p.code@gmail.com>
+  * Benjamin Andresen <bandresen@gmail.com>
+  * Maarten Billemont <lhunath@gmail.com>
+  * Curtis Brown <mrbrown8@juno.com>
+  * Cyril Brulebois <kibi@debian.org>
+  * Trent W Buck <trentbuck@gmail.com>
+  * Stephane Chazelas <stephane_chazelas@yahoo.fr>
+  * Kees Cook <kees@ubuntu.com>
+  * Thomas Dickey <tom@invisible-island.net>
+  * Christian Ebert <blacktrash@gmx.net>
+  * Geraint Edwards <gedge-lists-screen@yadn.org>
+  * Romain Francoise <romain@orebokech.com>
+  * Emanuele Giaquinta <e.giaquinta@glauco.it>
+  * Yi-Hsuan Hsin <mhsin@mhsin.org>
+  * Steve Kemp <steve@steve.org.uk>
+  * Ryan Niebur <ryan@debian.org>
+  * Jan Christoph Nordholz <hesso@pool.math.tu-berlin.de>
+  * William Pursell <bill.pursell@gmail.com>
+  * Enrico Scholz <enrico.scholz@informatik.tu-chemnitz.de>
+  * Peter Teichman <peter@teichman.org>
+
 30.10.94
 
 This is a quick overview of screen's life story. But it is not up

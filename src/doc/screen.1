@@ -97,7 +97,9 @@ but will instead supply the command name and its arguments to the window
 manager (specified in the $STY environment variable) who will use it to
 create the new window.
 The above example would start the emacs editor (editing prog.c) and switch
-to its window.
+to its window. - Note that you cannot transport environment variables from
+the invoking shell to the application (emacs in this case), because it is
+forked from the parent screen process, not from the invoking shell.
 .PP
 If \*Q/etc/utmp\*U is writable by
 .IR screen ,
@@ -231,7 +233,11 @@ The use of this option is discouraged.
 turns login mode on or off (for /etc/utmp updating).
 This can also be defined through the \*Qdeflogin\*U .screenrc command.
 .TP 5
-.BR \-ls " and " \-list
+.BR \-ls " [" \fImatch ]
+.PD 0
+.TP 5
+.BR \-list " [" \fImatch ] 
+.PD
 does not start
 .IR screen ,
 but prints a list of
@@ -326,7 +332,7 @@ had not been specified. The option is set by default if
 is run as a login-shell (actually screen uses \*Q-xRR\*U in that case).
 For combinations with the \fB\-d\fP/\fB\-D\fP option see there.
 .TP 5
-.B \-s
+.BI "\-s " program 
 sets the default shell to the program specified, instead of the value
 in the environment variable $SHELL (or \*Q/bin/sh\*U if not defined).
 This can also be defined through the \*Qshell\*U .screenrc command.
@@ -1088,7 +1094,8 @@ This command is normally used together with the \*Qidle\*U command.
 .B blankerprg
 .RI [ "program args" ]
 .PP
-Defines a blanker program. Disables the blanker program if no
+Defines a blanker program. Disables the blanker program if an
+empty argument is given. Shows the currently set blanker program if no
 arguments are given.
 .sp
 .ne 3
@@ -2227,7 +2234,8 @@ single statement.
 .BI "maxwin " num
 .PP
 Set the maximum window number screen will create. Doesn't affect
-already existing windows. The number may only be decreased.
+already existing windows. The number can be increased only when there are no
+existing windows.
 .sp
 .ne 3
 .B meta
@@ -2285,7 +2293,8 @@ available if
 .I screen
 was compiled with the NETHACK flag defined. The
 default setting is then determined by the presence of the environment 
-variable $NETHACKOPTIONS.
+variable $NETHACKOPTIONS and the file ~/.nethackrc - if either one is present,
+the default is \fBon\fP.
 .sp
 .ne 3
 .B next
@@ -2572,9 +2581,9 @@ title (a.\|k.\|a.) option (\fB\-t\fP), login options (\fB-l\fP and \fB-ln\fP)
 and scrollback option (\fB-h\fP <num>) may be specified with each command. 
 The option (\fB-M\fP) turns monitoring on for this window.
 The option (\fB-L\fP) turns output logging on for this window.
-If an optional number \fIn\fP in the range 0..9 is given, the window
-number \fIn\fP is assigned to the newly created window (or, if this
-number is already in-use, the next available number).
+If an optional number \fIn\fP in the range 0..MAXWIN-1 is given,
+the window number \fIn\fP is assigned to the newly created window
+(or, if this number is already in-use, the next available number).
 If a command is specified after \*Qscreen\*U, this command (with the given
 arguments) is started in the window; otherwise, a shell is created.
 Thus, if your \*Q.screenrc\*U contains the lines
@@ -2620,7 +2629,7 @@ When a new window is established, the first available number
 is assigned to this window.
 Thus, the first window can be activated by \*Qselect 0\*U.
 The number of windows is limited at compile-time by the MAXWIN
-configuration parameter.
+configuration parameter (which defaults to 40).
 There are two special WindowIDs, \*Q-\*U selects the
 internal blank window and \*Q.\*U selects the current window. The
 latter is useful if used with screen's \*Q-X\*U option.
@@ -2632,8 +2641,9 @@ Rename the current session. Note, that for \*Qscreen -list\*U the
 name shows up with the process-id prepended. If the argument \*Qname\*U
 is omitted, the name of this session is displayed. Caution: The $STY 
 environment variables will still reflect the old name in pre-existing
-shells. This may result in 
-confusion. 
+shells. This may result in confusion. Use of this command is generally
+discouraged. Use the \*Q-S\*U command-line option if you want to
+name a new session.
 The default is constructed from the tty and host names.
 .sp
 .ne 3
@@ -2919,6 +2929,14 @@ specified,
 .I screen
 prompts for one. This command was known as `aka' in previous
 releases.
+.sp
+.ne 3
+.BI "unbindall "
+.PP
+Unbind all the bindings. This can be useful when
+screen is used solely for its detaching abilities, such as when
+letting a console application run as a daemon. If, for some reason,
+it is necessary to bind commands after this, use 'screen -X'.
 .sp
 .ne 3
 .BI "unsetenv " var
@@ -3324,6 +3342,8 @@ month number
 month name
 .IP n
 window number
+.IP P
+sets %? to true if the current region is in copy/paste mode
 .IP S
 session name
 .IP s

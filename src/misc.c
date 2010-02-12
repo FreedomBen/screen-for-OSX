@@ -125,9 +125,10 @@ int y;
 }
 
 void
-leftline(str, y)
+leftline(str, y, rend)
 char *str;
 int y;
+struct mchar *rend;
 {
   int l, n;
   struct mchar mchar_dol;
@@ -139,7 +140,7 @@ int y;
   l = n = strlen(str);
   if (n > flayer->l_width - 1)
     n = flayer->l_width - 1;
-  LPutStr(flayer, str, n, &mchar_blank, 0, y);
+  LPutStr(flayer, str, n, rend ? rend : &mchar_blank, 0, y);
   if (n != l)
     LPutChar(flayer, &mchar_dol, n, y);
 }
@@ -650,39 +651,6 @@ int (*outc) __P((int));
     (*outc)(0);
   return 0;
 }
-
-# ifdef linux
-
-/* stupid stupid linux ncurses! It won't to padding with
- * zeros but sleeps instead. This breaks CalcCost, of course.
- * Also, the ncurses wait functions use a global variable
- * to store the current outc function. Oh well...
- */
-
-int (*save_outc) __P((int));
-
-#  undef tputs
-
-void
-xtputs(str, affcnt, outc)
-char *str;
-int affcnt;
-int (*outc) __P((int));
-{
-  extern int tputs __P((const char *, int, int (*)(int)));
-  save_outc = outc;
-  tputs(str, affcnt, outc);
-}
-
-int
-_nc_timed_wait(mode, ms, tlp)
-int mode, ms, *tlp;
-{
-  _delay(ms * 10, save_outc);
-  return 0;
-}
-
-# endif /* linux */
 
 #endif /* TERMINFO */
 

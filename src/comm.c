@@ -58,7 +58,7 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "allpartial",	NEED_DISPLAY|ARGS_1 },
   { "altscreen",	ARGS_01 },
-  { "at",		NEED_DISPLAY|ARGS_2|ARGS_ORMORE },
+  { "at",		ARGS_2|ARGS_ORMORE },
 #ifdef COLOR
   { "attrcolor",	ARGS_12 },
 #endif
@@ -103,7 +103,7 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "blanker",		NEED_DISPLAY|ARGS_0},
 #ifdef BLANKER_PRG
-  { "blankerprg",	ARGS_1|ARGS_ORMORE },
+  { "blankerprg",	ARGS_0|ARGS_ORMORE },
 #endif
   { "break",		NEED_FORE|ARGS_01 },
   { "breaktype",	NEED_FORE|ARGS_01 },
@@ -157,6 +157,7 @@ struct comm comms[RC_LAST + 1] =
 #endif
   { "defmode",		ARGS_1 },
   { "defmonitor",	ARGS_1 },
+  { "defmousetrack",	ARGS_1 },
 #ifdef MULTI
   { "defnonblock",	ARGS_1 },
 #endif
@@ -231,9 +232,10 @@ struct comm comms[RC_LAST + 1] =
 #ifdef COPY_PASTE
   { "markkeys",		ARGS_1 },
 #endif
-  { "maxwin",		ARGS_1 },
+  { "maxwin",		ARGS_01 },
   { "meta",		NEED_LAYER|ARGS_0 },
   { "monitor",		NEED_FORE|ARGS_01 },
+  { "mousetrack",	NEED_DISPLAY | ARGS_01 },
   { "msgminwait",	ARGS_1 },
   { "msgwait",		ARGS_1 },
 #ifdef MULTIUSER
@@ -312,6 +314,7 @@ struct comm comms[RC_LAST + 1] =
   { "time",		ARGS_01 },
   { "title",		NEED_FORE|ARGS_01 },
   { "umask",		ARGS_1|ARGS_ORMORE },
+  { "unbindall",	ARGS_0 },
   { "unsetenv",		ARGS_1 },
 #ifdef UTF8
   { "utf8",		NEED_FORE|ARGS_012 },

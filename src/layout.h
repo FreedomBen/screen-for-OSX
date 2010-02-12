@@ -27,32 +27,31 @@
  * $Id$ GNU
  */
 
-struct markdata
+#ifndef SCREEN_LAYOUT_H
+#define SCREEN_LAYOUT_H
+
+#include "canvas.h"
+
+#define MAXLAY 10
+
+struct layout
 {
-  struct win *md_window;/* pointer to window we are working on */
-  struct acluser *md_user;	/* The user who brought us up */
-  int	cx, cy;		/* cursor Position in WIN coords*/
-  int	x1, y1;		/* first mark in WIN coords */
-  int	second;		/* first mark dropped flag */
-  int	left_mar, right_mar, nonl;
-  int	rep_cnt;	/* number of repeats */
-  int	append_mode;	/* shall we overwrite or append to copybuffer */
-  int	write_buffer;	/* shall we do a KEY_WRITE_EXCHANGE right away? */
-  int	hist_offset;	/* how many lines are on top of the screen */
-  char	isstr[100];	/* string we are searching for */
-  int	isstrl;
-  char	isistr[200];	/* string of chars user has typed */
-  int	isistrl;
-  int	isdir;		/* current search direction */
-  int	isstartpos;	/* position where isearch was started */
-  int	isstartdir;	/* direction when isearch was started */
-  struct {              /* bookkeeping for fFtT;, commands */
-    int flag, target, direction;
-  } f_cmd;
-    
+  struct layout   *lay_next;
+  char            *lay_title;
+  int              lay_number;
+  struct canvas    lay_canvas;
+  struct canvas   *lay_forecv;
+  struct canvas   *lay_cvlist;
+  int              lay_autosave;
 };
 
+extern void  AutosaveLayout __P((struct layout *));
+extern void  LoadLayout __P((struct layout *, struct canvas *));
+extern void  NewLayout __P((char *, int));
+extern void  SaveLayout __P((char *, struct canvas *));
+extern void  ShowLayouts __P((int));
+extern struct layout *FindLayout __P((char *));
+extern void  UpdateLayoutCanvas __P((struct canvas *, struct win *));
 
-#define W2D(y) ((y) - markdata->hist_offset)
-#define D2W(y) ((y) + markdata->hist_offset)
+#endif /* SCREEN_LAYOUT_H */
 

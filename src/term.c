@@ -178,6 +178,10 @@ struct term term[T_N] =
 
 /* keycaps */
 /* define T_CAPS */
+
+/* mouse */
+  { "Km", T_STR  }, KMAPDEF("\033[M")		KMAPMDEF("\222")
+
 /* nolist */
   { "k0", T_STR  }, KMAPDEF("\033[10~")
   { "k1", T_STR  }, KMAPDEF("\033OP")
@@ -236,7 +240,7 @@ struct term term[T_N] =
   { "kh", T_STR  }, KMAPDEF("\033[1~") KMAPMDEF("\201")
   { "@1", T_STR  },
   { "kH", T_STR  }, KMAPDEF("\033[4~") KMAPMDEF("\205")
-  { "@7", T_STR  },
+  { "@7", T_STR  }, KMAPDEF("\033[4~") KMAPMDEF("\205")
   { "kN", T_STR  }, KMAPDEF("\033[6~") KMAPMDEF("\006")
   { "kP", T_STR  }, KMAPDEF("\033[5~") KMAPMDEF("\002")
   { "kI", T_STR  }, KMAPDEF("\033[2~")
