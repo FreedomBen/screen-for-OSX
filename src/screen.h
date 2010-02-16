@@ -173,6 +173,7 @@ struct mode
 #define MSG_WINCH	6
 #define MSG_HANGUP	7
 #define MSG_COMMAND	8
+#define MSG_QUERY       9
 
 /*
  * versions of struct msg:
@@ -227,6 +228,8 @@ struct msg
 	  char cmd[MAXPATHLEN];	/* command */
 	  int apid;		/* pid of frontend */
 	  char preselect[20];
+	  char writeback[MAXPATHLEN];  /* The socket to write the result.
+					  Only used for MSG_QUERY */
 	}
       command;
       char message[MAXPATHLEN * 2];

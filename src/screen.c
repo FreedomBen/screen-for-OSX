@@ -207,6 +207,7 @@ char *wlisttit;
 int auto_detach = 1;
 int iflag, rflag, dflag, lsflag, quietflag, wipeflag, xflag;
 int cmdflag;
+int queryflag = -1;
 int adaptflag;
 
 #ifdef MULTIUSER
@@ -679,6 +680,10 @@ char **av;
 		  break;
 		case 'q':
 		  quietflag = 1;
+		  break;
+		case 'Q':
+		  queryflag = 1;
+		  cmdflag = 1;
 		  break;
 		case 'r':
 		case 'R':
@@ -1176,7 +1181,7 @@ char **av;
       if (!*av)
 	Panic(0, "Please specify a command.");
       SET_GUID();
-      SendCmdMessage(sty, SockMatch, av);
+      SendCmdMessage(sty, SockMatch, av, queryflag >= 0);
       exit(0);
     }
   else if (rflag || xflag)
@@ -2105,6 +2110,9 @@ VA_DECL
     }
   else
     printf("%s\r\n", buf);
+
+  if (queryflag >= 0)
+    write(queryflag, buf, strlen(buf));
 }
 
 /*

@@ -59,6 +59,7 @@ extern char *BellString, *ActivityString, *ShellProg, *ShellArgs[];
 extern char *hstatusstring, *captionstring, *timestring;
 extern char *wliststr, *wlisttit;
 extern int captionalways;
+extern int queryflag;
 extern char *hardcopydir, *screenlogfile, *logtstamp_string;
 extern int log_flush, logtstamp_on, logtstamp_after;
 extern char *VisualBellString;
@@ -1147,19 +1148,35 @@ int key;
       return;
     }
   n = comms[nr].flags;
+  /* Commands will have a CAN_QUERY flag, depending on whether they have
+   * something to return on a query. For example, 'windows' can return a result,
+   * but 'other' cannot.
+   * If some command causes an error, then it should reset queryflag to -1, so that
+   * the process requesting the query can be notified that an error happened.
+   */
+  if (!(n & CAN_QUERY) && queryflag >= 0)
+    {
+      /* Query flag is set, but this command cannot be queried. */
+      Msg(0, "%s command cannot be queried.", comms[nr].name);
+      queryflag = -1;
+      return;
+    }
   if ((n & NEED_DISPLAY) && display == 0)
     {
       Msg(0, "%s: %s: display required", rc_name, comms[nr].name);
+      queryflag = -1;
       return;
     }
   if ((n & NEED_FORE) && fore == 0)
     {
       Msg(0, "%s: %s: window required", rc_name, comms[nr].name);
+      queryflag = -1;
       return;
     }
   if ((n & NEED_LAYER) && flayer == 0)
     {
       Msg(0, "%s: %s: display or window required", rc_name, comms[nr].name);
+      queryflag = -1;
       return;
     }
   if ((argc = CheckArgNum(nr, args)) < 0)
@@ -1171,6 +1188,7 @@ int key;
         {
 	  Msg(0, "%s: %s: permission denied (user %s)", 
 	      rc_name, comms[nr].name, (EffectiveAclUser ? EffectiveAclUser : D_user)->u_name);
+	  queryflag = -1;
 	  return;
 	}
     }
@@ -1190,7 +1208,10 @@ int key;
       else if (args[0][0] == '.' && !args[0][1])
 	{
 	  if (!fore)
-	    Msg(0, "select . needs a window");
+	    {
+	      Msg(0, "select . needs a window");
+	      queryflag = -1;
+	    }
 	  else
 	    {
 	      SetForeWindow(fore);
@@ -1199,6 +1220,8 @@ int key;
 	}
       else if (ParseWinNum(act, &n) == 0)
         SwitchWindow(n);
+      else if (queryflag >= 0)
+	queryflag = -1;	/* ParseWinNum already prints out an appropriate error message. */
       break;
 #ifdef AUTO_NUKE
     case RC_DEFAUTONUKE:
@@ -2026,6 +2049,13 @@ int key;
       }
       break;
     case RC_TITLE:
+      if (queryflag >= 0)
+	{
+	  if (fore)
+	    Msg(0, "%s", fore->w_title);
+	  else
+	    queryflag = -1;
+	}
       if (*args == 0)
 	InputAKA();
       else
@@ -2635,7 +2665,10 @@ int key;
       if (s)
 	Msg(0, "%s", s);
       else
-	Msg(0, "%s: 'echo [-n] [-p] \"string\"' expected.", rc_name);
+	{
+	  Msg(0, "%s: 'echo [-n] [-p] \"string\"' expected.", rc_name);
+	  queryflag = -1;
+	}
       break;
     case RC_BELL:
     case RC_BELL_MSG:
@@ -5318,7 +5351,7 @@ int where;
 	continue;
       if ((flags & 1) && display && p == D_fore)
 	continue;
-      if (D_fore && D_fore->w_group != p->w_group)
+      if (display && D_fore && D_fore->w_group != p->w_group)
 	continue;
 
       cmd = p->w_title;
@@ -5460,13 +5493,11 @@ int where;
   char buf[1024];
   char *s, *ss;
 
-  if (!display)
-    return;
-  if (where == -1 && D_fore)
+  if (display && where == -1 && D_fore)
     where = D_fore->w_number;
   ss = AddWindows(buf, sizeof(buf), 0, where);
   s = buf + strlen(buf);
-  if (ss - buf > D_width / 2)
+  if (display && ss - buf > D_width / 2)
     {
       ss -= D_width / 2;
       if (s - ss < D_width)

@@ -83,6 +83,21 @@ AttachSigCont SIGDEFARG
   SIGRETURN;
 }
 
+static int QueryResult;
+
+static sigret_t
+QueryResultSuccess SIGDEFARG
+{
+  QueryResult = 1;
+  SIGRETURN;
+}
+
+static sigret_t
+QueryResultFail SIGDEFARG
+{
+  QueryResult = 2;
+  SIGRETURN;
+}
 
 /*
  *  Send message to a screen backend.
@@ -923,10 +938,11 @@ screen_builtin_lck()
 
 
 void
-SendCmdMessage(sty, match, av)
+SendCmdMessage(sty, match, av, query)
 char *sty;
 char *match;
 char **av;
+int query;
 {
   int i, s;
   struct msg m;
@@ -954,7 +970,7 @@ char **av;
 	exit(1);
     }
   bzero((char *)&m, sizeof(m));
-  m.type = MSG_COMMAND;
+  m.type = query ? MSG_QUERY : MSG_COMMAND;
   if (attach_tty)
     {
       strncpy(m.m_tty, attach_tty, sizeof(m.m_tty) - 1);
@@ -979,7 +995,59 @@ char **av;
   m.m.command.preselect[sizeof(m.m.command.preselect) - 1] = 0;
   m.m.command.apid = getpid();
   debug1("SendCommandMsg writing '%s'\n", m.m.command.cmd);
-  if (WriteMessage(s, &m))
-    Msg(errno, "write");
-  close(s);
+  if (query)
+    {
+      /* Create a server socket so we can get back the result */
+      char *sp = SockPath + strlen(SockPath);
+      char query[] = "-queryX";
+      char c;
+      int r = -1;
+      for (c = 'A'; c <= 'Z'; c++)
+	{
+	  query[6] = c;
+	  strcpy(sp, query);	/* XXX: strncpy? */
+	  if ((r = MakeServerSocket()) >= 0)
+	    break;
+	}
+      if (r < 0)
+	{
+	  for (c = '0'; c <= '9'; c++)
+	    {
+	      query[6] = c;
+	      strcpy(sp, query);
+	      if ((r = MakeServerSocket()) >= 0)
+		break;
+	    }
+	}
+
+      if (r < 0)
+	Panic(0, "Could not create a listening socket to read the results.");
+
+      strncpy(m.m.command.writeback, SockPath, sizeof(m.m.command.writeback) - 1);
+      m.m.command.writeback[sizeof(m.m.command.writeback) - 1] = '\0';
+
+      /* Send the message, then wait for a response */
+      signal(SIGCONT, QueryResultSuccess);
+      signal(SIG_BYE, QueryResultFail);
+      if (WriteMessage(s, &m))
+	Msg(errno, "write");
+      close(s);
+      while (!QueryResult)
+	pause();
+      signal(SIGCONT, SIG_DFL);
+      signal(SIG_BYE, SIG_DFL);
+
+      /* Read the result and spit it out to stdout */
+      ReceiveRaw(r);
+      unlink(SockPath);
+      if (QueryResult == 2)	/* An error happened */
+	exit(1);
+    }
+  else
+    {
+      if (WriteMessage(s, &m))
+	Msg(errno, "write");
+      close(s);
+    }
 }
+

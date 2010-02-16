@@ -305,6 +305,22 @@ there is no session to resume. 12 (or more) indicates that there are 2 (or
 more) sessions to resume and you should specify which one to choose. 
 In all other cases \*Q-q\*U has no effect.
 .TP 5
+.B \-Q
+Some commands now can be queried from a remote session using this
+flag, e.g. 'screen -Q windows'. The commands will send the
+response to the stdout of the querying process. If there was an
+error in the command, then the querying process will exit with
+a non-zero status.
+
+The commands that can be queried now are:
+ \fBecho\fP
+ \fBinfo\fP
+ \fBlastmsg\fP
+ \fBselect\fP
+ \fBtime\fP
+ \fBtitle\fP
+ \fBwindows\fP
+.TP 5
 .BR \-r " [" \fIpid.tty.host ]
 .PD 0
 .TP 5
@@ -375,7 +391,6 @@ Send the specified command to a running screen session. You can use
 the \fB-d\fP or \fB-r\fP option to tell screen to look only for
 attached or detached screen sessions. Note that this command doesn't
 work if the session is password protected.
-
 
 .SH "DEFAULT KEY BINDINGS"
 .ta 12n 26n
