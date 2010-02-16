@@ -1578,6 +1578,12 @@ Same as the \fBmonitor\fP command except that the default setting for new
 windows is changed. Initial setting is `off'.
 .sp
 .ne 3
+.BR "defmousetrack on" | off
+.PP
+Same as the \fBmousetrack\fP command except that the default setting for new
+windows is changed. Initial setting is `off'.
+.sp
+.ne 3
 .B defnonblock 
 .BR on | off | \fInumsecs
 .PP
@@ -1888,6 +1894,20 @@ region respectively. Useful bindings are (j and k as in vi)
 Note that \fBk\fP is traditionally bound to the \fIkill\fP command.
 .sp
 .ne 3
+.BI "focusminsize [ ( " width "|max|_ ) ( " height "|max|_ ) ]"
+.PP
+This forces any currently selected region to be automatically
+resized at least a certain \fIwidth\fP and \fIheight\fP. All
+other surrounding regions will be resized in order to accomodate.
+This constraint follows everytime the \*Qfocus\*U command is
+used. The \*Qresize\*U command can be used to increase either
+dimension of a region, but never below what is set with
+\*Qfocusminsize\*U. The underscore `_' is a synonym for
+\fBmax\fP. Setting a \fIwidth\fP and \fIheight\fP of `0 0'
+(zero zero) will undo any constraints and allow for manual resizing.
+Without any parameters, the minimum width and height is shown.
+.sp
+.ne 3
 .BR "gr " [ on | off ]
 .PP
 Turn GR charset switching on/off. Whenever screen sees an input
@@ -1895,6 +1915,15 @@ character with the 8th bit set, it will use the charset stored in the
 GR slot and print the character with the 8th bit stripped. The
 default (see also \*Qdefgr\*U) is not to process GR switching because
 otherwise the ISO88591 charset would not work.
+.sp
+.ne 3
+.BI group
+.RI [ grouptitle ]
+.PP
+Change or show the group the current window belongs to. Windows can
+be moved around between different groups by specifying the name of
+the destination group. Without specifying a group, the title of the
+current group is displayed.
 .sp
 .ne 3
 .B hardcopy
@@ -2118,6 +2147,123 @@ away when you press a key (unless your terminal has a hardware status line).
 Refer to the commands \*Qmsgwait\*U and \*Qmsgminwait\*U for fine tuning.
 .sp
 .ne 3
+.BR "layout new " [\fItitle\fP]
+.PP
+Create a new layout. The screen will change to one whole region
+and be switched to the blank window. From here, you build the
+regions and the windows they show as you desire. The new layout
+will be numbered with the smallest available integer, starting
+with zero. You can optionally give a title to your new layout.
+Otherwise, it will have a default title of \*Qlayout\*U. You
+can always change the title later by using the command
+\fBlayout title\fP.
+.sp
+.ne 3
+.BR "layout remove " [\fIn|title\fP]
+.PP
+Remove, or in other words, delete the specified layout. Either
+the number or the title can be specified. Without either
+specification, \fIscreen\fP will remove the current layout.
+
+Removing a layout does not affect your set windows or regions.
+.sp
+.ne 3
+.B layout next
+.PP
+Switch to the next layout available
+.sp
+.ne 3
+.B layout prev
+.PP
+Switch to the previous layout available
+.sp
+.ne 3
+.BR "layout select " [\fIn|title\fP]
+.PP
+Select the desired layout. Either the number or the title can
+be specified. Without either specification, \fIscreen\fP will
+prompt and ask which screen is desired. To see which layouts are
+available, use the \fBlayout show\fP command.
+.sp
+.ne 3
+.B layout show
+.PP
+List on the message line the number(s) and title(s) of the available
+layout(s). The current layout is flagged.
+.sp
+.ne 3
+.BR "layout title " [\fItitle\fP]
+.PP
+Change or display the title of the current layout. A string given
+will be used to name the layout. Without any options, the current
+title and number is displayed on the message line.
+.sp
+.ne 3
+.BR "layout number " [\fIn\fP]
+.PP
+Change or display the number of the current layout. An integer given
+will be used to number the layout. Without any options, the current
+number and title is displayed on the message line.
+.sp
+.ne 3
+.BR "layout attach " [\fItitle\fP|\fB:last\fP]
+.PP
+Change or display which layout to reattach back to. The default is
+\fB:last\fP, which tells \fIscreen\fP to reattach back to the last
+used layout just before detachment. By supplying a title, You can
+instruct \fIscreen\fP to reattach to a particular layout regardless
+which one was used at the time of detachment. Without any options,
+the layout to reattach to will be shown in the message line.
+.sp
+.ne 3
+.BR "layout save " [\fIn|title\fP]
+.PP
+Remember the current arrangement of regions. When used, \fIscreen\fP
+will remember the arrangement of vertically and horizontally split
+regions. This arrangement is restored when a \fIscreen\fP session
+is reattached or switched back from a different layout. If the
+session ends or the \fIscreen\fP process dies, the layout
+arrangements are lost. The \fBlayout dump\fP command should help
+in this siutation. If a number
+or title is supplied, \fIscreen\fP will remember the arrangement of
+that particular layout. Without any options, \fIscreen\fP will
+remember the current layout.
+
+Saving your regions can be done automatically by using the
+\fBlayout autosave\fP command.
+.sp
+.ne 3
+.BR "layout autosave " [\fBon|off\fP]
+.PP
+Change or display the status of automatcally saving layouts. The
+default is \fBon\fP, meaning when \fIscreen\fP is detached or
+changed to a different layout, the arrangement of regions and windows
+will be remembered at the time of change and restored upon return.
+If autosave is set to \fBoff\fP, that arrangement will only be
+restored to either to the last manual save, using \fBlayout save\fP,
+or to when the layout was first created, to a single region with
+a single window. Without either an \fBon\fP or \fBoff\fP, the
+current status is displayed on the message line.
+.sp
+.ne 3
+.BR "layout dump " [\fIfilename\fP]
+.PP
+Write to a file the order of splits made in the current layout. This 
+is useful to recreate the order of your regions used in your current
+layout. Only the current layout is recorded. While the order of the
+regions are recorded, the sizes of those regions and which windows
+correspond to which regions are not. If no filename is specified,
+the default is \fIlayout-dump\fP, saved in the directory that the
+\fIscreen\fP process was started in. If the file already exists,
+\fBlayout dump\fP will append to that file. As an example:
+.PP
+.nf
+	C-a : layout dump /home/user/.screenrc
+.fi
+.PP
+will save or append the layout to the user's \fI.screenrc\fP file.
+.sp
+.ne 3
 .B license
 .PP
 Display the disclaimer page. This is done whenever
@@ -2268,6 +2414,18 @@ background, you will receive the activity notification message in the
 status line at the first sign of output and the window will also be marked
 with an `@' in the window-status display.
 Monitoring is initially off for all windows.
+.sp
+.ne 3
+.BR "mousetrack " [ on | off ]
+.PP
+This command determines whether
+.I screen
+will watch for
+mouse clicks. When this command is enabled, regions that have
+been split in various ways can be selected by pointing to them
+with a mouse and left-clicking them. Without specifying \fBon\fP
+or \fBoff\fP, the current state is displayed. The default state
+is determined by the \*Qdefmousetrack\*U command.
 .sp
 .ne 3
 .BI "msgminwait " sec
@@ -2589,7 +2747,7 @@ resize  min	minimize current region height
 .PP
 .sp
 .ne 3
-.B "screen \fP[\fI-opts\fP] [\fIn\fP] [\fIcmd\fP [\fIargs\fP]]"
+.B "screen \fP[\fI-opts\fP] [\fIn\fP] [\fIcmd\fP [\fIargs\fP]|\fB//group\fP]"
 .PP
 Establish a new window.
 The flow-control options (\fB\-f\fP, \fB\-fn\fP and \fB\-fa\fP),
@@ -2603,6 +2761,9 @@ the window number \fIn\fP is assigned to the newly created window
 (or, if this number is already in-use, the next available number).
 If a command is specified after \*Qscreen\*U, this command (with the given
 arguments) is started in the window; otherwise, a shell is created.
+If \fB//group\fP is supplied, a container-type window is created in
+which other windows may be created inside it. 
+
 Thus, if your \*Q.screenrc\*U contains the lines
 .sp
 .nf
@@ -3044,6 +3205,7 @@ vice versa.
 .B windowlist
 .RB [ -b ]
 .RB [ -m ]
+.RB [ -g ]
 .br
 .B windowlist
 .B string
@@ -3056,6 +3218,8 @@ vice versa.
 Display all windows in a table for visual window selection. The
 desired window can be selected via the standard movement keys (see
 the \*Qcopy\*U command) and activated via the return key.
+If screen was in a window group, screen will
+back out of the group and then display the windows in that group.
 If the 
 .B -b
 option is given, screen will switch to the blank window before
@@ -3064,6 +3228,10 @@ The
 .B -m
 option changes the order of the windows, instead of sorting by
 window numbers screen uses its internal most-recently-used list.
+The
+.B -g
+option will show the windows inside any groups in that level
+and downwards.
 
 The table format can be changed with the \fBstring\fP and
 \fBtitle\fP option, the title is displayed as table heading, while
