@@ -374,6 +374,22 @@ there is no session to resume. 12 (or more) indicates that there are 2 (or
 more) sessions to resume and you should specify which one to choose. 
 In all other cases @samp{-q} has no effect.
 
+@item -Q
+Some commands now can be queried from a remote session using this
+flag, e.g. 'screen -Q windows'. The commands will send the
+response to the stdout of the querying process. If there was an
+error in the command, then the querying process will exit with
+a non-zero status.
+
+The commands that can be queried now are:
+ @code{echo}
+ @code{info}
+ @code{lastmsg}
+ @code{select}
+ @code{time}
+ @code{title}
+ @code{windows}
+
 @item -r [@var{pid.sessionname}]
 @itemx -r @var{sessionowner}/[@var{pid.sessionname}]
 Resume a detached @code{screen} session.  No other options (except
