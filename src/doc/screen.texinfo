@@ -1058,6 +1058,8 @@ Show or set which layout to reattach to.  @xref{Layout}.
 Remember the organization of a layout.  @xref{Layout}.
 @item layout autosave [@var{on}|@var{off}]
 Show or set the status of layout saving.  @xref{Layout}.
+@item layout dump [filename]
+Save the layout arrangement to a file.  @xref{Layout}.
 @item license
 Display licensing information.  @xref{Startup}.
 @item lockscreen
@@ -2125,7 +2127,10 @@ the layout to reattach to will be shown in the message line.
 Remember the current arrangement of regions. When used, @code{screen}
 will remember the arrangement of vertically and horizontally split
 regions. This arrangement is restored when a @code{screen} session
-is reattached or switched back from a different layout. If a number
+is reattached or switched back from a different layout. If the
+session ends or the @code{screen} process dies, the layout
+arrangements are lost. The @code{layout dump} command should help
+in this siutation. If a number
 or title is supplied, @code{screen} will remember the arrangement of
 that particular layout. Without any options, @code{screen} will
 remember the current layout.
@@ -2147,6 +2152,21 @@ a single window. Without either an @code{on} or an @code{off}, the
 current status is displayed on the message line.
 @end deffn
 
+@deffn Command layout @code{dump} [filename]
+(none)@*
+Write to a file the order of splits made in the current layout. This
+is useful to recreate the order of your regions used in your current
+layout. Only the current layout is recorded. While the order of the
+regions are recorded, the sizes of those regions and which windows
+correspond to which regions are not. If no filename is specified,
+the default is @file{layout-dump}, saved in the directory that the
+@code{screen} process was started in. If the file already exists,
+@code{layout dump} will append to that file. As an example:
+@example
+layout dump /home/user/.screenrc
+@end example
+will save or append the layout to the user's @file{.screenrc} file.
+@end deffn
 
 @node Window Settings, Virtual Terminal, Regions, Top
 @chapter Window Settings
