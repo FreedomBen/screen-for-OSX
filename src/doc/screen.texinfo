@@ -832,7 +832,7 @@ Delete the screen-exchange file.  @xref{Screen Exchange}.
 
 @item @kbd{C-a _}
 (silence)@*
-Start/stop monitoring the current window for inactivity. @xref{Silence}.
+Start/stop monitoring the current window for inactivity. @xref{Monitor}.
 
 @item @kbd{C-a |}
 (split -v)@*
@@ -965,7 +965,7 @@ Set default lines of scrollback.  @xref{Scrollback}.
 @item defshell @var{command}
 Set the default program for new windows.  @xref{Shell}.
 @item defsilence @var{state}
-Select default idle monitoring behavior.  @xref{Silence}.
+Select default idle monitoring behavior.  @xref{Monitor}.
 @item defslowpaste @var{msec}
 Select the default inter-character timeout when pasting.  @xref{Paste}.
 @item defutf8 @var{state}
@@ -1163,9 +1163,9 @@ Set the default program for new windows.  @xref{Shell}.
 @item shelltitle @var{title}
 Set the default name for new windows.  @xref{Shell}.
 @item silence [@var{state}|@var{seconds}]
-Monitor a window for inactivity.  @xref{Silence}.
+Monitor a window for inactivity.  @xref{Monitor}.
 @item silencewait @var{seconds}
-Default timeout to trigger an inactivity notify.  @xref{Silence}.
+Default timeout to trigger an inactivity notify.  @xref{Monitor}.
 @item sleep @var{num}
 Pause during startup.  @xref{Startup}.
 @item slowpaste @var{msec}
@@ -2161,7 +2161,7 @@ terminal emulation itself.
 * Kill::                        Destroy an unwanted window
 * Login::                       Control @file{/etc/utmp} logging
 * Mode::                        Control the file mode of the pty
-* Monitor::                     Watch for activity in a window
+* Monitor::                     Watch for activity or inactivity in a window
 * Windows::			List the active windows
 * Hardstatus::			Set a window's hardstatus line
 @end menu
@@ -2422,6 +2422,29 @@ notification message will be displayed in the status line at the first
 sign of output, and the window will also be marked with an @samp{@@} in
 the window-status display (@pxref{Windows}).  Monitoring defaults to
 @samp{off} for all windows.
+@end deffn
+
+@kindex _
+@deffn Command silence [@var{state}|@var{sec}]
+(@kbd{C-a _})@*
+Toggles silence monitoring of windows. When silence is turned on and an 
+affected window is switched into the background, you will receive the
+silence notification message in the status line after a specified period
+of inactivity (silence). The default timeout can be changed with the
+@code{silencewait} command or by specifying a number of seconds instead of
+@code{on} or @code{off}. Silence is initially off for all windows.
+@end deffn
+
+@deffn Command defsilence state
+(none)@*
+Same as the @code{silence} command except that the default setting for
+new windows is changed.  Initial setting is `off'.
+@end deffn
+
+@deffn Command silencewait @var{seconds}
+(none)@*
+Define the time that all windows monitored for silence should wait
+before displaying a message. Default is 30 seconds.
 @end deffn
 
 @node Windows, Hardstatus, Monitor, Window Settings
@@ -4792,7 +4815,6 @@ categories.
 * Nethack::                     Use @code{nethack}-like error messages.
 * Nonblock::			Disable flow-control to a display.
 * Number::                      Change the current window's number.
-* Silence::			Notify on inactivity.
 * Time::                        Display the time and load average.
 * Verbose::                     Display window creation commands.
 * Version::                     Display the version of @code{screen}.
@@ -4942,7 +4964,7 @@ Same as the @code{nonblock} command except that the default setting for
 displays is changed. Initial setting is @code{off}.
 @end deffn
 
-@node Number, Silence, Nonblock, Miscellaneous
+@node Number, Time, Nonblock, Miscellaneous
 @section Number
 @kindex N
 @deffn Command number [[+|-]@var{n}]
@@ -4954,32 +4976,7 @@ plus (`+') or minus (`-') will change the window's number by the relative
 amount specified.
 @end deffn
 
-@node Silence, Time, Number, Miscellaneous
-@section Silence
-@kindex _
-@deffn Command silence [@var{state}|@var{sec}]
-(@kbd{C-a _})@*
-Toggles silence monitoring of windows. When silence is turned on and an 
-affected window is switched into the background, you will receive the
-silence notification message in the status line after a specified period
-of inactivity (silence). The default timeout can be changed with the
-@code{silencewait} command or by specifying a number of seconds instead of
-@code{on} or @code{off}. Silence is initially off for all windows.
-@end deffn
-
-@deffn Command defsilence state
-(none)@*
-Same as the @code{silence} command except that the default setting for
-new windows is changed.  Initial setting is `off'.
-@end deffn
-
-@deffn Command silencewait @var{seconds}
-(none)@*
-Define the time that all windows monitored for silence should wait
-before displaying a message. Default is 30 seconds.
-@end deffn
-
-@node Time, Verbose, Silence, Miscellaneous
+@node Time, Verbose, Number, Miscellaneous
 @section Time
 @kindex t
 @kindex C-t
