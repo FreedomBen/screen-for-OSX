@@ -1449,6 +1449,7 @@ char **args, *ttyn;
   return pid;
 }
 
+#ifndef HAVE_EXECVPE
 void
 execvpe(prog, args, env)
 char *prog, **args, **env;
@@ -1494,6 +1495,7 @@ char *prog, **args, **env;
   if (eaccess)
     errno = EACCES;
 }
+#endif
 
 #ifdef PSEUDOS
 

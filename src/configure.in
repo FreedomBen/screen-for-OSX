@@ -284,6 +284,12 @@ seteuid(0);
 #endif
 ], AC_DEFINE(HAVE_SETEUID))
 
+dnl execvpe
+AC_CHECKING(execvpe)
+AC_TRY_LINK(,[
+    execvpe(0, 0, 0);
+], AC_DEFINE(HAVE_EXECVPE))
+
 dnl
 dnl    ****  select()  ****
 dnl

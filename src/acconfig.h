@@ -445,6 +445,11 @@
 #undef HAVE_SETEUID
 
 /*
+ * execvpe is now defined in some systems.
+ */
+#undef HAVE_EXECVPE
+
+/*
  * If you want the "time" command to display the current load average
  * define LOADAV. Maybe you must install screen with the needed
  * privileges to read /dev/kmem.
