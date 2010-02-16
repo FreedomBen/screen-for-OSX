@@ -1651,7 +1651,7 @@ struct msg *mp;
     }
   if (fc != fullcmd)
     *--fc = 0;
-  if (Parse(fullcmd, fc - fullcmd, args, argl) <= 0)
+  if (Parse(fullcmd, sizeof fullcmd, args, argl) <= 0)
     {
       queryflag = -1;
       return;
