@@ -2961,7 +2961,7 @@ int key;
       break;
     case RC_NUMBER:
       if (*args == 0)
-        Msg(0, "This is window %d (%s).\n", fore->w_number, fore->w_title);
+        Msg(0, queryflag >= 0 ? "%d (%s)" : "This is window %d (%s).", fore->w_number, fore->w_title);
       else
         {
 	  int old = fore->w_number;
@@ -2984,6 +2984,7 @@ int key;
 	  if (n < 0 || n >= maxwin)
 	    {
 	      Msg(0, "Given window position is invalid.");
+	      queryflag = -1;
 	      return;
 	    }
 	  p = wtab[n];

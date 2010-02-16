@@ -248,7 +248,7 @@ struct comm comms[RC_LAST + 1] =
 #ifdef MULTI
   { "nonblock",		NEED_DISPLAY|ARGS_01 },
 #endif
-  { "number",		NEED_FORE|ARGS_01 },
+  { "number",		CAN_QUERY|NEED_FORE|ARGS_01 },
   { "obuflimit",	NEED_DISPLAY|ARGS_01 },
   { "only",		NEED_DISPLAY|ARGS_0 },
   { "other",		ARGS_0 },

@@ -385,6 +385,7 @@ The commands that can be queried now are:
  @code{echo}
  @code{info}
  @code{lastmsg}
+ @code{number}
  @code{select}
  @code{time}
  @code{title}
