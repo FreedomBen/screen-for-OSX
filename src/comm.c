@@ -180,7 +180,7 @@ struct comm comms[RC_LAST + 1] =
   { "dinfo",		NEED_DISPLAY|ARGS_0 },
   { "displays",		NEED_LAYER|ARGS_0 },
   { "dumptermcap",	NEED_FORE|ARGS_0 },
-  { "echo",		ARGS_12 },
+  { "echo",		CAN_QUERY|ARGS_12 },
 #ifdef ENCODINGS
   { "encoding",		ARGS_12 },
 #endif
@@ -311,8 +311,8 @@ struct comm comms[RC_LAST + 1] =
   { "termcap",		ARGS_23 },
   { "termcapinfo",	ARGS_23 },
   { "terminfo",		ARGS_23 },
-  { "time",		ARGS_01 },
-  { "title",		NEED_FORE|ARGS_01 },
+  { "time",		CAN_QUERY|ARGS_01 },
+  { "title",		CAN_QUERY|NEED_FORE|ARGS_01 },
   { "umask",		ARGS_1|ARGS_ORMORE },
   { "unbindall",	ARGS_0 },
   { "unsetenv",		ARGS_1 },
@@ -327,7 +327,7 @@ struct comm comms[RC_LAST + 1] =
   { "wall",		NEED_DISPLAY|ARGS_1},
   { "width",		ARGS_0123 },
   { "windowlist",	ARGS_012 },
-  { "windows",		NEED_DISPLAY|ARGS_0 },
+  { "windows",		CAN_QUERY|ARGS_0 },
   { "wrap",		NEED_FORE|ARGS_01 },
 #ifdef COPY_PASTE
   { "writebuf",		ARGS_0123 },

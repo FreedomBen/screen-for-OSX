@@ -1009,6 +1009,16 @@ int query;
 	  if ((r = MakeServerSocket()) >= 0)
 	    break;
 	}
+      if (r < 0)
+	{
+	  for (c = '0'; c <= '9'; c++)
+	    {
+	      query[6] = c;
+	      strcpy(sp, query);
+	      if ((r = MakeServerSocket()) >= 0)
+		break;
+	    }
+	}
 
       if (r < 0)
 	Panic(0, "Could not create a listening socket to read the results.");
@@ -1040,3 +1050,4 @@ int query;
       close(s);
     }
 }
+

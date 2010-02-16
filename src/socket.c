@@ -65,6 +65,7 @@ static void  AskPassword __P((struct msg *));
 extern char *RcFileName, *extra_incap, *extra_outcap;
 extern int ServerSocket, real_uid, real_gid, eff_uid, eff_gid;
 extern int dflag, iflag, rflag, lsflag, quietflag, wipeflag, xflag;
+extern int queryflag;
 extern char *attach_tty, *LoginName, HostName[];
 extern struct display *display, *displays;
 extern struct win *fore, **wtab, *console_window, *windows;
@@ -1171,12 +1172,6 @@ ReceiveMsg()
       break;
 #endif
     case MSG_QUERY:
-      /* Reset error buffer */
-      /* Reset output buffer */
-      /* FALLTHROUGH */
-    case MSG_COMMAND:
-      DoCommandMsg(&m);
-      if (m.type == MSG_QUERY)
 	{
 	  char *oldSockPath = SaveStr(SockPath);
 	  strcpy(SockPath, m.m.command.writeback);
@@ -1185,11 +1180,19 @@ ReceiveMsg()
 	  Free(oldSockPath);
 	  if (s >= 0)
 	    {
-	      write(s, "So ...", 7);
+	      queryflag = s;
+	      DoCommandMsg(&m);
 	      close(s);
 	    }
-	  Kill(m.m.command.apid, SIGCONT);	/* Send SIG_BYE if an error happened, instead */
+	  else
+	    queryflag = -1;
+
+	  Kill(m.m.command.apid, (queryflag >= 0) ? SIGCONT : SIG_BYE);	/* Send SIG_BYE if an error happened */
+	  queryflag = -1;
 	}
+      break;
+    case MSG_COMMAND:
+      DoCommandMsg(&m);
       break;
     default:
       Msg(0, "Invalid message (type %d).", m.type);
