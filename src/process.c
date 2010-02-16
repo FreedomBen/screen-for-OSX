@@ -1208,7 +1208,10 @@ int key;
       else if (args[0][0] == '.' && !args[0][1])
 	{
 	  if (!fore)
-	    Msg(0, "select . needs a window");
+	    {
+	      Msg(0, "select . needs a window");
+	      queryflag = -1;
+	    }
 	  else
 	    {
 	      SetForeWindow(fore);
@@ -1217,6 +1220,8 @@ int key;
 	}
       else if (ParseWinNum(act, &n) == 0)
         SwitchWindow(n);
+      else if (queryflag >= 0)
+	queryflag = -1;	/* ParseWinNum already prints out an appropriate error message. */
       break;
 #ifdef AUTO_NUKE
     case RC_DEFAUTONUKE:

@@ -286,7 +286,7 @@ struct comm comms[RC_LAST + 1] =
 #ifdef COPY_PASTE
   { "scrollback",	NEED_FORE|ARGS_1 },
 #endif
-  { "select",		ARGS_01 },
+  { "select",		CAN_QUERY|ARGS_01 },
   { "sessionname",	ARGS_01 },
   { "setenv",		ARGS_012 },
   { "setsid",		ARGS_1 },
