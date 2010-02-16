@@ -1087,7 +1087,7 @@ Insert the command character.  @xref{Command Character}.
 @item monitor [@var{state}]
 Monitor activity in window.  @xref{Monitor}.
 @item mousetrack [@var{on}|@var{off}]
-Enable selecting splitted regions with mouse clicks.  @xref{Mousetrack}.
+Enable selecting split regions with mouse clicks.  @xref{Mousetrack}.
 @item msgminwait @var{sec}
 Set minimum message wait.  @xref{Message Wait}.
 @item msgwait @var{sec}
@@ -1474,7 +1474,7 @@ For telnet windows, the command @code{break} sends the telnet code
 @section Window Groups
 @cindex window groups
 Screen provides a method for grouping windows together. Windows can be
-organized in a heirarchial fashion, resembling a tree structure. New
+organized in a hierarchical fashion, resembling a tree structure. New
 screens are created using the @code{screen} command while new groups
 are created using @code{screen //group}. @xref{Screen Command}. 
 
@@ -1935,7 +1935,7 @@ bottom of each other. Using -v will create a vertical split,
 causing the new regions to appear side by side of each other.
 
 With this current implementation of @code{screen}, scrolling data
-will appear much slower in a vertically splited region than one
+will appear much slower in a vertically split region than one
 that is not. This should be taken into consideration if you need
 to use system commands such as @code{cat} or @code{tail -f}.
 @end deffn
@@ -2027,7 +2027,7 @@ automatically if the window is displayed more than once.
 This forces any currently selected region to be automatically
 resized at least a certain @var{width} and @var{height}. All
 other surrounding regions will be resized in order to accomodate.
-This constraint follows everytime the @code{focus} command is
+This constraint follows every time the @code{focus} command is
 used. The @code{resize} command can be used to increase either
 dimension of a region, but never below what is set with
 @code{focusminsize}. The underscore @samp{_} is a synonym for
@@ -2039,16 +2039,16 @@ Without any parameters, the minimum width and height is shown.
 @node Layout, , Focusminsize, Regions
 @section Layout
 @cindex layout
-Using regions, and perhaps a large enough terminal, you can create
-a more of a desktop feel to @code{screen}. By being able to split
+Using regions, and perhaps a large enough terminal, you can give
+@code{screen} more of a desktop feel. By being able to split
 regions horizontally or vertically, you can take advantage of the
 lesser used spaces of your terminal. The catch to these splits has
 been that they're not kept between screen detachments and reattachments.
 
-Layouts will help your organization of regions. You can create one
+Layouts will help organize your regions. You can create one
 layout of four horizontal regions and then create a separate layout
-of regions in a two by two array. The regions don't have to contain 
-the same windows. You can easily switch between layouts and keep
+of regions in a two by two array. The regions could contain the same windows,
+but they don't have to. You can easily switch between layouts and keep
 them between detachments and reattachments.
 
 Note that there are several subcommands to @code{layout}.
@@ -2141,7 +2141,7 @@ Saving your regions can be done automatically by using the
 
 @deffn Command layout @code{autosave} [@code{on}|@code{off}]
 (none)@*
-Change or display the status of automatcally saving layouts. The
+Change or display the status of automatically saving layouts. The
 default is @code{on}, meaning when @code{screen} is detached or
 changed to a different layout, the arrangement of regions and windows
 will be remembered at the time of change and restored upon return.
