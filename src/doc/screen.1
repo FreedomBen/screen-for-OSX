@@ -293,7 +293,8 @@ Preselect a window. This is useful when you want to reattach to a
 specific window or you want to send a command via the \*Q-X\*U
 option to a specific window. As with screen's select command, \*Q-\*U
 selects the blank window. As a special case for reattach, \*Q=\*U
-brings up the windowlist on the blank window.
+brings up the windowlist on the blank window. The command will not be
+executed if the specified window could not be found.
 .TP 5
 .B \-q
 Suppress printing of error messages. In combination with \*Q-ls\*U the exit 

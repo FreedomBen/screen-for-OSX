@@ -362,7 +362,8 @@ specific window or you want to send a command via the @samp{-X}
 option to a specific window. As with screen's select command, @samp{-}
 selects the blank window. As a special case for reattach, @samp{=}
 brings up the windowlist on the blank window, while a @samp{+} will
-create new window.
+create new window. The command will not be executed if the specified
+window could not be found.
 
 @item -q
 Suppress printing of error messages. In combination with @samp{-ls} the exit 

@@ -1653,7 +1653,7 @@ struct msg *mp;
     *--fc = 0;
   if (Parse(fullcmd, fc - fullcmd, args, argl) <= 0)
     {
-      /* XXX: Return some useful message back if MSG_QUERY */
+      queryflag = -1;
       return;
     }
 #ifdef MULTIUSER
@@ -1661,7 +1661,7 @@ struct msg *mp;
   if (user == 0)
     {
       Msg(0, "Unknown user %s tried to send a command!", mp->m.attach.auser);
-      /* XXX: Return some useful message back if MSG_QUERY */
+      queryflag = -1;
       return;
     }
 #else
@@ -1670,8 +1670,8 @@ struct msg *mp;
 #ifdef PASSWORD
   if (user->u_password && *user->u_password)
     {
-      Msg(0, "User %s has a password, cannot use -X option.", mp->m.attach.auser);
-      /* XXX: Return some useful message back if MSG_QUERY */
+      Msg(0, "User %s has a password, cannot use remote commands (using -Q or -X option).", mp->m.attach.auser);
+      queryflag = -1;
       return;
     }
 #endif
@@ -1692,7 +1692,15 @@ struct msg *mp;
     {
       int i = -1;
       if (strcmp(mp->m.command.preselect, "-"))
-        i = WindowByNoN(mp->m.command.preselect);
+	{
+	  i = WindowByNoN(mp->m.command.preselect);
+	  if (i < 0 || !wtab[i])
+	    {
+	      Msg(0, "Could not find pre-select window.");
+	      queryflag = -1;
+	      return;
+	    }
+	}
       fore = i >= 0 ? wtab[i] : 0;
     }
   else if (!fore)
