@@ -1180,7 +1180,7 @@ Deprecated. Use @code{rendition so} instead. @xref{Rendition}.
 Split region into two parts.  @xref{Regions}.
 @item startup_message @var{state}
 Display copyright notice on startup.  @xref{Startup}.
-@item stuff @var{string}
+@item stuff [@var{string}]
 Stuff a string in the input buffer of a window.  @xref{Paste}.
 @item su [@var{username} [@var{password} [@var{password2}]]]
 Identify a user. @xref{Multiuser Session}.
@@ -3578,10 +3578,11 @@ display (terminal attached), as the registers are a global resource. The
 paste buffer exists once for every user.
 @end deffn
 
-@deffn Command stuff string
+@deffn Command stuff [string]
 (none)@*
 Stuff the string @var{string} in the input buffer of the current window.
 This is like the @code{paste} command, but with much less overhead.
+Without a paramter, @code{screen} will prompt for a string to stuff.
 You cannot paste large buffers with the @code{stuff} command. It is most
 useful for key bindings. @xref{Bindkey}.
 @end deffn
