@@ -39,6 +39,7 @@ Version 4.1.0 (??/??/20??):
   * '-g' parameter to 'windowlist' to show nested list of windows.
   * '//group' parameter to 'screen' to create a grouped window.
   * 'blankerprg' shows the currently set command on no argument.
+  * 'maxwin' can now be used to increase the number of maximum windows.
 
   .screenrc:
   * $PID expands to the PID of the screen session.
@@ -66,6 +67,9 @@ Version 4.1.0 (??/??/20??):
   * Some more readline-like bindings in input mode (e.g. ^W, ^D, ^P, ^N etc.)
   * Fix displaying unicode characters in the caption/hardstatus on UTF8 locale.
   * A revamped displays list (for 'displays' command)
+  * Increased default maximum number of windows from 40 to 100.
+  * Increased number color/attribute changes in caption/hardstatus string from 16 to 256.
+  * Some commands can be remotely queried using the -Q command-line flag.
 
   In-Progress:
   * Scripting support (thanks to Google Summer of Code 2009 project by Rui Guo)
