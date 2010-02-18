@@ -4694,7 +4694,12 @@ int bufl, *argl;
 		  else if (!strcmp(ps, "PID"))
 		    sprintf(xbuf, "%d", getpid());
 		  else if (!strcmp(ps, "STY"))
-		    v = SockName;
+		    {
+		      if ((v = strchr(SockName, '.')))	/* Skip the PID */
+			v++;
+		      else
+			v = SockName;
+		    }
 		  else
 		    v = getenv(ps);
 		}
