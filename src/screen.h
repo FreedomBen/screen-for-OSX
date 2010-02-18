@@ -178,9 +178,11 @@ struct mode
 /*
  * versions of struct msg:
  * 0:	screen version 3.6.6 (version count introduced)
- * 1:	screen version 4.1.0
+ * 1:	screen version 4.1.0devel (revisions e3fc19a1 upto 8147d086)
+ * 2:	screen version 4.1.0devel (revisions XXXXXXXX upto YYYYYYYY)
  */
-#define MSG_VERSION	1
+#define MSG_VERSION	2
+
 #define MSG_REVISION	(('m'<<24) | ('s'<<16) | ('g'<<8) | MSG_VERSION)
 struct msg
 {
