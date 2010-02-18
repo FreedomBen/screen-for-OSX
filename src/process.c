@@ -4105,7 +4105,7 @@ int key;
       else
 	{
 	  if (!windows)
-	    wtab = realloc(wtab, n * sizeof(struct win));
+	    wtab = realloc(wtab, n * sizeof(struct win *));
 	  maxwin = n;
 	}
       break;
@@ -5978,7 +5978,7 @@ char *fn, **av;
       if (*buf != '\0')
 	nwin.aka = buf;
       num = atoi(*av);
-      if (num < 0 || num > maxwin - 1)
+      if (num < 0 || (maxwin && num > maxwin - 1) || (!maxwin && num > MAXWIN - 1))
 	{
 	  Msg(0, "%s: illegal screen number %d.", fn, num);
 	  num = 0;
