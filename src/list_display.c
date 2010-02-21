@@ -1,4 +1,7 @@
-/* Copyright (c) 2008, 2009
+/* Copyright (c) 2010
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Sadrul Habib Chowdhury (sadrul@users.sourceforge.net)
+ * Copyright (c) 2008, 2009
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  *      Micah Cowan (micah@cowan.name)
@@ -28,150 +31,16 @@
 
 /* Deals with the list of displays */
 
+#include "config.h"
+
+#include "screen.h"
+#include "list_generic.h"
+
 #ifdef MULTI
 
-struct displaysdata
-{
-  struct display *selected;	/* The selected display */
-  struct display *current;	/* The current display (that's showing this list) */
-};
-
-static void DisplaysProcess __P((char **, int *));
-static void DisplaysRedisplayLine __P((int, int, int, int));
-static void displayspage __P((struct displaysdata *));
-
-static struct LayFuncs DisplaysLf =
-{
-  DisplaysProcess,
-  HelpAbort,
-  DisplaysRedisplayLine,
-  DefClearLine,
-  DefRewrite,
-  DefResize,
-  DefRestore
-};
-
-void
-display_displays()
-{
-  struct displaysdata *ddata;
-  if (flayer->l_width < 10 || flayer->l_height < 5)
-    {
-      LMsg(0, "Window size too small for displays page");
-      return;
-    }
-  if (InitOverlayPage(sizeof(struct displaysdata), &DisplaysLf, 0))
-    return;
-  flayer->l_mode = 1;
-  flayer->l_x = 0;
-  flayer->l_y = flayer->l_height - 1;
-  ddata = flayer->l_data;
-  ddata->current = display;
-  ddata->selected = display;
-  displayspage(ddata);
-}
-
-static void
-display_list_change(struct displaysdata *ddata, int dir)
-{
-  struct display *d;
-  for (d = displays; d; d = d->d_next)
-    {
-      if (dir == -1 && d->d_next == ddata->selected)
-	{
-	  ddata->selected = d;
-	  break;
-	}
-      else if (dir == 1 && d == ddata->selected && d->d_next)
-	{
-	  ddata->selected = d->d_next;
-	  break;
-	}
-    }
-
-  if (d)
-    {
-      /* Selection changed */
-      displayspage(ddata);
-    }
-}
-
-static void
-DisplaysProcess(ppbuf, plen)
-char **ppbuf;
-int *plen;
-{
-  int done = 0;
-
-  ASSERT(flayer);
-  while (!done && *plen > 0)
-    {
-      unsigned char ch = (unsigned char)**ppbuf;
-      ++*ppbuf;
-      --*plen;
-      if (flayer->l_mouseevent.start)
-	{
-	  int r = LayProcessMouse(flayer, ch);
-	  if (r == -1)
-	    LayProcessMouseSwitch(flayer, 0);
-	  else
-	    {
-	      if (r)
-		ch = 0222;
-	      else
-		continue;
-	    }
-	}
-      switch (ch)
-	{
-	case ' ':
-	  displayspage(flayer->l_data);
-	  break;
-	case '\r':
-	case '\n':
-	  HelpAbort();
-	  done = 1;
-	  break;
-
-	case 0220:	/* up */
-	case 16:	/* ^P like emacs */
-	case 'k':
-	  display_list_change(flayer->l_data, -1);
-	  break;
-
-	case 0216:	/* down */
-	case 14:	/* ^N like emacs */
-	case 'j':
-	  display_list_change(flayer->l_data, 1);
-	  break;
-
-	case 0222:	/* mouse event */
-	  if (flayer->l_mouseevent.start)
-	    {
-	      /* All the data is available to process the mouse event. */
-	      int button = flayer->l_mouseevent.buffer[0];
-	      if (button == 'a')
-		{
-		  /* Scroll down */
-		  display_list_change(flayer->l_data, 1);
-		}
-	      else if (button == '`')
-		{
-		  /* Scroll up */
-		  display_list_change(flayer->l_data, -1);
-		}
-	      LayProcessMouseSwitch(flayer, 0);
-	    }
-	  else
-	    LayProcessMouseSwitch(flayer, 1);
-	  break;
-
-	default:
-	  break;
-	}
-    }
-}
-
+extern struct layer *flayer;
+extern struct display *display, *displays;
+extern struct mchar mchar_blank, mchar_so;
 
 /*
  * layout of the displays page is as follows:
@@ -180,7 +49,7 @@ xterm 80x42      jnweiger@/dev/ttyp4    0(m11)    &rWx
 facit 80x24 nb   mlschroe@/dev/ttyhf   11(tcsh)    rwx
 xterm 80x42      jnhollma@/dev/ttyp5    0(m11)    &R.x
 
-  |     |    |      |         |         |   |     | ¦___ window permissions 
+  |     |    |      |         |         |   |     | ¦___ window permissions
   |     |    |      |         |         |   |     |      (R. is locked r-only,
   |     |    |      |         |         |   |     |       W has wlock)
   |     |    |      |         |         |   |     |___ Window is shared
@@ -191,97 +60,175 @@ xterm 80x42      jnhollma@/dev/ttyp5    0(m11)    &R.x
   |     |    |___ Display is in nonblocking mode. Shows 'NB' if obuf is full.
   |     |___ Displays geometry as width x height.
   |___ the terminal type known by screen for this display.
- 
+
  */
 
-static void
-displayspage(ddata)
-struct displaysdata *ddata;
+static int
+gl_Display_header(struct ListData *ldata)
 {
-  int y, l;
+  leftline("term-type   size         user interface           window       Perms", 0, 0);
+  leftline("---------- ------- ---------- ----------------- ----------     -----", 1, 0);
+  return 2;
+}
+
+static int
+gl_Display_footer(struct ListData *ldata)
+{
+  centerline("[Press Space to refresh; Return to end.]", flayer->l_height - 1);
+}
+
+static int
+gl_Display_row(struct ListData *ldata, struct ListRow *lrow)
+{
+  struct display *d = lrow->data;
   char tbuf[80];
-  struct display *d;
-  struct win *w;
   static char *blockstates[5] = {"nb", "NB", "Z<", "Z>", "BL"};
+  struct win *w = d->d_fore;
   struct mchar m_current = mchar_blank;
   m_current.attr = A_BD;
 
-  if (!ddata)
-    return;
+  sprintf(tbuf, " %-10.10s%4dx%-4d%10.10s@%-16.16s%s",
+      d->d_termname, d->d_width, d->d_height, d->d_user->u_name,
+      d->d_usertty,
+      (d->d_blocked || d->d_nonblock >= 0) && d->d_blocked <= 4 ? blockstates[d->d_blocked] : "  ");
 
-  LClearAll(flayer, 0);
-
-  leftline("term-type   size         user interface           window       Perms", 0, 0);
-  leftline("---------- ------- ---------- ----------------- ----------     -----", 1, 0);
-  y = 2;
-
-  for (d = displays; d; d = d->d_next)
+  if (w)
     {
-      struct mchar *mc;
-      w = d->d_fore;
-
-      if (y >= flayer->l_height - 3)
-	break;
-      sprintf(tbuf, " %-10.10s%4dx%-4d%10.10s@%-16.16s%s",
-	      d->d_termname, d->d_width, d->d_height, d->d_user->u_name,
-	      d->d_usertty,
-	      (d->d_blocked || d->d_nonblock >= 0) && d->d_blocked <= 4 ? blockstates[d->d_blocked] : "  ");
-
-      if (w)
-	{
-	  l = 10 - strlen(w->w_title);
-	  if (l < 0)
-	    l = 0;
-	  sprintf(tbuf + strlen(tbuf), "%3d(%.10s)%*s%c%c%c%c",
-		  w->w_number, w->w_title, l, "",
-		  /* w->w_dlist->next */ 0 ? '&' : ' ',
-		  /*
-		   * The rwx triple:
-		   * -,r,R	no read, read, read only due to foreign wlock
-		   * -,.,w,W	no write, write suppressed by foreign wlock,
-		   *            write, own wlock
-		   * -,x	no execute, execute
-		   */
+      int l = 10 - strlen(w->w_title);
+      if (l < 0)
+	l = 0;
+      sprintf(tbuf + strlen(tbuf), "%3d(%.10s)%*s%c%c%c%c",
+	  w->w_number, w->w_title, l, "",
+	  /* w->w_dlist->next */ 0 ? '&' : ' ',
+	  /*
+	   * The rwx triple:
+	   * -,r,R	no read, read, read only due to foreign wlock
+	   * -,.,w,W	no write, write suppressed by foreign wlock,
+	   *            write, own wlock
+	   * -,x	no execute, execute
+	   */
 #ifdef MULTIUSER
-		  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' :
-		   ((w->w_wlock == WLOCK_OFF || d->d_user == w->w_wlockuser) ?
-		    'r' : 'R')),
-		  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' :
-		   ((w->w_wlock == WLOCK_OFF) ? 'w' :
-		    ((d->d_user == w->w_wlockuser) ? 'W' : 'v'))),
-		  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' : 'x')
+	  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' :
+	   ((w->w_wlock == WLOCK_OFF || d->d_user == w->w_wlockuser) ?
+	    'r' : 'R')),
+	  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' :
+	   ((w->w_wlock == WLOCK_OFF) ? 'w' :
+	    ((d->d_user == w->w_wlockuser) ? 'W' : 'v'))),
+	  (AclCheckPermWin(d->d_user, ACL_READ, w) ? '-' : 'x')
 #else
-		  'r', 'w', 'x'
+	  'r', 'w', 'x'
 #endif
 	  );
-	}
-      leftline(tbuf, y, d == ddata->selected ? &mchar_so : d == ddata->current ? &m_current : 0);
-      if (d == ddata->selected)
-	flayer->l_y = y;
-      y++;
     }
-  sprintf(tbuf,"[Press Space %s Return to end.]",
-	  1 ? "to refresh;" : "or");
-  centerline(tbuf, flayer->l_height - 2);
-  LaySetCursor();
+  leftline(tbuf, lrow->y, lrow == ldata->selected ? &mchar_so : d == display ? &m_current : 0);
+
+  return 1;
 }
 
 static void
-DisplaysRedisplayLine(y, xs, xe, isblank)
-int y, xs, xe, isblank;
+gl_Display_rebuild(struct ListData *ldata)
 {
-  ASSERT(flayer);
-  if (y < 0)
+  /* recreate the rows */
+  struct display *d;
+  struct ListRow *row = NULL;
+  for (d = displays; d; d = d->d_next)
     {
-      displayspage(flayer->l_data);
+      row = glist_add_row(ldata, d, row);
+      if (d == display)
+	ldata->selected = row;
+    }
+
+  glist_display_all(ldata);
+}
+
+static int
+gl_Display_input(struct ListData *ldata, char **inp, int *len)
+{
+  struct display *cd = display;
+  unsigned char ch = (unsigned char) **inp;
+
+  ++*inp;
+  --*len;
+
+  switch (ch)
+    {
+    case ' ':	/* Space to refresh */
+      glist_remove_rows(ldata);
+      gl_Display_rebuild(ldata);
+      break;
+
+    case '\r':
+    case '\n':
+      glist_abort();
+      *len = 0;
+      break;
+
+    case 'd': /* Detach */
+    case 'D': /* Power detach */
+      display = ldata->selected->data;
+      if (display == cd)	/* We do not allow detaching the current display */
+	break;
+      Detach(
+#ifdef POW_DETACH
+	  ch == 'D' ? D_REMOTE_POWER : D_REMOTE
+#else
+	  D_REMOTE
+#endif
+	  );
+      display = cd;
+      glist_remove_rows(ldata);
+      gl_Display_rebuild(ldata);
+      break;
+
+      break;
+
+    default:
+      /* We didn't actually process the input. */
+      --*inp;
+      ++*len;
+      return 0;
+    }
+  return 1;
+}
+
+static int
+gl_Display_freerow(struct ListData *ldata, struct ListRow *row)
+{
+  /* There was no allocation when row->data was set. So nothing to do here. */
+}
+
+static struct GenericList gl_Display =
+{
+  gl_Display_header,
+  gl_Display_footer,
+  gl_Display_row,
+  gl_Display_input,
+  gl_Display_freerow
+};
+
+void
+display_displays()
+{
+  struct display *d;
+  struct ListRow *row = NULL;
+  struct ListData *ldata;
+  if (flayer->l_width < 10 || flayer->l_height < 5)
+    {
+      LMsg(0, "Window size too small for displays page");
       return;
     }
-  if (y != 0 && y != flayer->l_height - 1)
+
+  ldata = glist_display(&gl_Display);
+  if (!ldata)
     return;
-  if (isblank)
-    return;
-  LClearArea(flayer, xs, y, xe, y, 0, 0);
-  /* To be filled in... */
+
+  for (d = displays; d; d = d->d_next)
+    {
+      row = glist_add_row(ldata, d, row);
+      if (d == display)
+	ldata->selected = row;
+    }
+  glist_display_all(ldata);
 }
 
 #endif /* MULTI */

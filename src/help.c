@@ -33,6 +33,8 @@
 #include "screen.h"
 #include "extern.h"
 
+#include "list_generic.h"
+
 char version[60];      /* initialised by main() */
 
 extern struct layer *flayer;
@@ -680,8 +682,6 @@ int y, xs, xe, isblank;
   LClearArea(flayer, xs, y, xe, y, 0, 0);
 }
 
-
-#include "list_display.c"
 
 /*
 **
