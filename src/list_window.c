@@ -434,9 +434,17 @@ WListUpdate(struct win *p, struct ListData *ldata)
   else
     rbefore = NULL;
 
-  /* For now, just remove the row containing 'p'. */
-  gl_Window_remove(ldata, p);
-  glist_add_row(ldata, p, rbefore);
+  /* For now, just remove the row containing 'p' if it is not already in the right place . */
+  row = gl_Window_findrow(ldata, p);
+  if (row)
+    {
+      if (row->prev != rbefore)
+	gl_Window_remove(ldata, p);
+      else
+	p = NULL;		/* the window is in the correct place */
+    }
+  if (p)
+    glist_add_row(ldata, p, rbefore);
   glist_display_all(ldata);
 }
 
