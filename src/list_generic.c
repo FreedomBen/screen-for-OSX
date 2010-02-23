@@ -37,7 +37,7 @@ static int  ListRewrite __P((int, int, int, struct mchar *, int));
 static int  ListResize __P((int, int));
 static void ListRestore __P((void));
 
-static struct LayFuncs ListLf =
+struct LayFuncs ListLf =
 {
   ListProcess,
   ListAbort,
@@ -50,7 +50,7 @@ static struct LayFuncs ListLf =
 
 /** Returns non-zero on success. */
 struct ListData *
-glist_display(struct GenericList *list)
+glist_display(struct GenericList *list, const char *name)
 {
   struct ListData *ldata;
 
@@ -58,6 +58,7 @@ glist_display(struct GenericList *list)
     return NULL;
   ldata = flayer->l_data;
 
+  ldata->name = name;	/* We do not SaveStr, since the strings should be all static literals */
   ldata->list_fn = list;
 
   flayer->l_mode = 1;
@@ -243,6 +244,8 @@ glist_display_all(struct ListData *list)
 
   if (!list->top)
     list->top = list->root;
+  if (!list->selected)
+    list->selected = list->root;
 
   for (row = list->root; row != list->top; row = row->next)
     row->y = -1;

@@ -50,6 +50,8 @@ extern struct win **wtab;
 extern struct term term[];
 #endif
 
+extern struct LayFuncs ListLf;
+
 static void PadStr __P((char *, int, int, int));
 
 extern char *wliststr;
@@ -1310,43 +1312,6 @@ struct win *p;
   LaySetCursor();
 }
 #endif
-
-void
-WListUpdatecv(cv, p)
-struct canvas *cv;
-struct win *p;
-{
-#if 0
-  if (cv->c_layer->l_layfn != &WListLf)
-    return;
-  CV_CALL(cv, WListUpdate(p));
-#endif
-#warning  Fixme
-}
-
-void
-WListLinkChanged()
-{
-#if 0
-  struct display *olddisplay = display;
-  struct canvas *cv;
-  struct wlistdata *wlistdata;
-
-  for (display = displays; display; display = display->d_next)
-    for (cv = D_cvlist; cv; cv = cv->c_next)
-      {
-        if (!cv->c_layer || cv->c_layer->l_layfn != &WListLf)
-	  continue;
-        wlistdata = (struct wlistdata *)cv->c_layer->l_data;
-	if (wlistdata->order != WLIST_MRU)
-	  continue;
-        CV_CALL(cv, WListUpdate(0));
-      }
-  display = olddisplay;
-#endif
-#warning  Fix me too!
-}
-
 
 /*
 **

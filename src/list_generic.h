@@ -42,6 +42,7 @@ struct GenericList
 
 struct ListData
 {
+  const char *name;		/* An identifier for the list */
   struct ListRow *root;		/* The first item in the list */
   struct ListRow *selected;	/* The selected row */
   struct ListRow *top;		/* The topmost visible row */
@@ -51,6 +52,8 @@ struct ListData
   void *data;			/* List specific data */
 };
 
+extern struct LayFuncs ListLf;
+
 
 struct ListRow * glist_add_row __P((struct ListData *ldata, void *data, struct ListRow *after));
 
@@ -58,7 +61,7 @@ void glist_remove_rows __P((struct ListData *ldata));
 
 void glist_display_all __P((struct ListData *list));
 
-struct ListData * glist_display __P((struct GenericList *list));
+struct ListData * glist_display __P((struct GenericList *list, const char *name));
 
 void glist_abort __P((void));
 

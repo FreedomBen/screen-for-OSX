@@ -29,7 +29,7 @@
 #include "list_generic.h"
 
 extern struct layer *flayer;
-extern struct display *display;
+extern struct display *display, *displays;
 
 extern char *wlisttit;
 extern char *wliststr;
@@ -40,11 +40,14 @@ extern int renditions[];
 extern struct win **wtab, *windows;
 extern int maxwin;
 
+static char ListID[] = "window";
+
 struct gl_Window_Data
 {
-  struct win *group;	/* Currently displaying this group */
-  int order;		/* MRU? NESTED? etc. */
+  struct win *group;	/* Set only for a W_TYPE_GROUP window */
+  int order;		/* MRU? NUM? */
   int onblank;
+  int nested;
   struct win *fore;	/* The foreground window we had. */
 };
 
@@ -83,6 +86,50 @@ gl_Window_rebuild(struct ListData *ldata)
 	}
     }
   glist_display_all(ldata);
+}
+
+static struct ListRow *
+gl_Window_findrow(struct ListData *ldata, struct win *p)
+{
+  struct ListRow *row = ldata->root;
+  for (; row; row = row->next)
+    {
+      if (row->data == p)
+	break;
+    }
+  return row;
+}
+
+static int
+gl_Window_remove(struct ListData *ldata, struct win *p)
+{
+  struct ListRow *row = gl_Window_findrow(ldata, p);
+  if (!row)
+    return 0;
+
+  /* Remove 'row'. Update 'selected', 'top', 'root' if necessary. */
+  if (row->next)
+    row->next->prev = row->prev;
+  if (row->prev)
+    row->prev->next = row->next;
+  if (row->child)
+    {
+      /* Move the children to row->parent. Make sure the ordering is right. */
+    }
+  if (row->parent && row->parent->child == row)
+    row->parent->child = row->next;
+
+  if (ldata->selected == row)
+    ldata->selected = row->prev ? row->prev : row->next;
+  if (ldata->top == row)
+    ldata->selected = row->prev ? row->prev : row->next;
+  if (ldata->root == row)
+    ldata->root = row->next;
+
+  ldata->list_fn->gl_freerow(ldata, row);
+  free(row);
+
+  return 1;
 }
 
 static int
@@ -174,13 +221,20 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
       if (display && AclCheckPermWin(D_user, ACL_READ, win))
 	return;		/* Not allowed to switch to this window. */
 #endif
-      glist_abort();
-      display = cd;
+      if (!wdata->group)
+	{
+	  /* Do not abort the group window. */
+	  glist_abort();
+	  display = cd;
+	}
       SwitchWindow(win->w_number);
+      *len = 0;
       break;
 
     case 033:	/* escape */
     case 007:	/* ^G */
+      if (wdata->group)
+	break;	/* Do nothing if it's a group window */
       if (wdata->onblank)
 	{
 	  glist_abort();
@@ -232,6 +286,10 @@ display_windows(int onblank, int order, struct win *group)
       LMsg(0, "Window size too small for window list page");
       return;
     }
+
+  if (group)
+    onblank = 0;	/* When drawing a group window, ignore 'onblank' */
+
   if (onblank)
     {
       debug3("flayer %x %d %x\n", flayer, flayer->l_width, flayer->l_height);
@@ -264,7 +322,7 @@ display_windows(int onblank, int order, struct win *group)
 
   struct ListData *ldata;
   struct gl_Window_Data *wdata;
-  ldata = glist_display(&gl_Window);
+  ldata = glist_display(&gl_Window, ListID);
   if (!ldata)
     {
       if (onblank && p)
@@ -278,11 +336,148 @@ display_windows(int onblank, int order, struct win *group)
 
   wdata = calloc(1, sizeof(struct gl_Window_Data));
   wdata->group = group;
-  wdata->order = order;
+  wdata->order = (order & ~WLIST_NESTED);
+  wdata->nested = !!(order & WLIST_NESTED);
   wdata->onblank = onblank;
-  wdata->fore = p;
+
+  /* Set the most recent window as selected. */
+  wdata->fore = windows;
+  while (wdata->fore && wdata->fore->w_group != group)
+    wdata->fore = wdata->fore->w_next;
+
   ldata->data = wdata;
 
   gl_Window_rebuild(ldata);
+}
+
+static void
+WListUpdate(struct win *p, struct ListData *ldata)
+{
+  struct gl_Window_Data *wdata = ldata->data;
+  struct ListRow *row, *rbefore;
+  struct win *before;
+  int d = 0;
+
+  if (!p)
+    {
+      if (ldata->selected)
+	wdata->fore = ldata->selected->data;	/* Try to retain the current selection */
+      glist_remove_rows(ldata);
+      gl_Window_rebuild(ldata);
+      return;
+    }
+
+  /* First decide if this window should be displayed at all. */
+  d = 1;
+  if (wdata->order == WLIST_NUM || wdata->order == WLIST_MRU)
+    {
+      if (p->w_group != wdata->group)
+	{
+	  if (!wdata->nested)
+	    d = 0;
+	  else
+	    {
+	      struct win *g = p->w_group;
+	      for (; g; g = g->w_group)
+		if (g->w_group == wdata->group)
+		  break;
+	      if (!g)
+		d = 0;
+	    }
+	}
+    }
+
+  if (!d)
+    {
+      if (gl_Window_remove(ldata, p))
+	glist_display_all(ldata);
+      return;
+    }
+
+  /* OK, so we keep the window in the list. Update the ordering.
+   * First, find the row where this window should go to. Then, either create
+   * a new row for that window, or move the exising row for the window to the
+   * correct place. */
+  before = NULL;
+  if (wdata->order == WLIST_MRU)
+    {
+      if (windows != p)
+	for (before = windows; before; before = before->w_next)
+	  if (before->w_next == p)
+	    break;
+    }
+  else if (wdata->order == WLIST_NUM)
+    {
+      if (p->w_number != 0)
+	{
+	  struct win **w = wtab + p->w_number - 1;
+	  for (; w >= wtab; w--)
+	    {
+	      if (*w && (*w)->w_group == wdata->group)
+		{
+		  before = *w;
+		  break;
+		}
+	    }
+	}
+    }
+
+  if (wdata->nested && before == NULL)
+    {
+      /* TODO: insert after the parent */
+#warning Fix me
+    }
+
+  /* Now, find the row belonging to 'before' */
+  if (before)
+    rbefore = gl_Window_findrow(ldata, before);
+  else
+    rbefore = NULL;
+
+  /* For now, just remove the row containing 'p'. */
+  gl_Window_remove(ldata, p);
+  glist_add_row(ldata, p, rbefore);
+  glist_display_all(ldata);
+}
+
+void
+WListUpdatecv(cv, p)
+struct canvas *cv;
+struct win *p;
+{
+  struct ListData *ldata;
+  struct gl_Window_Data *wdata;
+
+  if (cv->c_layer->l_layfn != &ListLf)
+    return;
+  ldata = cv->c_layer->l_data;
+  if (ldata->name != ListID)
+    return;
+  wdata = ldata->data;
+  CV_CALL(cv, WListUpdate(p, ldata));
+}
+
+void
+WListLinkChanged()
+{
+  struct display *olddisplay = display;
+  struct canvas *cv;
+  struct ListData *ldata;
+  struct gl_Window_Data *wdata;
+
+  for (display = displays; display; display = display->d_next)
+    for (cv = D_cvlist; cv; cv = cv->c_next)
+      {
+        if (!cv->c_layer || cv->c_layer->l_layfn != &ListLf)
+	  continue;
+	ldata = cv->c_layer->l_data;
+	if (ldata->name != ListID)
+	  continue;
+	wdata = ldata->data;
+	if (!(wdata->order & WLIST_MRU))
+	  continue;
+        CV_CALL(cv, WListUpdate(0, ldata));
+      }
+  display = olddisplay;
 }
 

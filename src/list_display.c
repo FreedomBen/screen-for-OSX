@@ -42,6 +42,8 @@ extern struct layer *flayer;
 extern struct display *display, *displays;
 extern struct mchar mchar_blank, mchar_so;
 
+static char ListID[] = "display";
+
 /*
  * layout of the displays page is as follows:
 
@@ -229,7 +231,7 @@ display_displays()
       return;
     }
 
-  ldata = glist_display(&gl_Display);
+  ldata = glist_display(&gl_Display, ListID);
   if (!ldata)
     return;
 
