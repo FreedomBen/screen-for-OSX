@@ -4236,7 +4236,7 @@ int key;
 	  if (args[0][0])
 	    {
 	      fore->w_group = WindowByName(*args);
-	      if (fore->w_group && fore->w_group->w_type != W_TYPE_GROUP)
+	      if (fore->w_group == fore || (fore->w_group && fore->w_group->w_type != W_TYPE_GROUP))
 		fore->w_group = 0;
 	    }
 	  WindowChanged((struct win *)0, 'w');
