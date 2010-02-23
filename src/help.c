@@ -717,6 +717,7 @@ struct wlistdata {
   int *list;
 };
 
+#if 0
 static struct LayFuncs WListLf =
 {
   WListProcess,
@@ -727,9 +728,11 @@ static struct LayFuncs WListLf =
   WListResize,
   DefRestore
 };
+#endif
 
 #define WTAB_GROUP_MATCHES(i) (group == wtab[i]->w_group)
 
+#if 0
 static int
 WListResize(wi, he)
 int wi, he;
@@ -1155,6 +1158,7 @@ struct win *group;
     return ind;
   return WListOrder(wlistdata, ind, start, group);
 }
+#endif
 
 void
 display_wlist(onblank, order, group)
@@ -1162,8 +1166,12 @@ int onblank;
 int order;
 struct win *group;
 {
+  display_windows(onblank, order, group);
+  return;
+#if 0
   struct win *p;
   struct wlistdata *wlistdata;
+
 
   if (flayer->l_width < 10 || flayer->l_height < 6)
     {
@@ -1214,8 +1222,10 @@ struct win *group;
   wlistdata->numwin = flayer->l_height - (group ? 4 : 3);
   wlistdata->nested = (order & WLIST_NESTED);
   wlistpage();
+#endif
 }
 
+#if 0
 static void
 wlistpage()
 {
@@ -1299,20 +1309,25 @@ struct win *p;
   WListLine(y, i, wlistdata->pos, 0);
   LaySetCursor();
 }
+#endif
 
 void
 WListUpdatecv(cv, p)
 struct canvas *cv;
 struct win *p;
 {
+#if 0
   if (cv->c_layer->l_layfn != &WListLf)
     return;
   CV_CALL(cv, WListUpdate(p));
+#endif
+#warning  Fixme
 }
 
 void
 WListLinkChanged()
 {
+#if 0
   struct display *olddisplay = display;
   struct canvas *cv;
   struct wlistdata *wlistdata;
@@ -1328,6 +1343,8 @@ WListLinkChanged()
         CV_CALL(cv, WListUpdate(0));
       }
   display = olddisplay;
+#endif
+#warning  Fix me too!
 }
 
 

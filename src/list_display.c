@@ -145,8 +145,12 @@ static int
 gl_Display_input(struct ListData *ldata, char **inp, int *len)
 {
   struct display *cd = display;
-  unsigned char ch = (unsigned char) **inp;
+  unsigned char ch;
 
+  if (!ldata->selected)
+    return 0;
+
+  ch = (unsigned char) **inp;
   ++*inp;
   --*len;
 
@@ -195,6 +199,14 @@ static int
 gl_Display_freerow(struct ListData *ldata, struct ListRow *row)
 {
   /* There was no allocation when row->data was set. So nothing to do here. */
+  return 0;
+}
+
+static int
+gl_Display_free(struct ListData *ldata)
+{
+  /* There was no allocation in ldata->data. So nothing to do here. */
+  return 0;
 }
 
 static struct GenericList gl_Display =
@@ -203,14 +215,13 @@ static struct GenericList gl_Display =
   gl_Display_footer,
   gl_Display_row,
   gl_Display_input,
-  gl_Display_freerow
+  gl_Display_freerow,
+  gl_Display_free
 };
 
 void
 display_displays()
 {
-  struct display *d;
-  struct ListRow *row = NULL;
   struct ListData *ldata;
   if (flayer->l_width < 10 || flayer->l_height < 5)
     {
@@ -222,13 +233,7 @@ display_displays()
   if (!ldata)
     return;
 
-  for (d = displays; d; d = d->d_next)
-    {
-      row = glist_add_row(ldata, d, row);
-      if (d == display)
-	ldata->selected = row;
-    }
-  glist_display_all(ldata);
+  gl_Display_rebuild(ldata);
 }
 
 #endif /* MULTI */

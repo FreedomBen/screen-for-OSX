@@ -81,7 +81,10 @@ static void ListProcess(char **ppbuf, int *plen)
 	continue;
 
       if (!ldata->selected)
-	*plen = 0;
+	{
+	  *plen = 0;
+	  break;
+	}
 
       ch = **ppbuf;
       ++*ppbuf;
@@ -114,7 +117,8 @@ static void ListProcess(char **ppbuf, int *plen)
 	  ldata->selected = old->next;
 	  break;
 
-	case 007:
+	case 033:	/* escape */
+	case 007:	/* ^G */
 	  ListAbort();
 	  *plen = 0;
 	  return;
@@ -141,6 +145,8 @@ static void ListAbort(void)
 {
   struct ListData *ldata = flayer->l_data;
   glist_remove_rows(ldata);
+  if (ldata->list_fn->gl_free)
+    ldata->list_fn->gl_free(ldata);
   LAY_CALL_UP(LRefreshAll(flayer, 0));
   ExitOverlayPage();
 }

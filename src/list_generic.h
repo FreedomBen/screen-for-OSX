@@ -32,11 +32,12 @@ struct ListRow
 
 struct GenericList
 {
-  int (*gl_printheader) __P((struct ListData *));
-  int (*gl_printfooter) __P((struct ListData *));
-  int (*gl_printrow) __P((struct ListData *, struct ListRow *));
-  int (*gl_pinput) __P((struct ListData *, char **inp, int *len));
-  int (*gl_freerow) __P((struct ListData *, struct ListRow *));
+  int (*gl_printheader) __P((struct ListData *));		/* Print the header */
+  int (*gl_printfooter) __P((struct ListData *));		/* Print the footer */
+  int (*gl_printrow) __P((struct ListData *, struct ListRow *));	/* Print one row */
+  int (*gl_pinput) __P((struct ListData *, char **inp, int *len));	/* Process input */
+  int (*gl_freerow) __P((struct ListData *, struct ListRow *));	/* Free data for a row */
+  int (*gl_free) __P((struct ListData *));			/* Free data for the list */
 };
 
 struct ListData
@@ -46,6 +47,8 @@ struct ListData
   struct ListRow *top;		/* The topmost visible row */
 
   struct GenericList *list_fn;	/* The functions that deal with the list */
+
+  void *data;			/* List specific data */
 };
 
 
@@ -60,4 +63,6 @@ struct ListData * glist_display __P((struct GenericList *list));
 void glist_abort __P((void));
 
 void display_displays __P((void));
+
+void display_windows __P((int onblank, int order, struct win *group));
 

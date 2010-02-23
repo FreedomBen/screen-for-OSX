@@ -62,12 +62,12 @@ CFILES=	screen.c ansi.c fileio.c mark.c misc.c resize.c socket.c \
 	termcap.c input.c attacher.c pty.c process.c display.c comm.c \
 	kmapdef.c acls.c braille.c braille_tsi.c logfile.c layer.c \
 	sched.c teln.c nethack.c encoding.c canvas.c layout.c viewport.c \
-	list_display.c list_generic.c
+	list_display.c list_generic.c list_window.c
 OFILES=	screen.o ansi.o fileio.o mark.o misc.o resize.o socket.o \
 	search.o tty.o term.o window.o utmp.o loadav.o putenv.o help.o \
 	termcap.o input.o attacher.o pty.o process.o display.o comm.o \
 	kmapdef.o acls.o braille.o braille_tsi.o logfile.o layer.o \
-	list_generic.o list_display.o \
+	list_generic.o list_display.o list_window.o \
 	sched.o teln.o nethack.o encoding.o canvas.o layout.o viewport.o
 
 all:	screen
@@ -304,7 +304,7 @@ loadav.o: layout.h viewport.h canvas.h loadav.c config.h screen.h os.h osdef.h a
  comm.h layer.h term.h image.h display.h window.h extern.h
 putenv.o: layout.h viewport.h canvas.h putenv.c config.h
 help.o: layout.h viewport.h canvas.h help.c config.h screen.h os.h osdef.h ansi.h acls.h \
- comm.h layer.h term.h image.h display.h window.h extern.h list_display.c list_generic.h
+ comm.h layer.h term.h image.h display.h window.h extern.h list_generic.h
 termcap.o: layout.h viewport.h canvas.h termcap.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h
 input.o: layout.h viewport.h canvas.h input.c config.h screen.h os.h osdef.h ansi.h acls.h \
@@ -349,4 +349,5 @@ viewport.o: layout.h viewport.h canvas.h viewport.c config.h screen.h os.h osdef
  braille.h
 list_generic.o: list_generic.h list_generic.c layer.h
 list_display.o: list_generic.h list_display.c layer.h
+list_window.o: list_generic.h list_window.c window.h layer.h
 
