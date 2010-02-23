@@ -227,8 +227,59 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
 	  glist_abort();
 	  display = cd;
 	}
-      SwitchWindow(win->w_number);
+      if (D_fore != win)
+	SwitchWindow(win->w_number);
       *len = 0;
+      break;
+
+    case 'm':
+      /* Toggle MRU-ness */
+      wdata->order = wdata->order == WLIST_MRU ? WLIST_NUM : WLIST_MRU;
+      glist_remove_rows(ldata);
+      gl_Window_rebuild(ldata);
+      break;
+
+    case 'a':
+      /* All-window view */
+      if (wdata->group)
+	{
+	  int order = wdata->order | (wdata->nested ? WLIST_NESTED : 0);
+	  glist_abort();
+	  display = cd;
+	  display_windows(1, order, NULL);
+	  *len = 0;
+	}
+      else if (!wdata->nested)
+	{
+	  wdata->nested = 1;
+	  glist_remove_rows(ldata);
+	  gl_Window_rebuild(ldata);
+	}
+      break;
+
+    case 010:	/* ^H */
+    case 0177:	/* Backspace */
+      if (!wdata->group)
+	break;
+      if (wdata->group->w_group)
+	{
+	  /* The parent is another group window. So switch to that window. */
+	  struct win *g = wdata->group->w_group;
+	  glist_abort();
+	  display = cd;
+	  SetForeWindow(g);
+	  *len = 0;
+	}
+      else
+	{
+	  /* We were in a group view. Now we are moving to an all-window view.
+	   * So treat it as 'windowlist on blank'. */
+	  int order = wdata->order | (wdata->nested ? WLIST_NESTED : 0);
+	  glist_abort();
+	  display = cd;
+	  display_windows(1, order, NULL);
+	  *len = 0;
+	}
       break;
 
     case 033:	/* escape */
