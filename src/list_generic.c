@@ -88,11 +88,7 @@ glist_search_dir(struct ListData *ldata, struct ListRow *start, int dir)
       return row;
 
   if (dir == 1)
-    {
-      for (row = ldata->root; row != start; row = row->next)
-	if (ldata->list_fn->gl_matchrow(ldata, row, ldata->search))
-	  break;
-    }
+    row = ldata->root;
   else
     {
       /* First, go to the end */
@@ -101,10 +97,11 @@ glist_search_dir(struct ListData *ldata, struct ListRow *start, int dir)
       else
 	for (row = start->next; row->next; row = row->next)
 	  ;
-      for (; row != start; row = row->prev)
-	if (ldata->list_fn->gl_matchrow(ldata, row, ldata->search))
-	  break;
     }
+
+  for (; row != start; row = (dir == 1) ? row->next : row->prev)
+    if (ldata->list_fn->gl_matchrow(ldata, row, ldata->search))
+      break;
 
   return row;
 }
