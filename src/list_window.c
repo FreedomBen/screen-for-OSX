@@ -227,12 +227,20 @@ static int
 gl_Window_header(struct ListData *ldata)
 {
   char *str;
+  struct gl_Window_Data *wdata = ldata->data;
+  int g;
+
+  if ((g = (wdata->group != NULL)))
+    {
+      LPutWinMsg(flayer, "Group: ", 7, &mchar_blank, 0, 0);
+      LPutWinMsg(flayer, wdata->group->w_title, strlen(wdata->group->w_title), &mchar_blank, 7, 0);
+    }
 
   display = 0;
   str = MakeWinMsgEv(wlisttit, (struct win *)0, '%', flayer->l_width, (struct event *)0, 0);
 
-  LPutWinMsg(flayer, str, strlen(str), &mchar_blank, 0, 0);
-  return 2;
+  LPutWinMsg(flayer, str, strlen(str), &mchar_blank, 0, g);
+  return 2 + g;
 }
 
 static int
