@@ -30,6 +30,7 @@
 #include "screen.h"
 #include "extern.h"
 #include "canvas.h"
+#include "list_generic.h"
 
 extern struct display *display;
 extern struct win *fore, *windows;
@@ -307,7 +308,7 @@ struct win *wi;
       struct display *d = display;
       struct layer *oldflayer = flayer;
       flayer = l;
-      display_wlist(0, 0, wi);
+      display_windows(0, 0, wi);
       flayer = oldflayer;
       display = d;
     }

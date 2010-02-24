@@ -51,6 +51,7 @@
 #include "logfile.h"
 #include "layout.h"
 #include "viewport.h"
+#include "list_generic.h"
 
 extern struct comm comms[];
 extern char *rc_name;
@@ -2202,7 +2203,7 @@ int key;
 #endif
     case RC_WINDOWLIST:
       if (!*args)
-        display_wlist(0, WLIST_NUM, (struct win *)0);
+        display_windows(0, WLIST_NUM, (struct win *)0);
       else if (!strcmp(*args, "string"))
 	{
 	  if (args[1])
@@ -2244,7 +2245,7 @@ int key;
 		break;
 	      }
 	  if (i == argc)
-	    display_wlist(blank, flag, (struct win *)0);
+	    display_windows(blank, flag, (struct win *)0);
 	}
       break;
     case RC_HELP:

@@ -49,6 +49,7 @@
 #endif
 
 #include "extern.h"
+#include "list_generic.h"
 
 static int   CheckPid __P((int));
 static void  ExecCreate __P((struct msg *));
@@ -1442,9 +1443,9 @@ struct msg *m;
 	{
 	  struct display *olddisplay = display;
 	  flayer = D_forecv->c_layer;
-	  display_wlist(1, WLIST_NUM, (struct win *)0);
+	  display_windows(1, WLIST_NUM, (struct win *)0);
 	  noshowwin = 1;
-	  display = olddisplay;	/* display_wlist can change display */
+	  display = olddisplay;	/* display_windows can change display */
 	}
     }
   Activate(0);
