@@ -68,9 +68,20 @@ glist_display(struct GenericList *list, const char *name)
   return ldata;
 }
 
+static void
+glist_decide_top(struct ListData *ldata)
+{
+  int count = flayer->l_height - 5;	/* 2 for header, 1 for footer */
+  struct ListRow *top = ldata->selected;
+  for (; count && top != ldata->root; top = top->prev, count--)
+    ;
+  ldata->top = top;
+}
+
 static void ListProcess(char **ppbuf, int *plen)
 {
   struct ListData *ldata = flayer->l_data;
+  int count = 0;
 
   while (*plen > 0)
     {
@@ -114,7 +125,6 @@ static void ListProcess(char **ppbuf, int *plen)
 	case 'j':
 	  if (!ldata->selected->next)	/* Nothing to do */
 	    break;
-	  old = ldata->selected;
 	  ldata->selected = old->next;
 	  break;
 
@@ -123,6 +133,39 @@ static void ListProcess(char **ppbuf, int *plen)
 	  ListAbort();
 	  *plen = 0;
 	  return;
+
+	case 0201:	/* home */
+	case 0001:	/* ^A */
+	  ldata->selected = ldata->root;
+	  break;
+
+	case 0205:	/* end */
+	case 0005:	/* ^E */
+	  while (ldata->selected->next)
+	    ldata->selected = ldata->selected->next;
+	  if (ldata->selected->y != -1)
+	    {
+	      /* Both old and current selections are on the screen. So we can just
+	       * redraw these two affected rows. */
+	    }
+	  break;
+
+	case 0004:	/* ^D (half-page down) */
+	case 0006:	/* page-down, ^F */
+	  count = (flayer->l_height - 4) >> (ch == 0004);
+	  for (; ldata->selected->next && --count;
+	      ldata->selected = ldata->selected->next)
+	    ;
+	  break;
+
+	case 0025:	/* ^U (half-page up) */
+	case 0002:	/* page-up, ^B */
+	  count = (flayer->l_height - 4) >> (ch == 0025);
+	  for (; ldata->selected->prev && --count;
+	      ldata->selected = ldata->selected->prev)
+	    ;
+	  break;
+
 	}
 
       if (old == ldata->selected)	/* The selection didn't change */
@@ -130,7 +173,9 @@ static void ListProcess(char **ppbuf, int *plen)
 
       if (ldata->selected->y == -1)
 	{
-	  /* We need to list all the rows, since we are scrolling down */
+	  /* We need to list all the rows, since we are scrolling down. But first,
+	   * find the top of the visible list. */
+	  glist_decide_top(ldata);
 	  glist_display_all(ldata);
 	}
       else
