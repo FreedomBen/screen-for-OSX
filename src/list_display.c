@@ -169,6 +169,7 @@ gl_Display_input(struct ListData *ldata, char **inp, int *len)
       *len = 0;
       break;
 
+#ifdef REMOTE_DETACH
     case 'd': /* Detach */
     case 'D': /* Power detach */
       display = ldata->selected->data;
@@ -185,8 +186,7 @@ gl_Display_input(struct ListData *ldata, char **inp, int *len)
       glist_remove_rows(ldata);
       gl_Display_rebuild(ldata);
       break;
-
-      break;
+#endif
 
     default:
       /* We didn't actually process the input. */

@@ -56,6 +56,10 @@ Version 4.1.0 (??/??/20??):
   * Press 'm' to toggle the most-recent view.
   * Press 'g' to toggle nestedness.
   * Press 'a' to view all windows in the list.
+  * Press '/' to search in the list.
+
+  Display List:
+  * Press 'd' to detach a display, 'D' to power-detach.
 
   Others:
   * Start using 'ChangeLog' for logging changes again.
