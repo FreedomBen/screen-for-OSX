@@ -288,12 +288,13 @@ emulation (only affects auto-margin terminals without `LP').
 This can also be set in your .screenrc by specifying `OP' in a \*Qtermcap\*U
 command.
 .TP 5
-.BI "\-p " number_or_name
+.BI "\-p " number_or_name|-|=|+
 Preselect a window. This is useful when you want to reattach to a
 specific window or you want to send a command via the \*Q-X\*U
 option to a specific window. As with screen's select command, \*Q-\*U
 selects the blank window. As a special case for reattach, \*Q=\*U
-brings up the windowlist on the blank window. The command will not be
+brings up the windowlist on the blank window, while a \*Q+\*U
+will create a new window. The command will not be
 executed if the specified window could not be found.
 .TP 5
 .B \-q
@@ -364,6 +365,10 @@ default [\fItty.host\fP] suffix.
 .BI "\-t " name
 sets the title (a.\|k.\|a.) for the default shell or specified program.
 See also the \*Qshelltitle\*U .screenrc command.
+.TP 5
+.BI "\-T " term
+Set the $TERM enviroment varible using the spcified term as
+opposed to the defualt setting of \fBscreen\fP.
 .TP 5
 .B \-U
 Run screen in UTF-8 mode. This option tells screen that your terminal
@@ -2932,21 +2937,22 @@ Select whether you want to see the copyright notice during startup.
 Default is `on', as you probably noticed.
 .sp
 .ne 3
-.B stuff
-.I string
+.B stuff 
+.RB  [ "\fIstring\fR" ]
 .PP
 Stuff the string
 .I string
 in the input buffer of the current window.
 This is like the \*Qpaste\*U command but with much less overhead.
+Without a paramter, screen will prompt for a string to stuff.
 You cannot paste
 large buffers with the \*Qstuff\*U command. It is most useful for key
 bindings. See also \*Qbindkey\*U.
 .sp
 .ne 3
 .B su
-.RB [ username " [" password
-.RB [ password2 ]]
+.RI [ username " [" password
+.RI [ password2 ]]]
 .PP
 Substitute the user of a display. The command prompts for all parameters that
 are omitted. If passwords are specified as parameters, they have to be
