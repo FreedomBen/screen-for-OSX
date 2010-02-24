@@ -1,4 +1,7 @@
-/* Copyright (c) 2008, 2009
+/* Copyright (c) 2010
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Sadrul Habib Chowdhury (sadrul@users.sourceforge.net)
+ * Copyright (c) 2008, 2009
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  *      Micah Cowan (micah@cowan.name)
@@ -764,17 +767,12 @@ char **av;
   real_gid = getgid();
   eff_uid = geteuid();
   eff_gid = getegid();
-  if (eff_uid != real_uid)
-    {
-      /* if running with s-bit, we must install a special signal
-       * handler routine that resets the s-bit, so that we get a
-       * core file anyway.
-       */
+
 #ifdef SIGBUS /* OOPS, linux has no bus errors! */
-      signal(SIGBUS, CoreDump);
+  signal(SIGBUS, CoreDump);
 #endif /* SIGBUS */
-      signal(SIGSEGV, CoreDump);
-    }
+  signal(SIGSEGV, CoreDump);
+
 
 #ifdef USE_LOCALE
   setlocale(LC_ALL, "");
@@ -1636,8 +1634,20 @@ SigInt SIGDEFARG
 static sigret_t
 CoreDump SIGDEFARG
 {
+  /* if running with s-bit, we must reset the s-bit, so that we get a
+   * core file anyway.
+   */
+
   struct display *disp;
   char buf[80];
+
+  char *dump_msg = " (core dumped)";
+
+  int running_w_s_bit = getuid() != geteuid();
+#if defined(SHADOWPW) && !defined(DEBUG) && !defined(DUMPSHADOW)
+  if (running_w_s_bit)
+    dump_msg = "";
+#endif
 
 #if defined(SYSVSIGS) && defined(SIGHASARG)
   signal(sigsig, SIG_IGN);
@@ -1645,30 +1655,34 @@ CoreDump SIGDEFARG
   setgid(getgid());
   setuid(getuid());
   unlink("core");
+
 #ifdef SIGHASARG
-  sprintf(buf, "\r\n[screen caught signal %d.%s]\r\n", sigsig,
+  sprintf(buf, "\r\n[screen caught signal %d.%s]\r\n", sigsig, dump_msg);
 #else
-  sprintf(buf, "\r\n[screen caught a fatal signal.%s]\r\n",
+  sprintf(buf, "\r\n[screen caught a fatal signal.%s]\r\n", dump_msg);
 #endif
-#if defined(SHADOWPW) && !defined(DEBUG) && !defined(DUMPSHADOW)
-              ""
-#else /* SHADOWPW  && !DEBUG */
-              " (core dumped)"
-#endif /* SHADOWPW  && !DEBUG */
-              );
+
   for (disp = displays; disp; disp = disp->d_next)
     {
+      if (disp->d_nonblock < -1 || disp->d_nonblock > 1000000)
+	continue;
       fcntl(disp->d_userfd, F_SETFL, 0);
       SetTTY(disp->d_userfd, &D_OldMode);
       write(disp->d_userfd, buf, strlen(buf));
       Kill(disp->d_userpid, SIG_BYE);
     }
+
+  if (running_w_s_bit)
+    {
 #if defined(SHADOWPW) && !defined(DEBUG) && !defined(DUMPSHADOW)
-  Kill(getpid(), SIGKILL);
-  eexit(11);
+      Kill(getpid(), SIGKILL);
+      eexit(11);
 #else /* SHADOWPW && !DEBUG */
-  abort();
+      abort();
 #endif /* SHADOWPW  && !DEBUG */
+    }
+  else
+    abort();
   SIGRETURN;
 }
 
