@@ -26,7 +26,6 @@ struct ListRow
 {
   void *data;		/* Some data relevant to this row */
   struct ListRow *next, *prev;	/* doubly linked list */
-  struct ListRow *parent, *child;	/* can also be tree */
   int y;	/* -1 if not on display */
 };
 

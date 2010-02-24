@@ -51,6 +51,59 @@ struct gl_Window_Data
   struct win *fore;	/* The foreground window we had. */
 };
 
+/* Is 'a' an ancestor of 'd'? */
+static int
+window_ancestor(struct win *a, struct win *d)
+{
+  if (!a)
+    return 1;	/* Every window is a descendant of the 'null' group */
+  for (; d; d = d->w_group)
+    if (d->w_group == a)
+      return 1;
+  return 0;
+}
+
+static struct ListRow *
+gl_Window_add_group(struct ListData *ldata, struct ListRow *row)
+{
+  /* Right now, 'row' doesn't have any child. */
+  struct gl_Window_Data *wdata = ldata->data;
+  struct win *group = row->data;
+  struct ListRow *cur = row;
+
+  ASSERT(wdata->nested);
+
+  if (wdata->order == WLIST_MRU)
+    {
+      struct win *w;
+      for (w = windows; w; w = w->w_next)
+	{
+	  if (w->w_group != group)
+	    continue;
+
+	  cur = glist_add_row(ldata, w, cur);
+
+	  if (w->w_type == W_TYPE_GROUP)
+	    cur = gl_Window_add_group(ldata, cur);
+	}
+    }
+  else if (wdata->order == WLIST_NUM)
+    {
+      struct win **w;
+      for (w = wtab; w - wtab < maxwin; w++)
+	{
+	  if (!*w || (*w)->w_group != group)
+	    continue;
+
+	    cur = glist_add_row(ldata, *w, cur);
+
+	  if ((*w)->w_type == W_TYPE_GROUP)
+	    cur = gl_Window_add_group(ldata, cur);
+	}
+    }
+  return cur;
+}
+
 static void
 gl_Window_rebuild(struct ListData *ldata)
 {
@@ -67,6 +120,8 @@ gl_Window_rebuild(struct ListData *ldata)
 	      row = glist_add_row(ldata, w, row);
 	      if (w == wdata->fore)
 		ldata->selected = row;
+	      if (w->w_type == W_TYPE_GROUP && wdata->nested)
+		row = gl_Window_add_group(ldata, row);
 	    }
 	}
     }
@@ -82,6 +137,8 @@ gl_Window_rebuild(struct ListData *ldata)
 	      if (*w == wdata->fore)
 		ldata->selected = row;
 	      wlist = wlist->w_next;
+	      if ((*w)->w_type == W_TYPE_GROUP && wdata->nested)
+		row = gl_Window_add_group(ldata, row);
 	    }
 	}
     }
@@ -112,12 +169,6 @@ gl_Window_remove(struct ListData *ldata, struct win *p)
     row->next->prev = row->prev;
   if (row->prev)
     row->prev->next = row->next;
-  if (row->child)
-    {
-      /* Move the children to row->parent. Make sure the ordering is right. */
-    }
-  if (row->parent && row->parent->child == row)
-    row->parent->child = row->next;
 
   if (ldata->selected == row)
     ldata->selected = row->prev ? row->prev : row->next;
@@ -154,25 +205,21 @@ static int
 gl_Window_row(struct ListData *ldata, struct ListRow *lrow)
 {
   char *str;
-  struct win *w;
+  struct win *w, *g;
   int xoff;
   struct mchar *mchar;
   struct mchar mchar_rend = mchar_blank;
-  struct ListRow *par = lrow;
+  struct gl_Window_Data *wdata = ldata->data;
 
   w = lrow->data;
 
-  /* XXX: First, make sure we want to display this window in the list.
+  /* First, make sure we want to display this window in the list.
    * If we are showing a list for a group, and not on blank, then we must
    * only show the windows directly belonging to that group.
    * Otherwise, do some more checks. */
 
-  for (xoff = 0, par = lrow->parent; par; par = par->parent)
-    {
-      if (par->y == -1)
-	break;
-      xoff += 2;
-    }
+  for (xoff = 0, g = w->w_group; g != wdata->group; g = g->w_group)
+    xoff += 2;
   display = Layer2Window(flayer) ? 0 : flayer->l_cvlist ? flayer->l_cvlist->c_display : 0;
   str = MakeWinMsgEv(wliststr, w, '%', flayer->l_width - xoff, NULL, 0);
   if (ldata->selected == lrow)
@@ -191,6 +238,9 @@ gl_Window_row(struct ListData *ldata, struct ListRow *lrow)
     mchar = &mchar_blank;
 
   LPutWinMsg(flayer, str, flayer->l_width, mchar, xoff, lrow->y);
+  if (xoff)
+    LPutWinMsg(flayer, "", xoff, mchar, 0, lrow->y);
+
   return 1;
 }
 
@@ -235,6 +285,13 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
     case 'm':
       /* Toggle MRU-ness */
       wdata->order = wdata->order == WLIST_MRU ? WLIST_NUM : WLIST_MRU;
+      glist_remove_rows(ldata);
+      gl_Window_rebuild(ldata);
+      break;
+
+    case 'g':
+      /* Toggle nestedness */
+      wdata->nested = !wdata->nested;
       glist_remove_rows(ldata);
       gl_Window_rebuild(ldata);
       break;
@@ -427,14 +484,7 @@ WListUpdate(struct win *p, struct ListData *ldata)
 	  if (!wdata->nested)
 	    d = 0;
 	  else
-	    {
-	      struct win *g = p->w_group;
-	      for (; g; g = g->w_group)
-		if (g->w_group == wdata->group)
-		  break;
-	      if (!g)
-		d = 0;
-	    }
+	    d = window_ancestor(wdata->group, p);
 	}
     }
 
@@ -473,15 +523,11 @@ WListUpdate(struct win *p, struct ListData *ldata)
 	}
     }
 
-  if (wdata->nested && before == NULL)
-    {
-      /* TODO: insert after the parent */
-#warning Fix me
-    }
-
   /* Now, find the row belonging to 'before' */
   if (before)
     rbefore = gl_Window_findrow(ldata, before);
+  else if (wdata->nested && p->w_group)	/* There's no 'before'. So find the group window */
+    rbefore = gl_Window_findrow(ldata, p->w_group);
   else
     rbefore = NULL;
 

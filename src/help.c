@@ -691,6 +691,7 @@ int y, xs, xe, isblank;
 **
 */
 
+#if 0
 struct wlistdata;
 
 static void WListProcess __P((char **, int *));
@@ -719,7 +720,6 @@ struct wlistdata {
   int *list;
 };
 
-#if 0
 static struct LayFuncs WListLf =
 {
   WListProcess,
@@ -730,11 +730,9 @@ static struct LayFuncs WListLf =
   WListResize,
   DefRestore
 };
-#endif
 
 #define WTAB_GROUP_MATCHES(i) (group == wtab[i]->w_group)
 
-#if 0
 static int
 WListResize(wi, he)
 int wi, he;

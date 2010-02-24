@@ -138,6 +138,8 @@ static void ListProcess(char **ppbuf, int *plen)
 	  /* just redisplay the two lines. */
 	  ldata->list_fn->gl_printrow(ldata, old);
 	  ldata->list_fn->gl_printrow(ldata, ldata->selected);
+	  flayer->l_y = ldata->selected->y;
+	  LaySetCursor();
 	}
     }
 }
@@ -265,6 +267,10 @@ glist_display_all(struct ListData *list)
     row->y = -1;
 
   list->list_fn->gl_printfooter(list);
+  if (list->selected && list->selected->y != -1)
+    flayer->l_y = list->selected->y;
+  else
+    flayer->l_y = flayer->l_height - 1;
   LaySetCursor();
 }
 
