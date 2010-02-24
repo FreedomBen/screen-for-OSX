@@ -451,7 +451,7 @@ MakeServerSocket()
       if (stat(SockPath, &st) == -1)
 	Panic(errno, "stat");
       if ((int)st.st_uid != real_uid)
-	Panic(0, "Unfortunatelly you are not its owner.");
+	Panic(0, "Unfortunately you are not its owner.");
       if ((st.st_mode & 0700) == 0600)
 	Panic(0, "To resume it, use \"screen -r\"");
       else
@@ -543,7 +543,7 @@ MakeServerSocket()
       if (stat(SockPath, &st) == -1)
 	Panic(errno, "stat");
       if (st.st_uid != real_uid)
-	Panic(0, "Unfortunatelly you are not its owner.");
+	Panic(0, "Unfortunately you are not its owner.");
       if ((st.st_mode & 0700) == 0600)
 	Panic(0, "To resume it, use \"screen -r\"");
       else

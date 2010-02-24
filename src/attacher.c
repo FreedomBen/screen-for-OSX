@@ -453,7 +453,7 @@ AttacherSigInt SIGDEFARG
 }
 
 /*
- * Unfortunatelly this is also the SIGHUP handler, so we have to
+ * Unfortunately this is also the SIGHUP handler, so we have to
  * check if the backend is already detached.
  */
 

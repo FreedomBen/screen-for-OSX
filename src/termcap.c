@@ -260,7 +260,7 @@ int he;
     D_US = D_UE = 0;
   if (D_SG > 0)
     D_SO = D_SE = 0;
-  /* Unfortunatelly there is no 'mg' capability.
+  /* Unfortunately there is no 'mg' capability.
    * For now we think that mg > 0 if sg and ug > 0.
    */
   if (D_UG > 0 && D_SG > 0)

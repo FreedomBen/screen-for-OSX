@@ -2026,7 +2026,7 @@ automatically if the window is displayed more than once.
 (none)@*
 This forces any currently selected region to be automatically
 resized at least a certain @var{width} and @var{height}. All
-other surrounding regions will be resized in order to accomodate.
+other surrounding regions will be resized in order to accommodate.
 This constraint follows every time the @code{focus} command is
 used. The @code{resize} command can be used to increase either
 dimension of a region, but never below what is set with
