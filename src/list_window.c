@@ -173,7 +173,7 @@ gl_Window_remove(struct ListData *ldata, struct win *p)
   if (ldata->selected == row)
     ldata->selected = row->prev ? row->prev : row->next;
   if (ldata->top == row)
-    ldata->selected = row->prev ? row->prev : row->next;
+    ldata->top = row->prev ? row->prev : row->next;
   if (ldata->root == row)
     ldata->root = row->next;
 
