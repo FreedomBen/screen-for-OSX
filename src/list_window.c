@@ -22,6 +22,11 @@
 
 /* Deals with the list of windows */
 
+/* NOTE: A 'struct win *' is used as the 'data' for each row. It might make more sense
+ * to use 'struct win* ->w_number' as the 'data', instead, because that way, we can
+ * verify that the window does exist (by looking at wtab[]).
+ */
+
 #include "config.h"
 #include "screen.h"
 #include "layer.h"
@@ -37,8 +42,10 @@ extern char *wliststr;
 extern struct mchar mchar_blank, mchar_so;
 extern int renditions[];
 
-extern struct win **wtab, *windows;
+extern struct win **wtab, *windows, *fore;
 extern int maxwin;
+
+extern char *noargs[];
 
 static char ListID[] = "window";
 
@@ -61,6 +68,35 @@ window_ancestor(struct win *a, struct win *d)
     if (d->w_group == a)
       return 1;
   return 0;
+}
+
+static void
+window_kill_confirm(char *buf, int len, char *data)
+{
+  struct win *w = windows;
+  struct action act;
+
+  if (len || (*buf != 'y' && *buf != 'Y'))
+    {
+      *buf = 0;
+      return;
+    }
+
+  /* Loop over the windows to make sure that the window actually still exists. */
+  for (; w; w = w->w_next)
+    if (w == (struct win *)data)
+      break;
+
+  if (!w)
+    return;
+
+  /* Pretend the selected window is the foreground window. Then trigger a non-interactive 'kill' */
+  fore = w;
+  act.nr = RC_KILL;
+  act.args = noargs;
+  act.argl = 0;
+  act.quiet = 0;
+  DoAction(&act, -1);
 }
 
 static struct ListRow *
@@ -263,12 +299,12 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
   ++*inp;
   --*len;
 
+  win = ldata->selected->data;
   switch (ch)
     {
     case ' ':
     case '\n':
     case '\r':
-      win = ldata->selected->data;
       if (!win)
 	break;
 #ifdef MULTIUSER
@@ -347,7 +383,6 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
       if (wdata->order == WLIST_NUM && ldata->selected->prev)
 	{
 	  struct win *pw = ldata->selected->prev->data;
-	  win = ldata->selected->data;
 	  if (win->w_group != pw->w_group)
 	    break;	/* Do not allow switching with the parent group */
 
@@ -363,13 +398,21 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
       if (wdata->order == WLIST_NUM && ldata->selected->next)
 	{
 	  struct win *nw = ldata->selected->next->data;
-	  win = ldata->selected->data;
 	  if (win->w_group != nw->w_group)
 	    break;	/* Do not allow switching with the parent group */
 
 	  wdata->fore = win;
 	  WindowChangeNumber(win, nw->w_number);
 	}
+      break;
+
+    case 'K':	/* Kill a window */
+      {
+	char str[MAXSTR];
+	snprintf(str, sizeof(str) - 1, "Really kill window %d (%s) [y/n]",
+	    win->w_number, win->w_title);
+	Input(str, 1, INP_RAW, window_kill_confirm, (char *)win, 0);
+      }
       break;
 
     case 033:	/* escape */
@@ -430,7 +473,8 @@ void
 display_windows(int onblank, int order, struct win *group)
 {
   struct win *p;
-  struct wlistdata *wlistdata;
+  struct ListData *ldata;
+  struct gl_Window_Data *wdata;
 
   if (flayer->l_width < 10 || flayer->l_height < 6)
     {
@@ -471,8 +515,6 @@ display_windows(int onblank, int order, struct win *group)
   if (!group && p)
     group = p->w_group;
 
-  struct ListData *ldata;
-  struct gl_Window_Data *wdata;
   ldata = glist_display(&gl_Window, ListID);
   if (!ldata)
     {
