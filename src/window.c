@@ -1,4 +1,7 @@
-/* Copyright (c) 2008, 2009
+/* Copyright (c) 2010
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Sadrul Habib Chowdhury (sadrul@users.sourceforge.net)
+ * Copyright (c) 2008, 2009
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  *      Micah Cowan (micah@cowan.name)
@@ -2261,3 +2264,54 @@ struct display *d;
 }
 
 #endif
+
+int
+WindowChangeNumber(struct win *win, int n)
+{
+  struct win *p;
+  int old = win->w_number;
+
+  if (n < 0 || n >= maxwin)
+    {
+      Msg(0, "Given window position is invalid.");
+      return 0;
+    }
+
+  p = wtab[n];
+  wtab[n] = win;
+  win->w_number = n;
+  wtab[old] = p;
+  if (p)
+    p->w_number = old;
+#ifdef MULTIUSER
+  /* exchange the acls for these windows. */
+  AclWinSwap(old, n);
+#endif
+#ifdef UTMPOK
+  /* exchange the utmp-slots for these windows */
+  if ((win->w_slot != (slot_t) -1) && (win->w_slot != (slot_t) 0))
+    {
+      RemoveUtmp(win);
+      SetUtmp(win);
+    }
+  if (p && (p->w_slot != (slot_t) -1) && (p->w_slot != (slot_t) 0))
+    {
+      /* XXX: first display wins? */
+#if 0
+      /* Does this make more sense? */
+      display = p->w_lastdisp ? p->w_lastdisp : p->w_layer.l_cvlist ? p->w_layer.l_cvlist->c_display : 0;
+#else
+      display = win->w_layer.l_cvlist ? win->w_layer.l_cvlist->c_display : 0;
+#endif
+      RemoveUtmp(p);
+      SetUtmp(p);
+    }
+#endif
+
+  WindowChanged(win, 'n');
+  WindowChanged((struct win *)0, 'w');
+  WindowChanged((struct win *)0, 'W');
+  WindowChanged((struct win *)0, 0);
+  return 1;
+}
+

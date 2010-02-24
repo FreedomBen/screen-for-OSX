@@ -82,6 +82,8 @@ gl_Window_add_group(struct ListData *ldata, struct ListRow *row)
 	    continue;
 
 	  cur = glist_add_row(ldata, w, cur);
+	  if (w == wdata->fore)
+	    ldata->selected = cur;
 
 	  if (w->w_type == W_TYPE_GROUP)
 	    cur = gl_Window_add_group(ldata, cur);
@@ -95,7 +97,9 @@ gl_Window_add_group(struct ListData *ldata, struct ListRow *row)
 	  if (!*w || (*w)->w_group != group)
 	    continue;
 
-	    cur = glist_add_row(ldata, *w, cur);
+	  cur = glist_add_row(ldata, *w, cur);
+	  if (*w == wdata->fore)
+	    ldata->selected = cur;
 
 	  if ((*w)->w_type == W_TYPE_GROUP)
 	    cur = gl_Window_add_group(ldata, cur);
@@ -339,6 +343,35 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
 	}
       break;
 
+    case ',':	/* Switch numbers with the previous window. */
+      if (wdata->order == WLIST_NUM && ldata->selected->prev)
+	{
+	  struct win *pw = ldata->selected->prev->data;
+	  win = ldata->selected->data;
+	  if (win->w_group != pw->w_group)
+	    break;	/* Do not allow switching with the parent group */
+
+	  /* When a windows's number is successfully changed, it triggers a WListUpdatecv
+	   * with NULL window. So that causes a redraw of the entire list. So reset the
+	   * 'selected' after that. */
+	  wdata->fore = win;
+	  WindowChangeNumber(win, pw->w_number);
+	}
+      break;
+
+    case '.':	/* Switch numbers with the next window. */
+      if (wdata->order == WLIST_NUM && ldata->selected->next)
+	{
+	  struct win *nw = ldata->selected->next->data;
+	  win = ldata->selected->data;
+	  if (win->w_group != nw->w_group)
+	    break;	/* Do not allow switching with the parent group */
+
+	  wdata->fore = win;
+	  WindowChangeNumber(win, nw->w_number);
+	}
+      break;
+
     case 033:	/* escape */
     case 007:	/* ^G */
       if (wdata->group)
@@ -474,7 +507,7 @@ WListUpdate(struct win *p, struct ListData *ldata)
   struct gl_Window_Data *wdata = ldata->data;
   struct ListRow *row, *rbefore;
   struct win *before;
-  int d = 0;
+  int d = 0, sel = 0;
 
   if (!p)
     {
@@ -546,12 +579,19 @@ WListUpdate(struct win *p, struct ListData *ldata)
   if (row)
     {
       if (row->prev != rbefore)
-	gl_Window_remove(ldata, p);
+	{
+	  sel = ldata->selected->data == p;
+	  gl_Window_remove(ldata, p);
+	}
       else
 	p = NULL;		/* the window is in the correct place */
     }
   if (p)
-    glist_add_row(ldata, p, rbefore);
+    {
+      row = glist_add_row(ldata, p, rbefore);
+      if (sel)
+	ldata->selected = row;
+    }
   glist_display_all(ldata);
 }
 

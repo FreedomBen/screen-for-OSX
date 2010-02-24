@@ -1,4 +1,7 @@
-/* Copyright (c) 2008, 2009
+/* Copyright (c) 2010
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Sadrul Habib Chowdhury (sadrul@users.sourceforge.net)
+ * Copyright (c) 2008, 2009
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  *      Micah Cowan (micah@cowan.name)
@@ -2982,42 +2985,12 @@ int key;
 	    n += old;
 	  else if (rel < 0)
 	    n = old - n;
-	  if (n < 0 || n >= maxwin)
+	  if (!WindowChangeNumber(fore, n))
 	    {
-	      Msg(0, "Given window position is invalid.");
+	      /* Window number could not be changed. */
 	      queryflag = -1;
 	      return;
 	    }
-	  p = wtab[n];
-	  wtab[n] = fore;
-	  fore->w_number = n;
-	  wtab[old] = p;
-	  if (p)
-	    p->w_number = old;
-#ifdef MULTIUSER
-	  /* exchange the acls for these windows. */
-	  AclWinSwap(old, n);
-#endif
-#ifdef UTMPOK
-	  /* exchange the utmp-slots for these windows */
-	  if ((fore->w_slot != (slot_t) -1) && (fore->w_slot != (slot_t) 0))
-	    {
-	      RemoveUtmp(fore);
-	      SetUtmp(fore);
-	    }
-	  if (p && (p->w_slot != (slot_t) -1) && (p->w_slot != (slot_t) 0))
-	    {
-	      /* XXX: first display wins? */
-	      display = fore->w_layer.l_cvlist ? fore->w_layer.l_cvlist->c_display : 0;
-	      RemoveUtmp(p);
-	      SetUtmp(p);
-	    }
-#endif
-
-	  WindowChanged(fore, 'n');
-	  WindowChanged((struct win *)0, 'w');
-	  WindowChanged((struct win *)0, 'W');
-	  WindowChanged((struct win *)0, 0);
 	}
       break;
     case RC_SILENCE:

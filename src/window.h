@@ -1,4 +1,7 @@
-/* Copyright (c) 2008, 2009
+/* Copyright (c) 2010
+ *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
+ *      Sadrul Habib Chowdhury (sadrul@users.sourceforge.net)
+ * Copyright (c) 2008, 2009
  *      Juergen Weigert (jnweiger@immd4.informatik.uni-erlangen.de)
  *      Michael Schroeder (mlschroe@immd4.informatik.uni-erlangen.de)
  *      Micah Cowan (micah@cowan.name)
@@ -333,6 +336,8 @@ struct win
     : &fore->w_mlines[y - fore->w_histheight])
 
 #define Layer2Window(l) ((struct win *)(l)->l_bottom->l_data)
+
+int WindowChangeNumber __P((struct win *, int));
 
 #endif /* SCREEN_WINDOW_H */
 
