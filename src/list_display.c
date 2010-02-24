@@ -218,7 +218,8 @@ static struct GenericList gl_Display =
   gl_Display_row,
   gl_Display_input,
   gl_Display_freerow,
-  gl_Display_free
+  gl_Display_free,
+  NULL	/* We do not allow searching in the display list, at the moment */
 };
 
 void

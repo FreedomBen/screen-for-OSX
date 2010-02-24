@@ -37,6 +37,7 @@ struct GenericList
   int (*gl_pinput) __P((struct ListData *, char **inp, int *len));	/* Process input */
   int (*gl_freerow) __P((struct ListData *, struct ListRow *));	/* Free data for a row */
   int (*gl_free) __P((struct ListData *));			/* Free data for the list */
+  int (*gl_matchrow) __P((struct ListData *, struct ListRow *, const char *));
 };
 
 struct ListData
@@ -47,6 +48,8 @@ struct ListData
   struct ListRow *top;		/* The topmost visible row */
 
   struct GenericList *list_fn;	/* The functions that deal with the list */
+
+  char *search;			/* The search term, if any */
 
   void *data;			/* List specific data */
 };

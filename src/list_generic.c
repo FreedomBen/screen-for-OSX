@@ -24,6 +24,7 @@
 #include "screen.h"
 #include "list_generic.h"
 #include "layer.h"
+#include "extern.h"
 
 /* Deals with a generic list display */
 
@@ -76,6 +77,67 @@ glist_decide_top(struct ListData *ldata)
   for (; count && top != ldata->root; top = top->prev, count--)
     ;
   ldata->top = top;
+}
+
+static struct ListRow *
+glist_search_dir(struct ListData *ldata, struct ListRow *start, int dir)
+{
+  struct ListRow *row = (dir == 1) ? start->next : start->prev;
+  for (; row; row = (dir == 1) ? row->next : row->prev)
+    if (ldata->list_fn->gl_matchrow(ldata, row, ldata->search))
+      return row;
+
+  if (dir == 1)
+    {
+      for (row = ldata->root; row != start; row = row->next)
+	if (ldata->list_fn->gl_matchrow(ldata, row, ldata->search))
+	  break;
+    }
+  else
+    {
+      /* First, go to the end */
+      if (!start->next)
+	row = start;
+      else
+	for (row = start->next; row->next; row = row->next)
+	  ;
+      for (; row != start; row = row->prev)
+	if (ldata->list_fn->gl_matchrow(ldata, row, ldata->search))
+	  break;
+    }
+
+  return row;
+}
+
+static void
+glist_search(char *buf, int len, char *data)
+{
+  struct ListData *ldata = (struct ListData *)data;
+  struct ListRow *row;
+
+  if (ldata->search)
+    Free(ldata->search);
+  if (len > 0)
+    ldata->search = SaveStr(buf);
+  else
+    return;
+
+  for (row = ldata->selected; row; row = row->next)
+    if (ldata->list_fn->gl_matchrow(ldata, row, ldata->search))
+      break;
+
+  if (!row)
+    for (row = ldata->root; row != ldata->selected; row = row->next)
+      if (ldata->list_fn->gl_matchrow(ldata, row, ldata->search))
+	break;
+
+  if (row == ldata->selected)
+    return;
+
+  ldata->selected = row;
+  if (ldata->selected->y == -1)
+    glist_decide_top(ldata);
+  glist_display_all(ldata);
 }
 
 static void ListProcess(char **ppbuf, int *plen)
@@ -166,6 +228,34 @@ static void ListProcess(char **ppbuf, int *plen)
 	    ;
 	  break;
 
+	case '/':	/* start searching */
+	  if (ldata->list_fn->gl_matchrow)
+	    {
+	      char *s;
+	      Input("Search: ", 80, INP_COOKED, glist_search, (char *)ldata, 0);
+	      if ((s = ldata->search))
+		{
+		  for (; *s; s++)
+		    {
+		      char *ss = s;
+		      int n = 1;
+		      LayProcess(&ss, &n);
+		    }
+		}
+	    }
+	  break;
+
+	/* The following deal with searching. */
+
+	case 'n':	/* search next */
+	  if (ldata->list_fn->gl_matchrow && ldata->search)
+	    ldata->selected = glist_search_dir(ldata, ldata->selected, 1);
+	  break;
+
+	case 'N':	/* search prev */
+	  if (ldata->list_fn->gl_matchrow && ldata->search)
+	    ldata->selected = glist_search_dir(ldata, ldata->selected, -1);
+	  break;
 	}
 
       if (old == ldata->selected)	/* The selection didn't change */
@@ -195,6 +285,8 @@ static void ListAbort(void)
   glist_remove_rows(ldata);
   if (ldata->list_fn->gl_free)
     ldata->list_fn->gl_free(ldata);
+  if (ldata->search)
+    Free(ldata->search);
   LAY_CALL_UP(LRefreshAll(flayer, 0));
   ExitOverlayPage();
 }

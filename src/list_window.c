@@ -373,6 +373,15 @@ gl_Window_free(struct ListData *ldata)
   return 0;
 }
 
+static int
+gl_Window_match(struct ListData *ldata, struct ListRow *row, const char *needle)
+{
+  struct win *w = row->data;
+  if (InStr(w->w_title, needle))
+    return 1;
+  return 0;
+}
+
 static struct GenericList gl_Window =
 {
   gl_Window_header,
@@ -380,7 +389,8 @@ static struct GenericList gl_Window =
   gl_Window_row,
   gl_Window_input,
   gl_Window_freerow,
-  gl_Window_free
+  gl_Window_free,
+  gl_Window_match
 };
 
 void
