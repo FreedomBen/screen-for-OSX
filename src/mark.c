@@ -77,7 +77,8 @@ struct LayFuncs MarkLf =
   DefClearLine,
   MarkRewrite,
   DefResize,
-  DefRestore
+  DefRestore,
+  0
 };
 
 int join_with_cr =  0;

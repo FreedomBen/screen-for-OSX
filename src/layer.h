@@ -46,6 +46,8 @@ struct LayFuncs
   int	(*lf_LayRewrite) __P((int, int, int, struct mchar *, int));
   int	(*lf_LayResize) __P((int, int));
   void	(*lf_LayRestore) __P((void));
+  void  (*lf_LayFree) __P((void *));	/* Should only free any data kept in
+					   flayer->l_data (but not flayer->l_data itself). */
 };
 
 struct layer
@@ -90,6 +92,7 @@ struct layer
 #define LayRewrite		(*flayer->l_layfn->lf_LayRewrite)
 #define LayResize		(*flayer->l_layfn->lf_LayResize)
 #define LayRestore		(*flayer->l_layfn->lf_LayRestore)
+#define LayFree		(*flayer->l_layfn->lf_LayFree)
 
 #define LaySetCursor()	LGotoPos(flayer, flayer->l_x, flayer->l_y)
 #define LayCanResize(l)	(l->l_layfn->LayResize != DefResize)

@@ -148,7 +148,8 @@ static struct LayFuncs HelpLf =
   DefClearLine,
   DefRewrite,
   DefResize,
-  DefRestore
+  DefRestore,
+  0
 };
 
 
@@ -504,7 +505,8 @@ static struct LayFuncs CopyrightLf =
   DefClearLine,
   DefRewrite,
   DefResize,
-  DefRestore
+  DefRestore,
+  0
 };
 
 static const char cpmsg[] = "\
@@ -725,7 +727,8 @@ static struct LayFuncs BindkeyLf =
   DefClearLine,
   DefRewrite,
   DefResize,
-  DefRestore
+  DefRestore,
+  0
 };
 
 
@@ -922,7 +925,8 @@ static struct LayFuncs ZmodemLf =
   DefClearLine,
   DefRewrite,
   ZmodemResize,
-  DefRestore
+  DefRestore,
+  0
 };
 
 /*ARGSUSED*/

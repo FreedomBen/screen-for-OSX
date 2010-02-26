@@ -1121,7 +1121,11 @@ ExitOverlayPage()
   debug1("Exiting layer %#x\n", (unsigned int)flayer);
   oldlay = flayer;
   if (oldlay->l_data)
-    free(oldlay->l_data);
+    {
+      if (oldlay->l_layfn->lf_LayFree)
+	LayFree(oldlay->l_data);
+      free(oldlay->l_data);
+    }
 
   p = Layer2Window(flayer);
 

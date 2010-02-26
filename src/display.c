@@ -200,7 +200,8 @@ struct LayFuncs BlankLf =
   DefClearLine,
   DefRewrite,
   BlankResize,
-  DefRestore
+  DefRestore,
+  0
 };
 
 /*ARGSUSED*/

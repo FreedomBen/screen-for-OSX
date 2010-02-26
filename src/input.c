@@ -76,7 +76,8 @@ static struct LayFuncs InpLf =
   DefClearLine,
   DefRewrite,
   DefResize,
-  DefRestore
+  DefRestore,
+  0
 };
 
 /*

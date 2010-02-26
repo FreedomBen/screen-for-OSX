@@ -37,6 +37,7 @@ static void ListClearLine __P((int, int, int, int));
 static int  ListRewrite __P((int, int, int, struct mchar *, int));
 static int  ListResize __P((int, int));
 static void ListRestore __P((void));
+static void ListFree __P((void *));
 
 struct LayFuncs ListLf =
 {
@@ -46,7 +47,8 @@ struct LayFuncs ListLf =
   ListClearLine,
   ListRewrite,
   ListResize,
-  ListRestore
+  ListRestore,
+  ListFree
 };
 
 /** Returns non-zero on success. */
@@ -278,14 +280,18 @@ static void ListProcess(char **ppbuf, int *plen)
 
 static void ListAbort(void)
 {
-  struct ListData *ldata = flayer->l_data;
+  LAY_CALL_UP(LRefreshAll(flayer, 0));
+  ExitOverlayPage();
+}
+
+static void ListFree(void *d)
+{
+  struct ListData *ldata = d;
   glist_remove_rows(ldata);
   if (ldata->list_fn->gl_free)
     ldata->list_fn->gl_free(ldata);
   if (ldata->search)
     Free(ldata->search);
-  LAY_CALL_UP(LRefreshAll(flayer, 0));
-  ExitOverlayPage();
 }
 
 static void ListRedisplayLine(int y, int xs, int xe, int isblank)
@@ -360,10 +366,12 @@ void
 glist_remove_rows(struct ListData *ldata)
 {
   struct ListRow *row;
-  for (row = ldata->root; row; row = row->next)
+  for (row = ldata->root; row; )
     {
-      ldata->list_fn->gl_freerow(ldata, row);
-      free(row);
+      struct ListRow *r = row;
+      row = row->next;
+      ldata->list_fn->gl_freerow(ldata, r);
+      free(r);
     }
   ldata->root = ldata->selected = ldata->top = NULL;
 }

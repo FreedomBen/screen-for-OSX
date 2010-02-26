@@ -212,7 +212,8 @@ struct LayFuncs WinLf =
   WinClearLine,
   WinRewrite,
   WinResize,
-  WinRestore
+  WinRestore,
+  0
 };
 
 static int

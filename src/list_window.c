@@ -429,9 +429,10 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
 	break;	/* Do nothing if it's a group window */
       if (wdata->onblank)
 	{
+	  int fnumber = wdata->fore->w_number;
 	  glist_abort();
 	  display = cd;
-	  SwitchWindow(wdata->fore->w_number);
+	  SwitchWindow(fnumber);
 	  *len = 0;
 	  break;
 	}
