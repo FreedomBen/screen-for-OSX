@@ -58,6 +58,29 @@ struct gl_Window_Data
   struct win *fore;	/* The foreground window we had. */
 };
 
+/* This macro should not be used if 'fn' is expected to update the window list */
+#define FOR_EACH_WINDOW(_wdata, _w, fn) do {	\
+    if ((_wdata)->order == WLIST_MRU)	\
+      {	\
+	struct win *_ww;	\
+	for (_ww = windows; _ww; _ww = _ww->w_next)	\
+	  {	\
+	    _w = _ww;	\
+	    fn	\
+	  }	\
+      }	\
+    else	\
+      {	\
+	struct win **_ww, *_witer;	\
+	for (_ww = wtab, _witer = windows; _witer && _ww - wtab < maxwin; _ww++)	\
+	  {	\
+	    if (!(_w = *_ww))	continue;	\
+	    fn	\
+	    _witer = _witer->w_next;	\
+	  }	\
+      }	\
+  } while (0)
+
 /* Is 'a' an ancestor of 'd'? */
 static int
 window_ancestor(struct win *a, struct win *d)
@@ -104,43 +127,23 @@ gl_Window_add_group(struct ListData *ldata, struct ListRow *row)
 {
   /* Right now, 'row' doesn't have any child. */
   struct gl_Window_Data *wdata = ldata->data;
-  struct win *group = row->data;
+  struct win *group = row->data, *w;
   struct ListRow *cur = row;
 
   ASSERT(wdata->nested);
 
-  if (wdata->order == WLIST_MRU)
-    {
-      struct win *w;
-      for (w = windows; w; w = w->w_next)
-	{
-	  if (w->w_group != group)
-	    continue;
+  FOR_EACH_WINDOW(wdata, w,
+    if (w->w_group != group)
+      continue;
 
-	  cur = glist_add_row(ldata, w, cur);
-	  if (w == wdata->fore)
-	    ldata->selected = cur;
+    cur = glist_add_row(ldata, w, cur);
+    if (w == wdata->fore)
+      ldata->selected = cur;
 
-	  if (w->w_type == W_TYPE_GROUP)
-	    cur = gl_Window_add_group(ldata, cur);
-	}
-    }
-  else if (wdata->order == WLIST_NUM)
-    {
-      struct win **w;
-      for (w = wtab; w - wtab < maxwin; w++)
-	{
-	  if (!*w || (*w)->w_group != group)
-	    continue;
+    if (w->w_type == W_TYPE_GROUP)
+      cur = gl_Window_add_group(ldata, cur);
+  );
 
-	  cur = glist_add_row(ldata, *w, cur);
-	  if (*w == wdata->fore)
-	    ldata->selected = cur;
-
-	  if ((*w)->w_type == W_TYPE_GROUP)
-	    cur = gl_Window_add_group(ldata, cur);
-	}
-    }
   return cur;
 }
 
@@ -149,39 +152,17 @@ gl_Window_rebuild(struct ListData *ldata)
 {
   struct ListRow *row = NULL;
   struct gl_Window_Data *wdata = ldata->data;
+  struct win *w;
 
-  if (wdata->order == WLIST_MRU)
-    {
-      struct win *w;
-      for (w = windows; w; w = w->w_next)
-	{
-	  if (w->w_group == wdata->group)
-	    {
-	      row = glist_add_row(ldata, w, row);
-	      if (w == wdata->fore)
-		ldata->selected = row;
-	      if (w->w_type == W_TYPE_GROUP && wdata->nested)
-		row = gl_Window_add_group(ldata, row);
-	    }
-	}
-    }
-  else
-    {
-      struct win **w;
-      struct win *wlist;
-      for (w = wtab, wlist = windows; wlist && w - wtab < maxwin; w++)
-	{
-	  if (*w && (*w)->w_group == wdata->group)
-	    {
-	      row = glist_add_row(ldata, *w, row);
-	      if (*w == wdata->fore)
-		ldata->selected = row;
-	      wlist = wlist->w_next;
-	      if ((*w)->w_type == W_TYPE_GROUP && wdata->nested)
-		row = gl_Window_add_group(ldata, row);
-	    }
-	}
-    }
+  FOR_EACH_WINDOW(wdata, w,
+    if (w->w_group != wdata->group)
+      continue;
+    row = glist_add_row(ldata, w, row);
+    if (w == wdata->fore)
+      ldata->selected = row;
+    if (w->w_type == W_TYPE_GROUP && wdata->nested)
+      row = gl_Window_add_group(ldata, row);
+  );
   glist_display_all(ldata);
 }
 
