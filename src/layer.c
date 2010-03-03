@@ -1285,6 +1285,8 @@ int ys, ye;
 {
   if (!layer->l_pause.d)
     return;
+  if (ys < 0)
+    ys = 0;
   if (ye >= layer->l_height)
     ye = layer->l_height - 1;
   if (xe >= layer->l_width)
