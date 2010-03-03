@@ -322,7 +322,7 @@ register int len;
       curr->w_monitor = MON_FOUND;
     }
 
-  if (cols && rows)
+  if (cols > 0 && rows > 0)
     {
       do
 	{

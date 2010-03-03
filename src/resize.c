@@ -628,8 +628,8 @@ int wi, he, hi;
   int ncx, ncy, naka, t;
   int y, shift;
 
-  if (wi == 0)
-    he = hi = 0;
+  if (wi <= 0 || he <= 0)
+    wi = he = hi = 0;
 
   if (p->w_type == W_TYPE_GROUP)
     return 0;
