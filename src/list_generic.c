@@ -149,9 +149,30 @@ static void ListProcess(char **ppbuf, int *plen)
       struct ListRow *old;
       unsigned char ch;
 
-      if (ldata->list_fn->gl_pinput &&
+      if (!flayer->l_mouseevent.start && ldata->list_fn->gl_pinput &&
 	  ldata->list_fn->gl_pinput(ldata, ppbuf, plen))
 	continue;
+
+      ch = **ppbuf;
+      ++*ppbuf;
+      --*plen;
+
+      if (flayer->l_mouseevent.start)
+	{
+	  int r = LayProcessMouse(flayer, ch);
+	  if (r == -1)
+	    {
+	      LayProcessMouseSwitch(flayer, 0);
+	      continue;
+	    }
+	  else
+	    {
+	      if (r)
+		ch = 0222;
+	      else
+		continue;
+	    }
+	}
 
       if (!ldata->selected)
 	{
@@ -159,11 +180,9 @@ static void ListProcess(char **ppbuf, int *plen)
 	  break;
 	}
 
-      ch = **ppbuf;
-      ++*ppbuf;
-      --*plen;
-
       old = ldata->selected;
+
+processchar:
       switch (ch)
 	{
 	case ' ':
@@ -254,6 +273,35 @@ static void ListProcess(char **ppbuf, int *plen)
 	case 'N':	/* search prev */
 	  if (ldata->list_fn->gl_matchrow && ldata->search)
 	    ldata->selected = glist_search_dir(ldata, ldata->selected, -1);
+	  break;
+
+	/* Now, mouse events. */
+	case 0222:
+	  if (flayer->l_mouseevent.start)
+	    {
+	      int button = flayer->l_mouseevent.buffer[0];
+	      if (button == 'a') /* Scroll down */
+		ch = 'j';
+	      else if (button == '`') /* Scroll up */
+		ch = 'k';
+	      else if (button == ' ') /* Left click */
+		{
+		  int y = flayer->l_mouseevent.buffer[2];
+		  struct ListRow *r = ldata->top;
+		  for (r = ldata->top; r && r->y != -1 && r->y != y; r = r->next)
+		    ;
+		  if (r && r->y == y)
+		    ldata->selected = r;
+		  ch = 0;
+		}
+	      else
+		ch = 0;
+	      LayProcessMouseSwitch(flayer, 0);
+	      if (ch)
+		goto processchar;
+	    }
+	  else
+	    LayProcessMouseSwitch(flayer, 1);
 	  break;
 	}
 
