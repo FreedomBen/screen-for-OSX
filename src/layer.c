@@ -86,6 +86,12 @@ int off;
 # define RECODE_MLINE(ml) (ml)
 #endif
 
+#define FOR_EACH_UNPAUSED_CANVAS(l, fn) for (cv = (l)->l_cvlist; cv; cv = cv->c_lnext) \
+  {	\
+    if ((l)->l_pause.d && cv->c_slorient)	\
+      continue;	\
+    fn	\
+  }
 
 void
 LGotoPos(l, x, y)
@@ -97,16 +103,13 @@ int x, y;
   int x2, y2;
 
   if (l->l_pause.d)
-    {
-      LayPauseUpdateRegion(l, x, x, y, y);
-      return;
-    }
+    LayPauseUpdateRegion(l, x, x, y, y);
 
 #ifdef HAVE_BRAILLE
   if (bd.bd_refreshing)
     return;
 #endif
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+  FOR_EACH_UNPAUSED_CANVAS(l,
     {
       display = cv->c_display;
       if (D_blocked)
@@ -134,6 +137,7 @@ int x, y;
 	  break;
 	}
     }
+  );
 }
 
 void
@@ -150,11 +154,8 @@ struct mline *ol;
   if (n == 0)
     return;
   if (l->l_pause.d)
-    {
-      LayPauseUpdateRegion(l, xs, xe, y, y);
-      return;
-    }
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+    LayPauseUpdateRegion(l, xs, xe, y, y);
+  FOR_EACH_UNPAUSED_CANVAS(l,
     for (vp = cv->c_vplist; vp; vp = vp->v_next)
       {
 	y2 = y + vp->v_yoff;
@@ -191,6 +192,7 @@ struct mline *ol;
 	if (xs2 <= xe2)
 	  RefreshArea(xs2, y2, xe2, y2, 1);
       }
+  );
 }
 
 void
@@ -206,11 +208,8 @@ int bce;
   if (n == 0)
     return;
   if (l->l_pause.d)
-    {
-      LayPauseUpdateRegion(l, 0, l->l_width - 1, ys, ye);
-      return;
-    }
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+    LayPauseUpdateRegion(l, 0, l->l_width - 1, ys, ye);
+  FOR_EACH_UNPAUSED_CANVAS(l,
     for (vp = cv->c_vplist; vp; vp = vp->v_next)
       {
 	xs2 = vp->v_xoff;
@@ -258,6 +257,7 @@ int bce;
 	if (ys2 <= ye2)
 	  RefreshArea(xs2, ys2, xe2, ye2, 1);
       }
+  );
 }
 
 void
@@ -274,11 +274,8 @@ struct mline *ol;
   struct mline *rol;
 
   if (l->l_pause.d)
-    {
-      LayPauseUpdateRegion(l, x, l->l_width - 1, y, y);
-      return;
-    }
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+    LayPauseUpdateRegion(l, x, l->l_width - 1, y, y);
+  FOR_EACH_UNPAUSED_CANVAS(l,
     for (vp = cv->c_vplist; vp; vp = vp->v_next)
       {
 	y2 = y + vp->v_yoff;
@@ -317,6 +314,7 @@ struct mline *ol;
 	if (f)
 	  RefreshArea(xs2, y2, xs2, y2, 1);
       }
+  );
 }
 
 void
@@ -337,12 +335,9 @@ int x, y;
 #endif
 
   if (l->l_pause.d)
-    {
-      LayPauseUpdateRegion(l, x, x, y, y);
-      return;
-    }
+    LayPauseUpdateRegion(l, x, x, y, y);
 
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+  FOR_EACH_UNPAUSED_CANVAS(l,
     {
       display = cv->c_display;
       if (D_blocked)
@@ -359,6 +354,7 @@ int x, y;
 	  break;
 	}
     }
+  );
 }
 
 void
@@ -384,12 +380,9 @@ int x, y;
     }
 #endif
   if (l->l_pause.d)
-    {
-      LayPauseUpdateRegion(l, x, x + n - 1, y, y);
-      return;
-    }
+    LayPauseUpdateRegion(l, x, x + n - 1, y, y);
 
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+  FOR_EACH_UNPAUSED_CANVAS(l,
     for (vp = cv->c_vplist; vp; vp = vp->v_next)
       {
 	y2 = y + vp->v_yoff;
@@ -425,6 +418,7 @@ int x, y;
 	while (xs2++ <= xe2)
 	  PUTCHARLP(*s2++);
       }
+  );
 }
 
 void
@@ -450,14 +444,11 @@ int x, y;
     }
 #endif
   if (l->l_pause.d)
-    {
-      LayPauseUpdateRegion(l, x, x + n - 1, y, y);
-      return;
-    }
+    LayPauseUpdateRegion(l, x, x + n - 1, y, y);
   len = strlen(s);
   if (len > n)
     len = n;
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+  FOR_EACH_UNPAUSED_CANVAS(l,
     for (vp = cv->c_vplist; vp; vp = vp->v_next)
       {
 	y2 = y + vp->v_yoff;
@@ -489,6 +480,7 @@ int x, y;
 	while (xs2++ <= xe2)
 	  PUTCHARLP(' ');
       }
+  );
 }
 
 void
@@ -507,11 +499,8 @@ struct mline *ol;
   if (xe >= l->l_width)
     xe = l->l_width - 1;
   if (l->l_pause.d)
-    {
       LayPauseUpdateRegion(l, xs, xe, y, y);
-      return;
-    }
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+  FOR_EACH_UNPAUSED_CANVAS(l,
     for (vp = cv->c_vplist; vp; vp = vp->v_next)
       {
 	xs2 = xs + vp->v_xoff;
@@ -530,6 +519,7 @@ struct mline *ol;
 	  continue;
 	ClearLine(ol ? mloff(RECODE_MLINE(ol), -vp->v_xoff) : (struct mline *)0, y2, xs2, xe2, bce);
       }
+  );
 }
 
 void
@@ -556,11 +546,8 @@ int uself;
   if (xe >= l->l_width)
     xe = l->l_width - 1;
   if (l->l_pause.d)
-    {
-      LayPauseUpdateRegion(l, xs, xe, ys, ye);
-      return;
-    }
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+    LayPauseUpdateRegion(l, xs, xe, ys, ye);
+  FOR_EACH_UNPAUSED_CANVAS(l,
     {
       display = cv->c_display;
       if (D_blocked)
@@ -610,6 +597,7 @@ int uself;
 #endif
 	}
     }
+  );
 }
 
 void
@@ -630,11 +618,8 @@ int isblank;
     }
 #endif
   if (l->l_pause.d)
-    {
-      LayPauseUpdateRegion(l, xs, xe, y, y);
-      return;
-    }
-  for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+    LayPauseUpdateRegion(l, xs, xe, y, y);
+  FOR_EACH_UNPAUSED_CANVAS(l,
     {
       display = cv->c_display;
       if (D_blocked)
@@ -658,6 +643,7 @@ int isblank;
 	  DisplayLine(isblank ? &mline_blank : &mline_null, mloff(RECODE_MLINE(ml), -vp->v_xoff), y2, xs2, xe2);
 	}
     }
+  );
 }
 
 void
@@ -711,11 +697,8 @@ int ins;
   int bce;
 
   if (l->l_pause.d)
-    {
-      /* XXX: 'y'? */
-      LayPauseUpdateRegion(l, 0, l->l_width - 1, top, bot);
-      return;
-    }
+    /* XXX: 'y'? */
+    LayPauseUpdateRegion(l, 0, l->l_width - 1, top, bot);
 
 #ifdef COLOR
   bce = rend_getbg(c);
@@ -729,7 +712,7 @@ int ins;
       /* cursor after wrapping */
       yy = y == l->l_height - 1 ? y : y + 1;
 
-      for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+      FOR_EACH_UNPAUSED_CANVAS(l,
 	{
 	  y2 = 0;       /* gcc -Wall */
 	  display = cv->c_display;
@@ -769,12 +752,13 @@ int ins;
 	      WrapChar(RECODE_MCHAR(c), vp->v_xoff + l->l_width, y2, vp->v_xoff, -1, vp->v_xoff + l->l_width - 1, -1, ins);
 	    }
 	}
+      );
     }
   else
     {
       /* hard case: scroll up*/
 
-      for (cv = l->l_cvlist; cv; cv = cv->c_lnext)
+      FOR_EACH_UNPAUSED_CANVAS(l,
 	{
 	  display = cv->c_display;
 	  if (D_blocked)
@@ -822,6 +806,7 @@ int ins;
 	      WrapChar(RECODE_MCHAR(c), vp->v_xoff + l->l_width, bot2, vp->v_xoff, top2, vp->v_xoff + l->l_width - 1, bot2, ins);
 	    }
 	}
+      );
     }
 }
 
@@ -1233,6 +1218,9 @@ int pause;
   for (cv = layer->l_cvlist; cv; cv = cv->c_lnext)
     {
       struct viewport *vp;
+
+      if (!cv->c_slorient)
+	continue;		/* Wasn't split, so already updated. */
 
       display = cv->c_display;
 
