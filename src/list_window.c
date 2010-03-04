@@ -300,7 +300,7 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
       if (display && AclCheckPermWin(D_user, ACL_READ, win))
 	return;		/* Not allowed to switch to this window. */
 #endif
-      if (!wdata->group)
+      if (wdata->onblank || (!wdata->onblank && wdata->group))
 	{
 	  /* Do not abort the group window. */
 	  glist_abort();
@@ -406,14 +406,13 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
 
     case 033:	/* escape */
     case 007:	/* ^G */
-      if (wdata->group)
-	break;	/* Do nothing if it's a group window */
-      if (wdata->onblank)
+      if (wdata->onblank || (!wdata->onblank && wdata->group))
 	{
 	  int fnumber = wdata->fore->w_number;
 	  glist_abort();
 	  display = cd;
-	  SwitchWindow(fnumber);
+	  if (wdata->onblank)
+	    SwitchWindow(fnumber);
 	  *len = 0;
 	  break;
 	}
