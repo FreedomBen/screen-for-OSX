@@ -58,6 +58,9 @@ struct gl_Window_Data
   struct win *fore;	/* The foreground window we had. */
 };
 
+/* Is this wdata for a group window? */
+#define WLIST_FOR_GROUP(wdate)	((wdata)->group && !(wdata)->onblank && Layer2Window(flayer) && Layer2Window(flayer)->w_type == W_TYPE_GROUP)
+
 /* This macro should not be used if 'fn' is expected to update the window list */
 #define FOR_EACH_WINDOW(_wdata, _w, fn) do {	\
     if ((_wdata)->order == WLIST_MRU)	\
@@ -300,14 +303,16 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
       if (display && AclCheckPermWin(D_user, ACL_READ, win))
 	return;		/* Not allowed to switch to this window. */
 #endif
-      if (wdata->onblank || (!wdata->onblank && wdata->group))
+      if (WLIST_FOR_GROUP(wdata))
+	SwitchWindow(win->w_number);
+      else
 	{
-	  /* Do not abort the group window. */
+	  /* Abort list only when not in a group window. */
 	  glist_abort();
 	  display = cd;
+	  if (D_fore != win)
+	    SwitchWindow(win->w_number);
 	}
-      if (D_fore != win)
-	SwitchWindow(win->w_number);
       *len = 0;
       break;
 
@@ -406,7 +411,7 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
 
     case 033:	/* escape */
     case 007:	/* ^G */
-      if (wdata->onblank || (!wdata->onblank && wdata->group))
+      if (!WLIST_FOR_GROUP(wdata))
 	{
 	  int fnumber = wdata->fore->w_number;
 	  glist_abort();
@@ -414,9 +419,8 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
 	  if (wdata->onblank)
 	    SwitchWindow(fnumber);
 	  *len = 0;
-	  break;
 	}
-      /* else FALLTHROUGH */
+      break;
     default:
       --*inp;
       ++*len;
