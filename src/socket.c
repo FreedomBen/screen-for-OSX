@@ -1540,7 +1540,7 @@ struct msg *m;
   ASSERT(display);
   pwdata = (struct pwdata *)malloc(sizeof(struct pwdata));
   if (!pwdata)
-    Panic(0, strnomem);
+    Panic(0, "%s", strnomem);
   pwdata->l = 0;
   pwdata->m = *m;
   D_processinputdata = (char *)pwdata;

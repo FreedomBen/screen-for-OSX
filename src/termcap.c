@@ -137,7 +137,7 @@ int he;
 
   if ((D_tentry = (char *)malloc(TERMCAP_BUFSIZE + (extra_incap ? strlen(extra_incap) + 1 : 0))) == 0)
     {
-      Msg(0, strnomem);
+      Msg(0, "%s", strnomem);
       return -1;
     }
 
@@ -1198,7 +1198,7 @@ char *s;
 
   if ((D_xtable = (char ***)calloc(256, sizeof(char **))) == 0)
     {
-      Msg(0, strnomem);
+      Msg(0, "%s", strnomem);
       return -1;
     }
 
@@ -1216,7 +1216,7 @@ char *s;
         {
           if ((D_xtable[curchar] = (char **)calloc(257, sizeof(char *))) == 0)
 	    {
-	      Msg(0, strnomem);
+	      Msg(0, "%s", strnomem);
 	      FreeTransTable();
 	      return -1;
 	    }
@@ -1250,7 +1250,7 @@ char *s;
 	    l = l * templnsub + templlen;
 	  if ((ctable[c] = (char *)malloc(l + 1)) == 0)
 	    {
-	      Msg(0, strnomem);
+	      Msg(0, "%s", strnomem);
 	      FreeTransTable();
 	      return -1;
 	    }

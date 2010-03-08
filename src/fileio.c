@@ -75,7 +75,7 @@ register char *str1, *str2;
     {
       len2 = strlen(str2);
       if ((cp = realloc(str2, (unsigned) len1 + len2 + add_colon + 1)) == NULL)
-	Panic(0, strnomem);
+	Panic(0, "%s", strnomem);
       bcopy(cp, cp + len1 + add_colon, len2 + 1);
     }
   else
@@ -83,8 +83,8 @@ register char *str1, *str2;
       if (len1 == 0)
 	return 0;
       if ((cp = malloc((unsigned) len1 + add_colon + 1)) == NULL)
-	Panic(0, strnomem);
-      cp[len1 + add_colon] = '\0'; 
+	Panic(0, "%s", strnomem);
+      cp[len1 + add_colon] = '\0';
     }
   bcopy(str1, cp, len1);
   if (add_colon)
@@ -627,7 +627,7 @@ int *lenp;
   if ((buf = malloc(size)) == NULL)
     {
       close(i);
-      Msg(0, strnomem);
+      Msg(0, "%s", strnomem);
       return NULL;
     }
   errno = 0;

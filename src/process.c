@@ -691,7 +691,7 @@ int create;
       kp = malloc(sizeof(*kp));
       if (kp == 0)
 	{
-	  Msg(0, strnomem);
+	  Msg(0, "%s", strnomem);
 	  return 0;
 	}
       kp->name = SaveStr(class);
@@ -2380,7 +2380,7 @@ int key;
 	 */
         if ((dbuf = (char *)malloc(l)) == 0)
           {
-	    Msg(0, strnomem);
+	    Msg(0, "%s", strnomem);
 	    break;
           }
         l = 0;
@@ -2467,7 +2467,7 @@ int key;
 		  newbuf = malloc(l + 1);
 		  if (!newbuf)
 		    {
-		      Msg(0, strnomem);
+		      Msg(0, "%s", strnomem);
 		      break;
 		    }
 		  user->u_plop.len = RecodeBuf((unsigned char *)oldplop.buf, oldplop.len, oldplop.enc, enc, (unsigned char *)newbuf);
@@ -4501,9 +4501,9 @@ int *argl;
       return;
     }
   if ((pp = (char **)malloc((unsigned)(argc + 1) * sizeof(char **))) == 0)
-    Panic(0, strnomem);
+    Panic(0, "%s", strnomem);
   if ((lp = (int *)malloc((unsigned)(argc) * sizeof(int *))) == 0)
-    Panic(0, strnomem);
+    Panic(0, "%s", strnomem);
   act->nr = nr;
   act->args = pp;
   act->argl = lp;
@@ -4525,7 +4525,7 @@ char **args;
   while (args[argc])
     argc++;
   if ((pp = ap = (char **)malloc((unsigned)(argc + 1) * sizeof(char **))) == 0)
-    Panic(0, strnomem);
+    Panic(0, "%s", strnomem);
   while (argc--)
     *pp++ = SaveStr(*args++);
   *pp = 0;
@@ -6074,7 +6074,7 @@ char *data;	/* dummy */
     {
       if ((pp->buf = (char *)malloc(D_user->u_plop.len)) == NULL)
 	{
-	  Msg(0, strnomem);
+	  Msg(0, "%s", strnomem);
 	  return;
 	}
       bcopy(D_user->u_plop.buf, pp->buf, D_user->u_plop.len);
@@ -6281,7 +6281,7 @@ char *data;
 #endif
       if (!(u->u_plop.buf = SaveStr(u->u_password)))
 	{
-	  Msg(0, strnomem);
+	  Msg(0, "%s", strnomem);
           D_user->u_plop.len = 0;
 	}
       else

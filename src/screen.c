@@ -2052,7 +2052,7 @@ MakeNewEnv()
     free((char *)NewEnv);
   NewEnv = np = (char **) malloc((unsigned) (op - environ + 7 + 1) * sizeof(char **));
   if (!NewEnv)
-    Panic(0, strnomem);
+    Panic(0, "%s", strnomem);
   sprintf(stybuf, "STY=%s", strlen(SockName) <= MAXSTR - 5 ? SockName : "?");
   *np++ = stybuf;	                /* NewEnv[0] */
   *np++ = Term;	                /* NewEnv[1] */
@@ -2389,7 +2389,7 @@ char **cmdv;
       bt = (struct backtick *)malloc(sizeof *bt);
       if (!bt)
 	{
-	  Msg(0, strnomem);
+	  Msg(0, "%s", strnomem);
           return;
 	}
       bzero(bt, sizeof(*bt));
@@ -2411,7 +2411,7 @@ char **cmdv;
       bt->buf = (char *)malloc(MAXSTR);
       if (bt->buf == 0)
 	{
-	  Msg(0, strnomem);
+	  Msg(0, "%s", strnomem);
 	  setbacktick(num, 0, 0, (char **)0);
           return;
 	}

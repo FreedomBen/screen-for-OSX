@@ -57,7 +57,7 @@ register const char *str;
   register char *cp;
 
   if ((cp = malloc(strlen(str) + 1)) == NULL)
-    Panic(0, strnomem);
+    Panic(0, "%s", strnomem);
   else
     strcpy(cp, str);
   return cp;
@@ -71,7 +71,7 @@ int n;
   register char *cp;
 
   if ((cp = malloc(n + 1)) == NULL)
-    Panic(0, strnomem);
+    Panic(0, "%s", strnomem);
   else
     {
       bcopy((char *)str, cp, n);

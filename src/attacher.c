@@ -756,7 +756,7 @@ LockTerminal()
 	      debug2("Lock: %s: return code %d\n", prg, WEXITSTATUS(wstat));
 	    }
           else
-	    printf(LockEnd);
+	    printf("%s", LockEnd);
         }
     }
   else

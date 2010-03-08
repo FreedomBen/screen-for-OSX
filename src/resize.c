@@ -521,7 +521,7 @@ int wi;
 # endif
 #endif
   if (!(blank && null && mline_old.image && mline_old.attr IFFONT(&& mline_old.font) IFCOLOR(&& mline_old.color) IFCOLORX(&& mline_old.colorx)))
-    Panic(0, strnomem);
+    Panic(0, "%s", strnomem);
 
   MakeBlankLine(blank, maxwidth);
   bzero((char *)null, maxwidth);
@@ -691,7 +691,7 @@ int wi, he, hi;
 	  if ((nmlines = (struct mline *)calloc(he, sizeof(struct mline))) == 0)
 	    {
 	      KillWindow(p);
-	      Msg(0, strnomem);
+	      Msg(0, "%s", strnomem);
 	      return -1;
 	    }
 	}
@@ -924,7 +924,7 @@ int wi, he, hi;
 #endif
 		}
 	      KillWindow(p);
-	      Msg(0, strnomem);
+	      Msg(0, "%s", strnomem);
 	      return -1;
 	    }
 	  for (; t < wi; t++)
