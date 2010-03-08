@@ -1197,6 +1197,7 @@ int pause;
   struct canvas *cv;
   struct display *olddisplay = display;
   int line;
+  struct win *win;
 
   pause = !!pause;
 
@@ -1214,6 +1215,11 @@ int pause;
   if (layer->l_pause.top == -1 &&
       layer->l_pause.bottom == -1)
     return;
+
+  if (layer->l_layfn == &WinLf)	/* Currently, this will always be the case! */
+    win = layer->l_data;
+  else
+    win = NULL;
 
   for (cv = layer->l_cvlist; cv; cv = cv->c_lnext)
     {
@@ -1239,6 +1245,15 @@ int pause;
 
 		  if (xs < vp->v_xs) xs = vp->v_xs;
 		  if (xe > vp->v_xe) xe = vp->v_xe;
+
+#if defined(DW_CHARS) && defined(UTF8)
+		  if (layer->l_encoding == UTF8 && xe < vp->v_xe && win)
+		    {
+		      struct mline *ml = win->w_mlines + line;
+		      if (dw_left(ml, xe, UTF8))
+			xe++;
+		    }
+#endif
 
 		  if (xs <= xe)
 		    RefreshLine(line + vp->v_yoff, xs, xe, 0);
