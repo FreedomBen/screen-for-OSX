@@ -818,7 +818,7 @@ char **av;
           size_t newsz;
           char *newbuf = malloc(3 * len);
           if (!newbuf)
-            Panic(0, strnomem);
+            Panic(0, "%s", strnomem);
           newsz = RecodeBuf(nwin_options.aka, len,
                             nwin_options.encoding, 0, newbuf);
           newbuf[newsz] = '\0';

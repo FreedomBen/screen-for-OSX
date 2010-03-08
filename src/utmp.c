@@ -268,7 +268,7 @@ InitUtmp()
   if ((utmpfd = open(UtmpName, O_RDWR)) == -1)
     {
       if (errno != EACCES)
-	Msg(errno, UtmpName);
+	Msg(errno, "%s", UtmpName);
       debug("InitUtmp failed.\n");
       utmpok = 0;
       return;
