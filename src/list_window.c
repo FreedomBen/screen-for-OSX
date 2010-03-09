@@ -413,10 +413,10 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
     case 007:	/* ^G */
       if (!WLIST_FOR_GROUP(wdata))
 	{
-	  int fnumber = wdata->fore->w_number;
+	  int fnumber = wdata->onblank ? wdata->fore->w_number : -1;
 	  glist_abort();
 	  display = cd;
-	  if (wdata->onblank)
+	  if (fnumber >= 0)
 	    SwitchWindow(fnumber);
 	  *len = 0;
 	}
