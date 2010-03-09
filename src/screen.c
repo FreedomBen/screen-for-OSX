@@ -2847,6 +2847,7 @@ int rec;
 	  break;
 	case 'P':
 	  p--;
+#ifdef COPY_PASTE
 	  if (display && ev && ev != &D_hstatusev)	/* Hack */
 	    {
 	      /* Is the layer in the current canvas in copy mode? */
@@ -2854,6 +2855,7 @@ int rec;
 	      if (ev == &cv->c_captev && cv->c_layer->l_layfn == &MarkLf)
 		qmflag = 1;
 	    }
+#endif
 	  break;
 	case '>':
 	  truncpos = p - winmsg_buf;
