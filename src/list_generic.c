@@ -344,18 +344,33 @@ static void ListFree(void *d)
 
 static void ListRedisplayLine(int y, int xs, int xe, int isblank)
 {
+  struct ListData *ldata;
   ASSERT(flayer);
+
+  ldata = flayer->l_data;
   if (y < 0)
     {
-      glist_display_all(flayer->l_data);
+      glist_display_all(ldata);
       return;
     }
-  if (y != 0 && y != flayer->l_height - 1)
-    return;
 
-  if (isblank)
-    return;
-  LClearArea(flayer, xs, y, xe, y, 0, 0);
+  if (!isblank)
+    LClearArea(flayer, xs, y, xe, y, 0, 0);
+
+  if (ldata->top && y < ldata->top->y)
+    ldata->list_fn->gl_printheader(ldata);
+  else if (y + 1 == flayer->l_height)
+    ldata->list_fn->gl_printfooter(ldata);
+  else
+    {
+      struct ListRow *row;
+      for (row = ldata->top; row && row->y != -1; row = row->next)
+	if (row->y == y)
+	  {
+	    ldata->list_fn->gl_printrow(ldata, row);
+	    break;
+	  }
+    }
 }
 
 static void ListClearLine(int y, int xs, int xe, int bce)

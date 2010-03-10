@@ -323,6 +323,34 @@ kaablamm()
   Msg(0, "Aborted because of window size change.");
 }
 
+/* Kills non-resizable layers. */
+#define RESIZE_OR_KILL_LAYERS(l, wi, he) do \
+  {	\
+    struct layer *_last = NULL, *_iter;	\
+    flayer = (l);	\
+    while (flayer->l_next)	\
+      {	\
+	if (LayResize(wi, he) == 0)	\
+	  {	\
+	    _last = flayer;	\
+	    flayer = flayer->l_next;	\
+	  }	\
+	else	\
+	  {	\
+	    struct canvas *_cv;	\
+	    for (_cv = flayer->l_cvlist; _cv; _cv = _cv->c_lnext)	\
+	      _cv->c_display->d_kaablamm = 1;	\
+	    ExitOverlayPage();	\
+	    if (_last)	\
+	      _last->l_next = flayer;	\
+	  }	\
+      }	\
+    /* We assume that the bottom-most layer, i.e. when flayer->l_next == 0,	\
+     * is always resizable. Currently, WinLf and BlankLf can be the bottom-most layers.	\
+     */	\
+    LayResize(wi, he);	\
+  } while (0)
+
 void
 ResizeLayer(l, wi, he, norefdisp)
 struct layer *l;
@@ -338,52 +366,40 @@ struct display *norefdisp;
     return;
   p = Layer2Window(l);
 
+  /* If 'flayer' and 'l' are for the same window, then we will not
+   * restore 'flayer'. */
   if (oldflayer && (l == oldflayer || Layer2Window(oldflayer) == p))
     while (oldflayer->l_next)
       oldflayer = oldflayer->l_next;
-    
+
+  flayer = l;
+
   if (p)
     {
+      /* It's a window layer. Kill the overlays on it in all displays. */
       for (d = displays; d; d = d->d_next)
 	for (cv = d->d_cvlist; cv; cv = cv->c_next)
 	  {
 	    if (p == Layer2Window(cv->c_layer))
 	      {
-		flayer = cv->c_layer;
-		if (flayer->l_next)
-		  d->d_kaablamm = 1;
-	        while (flayer->l_next)
-		  ExitOverlayPage();
+		/* Canvas 'cv' on display 'd' shows this window. Remove any non-resizable
+		 * layers over it. */
+		RESIZE_OR_KILL_LAYERS(cv->c_layer, wi, he);
 	      }
 	  }
-      l = p->w_savelayer;
-    }
-  flayer = l;
-  if (p == 0 && flayer->l_next && flayer->l_next->l_next == 0 && LayResize(wi, he) == 0)
-    {
-      flayer = flayer->l_next;
-      LayResize(wi, he);
-      flayer = l;
     }
   else
     {
-      if (flayer->l_next)
-        for (cv = flayer->l_cvlist; cv; cv = cv->c_lnext)
-	  cv->c_display->d_kaablamm = 1;
-      while (flayer->l_next)
-	ExitOverlayPage();
+      /* It's a Blank layer. Just kill the non-resizable overlays over it. */
+      RESIZE_OR_KILL_LAYERS(flayer, wi, he);
     }
-  if (p)
-    flayer = &p->w_layer;
-  LayResize(wi, he);
-  /* now everybody is on flayer, redisplay */
-  l = flayer;
+
   for (display = displays; display; display = display->d_next)
     {
       if (display == norefdisp)
 	continue;
       for (cv = D_cvlist; cv; cv = cv->c_next)
-	if (cv->c_layer == l)
+	if (Layer2Window(cv->c_layer) == p)
 	  {
             CV_CALL(cv, LayRedisplayLine(-1, -1, -1, 0));
             RefreshArea(cv->c_xs, cv->c_ys, cv->c_xe, cv->c_ye, 0);
@@ -394,10 +410,13 @@ struct display *norefdisp;
 	  D_kaablamm = 0;
 	}
     }
-  flayer = oldflayer;
+
+  /* If we started resizing a non-flayer layer, then restore the flayer.
+   * Otherwise, flayer should already be updated to the topmost foreground layer. */
+  if (Layer2Window(flayer) != Layer2Window(oldflayer))
+    flayer = oldflayer;
   display = olddisplay;
 }
-
 
 static void
 FreeMline(ml)
