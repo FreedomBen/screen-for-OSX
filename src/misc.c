@@ -609,7 +609,7 @@ char *value;
    * the string space, we can free our buf now.
    */
   free(buf);
-# else /* NEEDSETENV */
+# else /* NEEDPUTENV */
   /*
    * For all sysv-ish systems that link a standard putenv()
    * the string-space buf is added to the environment and must not
@@ -617,7 +617,7 @@ char *value;
    * We are sorry to say that memory is lost here, when setting
    * the same variable again and again.
    */
-# endif /* NEEDSETENV */
+# endif /* NEEDPUTENV */
 #else /* USESETENV */
 # if HAVE_SETENV_3
   setenv(var, value, 1);
