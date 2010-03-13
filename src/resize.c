@@ -369,8 +369,7 @@ struct display *norefdisp;
   /* If 'flayer' and 'l' are for the same window, then we will not
    * restore 'flayer'. */
   if (oldflayer && (l == oldflayer || Layer2Window(oldflayer) == p))
-    while (oldflayer->l_next)
-      oldflayer = oldflayer->l_next;
+    oldflayer = NULL;
 
   flayer = l;
 
@@ -413,7 +412,7 @@ struct display *norefdisp;
 
   /* If we started resizing a non-flayer layer, then restore the flayer.
    * Otherwise, flayer should already be updated to the topmost foreground layer. */
-  if (Layer2Window(flayer) != Layer2Window(oldflayer))
+  if (oldflayer)
     flayer = oldflayer;
   display = olddisplay;
 }
