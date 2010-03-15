@@ -1142,7 +1142,7 @@ Store a string to a register.  @xref{Registers}.
 Kill current region.  @xref{Regions}.
 @item removebuf
 Delete the screen-exchange file.  @xref{Screen Exchange}.
-@item rendition bell | monitor | so @var{attr} [@var{color}]
+@item rendition bell | monitor | silence | so @var{attr} [@var{color}]
 Change text attributes in caption for flagged windows.  @xref{Rendition}.
 @item reset
 Reset the terminal settings for the window.  @xref{Reset}.
@@ -5069,15 +5069,15 @@ access to your terminal, they will be able to fire off print commands.
 
 @node Rendition, Sorendition, Printcmd, Miscellaneous
 @section Rendition
-@deffn Command rendition bell | monitor | so @var{attr} [@var{color}]
+@deffn Command rendition bell | monitor | silence | so @var{attr} [@var{color}]
 (none)@*
 Change the way screen renders the titles of windows that have monitor
 or bell flags set in caption or hardstatus or windowlist.
 See the chapter
 about string escapes (@pxref{String Escapes}) for the syntax of
 the modifiers. The default for monitor is currently @samp{=b} (bold,
-active colors), and for bell is @samp{=ub} (underline, bold and
-active colors).
+active colors), for bell @samp{=ub} (underline, bold and active colors), and
+for silence @samp{=u}.
 @end deffn
 
 @node Sorendition, Attrcolor, Rendition, Miscellaneous

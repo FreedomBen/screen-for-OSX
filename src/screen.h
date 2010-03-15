@@ -256,7 +256,7 @@ struct msg
 #define VBELLWAIT	1 /* No. of seconds a vbell will be displayed */
 
 #define BELL_ON		0 /* No bell has occurred in the window */
-#define BELL_FOUND 	1 /* A bell has occurred, but user not yet notified */
+#define BELL_FOUND	1 /* A bell has occurred, but user not yet notified */
 #define BELL_DONE	2 /* A bell has occured, user has been notified */
 
 #define BELL_VISUAL	3 /* A bell has occured in fore win, notify him visually */
@@ -271,8 +271,10 @@ struct msg
 #define DUMP_EXCHANGE	2
 #define DUMP_SCROLLBACK 3
 
-#define SILENCE_OFF	0
-#define SILENCE_ON	1
+#define SILENCE_OFF	0 /* Not checking for silence */
+#define SILENCE_ON	1 /* Window being monitored for silence */
+#define SILENCE_FOUND   2 /* Window is silent */
+#define SILENCE_DONE    3 /* Window is silent and user is notified */
 
 extern char strnomem[];
 

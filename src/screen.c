@@ -3241,6 +3241,15 @@ char *data;
 	    }
 	  WindowChanged(p, 'f');
 	}
+      if (p->w_silence == SILENCE_FOUND)
+	{
+	  /* Unset the flag if the user switched to this window. */
+	  if (p->w_layer.l_cvlist)
+	    {
+	      p->w_silence = SILENCE_ON;
+	      WindowChanged(p, 'f');
+	    }
+	}
     }
 
   for (display = displays; display; display = display->d_next)

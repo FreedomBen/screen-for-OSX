@@ -3,7 +3,7 @@ Version 4.1.0 (??/??/20??):
   * 'unbindall' to unbind all commands
   * 'up', 'down', 'left', 'right' sub-commands for 'focus'
   * 'rendition' to specify rendition to use in caption/hardstatus for
-    window-names that have bell/monitor/so turned on.
+    window-names that have bell/monitor/silence/so turned on.
   * 'layout', with the following sub-commands
 	- 'title'
 	- 'number'

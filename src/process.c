@@ -3894,6 +3894,10 @@ int key;
 	{
 	  i = REND_MONITOR;
 	}
+      else if (strcmp(args[0], "silence") == 0)
+	{
+	  i = REND_SILENCE;
+	}
       else if (strcmp(args[0], "so") != 0)
 	{
 	  Msg(0, "Invalid option '%s' for rendition", args[0]);
@@ -5357,6 +5361,8 @@ int where;
 	    rend = renditions[REND_MONITOR];
 	  else if ((p->w_bell == BELL_DONE || p->w_bell == BELL_FOUND) && renditions[REND_BELL] != -1)
 	    rend = renditions[REND_BELL];
+	  else if ((p->w_silence == SILENCE_FOUND || p->w_silence == SILENCE_DONE) && renditions[REND_SILENCE] != -1)
+	    rend = renditions[REND_SILENCE];
 	}
       if (rend != -1)
 	AddWinMsgRend(s, rend);

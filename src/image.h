@@ -171,6 +171,7 @@ enum
 {
   REND_BELL = 0,
   REND_MONITOR,
+  REND_SILENCE,
   NUM_RENDS
 };
 

@@ -266,6 +266,11 @@ gl_Window_row(struct ListData *ldata, struct ListRow *lrow)
       mchar = &mchar_rend;
       ApplyAttrColor(renditions[REND_BELL], mchar);
     }
+  else if ((w->w_silence == SILENCE_FOUND || w->w_silence == SILENCE_DONE) && renditions[REND_SILENCE] != -1)
+    {
+      mchar = &mchar_rend;
+      ApplyAttrColor(renditions[REND_SILENCE], mchar);
+    }
   else
     mchar = &mchar_blank;
 

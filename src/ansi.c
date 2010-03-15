@@ -78,10 +78,10 @@ struct mchar mchar_null;
 struct mchar mchar_blank = {' ' /* , 0, 0, ... */};
 struct mchar mchar_so    = {' ', A_SO /* , 0, 0, ... */};
 
-int renditions[NUM_RENDS] = {65529 /* =ub */, 65531 /* =b */};
+int renditions[NUM_RENDS] = {65529 /* =ub */, 65531 /* =b */, 65533 /* =u */ };
 
 /* keep string_t and string_t_string in sync! */
-static char *string_t_string[] = 
+static char *string_t_string[] =
 {
   "NONE",
   "DCS",			/* Device control string */

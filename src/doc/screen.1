@@ -2717,13 +2717,13 @@ Unlinks the screen-exchange file used by the commands \*Qwritebuf\*U and
 \*Qreadbuf\*U. 
 .sp
 .ne 3
-.B "rendition bell" | monitor | so
+.B "rendition bell" | monitor | silence | so
 .RB "\fIattr\fR " [ \fIcolor ]
 .PP
 Change the way
 .I screen
 renders the titles of windows that have monitor or bell flags set in caption or hardstatus or windowlist. See the \*QSTRING ESCAPES\*U chapter for the syntax of the modifiers.
-The default for monitor is currently \*Q=b \*U (bold, active colors) and for bell \*Q=ub \*U (underline, bold and active colors).
+The default for monitor is currently \*Q=b \*U (bold, active colors), for bell \*Q=ub \*U (underline, bold and active colors), and \*Q=u \*U for silence.
 .sp
 .ne 3
 .B "reset"
