@@ -594,6 +594,16 @@ int uself;
 	    xe2 = vp->v_xe;
 	  display = cv->c_display;
 	  ClearArea(xs2, ys2, vp->v_xs, vp->v_xe, xe2, ye2, bce, uself);
+	  if (xe == l->l_width - 1 && xe2 > vp->v_xoff + xe)
+	    {
+	      int y;
+	      SetRendition(&mchar_blank);
+	      for (y = ys2; y <= ye2; y++)
+		{
+		  GotoPos(xe + vp->v_xoff + 1, y);
+		  PUTCHARLP('|');
+		}
+	    }
 #endif
 	}
     }

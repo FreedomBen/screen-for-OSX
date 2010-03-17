@@ -2405,6 +2405,13 @@ int y, from, to, isblank;
       yy = y - lvp->v_yoff;
       xx = to < lvp->v_xe ? to : lvp->v_xe;
 
+      if (lcv->c_layer && lcv->c_xoff + lcv->c_layer->l_width == from)
+	{
+	  GotoPos(from, y);
+	  SetRendition(&mchar_blank);
+	  PUTCHARLP('|');
+	  from++;
+	}
       if (lcv->c_layer && yy == lcv->c_layer->l_height)
 	{
 	  GotoPos(from, y);
