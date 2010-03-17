@@ -534,8 +534,74 @@ http://www.gnu.org/licenses/, or contact Free Software Foundation, Inc., \
 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA.\n\
 \n\
 Send bugreports, fixes, enhancements, t-shirts, money, beer & pizza to \
-screen@uni-erlangen.de\n";
+screen-devel@gnu.org\n\n\n"
 
+"Capabilities:\n"
+
+#ifdef COPY_PASTE
+"+copy "
+#else
+"-copy "
+#endif
+
+#ifdef REMOTE_DETACH
+"+remote-detach "
+#else
+"-remote-detach "
+#endif
+
+#ifdef POW_DETACH
+"+power-detach "
+#else
+"-power-detach "
+#endif
+
+#ifdef MULTI
+"+multi-attach "
+#else
+"-multi-attach "
+#endif
+
+#ifdef MULTIUSER
+"+multi-user "
+#else
+"-multi-user "
+#endif
+
+#ifdef FONT
+"+font "
+#else
+"-font "
+#endif
+
+#ifdef COLORS256
+"+color-256 "
+#elif defined(COLORS16)
+"+color-16 "
+#elif defined(COLOR)
+"+color "
+#else
+"-color "
+#endif
+
+#ifdef UTF8
+"+utf8 "
+#else
+"-utf8 "
+#endif
+
+#ifdef RXVT_OSC
+"+rxvt "
+#else
+"-rxvt "
+#endif
+
+#ifdef BUILTIN_TELNET
+"+builtin-telnet "
+#else
+"-builtin-telnet "
+#endif
+;
 
 static void
 CopyrightProcess(ppbuf, plen)
