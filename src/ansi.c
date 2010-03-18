@@ -940,6 +940,7 @@ register int c;
     case '\n':
       if (curr->w_autoaka)
 	FindAKA();
+    case '\013':	/* Vertical tab is the same as Line Feed */
       LineFeed(0);
       return 1;
     case '\007':
