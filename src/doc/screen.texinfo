@@ -1577,9 +1577,7 @@ current window. The latter is useful if used with screen's
 @deffnx Command windowlist title [@var{title}]
 (@kbd{C-a "})@*
 Display all windows in a table for visual window selection.
-The desired window can be selected via the standard
-movement keys (@pxref{Movement}) and activated via
-the return key.  If screen was in a window group, screen will
+If screen was in a window group, screen will
 back out of the group and then display the windows in that
 group. If the @code{-b} option is given, screen will
 switch to the blank window before presenting the list, so
@@ -1589,6 +1587,65 @@ sorting by window numbers screen uses its internal most-recently-used
 list. The @code{-g} option will show the windows inside any groups
 in that level and downwards.
 
+The following keys are used to navigate in @code{windowlist}:
+
+@noindent
+@kbd{k}, @kbd{C-p}, or @kbd{up} Move up one line.
+
+@noindent
+@kbd{j}, @kbd{C-n}, or @kbd{down} Move down one line.
+
+@noindent
+@kbd{C-g} or @kbd{escape} Exit windowlist.
+
+@noindent
+@kbd{C-a} or @kbd{home} Move to the first line.
+
+@noindent
+@kbd{C-e} or @kbd{end} Move to the last line.
+
+@noindent
+@kbd{C-u} or @kbd{C-d} Move one half page up or down.
+
+@noindent
+@kbd{C-b} or @kbd{C-f} Move one full page up or down.
+
+@noindent
+@kbd{mouseclick} Move to the selected line.
+
+@noindent
+@kbd{/} Search.
+
+@noindent
+@kbd{n} Repeat search in the forward direction.
+
+@noindent
+@kbd{N} Repeat search in the backward direction.
+
+@noindent
+@kbd{m} Toggle MRU.
+
+@noindent
+@kbd{g} Toggle group nesting.
+
+@noindent
+@kbd{a} All window view.
+
+@noindent
+@kbd{C-h} or @kbd{backspace} Back out the group.
+
+@noindent
+@kbd{,} Switch numbers with the previous window.
+
+@noindent
+@kbd{.} Switch numbers with the next window.
+
+@noindent
+@kbd{K} Kill that window.
+
+@noindent
+@kbd{space} or @kbd{enter} Select that window.
+
 The table format can be changed with the string and title
 option, the title is displayed as table heading, while the
 lines are made by using the string setting.  The default
@@ -1596,6 +1653,8 @@ setting is @samp{Num Name%=Flags} for the title and
 @samp{%3n %t%=%f} for the lines. See the string escapes chapter
 (@pxref{String Escapes}) for more codes (e.g. color settings).
 
+@code{Windowlist} needs a region size of at least 10 characters
+wide and 6 characters high in order to display.
 @end deffn
 
 @node Session Management, Regions, Selecting, Top
