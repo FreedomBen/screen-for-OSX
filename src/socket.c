@@ -1645,9 +1645,17 @@ struct msg *mp;
   for (fc = fullcmd; n > 0; n--)
     {
       int len = strlen(p);
+      /* Make sure there's enough room */
+      if (fc + len + 3 > fullcmd + sizeof(fullcmd) - 1)
+	{
+	  queryflag = -1;
+	  return;
+	}
+      *fc++ = '"';
       strncpy(fc, p, fullcmd + sizeof(fullcmd) - fc - 1);
       p += len + 1;
       fc += len;
+      *fc++ = '"';
       *fc++ = ' ';
     }
   if (fc != fullcmd)
