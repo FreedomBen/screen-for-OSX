@@ -4627,7 +4627,7 @@ int bufl, *argl;
 	  else if (delim != '\'' && *p == '$' && (p[1] == '{' || p[1] == ':' || (p[1] >= 'a' && p[1] <= 'z') || (p[1] >= 'A' && p[1] <= 'Z') || (p[1] >= '0' && p[1] <= '9') || p[1] == '_'))
 
 	    {
-	      char *ps, *pe, op, *v, xbuf[11];
+	      char *ps, *pe, op, *v, xbuf[11], path[MAXPATHLEN];
 	      int vl;
 
 	      ps = ++p;
@@ -4671,6 +4671,13 @@ int bufl, *argl;
 		    sprintf(xbuf, "%d", display ? D_height : -1);
 		  else if (!strcmp(ps, "PID"))
 		    sprintf(xbuf, "%d", getpid());
+		  else if (!strcmp(ps, "PWD"))
+		    {
+		      if (getcwd(path, sizeof(path) - 1) == 0)
+			v = "?";
+		      else
+			v = path;
+		    }
 		  else if (!strcmp(ps, "STY"))
 		    {
 		      if ((v = strchr(SockName, '.')))	/* Skip the PID */

@@ -43,6 +43,7 @@ Version 4.1.0 (??/??/20??):
 
   .screenrc:
   * $PID expands to the PID of the screen session.
+  * $PWD expands to the current working directory of the session.
   * $STY expands to the session name.
   * Tilde-expansion in pathnames (e.g. for the 'source' command)
   * C-style escapes can be used (e.g. "\n" to get a newline with 'stuff')
