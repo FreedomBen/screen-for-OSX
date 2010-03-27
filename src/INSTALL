@@ -13,6 +13,9 @@ distributions follows, see the GNU standards document on
 prep.ai.mit.edu:pub/gnu/standards.*, especially the `Makefile
 Conventions', `Configuration', and `User Interfaces' sections.
 
+0.) autogen.sh
+--------------
+First, run ./autogen.sh. This will create configure file that you can use.
 
 1.) configure & config.status
 -----------------------------
