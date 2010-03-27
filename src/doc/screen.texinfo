@@ -1611,7 +1611,8 @@ The following keys are used to navigate in @code{windowlist}:
 @kbd{C-b} or @kbd{C-f} Move one full page up or down.
 
 @noindent
-@kbd{mouseclick} Move to the selected line.
+@kbd{mouseclick} Move to the selected line. Available when
+@code{mousetrack} is set to @code{on}.
 
 @noindent
 @kbd{/} Search.
