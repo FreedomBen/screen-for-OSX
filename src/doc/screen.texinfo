@@ -3462,32 +3462,61 @@ in a single statement.
 @subsection Movement Keys
 
 @noindent
-@kbd{h}, @kbd{j}, @kbd{k}, @kbd{l} move the cursor line by line or
-column by column.
+@kbd{h}, @kbd{C-h}, or @kbd{left arrow} move the cursor left.
 
 @noindent
-@kbd{0}, @kbd{^} and @kbd{$} move to the leftmost column or to the first
-or last non-whitespace character on the line.
+@kbd{j}, @kbd{C-n}, or @kbd{down arrow} move the cursor down.
 
 @noindent
-@kbd{H}, @kbd{M} and @kbd{L} move the cursor to the leftmost column
-of the top, center or bottom line of the window. 
+@kbd{k}, @kbd{C-p}, or @kbd{up arrow} move the cursor up.
+
+@noindent
+@kbd{l} ('el'), or @kbd{right arrow} move the cursor right.
+
+@noindent
+@kbd{0} (zero) or @kbd{C-a} move to the leftmost column.
 
 @noindent
 @kbd{+} and @kbd{-} move the cursor to the leftmost column of the next
 or previous line.
 
 @noindent
-@kbd{G} moves to the specified absolute line (default: end of buffer).
- 
+@kbd{H}, @kbd{M} and @kbd{L} move the cursor to the leftmost column
+of the top, center or bottom line of the window. 
+
 @noindent
 @kbd{|} moves to the specified absolute column.
 
 @noindent
-@kbd{w}, @kbd{b}, @kbd{e} move the cursor word by word.
+@kbd{g} or @kbd{home} moves to the beginning of the buffer.
+
+@noindent
+@kbd{G} or @kbd{end} moves to the specified absolute line (default: end of buffer).
+ 
+@noindent
+@kbd{%} jumps to the specified percentage of the buffer.
+
+@noindent
+@kbd{^} or @kbd{$} move to the first
+or last non-whitespace character on the line.
+
+@noindent
+@kbd{w}, @kbd{b}, and @kbd{e} move the cursor word by word.
  
 @noindent
 @kbd{B}, @kbd{E} move the cursor WORD by WORD (as in vi).
+
+@noindent
+@kbd{f}/@kbd{F}, @kbd{t}/@kbd{T} move the cursor forward/backward to the 
+next occurence of the target. (eg, '3fy' will move the cursor to the 3rd 
+'y' to the right.)
+
+@noindent
+@kbd{;} and @kbd{,} Repeat the last f/F/t/T command in the same/opposite direction.
+
+@noindent 
+@kbd{C-e} and @kbd{C-y} scroll the display up/down by one line
+while preserving the cursor position.
 
 @noindent
 @kbd{C-u} and @kbd{C-d} scroll the display up/down by the specified
@@ -3497,12 +3526,6 @@ screenful).
 @noindent
 @kbd{C-b} and @kbd{C-f} move the cursor up/down a full screen.
 
-@noindent
-@kbd{g} moves to the beginning of the buffer.
-
-@noindent
-@kbd{%} jumps to the specified percentage of the buffer.
-
 Note that Emacs-style movement keys can be specified by a .screenrc
 command. (@code{markkeys "h=^B:l=^F:$=^E"}) There is no simple method for
 a full emacs-style keymap, however, as this involves multi-character codes.
@@ -3511,8 +3534,12 @@ a full emacs-style keymap, however, as this involves multi-character codes.
 @subsection Marking
 
 The copy range is specified by setting two marks. The text between these
-marks will be highlighted. Press @kbd{space} to set the first or second
-mark respectively.
+marks will be highlighted. Press:
+
+@noindent
+@kbd{space} or @kbd{enter} to set the first or second mark respectively.
+If @code{mousetrack} is set to @code{on}, marks can also be set using
+@kbd{left mouse click}.
 
 @noindent
 @kbd{Y} and @kbd{y} can be used to mark one whole line or to mark from 
@@ -3526,7 +3553,11 @@ start of line.
 
 Any command in copy mode can be prefixed with a number (by pressing
 digits @kbd{0@dots{}9}) which is taken as a repeat count. Example:
-@kbd{C-a C-[ H 10 j 5 Y} will copy lines 11 to 15 into the paste buffer.
+@example
+@kbd{C-a C-[ H 10 j 5 Y}
+@end example
+@noindent
+will copy lines 11 to 15 into the paste buffer.
 
 @node Searching, Specials, Repeat count, Copy
 @subsection Searching
@@ -3549,25 +3580,35 @@ Tell screen to ignore the case of characters in searches. Default is
 @code{off}.
 @end deffn
 
+@noindent
+@kbd{n} Repeat search in forward direction.
+
+@noindent
+@kbd{N} Repeat search in backward direction.
+
 @node Specials,  , Searching, Copy
 @subsection Specials
 
 There are, however, some keys that act differently here from in
 @code{vi}.  @code{Vi} does not allow to yank rectangular blocks of text,
-but @code{screen} does. Press
+but @code{screen} does. Press:
 
 @noindent
 @kbd{c} or @kbd{C} to set the left or right margin respectively. If no
 repeat count is given, both default to the current cursor position.@*
 Example: Try this on a rather full text screen: 
+@example
 @kbd{C-a [ M 20 l SPACE c 10 l 5 j C SPACE}.
+@end example
 
 @noindent
 This moves one to the middle line of the screen, moves in 20 columns left,
 marks the beginning of the paste buffer, sets the left column, moves 5 columns
 down, sets the right column, and then marks the end of
-the paste buffer. Now try:@*
+the paste buffer. Now try:
+@example
 @kbd{C-a [ M 20 l SPACE 10 l 5 j SPACE}
+@end example
 
 @noindent
 and notice the difference in the amount of text copied.
@@ -3580,11 +3621,11 @@ character with a carriage return character, by issuing a @code{set crlf
 on}.
 
 @noindent
-@kbd{v} is for all the @code{vi} users who use @code{:set numbers} - it
+@kbd{v} or @kbd{V} is for all the @code{vi} users who use @code{:set numbers} - it
 toggles the left margin between column 9 and 1.
 
 @noindent
-@kbd{a} before the final space key turns on append mode. Thus
+@kbd{a} before the final @kbd{space} key turns on append mode. Thus
 the contents of the paste buffer will not be overwritten, but appended to.
 
 @noindent
@@ -3595,14 +3636,20 @@ the contents of the paste buffer will not be overwritten, but appended to.
 to the screen-exchange file (@file{/tmp/screen-exchange} per default)
 once copy-mode is finished.  @xref{Screen Exchange}.@*
 This example demonstrates how to dump the
-whole scrollback buffer to that file: @*@kbd{C-a [ g SPACE G $ >}.
+whole scrollback buffer to that file: 
+@example
+@kbd{C-a [ g SPACE G $ >}.
+@end example
 
 @noindent
 @kbd{C-g} gives information about the current line and column.
 
 @noindent
-@kbd{x} exchanges the first mark and the current cursor position. You
+@kbd{x} or @kbd{o} ('oh') exchanges the first mark and the current cursor position. You
 can use this to adjust an already placed mark.
+
+@noindent
+@kbd{C-l} ('el') will redraw the screen.
 
 @noindent
 @kbd{@@} does nothing.  Absolutely nothing.  Does not even exit copy

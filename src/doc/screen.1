@@ -1274,28 +1274,45 @@ window and its history into the paste buffer. In this mode a vi-like
 .br
 .in +4n
 .ti -2n
-\fBh\fP, \fBj\fP, \fBk\fP, \fBl\fP move the cursor line by line or 
-column by column.
+\fBh\fP, \fBC-h\fP, or \fBleft arrow\fP move the cursor left.
 .br
 .ti -2n
-\fB0\fP, \fB^\fP and \fB$\fP move to the leftmost column, to the first or last
-non-whitespace character on the line.
+\fBj\fP, \fBC-n\fP, or \fBdown arrow\fP move the cursor down.
+.br
+.ti -2n
+\fBk\fP, \fBC-p\fP, or \fBup arrow\fP move the cursor up.
+.br
+.ti -2n
+\fBl\fP ('el') or \fBright arrow\fP move the cursor right.
+.br
+.ti -2n
+\fB0\fP (zero) or \fBC-a\fP move to the leftmost column.
+.br
+.ti -2n
+\fB+\fP and \fB\-\fP positions one line up and down.
 .br
 .ti -2n
 \fBH\fP, \fBM\fP and \fBL\fP move the cursor to the leftmost column
 of the top, center or bottom line of the window. 
 .br
 .ti -2n
-\fB+\fP and \fB\-\fP positions one line up and down.
-.br
-.ti -2n
-\fBG\fP moves to the specified absolute line (default: end of buffer).
-.br 
-.ti -2n
 \fB|\fP moves to the specified absolute column.
 .br
 .ti -2n
-\fBw\fP, \fBb\fP, \fBe\fP move the cursor word by word.
+\fBg\fP or \fBhome\fP moves to the beginning of the buffer.
+.br
+.ti -2n
+\fBG\fP or \fBend\fP moves to the specified absolute line (default: end of buffer).
+.br 
+.ti -2n
+\fB%\fP jumps to the specified percentage of the buffer.
+.br
+.ti -2n
+\fB^\fP or \fB$\fP move to the leftmost column, to the first or last
+non-whitespace character on the line.
+.br
+.ti -2n
+\fBw\fP, \fBb\fP, and \fBe\fP move the cursor word by word.
 .br 
 .ti -2n
 \fBB\fP, \fBE\fP move the cursor WORD by WORD (as in vi).
@@ -1306,7 +1323,11 @@ of the top, center or bottom line of the window.
 move the cursor to the 3rd 'y' to the right.)
 .br
 .ti -2n
-\fB;\fP \fB,\fP Repeat the last f/F/t/T command in the same/opposite direction.
+\fB;\fP and \fB,\fP Repeat the last f/F/t/T command in the same/opposite direction.
+.br
+.ti -2n
+\fBC-e\fP and \fBC-y\fP scroll the display up/down by one line
+while preserving the cursor position.
 .br
 .ti -2n
 \fBC-u\fP and \fBC-d\fP scroll the display up/down by the specified amount of 
@@ -1314,12 +1335,6 @@ lines while preserving the cursor position. (Default: half screen-full).
 .br
 .ti -2n
 \fBC-b\fP and \fBC-f\fP scroll the display up/down a full screen.
-.br
-.ti -2n
-\fBg\fP moves to the beginning of the buffer.
-.br
-.ti -2n
-\fB%\fP jumps to the specified percentage of the buffer.
 .br
 .ti -4n
 
@@ -1334,11 +1349,12 @@ emacs-style keymap, as this involves multi-character codes.
 .IR Marking :
 .br
 The copy range is specified by setting two marks. The text between these marks 
-will be highlighted. Press 
+will be highlighted. Press:
 .br
 .ti -2n
-\fBspace\fP to set the first or second mark
-respectively.
+\fBspace\fP or \fBenter\fP to set the first or second mark
+respectively. If \fBmousetrack\fP is set to `on', marks can also be set using
+\fPleft mouse click\fP.
 .br
 .ti -2n
 \fBY\fP and \fBy\fP used to mark one whole line or to mark from 
@@ -1370,6 +1386,10 @@ Example: \*QC-a C-[ H 10 j 5 Y\*U will copy lines
 \fBC-a s\fP \fIEmacs\fP style incremental search forward.
 .ti -2n
 \fBC-r\fP \fIEmacs\fP style reverse i-search.
+.ti -2n
+\fBn\fP Find next search pattern.
+.ti -2n
+\fBN\fP Find previous search pattern.
 .ti -4n
 .IR Specials :
 .br
@@ -1378,7 +1398,7 @@ There are however some keys that act differently than in
 .I Vi
 does not allow one to yank rectangular blocks of text, but
 .I screen
-does. Press 
+does. Press: 
 .br
 .ti -2n
 \fBc\fP or \fBC\fP to set the left or right margin respectively. If no repeat count is
@@ -1403,7 +1423,7 @@ whitespace and comma separated lines. Note that you can prepend the newline
 character with a carriage return character, by issuing a \*Qcrlf on\*U.
 .br
 .ti -2n
-\fBv\fP is for all the
+\fBv\fP or \fBV\fP is for all the
 .I vi 
 users with \*Q:set numbers\*U \- it toggles the left margin between column 9
 and 1. Press 
@@ -1427,9 +1447,12 @@ to that file: \*QC-A [ g SPACE G $ >\*U.
 \fBC-g\fP gives information about the current line and column.
 .br
 .ti -2n
-\fBx\fP exchanges the first mark and the current cursor position. You
+\fBx\fP or \fBo\fP exchanges the first mark and the current cursor position. You
 can use this to adjust an already placed mark.
 .br
+.ti -2n
+\fBC-l\fP ('el') will redraw the screen.
+.br 
 .ti -2n
 \fB@\fP does nothing. Does not even exit copy mode.
 .br
