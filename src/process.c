@@ -2059,6 +2059,7 @@ int key;
 	    Msg(0, "%s", fore->w_title);
 	  else
 	    queryflag = -1;
+	  break;
 	}
       if (*args == 0)
 	InputAKA();
