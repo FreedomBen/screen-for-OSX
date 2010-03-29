@@ -2075,33 +2075,37 @@ MakeNewEnv()
   *np = 0;
 }
 
-void
-/*VARARGS2*/
 #if defined(USEVARARGS) && defined(__STDC__)
-Msg(int err, const char *fmt, VA_DOTS)
+  #define DEFINE_VARARGS_FN(fnname)	void fnname (int err, const char *fmt, VA_DOTS)
 #else
-Msg(err, fmt, VA_DOTS)
-int err;
-const char *fmt;
-VA_DECL
+  #define DEFINE_VARARGS_FN(fnname)	void fnname(err, fmt, VA_DOTS) \
+  int err;	\
+  const char *fmt;	\
+  VA_DECL
 #endif
-{
-  VA_LIST(ap)
-  char buf[MAXPATHLEN*2];
-  char *p = buf;
 
-  VA_START(ap, fmt);
-  fmt = DoNLS(fmt);
-  (void)vsnprintf(p, sizeof(buf) - 100, fmt, VA_ARGS(ap));
-  VA_END(ap);
-  if (err)
-    {
-      p += strlen(p);
-      *p++ = ':';
-      *p++ = ' ';
-      strncpy(p, strerror(err), buf + sizeof(buf) - p - 1);
-      buf[sizeof(buf) - 1] = 0;
-    }
+#define	PROCESS_MESSAGE(B) do { \
+    char *p = B;	\
+    VA_LIST(ap)	\
+    VA_START(ap, fmt);	\
+    fmt = DoNLS(fmt);	\
+    (void)vsnprintf(p, sizeof(B) - 100, fmt, VA_ARGS(ap));	\
+    VA_END(ap);	\
+    if (err)	\
+      {	\
+	p += strlen(p);	\
+	*p++ = ':';	\
+	*p++ = ' ';	\
+	strncpy(p, strerror(err), B + sizeof(B) - p - 1);	\
+	B[sizeof(B) - 1] = 0;	\
+      }	\
+  } while (0)
+
+DEFINE_VARARGS_FN(Msg)
+{
+  char buf[MAXPATHLEN*2];
+  PROCESS_MESSAGE(buf);
+
   debug2("Msg('%s') (%#x);\n", buf, (unsigned int)display);
 
   if (display && displays)
@@ -2132,33 +2136,11 @@ VA_DECL
 /*
  * Call FinitTerm for all displays, write a message to each and call eexit();
  */
-void
-/*VARARGS2*/
-#if defined(USEVARARGS) && defined(__STDC__)
-Panic(int err, const char *fmt, VA_DOTS)
-#else
-Panic(err, fmt, VA_DOTS)
-int err;
-const char *fmt;
-VA_DECL
-#endif
+DEFINE_VARARGS_FN(Panic)
 {
-  VA_LIST(ap)
   char buf[MAXPATHLEN*2];
-  char *p = buf;
+  PROCESS_MESSAGE(buf);
 
-  VA_START(ap, fmt);
-  fmt = DoNLS(fmt);
-  (void)vsnprintf(p, sizeof(buf) - 100, fmt, VA_ARGS(ap));
-  VA_END(ap);
-  if (err)
-    {
-      p += strlen(p);
-      *p++ = ':';
-      *p++ = ' ';
-      strncpy(p, strerror(err), buf + sizeof(buf) - p - 1);
-      buf[sizeof(buf) - 1] = 0;
-    }
   debug3("Panic('%s'); display=%x displays=%x\n", buf, display, displays);
   if (displays == 0 && display == 0)
     {
@@ -2211,6 +2193,22 @@ VA_DECL
   eexit(1);
 }
 
+DEFINE_VARARGS_FN(QueryMsg)
+{
+  char buf[MAXPATHLEN*2];
+
+  if (queryflag < 0)
+    return;
+
+  PROCESS_MESSAGE(buf);
+  write(queryflag, buf, strlen(buf));
+}
+
+DEFINE_VARARGS_FN(Dummy)
+{}
+
+#undef PROCESS_MESSAGE
+#undef DEFINE_VARARGS_FN
 
 /*
  * '^' is allowed as an escape mechanism for control characters. jw.

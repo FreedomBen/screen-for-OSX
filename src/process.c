@@ -1129,6 +1129,16 @@ char *data;
     LayProcess(&buf, &len);
 }
 
+/* If the command is not 'quieted', then use Msg to output the message. If it's a remote
+ * query, then Msg takes care of also outputting the message to the querying client.
+ *
+ * If we want the command to be quiet, and it's a remote query, then use QueryMsg so that
+ * the response does go back to the querying client.
+ *
+ * If the command is quieted, and it's not a remote query, then just don't print the message.
+ */
+#define OutputMsg	(!act->quiet ? Msg : queryflag >= 0 ? QueryMsg : Dummy)
+
 /*ARGSUSED*/
 void
 DoAction(act, key)
@@ -1161,25 +1171,25 @@ int key;
   if (!(n & CAN_QUERY) && queryflag >= 0)
     {
       /* Query flag is set, but this command cannot be queried. */
-      Msg(0, "%s command cannot be queried.", comms[nr].name);
+      OutputMsg(0, "%s command cannot be queried.", comms[nr].name);
       queryflag = -1;
       return;
     }
   if ((n & NEED_DISPLAY) && display == 0)
     {
-      Msg(0, "%s: %s: display required", rc_name, comms[nr].name);
+      OutputMsg(0, "%s: %s: display required", rc_name, comms[nr].name);
       queryflag = -1;
       return;
     }
   if ((n & NEED_FORE) && fore == 0)
     {
-      Msg(0, "%s: %s: window required", rc_name, comms[nr].name);
+      OutputMsg(0, "%s: %s: window required", rc_name, comms[nr].name);
       queryflag = -1;
       return;
     }
   if ((n & NEED_LAYER) && flayer == 0)
     {
-      Msg(0, "%s: %s: display or window required", rc_name, comms[nr].name);
+      OutputMsg(0, "%s: %s: display or window required", rc_name, comms[nr].name);
       queryflag = -1;
       return;
     }
@@ -1190,7 +1200,7 @@ int key;
     {
       if (AclCheckPermCmd(D_user, ACL_EXEC, &comms[nr]))
         {
-	  Msg(0, "%s: %s: permission denied (user %s)", 
+	  OutputMsg(0, "%s: %s: permission denied (user %s)", 
 	      rc_name, comms[nr].name, (EffectiveAclUser ? EffectiveAclUser : D_user)->u_name);
 	  queryflag = -1;
 	  return;
@@ -1213,7 +1223,7 @@ int key;
 	{
 	  if (!fore)
 	    {
-	      Msg(0, "select . needs a window");
+	      OutputMsg(0, "select . needs a window");
 	      queryflag = -1;
 	    }
 	  else
@@ -1230,18 +1240,18 @@ int key;
 #ifdef AUTO_NUKE
     case RC_DEFAUTONUKE:
       if (ParseOnOff(act, &defautonuke) == 0 && msgok)
-	Msg(0, "Default autonuke turned %s", defautonuke ? "on" : "off");
+	OutputMsg(0, "Default autonuke turned %s", defautonuke ? "on" : "off");
       if (display && *rc_name)
 	D_auto_nuke = defautonuke;
       break;
     case RC_AUTONUKE:
       if (ParseOnOff(act, &D_auto_nuke) == 0 && msgok)
-	Msg(0, "Autonuke turned %s", D_auto_nuke ? "on" : "off");
+	OutputMsg(0, "Autonuke turned %s", D_auto_nuke ? "on" : "off");
       break;
 #endif
     case RC_DEFOBUFLIMIT:
       if (ParseNum(act, &defobuflimit) == 0 && msgok)
-	Msg(0, "Default limit set to %d", defobuflimit);
+	OutputMsg(0, "Default limit set to %d", defobuflimit);
       if (display && *rc_name)
 	{
 	  D_obufmax = defobuflimit;
@@ -1250,9 +1260,9 @@ int key;
       break;
     case RC_OBUFLIMIT:
       if (*args == 0)
-	Msg(0, "Limit is %d, current buffer size is %d", D_obufmax, D_obuflen);
+	OutputMsg(0, "Limit is %d, current buffer size is %d", D_obufmax, D_obuflen);
       else if (ParseNum(act, &D_obufmax) == 0 && msgok)
-	Msg(0, "Limit set to %d", D_obufmax);
+	OutputMsg(0, "Limit set to %d", D_obufmax);
       D_obuflenmax = D_obuflen - D_obufmax;
       break;
     case RC_DUMPTERMCAP:
@@ -1270,11 +1280,11 @@ int key;
 	  }
 	if (*args && args[1])
 	  {
-	    Msg(0, "%s: hardcopy: too many arguments", rc_name);
+	    OutputMsg(0, "%s: hardcopy: too many arguments", rc_name);
 	    break;
 	  }
         if (fore == 0 && *args == 0)
-	  Msg(0, "%s: hardcopy: window required", rc_name);
+	  OutputMsg(0, "%s: hardcopy: window required", rc_name);
         else
           WriteFile(user, *args, mode);
       }
@@ -1318,13 +1328,13 @@ int key;
 	if (fore->w_pwin)
 	  {
 	    FreePseudowin(fore);
-	    Msg(0, "Filter removed.");
+	    OutputMsg(0, "Filter removed.");
 	    break;
 	  }
 #endif
 	name = SaveStr(fore->w_title);
 	KillWindow(fore);
-	Msg(0, "Window %d (%s) killed.", n, name);
+	OutputMsg(0, "Window %d (%s) killed.", n, name);
 	if (name)
 	  free(name);
 	break;
@@ -1363,9 +1373,9 @@ int key;
       if (!*args)
         {
 	  if (dfp)
-	    Msg(0, "debugging info is written to %s/", DEBUGDIR);
+	    OutputMsg(0, "debugging info is written to %s/", DEBUGDIR);
 	  else
-	    Msg(0, "debugging is currently off. Use 'debug on' to enable.");
+	    OutputMsg(0, "debugging is currently off. Use 'debug on' to enable.");
 	  break;
 	}
       if (dfp)
@@ -1383,7 +1393,7 @@ int key;
 # endif /* SIG_NODEBUG */
 #else
       if (*args == 0 || strcmp("off", *args))
-        Msg(0, "Sorry, screen was compiled without -DDEBUG option.");
+        OutputMsg(0, "Sorry, screen was compiled without -DDEBUG option.");
 #endif
       break;
 #ifdef ZMODEM
@@ -1396,7 +1406,7 @@ int key;
 	      zmodem_sendcmd = SaveStr(args[1]);
 	    }
 	  if (msgok)
-	    Msg(0, "zmodem sendcmd: %s", zmodem_sendcmd);
+	    OutputMsg(0, "zmodem sendcmd: %s", zmodem_sendcmd);
 	  break;
 	}
       if (*args && !strcmp(*args, "recvcmd"))
@@ -1407,7 +1417,7 @@ int key;
 	      zmodem_recvcmd = SaveStr(args[1]);
 	    }
 	  if (msgok)
-	    Msg(0, "zmodem recvcmd: %s", zmodem_recvcmd);
+	    OutputMsg(0, "zmodem recvcmd: %s", zmodem_recvcmd);
 	  break;
 	}
       if (*args)
@@ -1419,13 +1429,13 @@ int key;
 	    i = 1;
 	  if (i == 4)
 	    {
-	      Msg(0, "usage: zmodem off|auto|catch|pass");
+	      OutputMsg(0, "usage: zmodem off|auto|catch|pass");
 	      break;
 	    }
 	  zmodem_mode = i;
 	}
       if (msgok)
-	Msg(0, "zmodem mode is %s", zmodes[zmodem_mode]);
+	OutputMsg(0, "zmodem mode is %s", zmodes[zmodem_mode]);
       break;
 #endif
     case RC_UNBINDALL:
@@ -1434,7 +1444,7 @@ int key;
 
         for (i = 0; i < sizeof(ktab)/sizeof(*ktab); i++)
 	  ClearAction(&ktab[i]);
-        Msg(0, "Unbound all keys." );
+        OutputMsg(0, "Unbound all keys." );
         break;
       }
     case RC_ZOMBIE:
@@ -1446,7 +1456,7 @@ int key;
           }
 	if (*argl == 0 || *argl > 2)
 	  {
-	    Msg(0, "%s:zombie: one or two characters expected.", rc_name);
+	    OutputMsg(0, "%s:zombie: one or two characters expected.", rc_name);
 	    break;
 	  }
 	if (args[1])
@@ -1455,7 +1465,7 @@ int key;
 	      {
 		ZombieKey_onerror = 1;
 	      } else {
-		Msg(0, "usage: zombie [keys [onerror]]");
+		OutputMsg(0, "usage: zombie [keys [onerror]]");
 	    	break;
 	      }
 	  } else
@@ -1473,7 +1483,7 @@ int key;
         {
 	  struct display *olddisplay = display;
           display = 0;		/* no display will cause a broadcast */
-          Msg(0, "%s: %s", s, *args);
+          OutputMsg(0, "%s: %s", s, *args);
 	  display = olddisplay;
         }
       break;
@@ -1515,7 +1525,7 @@ int key;
 		if (!u)
 		  {
 		    args[0][n] = '\0';
-		    Msg(0, "Did not find any user matching '%s'", args[0]);
+		    OutputMsg(0, "Did not find any user matching '%s'", args[0]);
 		    break;
 		  }
 	      }
@@ -1532,7 +1542,7 @@ int key;
 		debug1("AT display %s\n", D_usertty);
 		DoCommand(args + 1, argl + 1);
 		if (display)
-		  Msg(0, "command from %s: %s %s", 
+		  OutputMsg(0, "command from %s: %s %s", 
 		      s, args[1], args[2] ? args[2] : "");
 		display = NULL;
 		flayer = 0;
@@ -1561,7 +1571,7 @@ int key;
 		debug1("AT display %s\n", D_usertty);
 		DoCommand(args + 1, argl + 1);
 		if (display)
-		  Msg(0, "command from %s: %s %s", 
+		  OutputMsg(0, "command from %s: %s %s", 
 		      s, args[1], args[2] ? args[2] : "");
 		display = NULL;
 		fore = NULL;
@@ -1606,14 +1616,14 @@ int key;
 		    if (fore && fore->w_layer.l_cvlist)
 		      {
 		        display = fore->w_layer.l_cvlist->c_display;
-		        Msg(0, "command from %s: %s %s", 
+		        OutputMsg(0, "command from %s: %s %s", 
 			    s, args[1], args[2] ? args[2] : "");
 		      }
 		  }
 		display = NULL;
 		fore = NULL;
 		if (i < 0)
-		  Msg(0, "%s: at '%s': no such window.\n", rc_name, args[0]);
+		  OutputMsg(0, "%s: at '%s': no such window.\n", rc_name, args[0]);
 		break;
 	      }
 	    else if (i < maxwin && (fore = wtab[i]))
@@ -1627,14 +1637,14 @@ int key;
 		if (fore && fore->w_layer.l_cvlist)
 		  {
 		    display = fore->w_layer.l_cvlist->c_display;
-		    Msg(0, "command from %s: %s %s", 
+		    OutputMsg(0, "command from %s: %s %s", 
 		        s, args[1], args[2] ? args[2] : "");
 		  }
 		display = NULL;
 		fore = NULL;
 	      }
 	    else
-	      Msg(0, "%s: at [identifier][%%|*|#] command [args]", rc_name);
+	      OutputMsg(0, "%s: at [identifier][%%|*|#] command [args]", rc_name);
 	    break;
 	  }
 	}
@@ -1653,7 +1663,7 @@ int key;
 	  i = FindEncoding(args[1]);
 	  if (i == -1)
 	    {
-	      Msg(0, "%s: readreg: unknown encoding", rc_name);
+	      OutputMsg(0, "%s: readreg: unknown encoding", rc_name);
 	      break;
 	    }
 	  args += 2;
@@ -1672,7 +1682,7 @@ int key;
 	}
       if (*argl != 1)
 	{
-	  Msg(0, "%s: copyreg: character, ^x, or (octal) \\032 expected.", rc_name);
+	  OutputMsg(0, "%s: copyreg: character, ^x, or (octal) \\032 expected.", rc_name);
 	  break;
 	}
       ch = args[0][0];
@@ -1683,7 +1693,7 @@ int key;
         {
 	  if (args[2])
 	    {
-	      Msg(0, "%s: readreg: too many arguments", rc_name);
+	      OutputMsg(0, "%s: readreg: too many arguments", rc_name);
 	      break;
 	    }
 	  if ((s = ReadFile(args[1], &n)))
@@ -1716,7 +1726,7 @@ int key;
 	  i = FindEncoding(args[1]);
 	  if (i == -1)
 	    {
-	      Msg(0, "%s: register: unknown encoding", rc_name);
+	      OutputMsg(0, "%s: register: unknown encoding", rc_name);
 	      break;
 	    }
 	  args += 2;
@@ -1725,12 +1735,12 @@ int key;
 #endif
       if (argc != 2)
 	{
-	  Msg(0, "%s: register: illegal number of arguments.", rc_name);
+	  OutputMsg(0, "%s: register: illegal number of arguments.", rc_name);
 	  break;
 	}
       if (*argl != 1)
 	{
-	  Msg(0, "%s: register: character, ^x, or (octal) \\032 expected.", rc_name);
+	  OutputMsg(0, "%s: register: character, ^x, or (octal) \\032 expected.", rc_name);
 	  break;
 	}
       ch = args[0][0];
@@ -1770,7 +1780,7 @@ int key;
 	}
       if (*argl != 1)
 	{
-	  Msg(0, "%s: process: character, ^x, or (octal) \\032 expected.", rc_name);
+	  OutputMsg(0, "%s: process: character, ^x, or (octal) \\032 expected.", rc_name);
 	  break;
 	}
       ch = args[0][0];
@@ -1788,7 +1798,7 @@ int key;
 	{
 	  if (strcmp(s, "-k"))
 	    {
-	      Msg(0, "%s: stuff: invalid option %s", rc_name, s);
+	      OutputMsg(0, "%s: stuff: invalid option %s", rc_name, s);
 	      break;
 	    }
 	  s = args[1];
@@ -1797,7 +1807,7 @@ int key;
 	      break;
 	  if (i == T_OCAPS)
 	    {
-	      Msg(0, "%s: stuff: unknown key '%s'", rc_name, s);
+	      OutputMsg(0, "%s: stuff: unknown key '%s'", rc_name, s);
 	      break;
 	    }
 #ifdef MAPKEYS
@@ -1819,7 +1829,7 @@ int key;
       ShowWindows(-1);
       break;
     case RC_VERSION:
-      Msg(0, "screen %s", version);
+      OutputMsg(0, "screen %s", version);
       break;
     case RC_TIME:
       if (*args)
@@ -1827,7 +1837,7 @@ int key;
 	  timestring = SaveStr(*args);
 	  break;
 	}
-      Msg(0, "%s", MakeWinMsg(timestring, fore, '%'));
+      OutputMsg(0, "%s", MakeWinMsg(timestring, fore, '%'));
       break;
     case RC_INFO:
       ShowInfo();
@@ -1842,7 +1852,7 @@ int key;
 	    {
 	      if ((ktabp = FindKtab(args[1], 0)) == 0)
 		{
-		  Msg(0, "Unknown command class '%s'", args[1]);
+		  OutputMsg(0, "Unknown command class '%s'", args[1]);
 		  break;
 		}
 	    }
@@ -1901,15 +1911,15 @@ int key;
 		      break;
 		  }
 	      if (n < 0 || n >= (int)(sizeof(types)/sizeof(*types)))
-	        Msg(0, "%s invalid, chose one of %s, %s or %s", *args, types[0], types[1], types[2]);
+	        OutputMsg(0, "%s invalid, chose one of %s, %s or %s", *args, types[0], types[1], types[2]);
 	      else
 	        {
 		  breaktype = n;
-	          Msg(0, "breaktype set to (%d) %s", n, types[n]);
+	          OutputMsg(0, "breaktype set to (%d) %s", n, types[n]);
 		}
 	    }
 	  else
-	    Msg(0, "breaktype is (%d) %s", breaktype, types[breaktype]);
+	    OutputMsg(0, "breaktype is (%d) %s", breaktype, types[breaktype]);
 	}
       break;
     case RC_POW_BREAK:
@@ -1943,7 +1953,7 @@ int key;
 	  {
 	    if (!flayer)
 	      {
-		Msg(0, "%s: %s: window required", rc_name, comms[nr].name);
+		OutputMsg(0, "%s: %s: window required", rc_name, comms[nr].name);
 		break;
 	      }
 	    w = flayer->l_width;
@@ -1953,7 +1963,7 @@ int key;
 	  {
 	    if (!display)
 	      {
-		Msg(0, "%s: %s: display required", rc_name, comms[nr].name);
+		OutputMsg(0, "%s: %s: display required", rc_name, comms[nr].name);
 		break;
 	      }
 	    w = D_width;
@@ -1961,7 +1971,7 @@ int key;
 	  }
         if (*args && args[0][0] == '-')
 	  {
-	    Msg(0, "%s: %s: unknown option %s", rc_name, comms[nr].name, *args);
+	    OutputMsg(0, "%s: %s: unknown option %s", rc_name, comms[nr].name, *args);
 	    break;
 	  }
 	if (nr == RC_HEIGHT)
@@ -2008,17 +2018,17 @@ int key;
 	  }
         if (*args && args[1] && args[2])
 	  {
-	    Msg(0, "%s: %s: too many arguments", rc_name, comms[nr].name);
+	    OutputMsg(0, "%s: %s: too many arguments", rc_name, comms[nr].name);
 	    break;
 	  }
 	if (w <= 0)
 	  {
-	    Msg(0, "Illegal width");
+	    OutputMsg(0, "Illegal width");
 	    break;
 	  }
 	if (h <= 0)
 	  {
-	    Msg(0, "Illegal height");
+	    OutputMsg(0, "Illegal height");
 	    break;
 	  }
 	if (what == 1)
@@ -2044,11 +2054,11 @@ int key;
 		break;
 	      }
 	    if (h == D_height)
-	      Msg(0, "Your termcap does not specify how to change the terminal's width to %d.", w);
+	      OutputMsg(0, "Your termcap does not specify how to change the terminal's width to %d.", w);
 	    else if (w == D_width)
-	      Msg(0, "Your termcap does not specify how to change the terminal's height to %d.", h);
+	      OutputMsg(0, "Your termcap does not specify how to change the terminal's height to %d.", h);
 	    else
-	      Msg(0, "Your termcap does not specify how to change the terminal's resolution to %dx%d.", w, h);
+	      OutputMsg(0, "Your termcap does not specify how to change the terminal's resolution to %dx%d.", w, h);
 	  }
       }
       break;
@@ -2056,7 +2066,7 @@ int key;
       if (queryflag >= 0)
 	{
 	  if (fore)
-	    Msg(0, "%s", fore->w_title);
+	    OutputMsg(0, "%s", fore->w_title);
 	  else
 	    queryflag = -1;
 	  break;
@@ -2077,14 +2087,14 @@ int key;
       break;
     case RC_LASTMSG:
       if (D_status_lastmsg)
-	Msg(0, "%s", D_status_lastmsg);
+	OutputMsg(0, "%s", D_status_lastmsg);
       break;
     case RC_SCREEN:
       DoScreen("key", args);
       break;
     case RC_WRAP:
       if (ParseSwitch(act, &fore->w_wrap) == 0 && msgok)
-        Msg(0, "%cwrap", fore->w_wrap ? '+' : '-');
+        OutputMsg(0, "%cwrap", fore->w_wrap ? '+' : '-');
       break;
     case RC_FLOW:
       if (*args)
@@ -2111,7 +2121,7 @@ int key;
 	}
       SetFlow(fore->w_flow & FLOW_NOW);
       if (msgok)
-	Msg(0, "%cflow%s", (fore->w_flow & FLOW_NOW) ? '+' : '-',
+	OutputMsg(0, "%cflow%s", (fore->w_flow & FLOW_NOW) ? '+' : '-',
 	    (fore->w_flow & FLOW_AUTOFLAG) ? "(auto)" : "");
       break;
 #ifdef MULTIUSER
@@ -2145,7 +2155,7 @@ int key;
 	  if (!AclCheckPermWin(D_user, ACL_WRITE, fore))
 	    fore->w_wlockuser = D_user;
 	}
-      Msg(0, "writelock %s", (fore->w_wlock == WLOCK_AUTO) ? "auto" :
+      OutputMsg(0, "writelock %s", (fore->w_wlock == WLOCK_AUTO) ? "auto" :
 	  ((fore->w_wlock == WLOCK_OFF) ? "off" : "on"));
       break;
 #endif
@@ -2180,7 +2190,7 @@ int key;
 #endif
 	  if (fore->w_monitor == MON_OFF)
 	    fore->w_monitor = MON_ON;
-	  Msg(0, "Window %d (%s) is now being monitored for all activity.", fore->w_number, fore->w_title);
+	  OutputMsg(0, "Window %d (%s) is now being monitored for all activity.", fore->w_number, fore->w_title);
 	}
       else
 	{
@@ -2197,7 +2207,7 @@ int key;
 	  if (i < 0)
 #endif
 	    fore->w_monitor = MON_OFF;
-	  Msg(0, "Window %d (%s) is no longer being monitored for activity.", fore->w_number, fore->w_title);
+	  OutputMsg(0, "Window %d (%s) is no longer being monitored for activity.", fore->w_number, fore->w_title);
 	}
       break;
 #ifdef MULTI
@@ -2217,7 +2227,7 @@ int key;
 	      wliststr = SaveStr(args[1]);
 	    }
 	  if (msgok)
-	    Msg(0, "windowlist string is '%s'", wliststr);
+	    OutputMsg(0, "windowlist string is '%s'", wliststr);
 	}
       else if (!strcmp(*args, "title"))
 	{
@@ -2228,7 +2238,7 @@ int key;
 	      wlisttit = SaveStr(args[1]);
 	    }
 	  if (msgok)
-	    Msg(0, "windowlist title is '%s'", wlisttit);
+	    OutputMsg(0, "windowlist title is '%s'", wlisttit);
 	}
       else
 	{
@@ -2245,7 +2255,7 @@ int key;
 	      flag |= WLIST_NESTED;
 	    else
 	      {
-		Msg(0, "usage: windowlist [-b] [-g] [-m] [string [string] | title [title]]");
+		OutputMsg(0, "usage: windowlist [-b] [-g] [-m] [string [string] | title [title]]");
 		break;
 	      }
 	  if (i == argc)
@@ -2258,7 +2268,7 @@ int key;
 	  struct action *ktabp;
 	  if ((ktabp = FindKtab(args[1], 0)) == 0)
 	    {
-	      Msg(0, "Unknown command class '%s'", args[1]);
+	      OutputMsg(0, "Unknown command class '%s'", args[1]);
 	      break;
 	    }
           display_help(args[1], ktabp);
@@ -2273,7 +2283,7 @@ int key;
     case RC_COPY:
       if (flayer->l_layfn != &WinLf)
 	{
-	  Msg(0, "Must be on a window layer");
+	  OutputMsg(0, "Must be on a window layer");
 	  break;
 	}
       MarkRoutine();
@@ -2286,7 +2296,7 @@ int key;
 
 	if (flayer->l_layfn != &WinLf)
 	  {
-	    Msg(0, "Must be on a window layer");
+	    OutputMsg(0, "Must be on a window layer");
 	    break;
 	  }
 	if (GetHistory() == 0)
@@ -2321,7 +2331,7 @@ int key;
 	 */
 	if (args[1] && argl[1] != 1)
 	  {
-	    Msg(0, "%s: paste destination: character, ^x, or (octal) \\032 expected.",
+	    OutputMsg(0, "%s: paste destination: character, ^x, or (octal) \\032 expected.",
 		rc_name);
 	    break;
 	  }
@@ -2360,7 +2370,7 @@ int key;
           }
         if (l == 0)
 	  {
-	    Msg(0, "empty buffer");
+	    OutputMsg(0, "empty buffer");
 	    break;
 	  }
 	/*
@@ -2381,7 +2391,7 @@ int key;
 	 */
         if ((dbuf = (char *)malloc(l)) == 0)
           {
-	    Msg(0, "%s", strnomem);
+	    OutputMsg(0, "%s", strnomem);
 	    break;
           }
         l = 0;
@@ -2443,7 +2453,7 @@ int key;
     case RC_WRITEBUF:
       if (!user->u_plop.buf)
 	{
-	  Msg(0, "empty buffer");
+	  OutputMsg(0, "empty buffer");
 	  break;
 	}
 #ifdef ENCODINGS
@@ -2459,7 +2469,7 @@ int key;
 	      enc = FindEncoding(args[1]);
 	      if (enc == -1)
 		{
-		  Msg(0, "%s: writebuf: unknown encoding", rc_name);
+		  OutputMsg(0, "%s: writebuf: unknown encoding", rc_name);
 		  break;
 		}
 	      if (enc != oldplop.enc)
@@ -2468,7 +2478,7 @@ int key;
 		  newbuf = malloc(l + 1);
 		  if (!newbuf)
 		    {
-		      Msg(0, "%s", strnomem);
+		      OutputMsg(0, "%s", strnomem);
 		      break;
 		    }
 		  user->u_plop.len = RecodeBuf((unsigned char *)oldplop.buf, oldplop.len, oldplop.enc, enc, (unsigned char *)newbuf);
@@ -2479,7 +2489,7 @@ int key;
 	    }
 #endif
 	  if (args[0] && args[1])
-	    Msg(0, "%s: writebuf: too many arguments", rc_name);
+	    OutputMsg(0, "%s: writebuf: too many arguments", rc_name);
 	  else
 	    WriteFile(user, args[0], DUMP_EXCHANGE);
 #ifdef ENCODINGS
@@ -2497,7 +2507,7 @@ int key;
 	  i = FindEncoding(args[1]);
 	  if (i == -1)
 	    {
-	      Msg(0, "%s: readbuf: unknown encoding", rc_name);
+	      OutputMsg(0, "%s: readbuf: unknown encoding", rc_name);
 	      break;
 	    }
 	  args += 2;
@@ -2505,7 +2515,7 @@ int key;
 #endif
       if (args[0] && args[1])
 	{
-	  Msg(0, "%s: readbuf: too many arguments", rc_name);
+	  OutputMsg(0, "%s: readbuf: too many arguments", rc_name);
 	  break;
 	}
       if ((s = ReadFile(args[0] ? args[0] : BufferFile, &n)))
@@ -2525,7 +2535,7 @@ int key;
     case RC_IGNORECASE:
       (void)ParseSwitch(act, &search_ic);
       if (msgok)
-        Msg(0, "Will %signore case in searches", search_ic ? "" : "not ");
+        OutputMsg(0, "Will %signore case in searches", search_ic ? "" : "not ");
       break;
 #endif				/* COPY_PASTE */
     case RC_ESCAPE:
@@ -2535,7 +2545,7 @@ int key;
 	SetEscape(user, (int)(unsigned char)args[0][0], (int)(unsigned char)args[0][1]);
       else
 	{
-	  Msg(0, "%s: two characters required after escape.", rc_name);
+	  OutputMsg(0, "%s: two characters required after escape.", rc_name);
 	  break;
 	}
       /* Change defescape if master user. This is because we only
@@ -2551,7 +2561,7 @@ int key;
 	SetEscape(NULL, (int)(unsigned char)args[0][0], (int)(unsigned char)args[0][1]);
       else
 	{
-	  Msg(0, "%s: two characters required after defescape.", rc_name);
+	  OutputMsg(0, "%s: two characters required after defescape.", rc_name);
 	  break;
 	}
 #ifdef MAPKEYS
@@ -2561,7 +2571,7 @@ int key;
     case RC_CHDIR:
       s = *args ? *args : home;
       if (chdir(s) == -1)
-	Msg(errno, "%s", s);
+	OutputMsg(errno, "%s", s);
       break;
     case RC_SHELL:
     case RC_DEFSHELL:
@@ -2572,7 +2582,7 @@ int key;
       if (*args)
         (void)ParseSaveStr(act, &hardcopydir);
       if (msgok)
-	Msg(0, "hardcopydir is %s\n", hardcopydir && *hardcopydir ? hardcopydir : "<cwd>");
+	OutputMsg(0, "hardcopydir is %s\n", hardcopydir && *hardcopydir ? hardcopydir : "<cwd>");
       break;
     case RC_LOGFILE:
       if (*args)
@@ -2581,19 +2591,19 @@ int key;
 	    {
 	      log_flush = atoi(args[1]);
 	      if (msgok)
-		Msg(0, "log flush timeout set to %ds\n", log_flush);
+		OutputMsg(0, "log flush timeout set to %ds\n", log_flush);
 	      break;
 	    }
 	  if (ParseSaveStr(act, &screenlogfile) || !msgok)
 	    break;
 	}
-      Msg(0, "logfile is '%s'", screenlogfile);
+      OutputMsg(0, "logfile is '%s'", screenlogfile);
       break;
     case RC_LOGTSTAMP:
       if (!*args || !strcmp(*args, "on") || !strcmp(*args, "off"))
         {
 	  if (ParseSwitch(act, &logtstamp_on) == 0 && msgok)
-            Msg(0, "timestamps turned %s", logtstamp_on ? "on" : "off");
+            OutputMsg(0, "timestamps turned %s", logtstamp_on ? "on" : "off");
         }
       else if (!strcmp(*args, "string"))
 	{
@@ -2604,7 +2614,7 @@ int key;
 	      logtstamp_string = SaveStr(args[1]);
 	    }
 	  if (msgok)
-	    Msg(0, "logfile timestamp is '%s'", logtstamp_string);
+	    OutputMsg(0, "logfile timestamp is '%s'", logtstamp_string);
 	}
       else if (!strcmp(*args, "after"))
 	{
@@ -2614,10 +2624,10 @@ int key;
 	      if (!msgok)
 		break;
 	    }
-	  Msg(0, "timestamp printed after %ds\n", logtstamp_after);
+	  OutputMsg(0, "timestamp printed after %ds\n", logtstamp_after);
 	}
       else
-        Msg(0, "usage: logtstamp [after [n]|string [str]|on|off]");
+        OutputMsg(0, "usage: logtstamp [after [n]|string [str]|on|off]");
       break;
     case RC_SHELLTITLE:
       (void)ParseSaveStr(act, &nwin_default.aka);
@@ -2626,7 +2636,7 @@ int key;
     case RC_TERMCAPINFO:
     case RC_TERMINFO:
       if (!rc_name || !*rc_name)
-        Msg(0, "Sorry, too late now. Place that in your .screenrc file.");
+        OutputMsg(0, "Sorry, too late now. Place that in your .screenrc file.");
       break;
     case RC_SLEEP:
       break;			/* Already handled */
@@ -2636,7 +2646,7 @@ int key;
 	break;
       if (strlen(s) >= 20)
 	{
-	  Msg(0, "%s: term: argument too long ( < 20)", rc_name);
+	  OutputMsg(0, "%s: term: argument too long ( < 20)", rc_name);
 	  free(s);
 	  break;
 	}
@@ -2668,10 +2678,10 @@ int key;
 	    s = MakeWinMsg(s, fore, '%');
 	}
       if (s)
-	Msg(0, "%s", s);
+	OutputMsg(0, "%s", s);
       else
 	{
-	  Msg(0, "%s: 'echo [-n] [-p] \"string\"' expected.", rc_name);
+	  OutputMsg(0, "%s: 'echo [-n] [-p] \"string\"' expected.", rc_name);
 	  queryflag = -1;
 	}
       break;
@@ -2681,7 +2691,7 @@ int key;
 	{
 	  char buf[256];
 	  AddXChars(buf, sizeof(buf), BellString);
-	  Msg(0, "bell_msg is '%s'", buf);
+	  OutputMsg(0, "bell_msg is '%s'", buf);
 	  break;
 	}
       (void)ParseSaveStr(act, &BellString);
@@ -2693,7 +2703,7 @@ int key;
       else if (ParseSaveStr(act, &BufferFile))
         break;
       if (msgok)
-        Msg(0, "Bufferfile is now '%s'", BufferFile);
+        OutputMsg(0, "Bufferfile is now '%s'", BufferFile);
       break;
 #endif
     case RC_ACTIVITY:
@@ -2705,7 +2715,7 @@ int key;
         {
 	  char buf[256];
           AddXChars(buf, sizeof(buf), PowDetachString);
-	  Msg(0, "pow_detach_msg is '%s'", buf);
+	  OutputMsg(0, "pow_detach_msg is '%s'", buf);
 	  break;
 	}
       (void)ParseSaveStr(act, &PowDetachString);
@@ -2787,7 +2797,7 @@ int key;
     case RC_MOUSETRACK:
       if (!args[0])
 	{
-	  Msg(0, "Mouse tracking for this display is turned %s", D_mousetrack ? "on" : "off");
+	  OutputMsg(0, "Mouse tracking for this display is turned %s", D_mousetrack ? "on" : "off");
 	}
       else if (ParseOnOff(act, &n) == 0)
 	{
@@ -2802,7 +2812,7 @@ int key;
       break;
     case RC_VERBOSE:
       if (!*args)
-	Msg(0, "W%s echo command when creating windows.", 
+	OutputMsg(0, "W%s echo command when creating windows.", 
 	  VerboseCreate ? "ill" : "on't");
       else if (ParseOnOff(act, &n) == 0)
         VerboseCreate = n;
@@ -2810,7 +2820,7 @@ int key;
     case RC_HARDSTATUS:
       if (display)
 	{
-	  Msg(0, "%s", "");	/* wait till mintime (keep gcc quiet) */
+	  OutputMsg(0, "%s", "");	/* wait till mintime (keep gcc quiet) */
           RemoveStatus();
 	}
       if (args[0] && strcmp(args[0], "on") && strcmp(args[0], "off"))
@@ -2833,13 +2843,13 @@ int key;
 		{
 		  char buf[256];
 		  AddXChars(buf, sizeof(buf), hstatusstring);
-		  Msg(0, "hardstatus string is '%s'", buf);
+		  OutputMsg(0, "hardstatus string is '%s'", buf);
 		  break;
 		}
 	    }
 	  else
 	    {
-	      Msg(0, "%s: usage: hardstatus [always]lastline|ignore|message|string [string]", rc_name);
+	      OutputMsg(0, "%s: usage: hardstatus [always]lastline|ignore|message|string [string]", rc_name);
 	      break;
 	    }
 	  if (new_use != -1)
@@ -2872,7 +2882,7 @@ int key;
 	}
       (void)ParseSwitch(act, &use_hardstatus);
       if (msgok)
-        Msg(0, "messages displayed on %s", use_hardstatus ? "hardstatus line" : "window");
+        OutputMsg(0, "messages displayed on %s", use_hardstatus ? "hardstatus line" : "window");
       break;
     case RC_CAPTION:
       if (strcmp(args[0], "always") == 0 || strcmp(args[0], "splitonly") == 0)
@@ -2890,13 +2900,13 @@ int key;
 	    {
 	      char buf[256];
 	      AddXChars(buf, sizeof(buf), captionstring);
-	      Msg(0, "caption string is '%s'", buf);
+	      OutputMsg(0, "caption string is '%s'", buf);
 	      break;
 	    }
 	}
       else
 	{
-	  Msg(0, "%s: usage: caption always|splitonly|string <string>", rc_name);
+	  OutputMsg(0, "%s: usage: caption always|splitonly|string <string>", rc_name);
 	  break;
 	}
       if (!args[1])
@@ -2913,12 +2923,12 @@ int key;
       if (TtyGrabConsole(fore->w_ptyfd, n, rc_name))
 	break;
       if (n == 0)
-	  Msg(0, "%s: releasing console %s", rc_name, HostName);
+	  OutputMsg(0, "%s: releasing console %s", rc_name, HostName);
       else if (console_window)
-	  Msg(0, "%s: stealing console %s from window %d (%s)", rc_name, 
+	  OutputMsg(0, "%s: stealing console %s from window %d (%s)", rc_name, 
 	      HostName, console_window->w_number, console_window->w_title);
       else
-	  Msg(0, "%s: grabbing console %s", rc_name, HostName);
+	  OutputMsg(0, "%s: grabbing console %s", rc_name, HostName);
       console_window = n ? fore : 0;
       break;
     case RC_ALLPARTIAL:
@@ -2927,7 +2937,7 @@ int key;
       if (!all_norefresh && fore)
 	Activate(-1);
       if (msgok)
-        Msg(0, all_norefresh ? "No refresh on window change!\n" :
+        OutputMsg(0, all_norefresh ? "No refresh on window change!\n" :
 			       "Window specific refresh\n");
       break;
     case RC_PARTIAL:
@@ -2938,21 +2948,21 @@ int key;
       if (ParseSwitch(act, &visual_bell) || !msgok)
         break;
       if (visual_bell == 0)
-        Msg(0, "switched to audible bell.");
+        OutputMsg(0, "switched to audible bell.");
       else
-        Msg(0, "switched to visual bell.");
+        OutputMsg(0, "switched to visual bell.");
       break;
     case RC_VBELLWAIT:
       if (ParseNum1000(act, &VBellWait) == 0 && msgok)
-        Msg(0, "vbellwait set to %.10g seconds", VBellWait/1000.);
+        OutputMsg(0, "vbellwait set to %.10g seconds", VBellWait/1000.);
       break;
     case RC_MSGWAIT:
       if (ParseNum1000(act, &MsgWait) == 0 && msgok)
-        Msg(0, "msgwait set to %.10g seconds", MsgWait/1000.);
+        OutputMsg(0, "msgwait set to %.10g seconds", MsgWait/1000.);
       break;
     case RC_MSGMINWAIT:
       if (ParseNum1000(act, &MsgMinWait) == 0 && msgok)
-        Msg(0, "msgminwait set to %.10g seconds", MsgMinWait/1000.);
+        OutputMsg(0, "msgminwait set to %.10g seconds", MsgMinWait/1000.);
       break;
     case RC_SILENCEWAIT:
       if (ParseNum(act, &SilenceWait))
@@ -2962,11 +2972,11 @@ int key;
       for (p = windows; p; p = p->w_next)
 	p->w_silencewait = SilenceWait;
       if (msgok)
-	Msg(0, "silencewait set to %d seconds", SilenceWait);
+	OutputMsg(0, "silencewait set to %d seconds", SilenceWait);
       break;
     case RC_NUMBER:
       if (*args == 0)
-        Msg(0, queryflag >= 0 ? "%d (%s)" : "This is window %d (%s).", fore->w_number, fore->w_title);
+        OutputMsg(0, queryflag >= 0 ? "%d (%s)" : "This is window %d (%s).", fore->w_number, fore->w_title);
       else
         {
 	  int old = fore->w_number;
@@ -3021,7 +3031,7 @@ int key;
 
 	  if (!msgok)
 	    break;
-	  Msg(0, "The window is now being monitored for %d sec. silence.", fore->w_silencewait);
+	  OutputMsg(0, "The window is now being monitored for %d sec. silence.", fore->w_silencewait);
 	}
       else
         {
@@ -3043,7 +3053,7 @@ int key;
 	    }
 	  if (!msgok)
 	    break;
-	  Msg(0, "The window is no longer being monitored for silence.");
+	  OutputMsg(0, "The window is no longer being monitored for silence.");
 	}
       break;
 #ifdef COPY_PASTE
@@ -3053,18 +3063,18 @@ int key;
     case RC_SCROLLBACK:
       if (flayer->l_layfn == &MarkLf)
 	{
-	  Msg(0, "Cannot resize scrollback buffer in copy/scrollback mode.");
+	  OutputMsg(0, "Cannot resize scrollback buffer in copy/scrollback mode.");
 	  break;
 	}
       (void)ParseNum(act, &n);
       ChangeWindowSize(fore, fore->w_width, fore->w_height, n);
       if (msgok)
-	Msg(0, "scrollback set to %d", fore->w_histheight);
+	OutputMsg(0, "scrollback set to %d", fore->w_histheight);
       break;
 #endif
     case RC_SESSIONNAME:
       if (*args == 0)
-	Msg(0, "This session is named '%s'\n", SockName);
+	OutputMsg(0, "This session is named '%s'\n", SockName);
       else
 	{
 	  char buf[MAXPATHLEN];
@@ -3074,7 +3084,7 @@ int key;
 	    break;
 	  if (!*s || strlen(s) + (SockName - SockPath) > MAXPATHLEN - 13 || index(s, '/'))
 	    {
-	      Msg(0, "%s: bad session name '%s'\n", rc_name, s);
+	      OutputMsg(0, "%s: bad session name '%s'\n", rc_name, s);
 	      free(s);
 	      break;
 	    }
@@ -3083,12 +3093,12 @@ int key;
 	  free(s);
 	  if ((access(buf, F_OK) == 0) || (errno != ENOENT))
 	    {
-	      Msg(0, "%s: inappropriate path: '%s'.", rc_name, buf);
+	      OutputMsg(0, "%s: inappropriate path: '%s'.", rc_name, buf);
 	      break;
 	    }
 	  if (rename(SockPath, buf))
 	    {
-	      Msg(errno, "%s: failed to rename(%s, %s)", rc_name, SockPath, buf);
+	      OutputMsg(errno, "%s: failed to rename(%s, %s)", rc_name, SockPath, buf);
 	      break;
 	    }
 	  debug2("rename(%s, %s) done\n", SockPath, buf);
@@ -3119,12 +3129,12 @@ int key;
       break;
     case RC_SLOWPASTE:
       if (*args == 0)
-	Msg(0, fore->w_slowpaste ? 
+	OutputMsg(0, fore->w_slowpaste ? 
                "Slowpaste in window %d is %d milliseconds." :
                "Slowpaste in window %d is unset.", 
 	    fore->w_number, fore->w_slowpaste);
       else if (ParseNum(act, &fore->w_slowpaste) == 0 && msgok)
-	Msg(0, fore->w_slowpaste ?
+	OutputMsg(0, fore->w_slowpaste ?
                "Slowpaste in window %d set to %d milliseconds." :
                "Slowpaste in window %d now unset.", 
 	    fore->w_number, fore->w_slowpaste);
@@ -3132,7 +3142,7 @@ int key;
     case RC_MARKKEYS:
       if (CompileKeys(*args, *argl, mark_key_tab))
 	{
-	  Msg(0, "%s: markkeys: syntax error.", rc_name);
+	  OutputMsg(0, "%s: markkeys: syntax error.", rc_name);
 	  break;
 	}
       debug1("markkeys %s\n", *args);
@@ -3140,7 +3150,7 @@ int key;
 # ifdef FONT
     case RC_PASTEFONT:
       if (ParseSwitch(act, &pastefont) == 0 && msgok)
-        Msg(0, "Will %spaste font settings", pastefont ? "" : "not ");
+        OutputMsg(0, "Will %spaste font settings", pastefont ? "" : "not ");
       break;
 # endif
     case RC_CRLF:
@@ -3148,7 +3158,7 @@ int key;
       break;
     case RC_COMPACTHIST:
       if (ParseSwitch(act, &compacthist) == 0 && msgok)
-	Msg(0, "%scompacting history lines", compacthist ? "" : "not ");
+	OutputMsg(0, "%scompacting history lines", compacthist ? "" : "not ");
       break;
 #endif
 #ifdef NETHACK
@@ -3164,7 +3174,7 @@ int key;
         { 
 	  char buf[256];
           AddXChars(buf, sizeof(buf), VisualBellString);
-	  Msg(0, "vbell_msg is '%s'", buf);
+	  OutputMsg(0, "vbell_msg is '%s'", buf);
 	  break; 
 	}
       (void)ParseSaveStr(act, &VisualBellString);
@@ -3175,12 +3185,12 @@ int key;
         break;
       if (n < 0 || n > 0777)
 	{
-	  Msg(0, "%s: mode: Invalid tty mode %o", rc_name, n);
+	  OutputMsg(0, "%s: mode: Invalid tty mode %o", rc_name, n);
           break;
 	}
       TtyMode = n;
       if (msgok)
-	Msg(0, "Ttymode set to %03o", TtyMode);
+	OutputMsg(0, "Ttymode set to %03o", TtyMode);
       break;
     case RC_AUTODETACH:
       (void)ParseOnOff(act, &auto_detach);
@@ -3198,7 +3208,7 @@ int key;
 	  if (!strcmp(user->u_password, "none"))
 	    {
 	      if (n)
-	        Msg(0, "Password checking disabled");
+	        OutputMsg(0, "Password checking disabled");
 	      free(user->u_password);
 	      user->u_password = NullStr;
 	    }
@@ -3207,7 +3217,7 @@ int key;
 	{
 	  if (!fore)
 	    {
-	      Msg(0, "%s: password: window required", rc_name);
+	      OutputMsg(0, "%s: password: window required", rc_name);
 	      break;
 	    }
 	  Input("New screen password:", 100, INP_NOECHO, pass1, display ? (char *)D_user : (char *)users, 0);
@@ -3248,7 +3258,7 @@ int key;
 		  break;
 	      if (n == KMAP_KEYS)
 		{
-		  Msg(0, "%s: bind: unknown key '%s'", rc_name, *args);
+		  OutputMsg(0, "%s: bind: unknown key '%s'", rc_name, *args);
 		  break;
 		}
 	      n += 256;
@@ -3257,7 +3267,7 @@ int key;
 #endif
 	  if (*argl != 1)
 	    {
-	      Msg(0, "%s: bind: character, ^x, or (octal) \\032 expected.", rc_name);
+	      OutputMsg(0, "%s: bind: character, ^x, or (octal) \\032 expected.", rc_name);
 	      break;
 	    }
 	  else
@@ -3267,7 +3277,7 @@ int key;
 	    {
 	      if ((i = FindCommnr(args[1])) == RC_ILLEGAL)
 		{
-		  Msg(0, "%s: bind: unknown command '%s'", rc_name, args[1]);
+		  OutputMsg(0, "%s: bind: unknown command '%s'", rc_name, args[1]);
 		  break;
 		}
 	      if (CheckArgNum(i, args + 2) < 0)
@@ -3308,13 +3318,13 @@ int key;
 		}
 	      else
 		{
-	          Msg(0, "%s: bindkey: invalid option %s", rc_name, *args);
+	          OutputMsg(0, "%s: bindkey: invalid option %s", rc_name, *args);
 		  return;
 		}
 	    }
 	  if (df && mf)
 	    {
-	      Msg(0, "%s: bindkey: -d does not work with -m", rc_name);
+	      OutputMsg(0, "%s: bindkey: -d does not work with -m", rc_name);
 	      break;
 	    }
 	  if (*args == 0)
@@ -3331,12 +3341,12 @@ int key;
 	    {
 	      if (af)
 		{
-		  Msg(0, "%s: bindkey: -a only works with -k", rc_name);
+		  OutputMsg(0, "%s: bindkey: -a only works with -k", rc_name);
 		  break;
 		}
 	      if (*argl == 0)
 		{
-		  Msg(0, "%s: bindkey: empty string makes no sense", rc_name);
+		  OutputMsg(0, "%s: bindkey: empty string makes no sense", rc_name);
 		  break;
 		}
 	      for (i = 0, kme = kmap_exts; i < kmap_extn; i++, kme++)
@@ -3352,7 +3362,7 @@ int key;
 		{
 		  if (!args[1])
 		    {
-		      Msg(0, "%s: bindkey: keybinding not found", rc_name);
+		      OutputMsg(0, "%s: bindkey: keybinding not found", rc_name);
 		      break;
 		    }
 		  kmap_extn += 8;
@@ -3385,7 +3395,7 @@ int key;
 		  break;
 	      if (i == T_OCAPS)
 		{
-		  Msg(0, "%s: bindkey: unknown key '%s'", rc_name, *args);
+		  OutputMsg(0, "%s: bindkey: unknown key '%s'", rc_name, *args);
 		  break;
 		}
 	      if (af && i >= T_CURSOR && i < T_OCAPS)
@@ -3398,7 +3408,7 @@ int key;
 	    {
 	      if ((newnr = FindCommnr(args[1])) == RC_ILLEGAL)
 		{
-		  Msg(0, "%s: bindkey: unknown command '%s'", rc_name, args[1]);
+		  OutputMsg(0, "%s: bindkey: unknown command '%s'", rc_name, args[1]);
 		  break;
 		}
 	      if (CheckArgNum(newnr, args + 2) < 0)
@@ -3436,13 +3446,13 @@ int key;
 	    break;
 	  if (n < 0)
 	    {
-	      Msg(0, "%s: maptimeout: illegal time %d", rc_name, n);
+	      OutputMsg(0, "%s: maptimeout: illegal time %d", rc_name, n);
 	      break;
 	    }
 	  maptimeout = n;
 	}
       if (*args == 0 || msgok)
-        Msg(0, "maptimeout is %dms", maptimeout);
+        OutputMsg(0, "maptimeout is %dms", maptimeout);
       break;
     case RC_MAPNOTNEXT:
       D_dontmap = 1;
@@ -3462,7 +3472,7 @@ int key;
       if (UserDel(args[0], NULL))
 	break;
       if (msgok)
-	Msg(0, "%s removed from acl database", args[0]);
+	OutputMsg(0, "%s removed from acl database", args[0]);
       break;
     case RC_ACLGRP:
       /*
@@ -3477,7 +3487,7 @@ int key;
 	      if (AclLinkUser(args[0], args[1]))
 		break;
 	      if (msgok)
-		Msg(0, "User %s joined acl-group %s", args[0], args[1]);
+		OutputMsg(0, "User %s joined acl-group %s", args[0], args[1]);
 	    }
 	  else				/* remove all groups from user */
 	    {
@@ -3503,7 +3513,7 @@ int key;
 	  if (!(u = *FindUserPtr(args[0])))
 	    {
 	      if (msgok)
-		Msg(0, "User %s does not exist.", args[0]);
+		OutputMsg(0, "User %s does not exist.", args[0]);
 	      break;
 	    }
 	  g = u->u_group;
@@ -3518,7 +3528,7 @@ int key;
 	    }
 	  if (ngroups)
 	    *(--p) = '\0';
-	  Msg(0, "%s's group%s: %s.", args[0], (ngroups == 1) ? "" : "s",
+	  OutputMsg(0, "%s's group%s: %s.", args[0], (ngroups == 1) ? "" : "s",
 	      (ngroups == 0) ? "none" : buf);
 	}
       break;
@@ -3529,7 +3539,7 @@ int key;
 	  char *err = 0;
 
 	  if (AclUmask(display ? D_user : users, s, &err))
-	    Msg(0, "umask: %s\n", err);
+	    OutputMsg(0, "umask: %s\n", err);
 	}
       break;
     case RC_MULTIUSER:
@@ -3538,7 +3548,7 @@ int key;
       multi = n ? "" : 0;
       chsock();
       if (msgok)
-	Msg(0, "Multiuser mode %s", multi ? "enabled" : "disabled");
+	OutputMsg(0, "Multiuser mode %s", multi ? "enabled" : "disabled");
       break;
 #endif /* MULTIUSER */
 #ifdef PSEUDOS
@@ -3559,11 +3569,11 @@ int key;
       else
 	break;
       if (msgok && i == -1)
-        Msg(0, "display set to blocking mode");
+        OutputMsg(0, "display set to blocking mode");
       else if (msgok && i == 0)
-        Msg(0, "display set to nonblocking mode, no timeout");
+        OutputMsg(0, "display set to nonblocking mode, no timeout");
       else if (msgok)
-        Msg(0, "display set to nonblocking mode, %.10gs timeout", i/1000.);
+        OutputMsg(0, "display set to nonblocking mode, %.10gs timeout", i/1000.);
       D_nonblock = i;
       if (D_nonblock <= 0)
 	evdeq(&D_blockedev);
@@ -3592,7 +3602,7 @@ int key;
 	fore->w_gr = 0;
 #endif
       if (ParseSwitch(act, &fore->w_gr) == 0 && msgok)
-        Msg(0, "Will %suse GR", fore->w_gr ? "" : "not ");
+        OutputMsg(0, "Will %suse GR", fore->w_gr ? "" : "not ");
 #ifdef ENCODINGS
       if (fore->w_gr == 0 && fore->w_FontE)
 	fore->w_gr = 2;
@@ -3600,12 +3610,12 @@ int key;
       break;
     case RC_C1:
       if (ParseSwitch(act, &fore->w_c1) == 0 && msgok)
-        Msg(0, "Will %suse C1", fore->w_c1 ? "" : "not ");
+        OutputMsg(0, "Will %suse C1", fore->w_c1 ? "" : "not ");
       break;
 #ifdef COLOR
     case RC_BCE:
       if (ParseSwitch(act, &fore->w_bce) == 0 && msgok)
-        Msg(0, "Will %serase with background color", fore->w_bce ? "" : "not ");
+        OutputMsg(0, "Will %serase with background color", fore->w_bce ? "" : "not ");
       break;
 #endif
 #ifdef ENCODINGS
@@ -3615,7 +3625,7 @@ int key;
       if (*args && !strcmp(args[0], "-d"))
 	{
 	  if (!args[1])
-	    Msg(0, "encodings directory is %s", screenencodings ? screenencodings : "<unset>");
+	    OutputMsg(0, "encodings directory is %s", screenencodings ? screenencodings : "<unset>");
 	  else
 	    {
 	      free(screenencodings);
@@ -3626,18 +3636,18 @@ int key;
       if (*args && !strcmp(args[0], "-l"))
 	{
 	  if (!args[1])
-	    Msg(0, "encoding: -l: argument required");
+	    OutputMsg(0, "encoding: -l: argument required");
 	  else if (LoadFontTranslation(-1, args[1]))
-	    Msg(0, "encoding: could not load utf8 encoding file");
+	    OutputMsg(0, "encoding: could not load utf8 encoding file");
 	  else if (msgok)
-	    Msg(0, "encoding: utf8 encoding file loaded");
+	    OutputMsg(0, "encoding: utf8 encoding file loaded");
 	  break;
 	}
 #else
       if (*args && (!strcmp(args[0], "-l") || !strcmp(args[0], "-d")))
 	{
 	  if (msgok)
-	    Msg(0, "encoding: screen is not compiled for UTF-8.");
+	    OutputMsg(0, "encoding: screen is not compiled for UTF-8.");
 	  break;
 	}
 #endif
@@ -3650,7 +3660,7 @@ int key;
 	  n = FindEncoding(args[i]);
 	  if (n == -1)
 	    {
-	      Msg(0, "encoding: unknown encoding '%s'", args[i]);
+	      OutputMsg(0, "encoding: unknown encoding '%s'", args[i]);
 	      break;
 	    }
 	  if (i == 0 && fore)
@@ -3667,7 +3677,7 @@ int key;
       n = FindEncoding(*args);
       if (n == -1)
 	{
-	  Msg(0, "defencoding: unknown encoding '%s'", *args);
+	  OutputMsg(0, "defencoding: unknown encoding '%s'", *args);
 	  break;
 	}
       nwin_default.encoding = n;
@@ -3681,7 +3691,7 @@ int key;
 	{
 	  nwin_default.encoding = n ? UTF8 : 0;
 	  if (msgok)
-            Msg(0, "Will %suse UTF-8 encoding for new windows", n ? "" : "not ");
+            OutputMsg(0, "Will %suse UTF-8 encoding for new windows", n ? "" : "not ");
 	}
       break;
     case RC_UTF8:
@@ -3697,14 +3707,14 @@ int key;
 	    n = 1;
 	  else
 	    {
-	      Msg(0, "utf8: illegal argument (%s)", args[i]);
+	      OutputMsg(0, "utf8: illegal argument (%s)", args[i]);
 	      break;
 	    }
 	  if (i == 0)
 	    {
 	      WinSwitchEncoding(fore, n ? UTF8 : 0);
 	      if (msgok)
-		Msg(0, "Will %suse UTF-8 encoding", n ? "" : "not ");
+		OutputMsg(0, "Will %suse UTF-8 encoding", n ? "" : "not ");
 	    }
 	  else if (display)
 	    D_encoding = n ? UTF8 : 0;
@@ -3726,9 +3736,9 @@ int key;
       if (*args == 0 || msgok)
 	{
 	  if (printcmd)
-	    Msg(0, "using '%s' as print command", printcmd);
+	    OutputMsg(0, "using '%s' as print command", printcmd);
 	  else
-	    Msg(0, "using termcap entries for printing");
+	    OutputMsg(0, "using termcap entries for printing");
 	    break;
 	}
       break;
@@ -3738,7 +3748,7 @@ int key;
 	{
 	  if (argl[0] != 2)
 	    {
-	      Msg(0, "Two characters expected to define a digraph");
+	      OutputMsg(0, "Two characters expected to define a digraph");
 	      break;
 	    }
 	  i = digraph_find(args[0]);
@@ -3789,7 +3799,7 @@ int key;
           *buf = 0;
 	  if (nwin_default.hstatus)
             AddXChars(buf, sizeof(buf), nwin_default.hstatus);
-	  Msg(0, "default hstatus is '%s'", buf);
+	  OutputMsg(0, "default hstatus is '%s'", buf);
 	  break;
         }
       (void)ParseSaveStr(act, &nwin_default.hstatus);
@@ -3818,20 +3828,20 @@ int key;
           *buf = 0;
 	  if (nwin_default.charset)
             AddXChars(buf, sizeof(buf), nwin_default.charset);
-	  Msg(0, "default charset is '%s'", buf);
+	  OutputMsg(0, "default charset is '%s'", buf);
 	  break;
         }
       n = strlen(*args);
       if (n == 0 || n > 6)
 	{
-	  Msg(0, "%s: %s: string has illegal size.", rc_name, comms[nr].name);
+	  OutputMsg(0, "%s: %s: string has illegal size.", rc_name, comms[nr].name);
 	  break;
 	}
       if (n > 4 && (
         ((args[0][4] < '0' || args[0][4] > '3') && args[0][4] != '.') ||
         ((args[0][5] < '0' || args[0][5] > '3') && args[0][5] && args[0][5] != '.')))
 	{
-	  Msg(0, "%s: %s: illegal mapping number.", rc_name, comms[nr].name);
+	  OutputMsg(0, "%s: %s: illegal mapping number.", rc_name, comms[nr].name);
 	  break;
 	}
       if (nr == RC_CHARSET)
@@ -3869,7 +3879,7 @@ int key;
 	}
       if (*s || i < 0 || i >= 8)
 	{
-	  Msg(0, "%s: attrcolor: unknown attribute '%s'.", rc_name, args[0]);
+	  OutputMsg(0, "%s: attrcolor: unknown attribute '%s'.", rc_name, args[0]);
 	  break;
 	}
       n = 0;
@@ -3901,7 +3911,7 @@ int key;
 	}
       else if (strcmp(args[0], "so") != 0)
 	{
-	  Msg(0, "Invalid option '%s' for rendition", args[0]);
+	  OutputMsg(0, "Invalid option '%s' for rendition", args[0]);
 	  break;
 	}
 
@@ -3932,9 +3942,9 @@ int key;
 	}
       if (msgok)
 #ifdef COLOR
-        Msg(0, "Standout attributes 0x%02x  color 0x%02x", (unsigned char)mchar_so.attr, 0x99 ^ (unsigned char)mchar_so.color);
+        OutputMsg(0, "Standout attributes 0x%02x  color 0x%02x", (unsigned char)mchar_so.attr, 0x99 ^ (unsigned char)mchar_so.color);
 #else
-        Msg(0, "Standout attributes 0x%02x ", (unsigned char)mchar_so.attr);
+        OutputMsg(0, "Standout attributes 0x%02x ", (unsigned char)mchar_so.attr);
 #endif
       break;
 
@@ -3947,7 +3957,7 @@ int key;
       s = NULL;
       if (!*args)
         {
-	  Msg(0, "%s:%s screen login", HostName, SockPath);
+	  OutputMsg(0, "%s:%s screen login", HostName, SockPath);
           InputSu(D_fore, &D_user, NULL);
 	}
       else if (!args[1])
@@ -3957,7 +3967,7 @@ int key;
       else
         s = DoSu(&D_user, args[0], args[1], args[2]);
       if (s)
-        Msg(0, "%s", s);
+        OutputMsg(0, "%s", s);
       break;
 #endif /* MULTIUSER */
     case RC_SPLIT:
@@ -4011,7 +4021,7 @@ int key;
 	  cv = FindCanvas(D_forecv->c_xe + 1, D_forecv->c_ys);
 	else
 	  {
-	    Msg(0, "%s: usage: focus [next|prev|up|down|left|right|top|bottom]", rc_name);
+	    OutputMsg(0, "%s: usage: focus [next|prev|up|down|left|right|top|bottom]", rc_name);
 	    break;
 	  }
 	SetForeCanvas(display, cv);
@@ -4021,7 +4031,7 @@ int key;
       i = 0;
       if (D_forecv->c_slorient == SLICE_UNKN)
 	{
-	  Msg(0, "resize: need more than one region");
+	  OutputMsg(0, "resize: need more than one region");
 	  break;
 	}
       for (; *args; args++)
@@ -4041,7 +4051,7 @@ int key;
 	}
       if (*args && args[1])
 	{
-	  Msg(0, "%s: usage: resize [-h] [-v] [-l] [num]\n", rc_name);
+	  OutputMsg(0, "%s: usage: resize [-h] [-v] [-l] [num]\n", rc_name);
 	  break;
 	}
       if (*args)
@@ -4065,22 +4075,22 @@ int key;
     case RC_ALTSCREEN:
       (void)ParseSwitch(act, &use_altscreen);
       if (msgok)
-        Msg(0, "Will %sdo alternate screen switching", use_altscreen ? "" : "not ");
+        OutputMsg(0, "Will %sdo alternate screen switching", use_altscreen ? "" : "not ");
       break;
     case RC_MAXWIN:
       if (!args[0])
 	{
-	  Msg(0, "maximum windows allowed: %d", maxwin);
+	  OutputMsg(0, "maximum windows allowed: %d", maxwin);
 	  break;
 	}
       if (ParseNum(act, &n))
 	break;
       if (n < 1)
-        Msg(0, "illegal maxwin number specified");
+        OutputMsg(0, "illegal maxwin number specified");
       else if (n > 2048)
-	Msg(0, "maximum 2048 windows allowed");
+	OutputMsg(0, "maximum 2048 windows allowed");
       else if (n > maxwin && windows)
-	Msg(0, "may increase maxwin only when there's no window");
+	OutputMsg(0, "may increase maxwin only when there's no window");
       else
 	{
 	  if (!windows)
@@ -4098,7 +4108,7 @@ int key;
 	  int lifespan, tick;
 	  if (argc < 4)
 	    {
-	      Msg(0, "%s: usage: backtick num [lifespan tick cmd args...]", rc_name);
+	      OutputMsg(0, "%s: usage: backtick num [lifespan tick cmd args...]", rc_name);
 	      break;
 	    }
 	  if (ParseBase(act, args[1], &lifespan, 10, "decimal"))
@@ -4132,10 +4142,10 @@ int key;
 	      for (pp = blankerprg; *pp; pp++)
 		p += snprintf(p, sizeof(path) - (p - path) - 1, "%s ", *pp);
 	      *(p - 1) = '\0';
-	      Msg(0, "blankerprg: %s", path);
+	      OutputMsg(0, "blankerprg: %s", path);
 	    }
 	  else
-	    Msg(0, "No blankerprg set.");
+	    OutputMsg(0, "No blankerprg set.");
 	  break;
 	}
       if (blankerprg)
@@ -4162,7 +4172,7 @@ int key;
 	    {
 	      if ((i = FindCommnr(args[1])) == RC_ILLEGAL)
 		{
-		  Msg(0, "%s: idle: unknown command '%s'", rc_name, args[1]);
+		  OutputMsg(0, "%s: idle: unknown command '%s'", rc_name, args[1]);
 		  break;
 		}
 	      if (CheckArgNum(i, args + 2) < 0)
@@ -4177,9 +4187,9 @@ int key;
       if (msgok)
 	{
 	  if (idletimo)
-	    Msg(0, "idle timeout %ds, %s", idletimo / 1000, comms[idleaction.nr].name);
+	    OutputMsg(0, "idle timeout %ds, %s", idletimo / 1000, comms[idleaction.nr].name);
 	  else
-	    Msg(0, "idle off");
+	    OutputMsg(0, "idle off");
 	}
       break;
     case RC_FOCUSMINSIZE:
@@ -4205,7 +4215,7 @@ int key;
 	      else
 		sprintf(b[i], "%d", n);
 	    }
-          Msg(0, "focus min size is %s %s\n", b[0], b[1]);
+          OutputMsg(0, "focus min size is %s %s\n", b[0], b[1]);
 	}
       break;
     case RC_GROUP:
@@ -4225,9 +4235,9 @@ int key;
       if (msgok)
 	{
 	  if (fore->w_group)
-	    Msg(0, "window group is %d (%s)\n", fore->w_group->w_number, fore->w_group->w_title);
+	    OutputMsg(0, "window group is %d (%s)\n", fore->w_group->w_number, fore->w_group->w_title);
 	  else
-	    Msg(0, "window belongs to no group");
+	    OutputMsg(0, "window belongs to no group");
 	}
       break;
     case RC_LAYOUT:
@@ -4235,12 +4245,12 @@ int key;
 	{
 	  if (!D_layout)
 	    {
-	      Msg(0, "not on a layout");
+	      OutputMsg(0, "not on a layout");
 	      break;
 	    }
 	  if (!args[1])
 	    {
-	      Msg(0, "current layout is %d (%s)", D_layout->lay_number, D_layout->lay_title);
+	      OutputMsg(0, "current layout is %d (%s)", D_layout->lay_number, D_layout->lay_title);
 	      break;
 	    }
 	  free(D_layout->lay_title);
@@ -4252,12 +4262,12 @@ int key;
 	  struct layout *lay;
 	  if (!D_layout)
 	    {
-	      Msg(0, "not on a layout");
+	      OutputMsg(0, "not on a layout");
 	      break;
 	    }
 	  if (!args[1])
 	    {
-	      Msg(0, "This is layout %d (%s).\n", D_layout->lay_number, D_layout->lay_title);
+	      OutputMsg(0, "This is layout %d (%s).\n", D_layout->lay_number, D_layout->lay_title);
 	      break;
 	    }
 	   old = D_layout->lay_number;
@@ -4276,7 +4286,7 @@ int key;
 	{
 	  if (!D_layout)
 	    {
-	      Msg(0, "not on a layout");
+	      OutputMsg(0, "not on a layout");
 	      break;
 	    }
 	  if (args[1])
@@ -4287,12 +4297,12 @@ int key;
 		D_layout->lay_autosave = 0;
 	      else
 		{
-		  Msg(0, "invalid argument. Give 'on' or 'off");
+		  OutputMsg(0, "invalid argument. Give 'on' or 'off");
 		  break;
 		}
 	    }
 	  if (msgok)
-	    Msg(0, "autosave is %s", D_layout->lay_autosave ? "on" : "off");
+	    OutputMsg(0, "autosave is %s", D_layout->lay_autosave ? "on" : "off");
 	}
       else if (!strcmp(args[0], "new"))
 	{
@@ -4320,7 +4330,7 @@ int key;
 	{
 	  if (!args[1])
 	    {
-	      Msg(0, "usage: layout save <name>");
+	      OutputMsg(0, "usage: layout save <name>");
 	      break;
 	    }
 	  SaveLayout(args[1], &D_canvas);
@@ -4343,7 +4353,7 @@ int key;
 	    lay = layouts;
 	  if (!lay)
 	    {
-	      Msg(0, "no layout defined");
+	      OutputMsg(0, "no layout defined");
 	      break;
 	    }
 	  if (lay == D_layout)
@@ -4363,7 +4373,7 @@ int key;
 	    lay = layouts;
 	  if (!lay)
 	    {
-	      Msg(0, "no layout defined");
+	      OutputMsg(0, "no layout defined");
 	      break;
 	    }
 	  if (lay == D_layout)
@@ -4376,11 +4386,11 @@ int key;
 	  if (!args[1])
 	    {
 	      if (!layout_attach)
-	        Msg(0, "no attach layout set");
+	        OutputMsg(0, "no attach layout set");
 	      else if (layout_attach == &layout_last_marker)
-	        Msg(0, "will attach to last layout");
+	        OutputMsg(0, "will attach to last layout");
 	      else
-	        Msg(0, "will attach to layout %d (%s)", layout_attach->lay_number, layout_attach->lay_title);
+	        OutputMsg(0, "will attach to layout %d (%s)", layout_attach->lay_number, layout_attach->lay_title);
 	      break;
 	    }
 	  if (!strcmp(args[1], ":last"))
@@ -4393,7 +4403,7 @@ int key;
 	      lay = FindLayout(args[1]);
 	      if (!lay)
 		{
-		  Msg(0, "unknown layout '%s'", args[1]);
+		  OutputMsg(0, "unknown layout '%s'", args[1]);
 		  break;
 		}
 	      layout_attach = lay;
@@ -4411,7 +4421,7 @@ int key;
 	      lay = layouts ? FindLayout(args[1]) : (struct layout *)0;
 	      if (!lay)
 		{
-		  Msg(0, "unknown layout '%s'", args[1]);
+		  OutputMsg(0, "unknown layout '%s'", args[1]);
 		  break;
 		}
 	    }
@@ -4421,21 +4431,21 @@ int key;
       else if (!strcmp(args[0], "dump"))
 	{
 	  if (!display)
-	    Msg(0, "Must have a display for 'layout dump'.");
+	    OutputMsg(0, "Must have a display for 'layout dump'.");
 	  else if (!LayoutDumpCanvas(&D_canvas, args[1] ? args[1] : "layout-dump"))
-	    Msg(errno, "Error dumping layout.");
+	    OutputMsg(errno, "Error dumping layout.");
 	  else
-	    Msg(0, "Layout dumped to \"%s\"", args[1] ? args[1] : "layout-dump");
+	    OutputMsg(0, "Layout dumped to \"%s\"", args[1] ? args[1] : "layout-dump");
 	}
       else
-	Msg(0, "unknown layout subcommand");
+	OutputMsg(0, "unknown layout subcommand");
       break;
 #ifdef DW_CHARS
     case RC_CJKWIDTH:
       if(ParseSwitch(act, &cjkwidth) == 0)
       {
         if(msgok)
-          Msg(0, "Treat ambiguous width characters as %s width", cjkwidth ? "full" : "half");
+          OutputMsg(0, "Treat ambiguous width characters as %s width", cjkwidth ? "full" : "half");
       }
       break;
 #endif
@@ -4453,6 +4463,7 @@ int key;
 	  break;
     }
 }
+#undef OutputMsg
 
 void
 DoCommand(argv, argl) 
@@ -4463,6 +4474,9 @@ int *argl;
   const char *cmd = *argv;
 
   act.quiet = 0;
+  /* For now, we actually treat both 'supress error' and 'suppress normal message' as the
+   * same, and ignore all messages on either flag. If we wanted to do otherwise, we would
+   * need to change the definition of 'OutputMsg' slightly. */
   if (*cmd == '@')	/* Suppress error */
     {
       act.quiet |= 0x01;

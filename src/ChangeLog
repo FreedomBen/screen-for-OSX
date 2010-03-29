@@ -25,6 +25,8 @@ Version 4.1.0 (??/??/20??):
     a mark and the scroll wheel to scroll through the buffer. Additional
     features might be to allow clicking on window-titles in the caption to
     switch to that window.
+  * All commands prefixed '@' are treated as 'quiet', i.e. '@'-prefixed commands
+    do not trigger any display messages.
 
   Changed Commands:
   * '-v' parameter to 'split' command for vertical splits.

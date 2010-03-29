@@ -42,9 +42,13 @@ extern void  Kill __P((int, int));
 #ifdef USEVARARGS
 extern void  Msg __P((int, const char *, ...)) __attribute__((format(printf, 2, 3)));
 extern void  Panic __P((int, const char *, ...)) __attribute__((format(printf, 2, 3))) __attribute__((__noreturn__));
+extern void  QueryMsg __P((int, const char *, ...)) __attribute__((format(printf, 2, 3)));
+extern void  Dummy __P((int, const char *, ...)) __attribute__((format(printf, 2, 3)));
 #else
 extern void  Msg __P(());
 extern void  Panic __P(());
+extern void  QueryMsg __P(());
+extern void  Dummy __P(());
 #endif
 extern void  Finit __P((int));
 extern void  MakeNewEnv __P((void));
