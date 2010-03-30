@@ -5635,7 +5635,8 @@ Authors @*
 =======
 
 Originally created by Oliver Laumann, this latest version was
-produced by Wayne Davison, Juergen Weigert and Michael Schroeder.
+produced by Juergen Weigert, Michael Schroeder, Micah Cowan and
+Sadrul Habib Chowdhury.
 
 @noindent
 Contributors @*
