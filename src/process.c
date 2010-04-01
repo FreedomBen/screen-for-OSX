@@ -1291,10 +1291,7 @@ int key;
 	    OutputMsg(0, "%s: hardcopy: too many arguments", rc_name);
 	    break;
 	  }
-        if (fore == 0 && *args == 0)
-	  OutputMsg(0, "%s: hardcopy: window required", rc_name);
-        else
-          WriteFile(user, file, mode);
+	WriteFile(user, file, mode);
       }
       break;
     case RC_DEFLOG:

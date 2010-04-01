@@ -195,7 +195,7 @@ struct comm comms[RC_LAST + 1] =
   { "focusminsize",	ARGS_02 },
   { "gr",		NEED_FORE|ARGS_01 },
   { "group",            NEED_FORE|ARGS_01 },
-  { "hardcopy",		ARGS_012 },
+  { "hardcopy",		NEED_FORE|ARGS_012 },
   { "hardcopy_append",	ARGS_1 },
   { "hardcopydir",	ARGS_01 },
   { "hardstatus",	ARGS_012 },
