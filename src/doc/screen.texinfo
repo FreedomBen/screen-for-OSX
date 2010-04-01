@@ -1856,6 +1856,82 @@ all groups the user is in are listed.
 Shows a tabular listing  of  all  currently  connected  user
 front-ends  (displays).   This  is most useful for multiuser
 sessions.
+
+The following keys can be used in @code{displays} list:
+
+@noindent
+@kbd{k}, @kbd{C-p}, or @kbd{up} Move up one line.
+
+@noindent
+@kbd{j}, @kbd{C-n}, or @kbd{down} Move down one line.
+
+@noindent
+@kbd{C-a} or @kbd{home} Move to the first line.
+
+@noindent
+@kbd{C-e} or @kbd{end} Move to the last line.
+
+@noindent
+@kbd{C-u} or @kbd{C-d} Move one half page up or down.
+
+@noindent
+@kbd{C-b} or @kbd{C-f} Move one full page up or down.
+
+@noindent
+@kbd{mouseclick} Move to the selected line. Available when
+@code{mousetrack} is set to @code{on}.
+
+@noindent
+@kbd{space} Refresh the list.
+
+@noindent
+@kbd{d} Detach the selected display.
+
+@noindent
+@kbd{D} Power detach the selected display.
+
+@noindent
+@kbd{C-g}, @kbd{enter}, or @kbd{escape} Exit the list.
+
+
+The following is an example of what @code{displays} could
+look like:
+
+@example
+xterm 80x42   jnweiger@@/dev/ttyp4      0(m11)    &rWx
+facit 80x24   mlschroe@@/dev/ttyhf nb  11(tcsh)    rwx
+xterm 80x42   jnhollma@@/dev/ttyp5      0(m11)    &R.x
+ (A)   (B)       (C)     (D)     (E)  (F)(G)    (H)(I)
+@end example
+
+The legend is as follows:
+@*(A) The terminal type known by @code{screen} for this display.
+@*(B) Displays geometry as width x height.
+@*(C) Username who is logged in at the display.
+@*(D) Device name of the display or the attached device
+@*(E) Display is in blocking or nonblocking mode. The available
+    modes are "nb", "NB", "Z<", "Z>", and  "BL".
+@*(F) Number of the window
+@*(G) Name/title of window
+@*(H) Whether the window is shared
+@*(I) Window permissions. Made up of three characters:
+@display
+(1st character)
+    @samp{-} : no read
+    @samp{r} : read
+    @samp{R} : read only due to foreign wlock
+(2nd character)
+    @samp{-} : no write
+    @samp{.} : write suppressed by foreign wlock
+    @samp{w} : write
+    @samp{W} : own wlock
+(3rd character)
+    @samp{-} : no execute
+    @samp{x} : execute
+@end display
+
+@code{Displays} needs a region size of at least 10 characters
+wide and 5 characters high in order to display.
 @end deffn
 
 @node Umask, Wall, Displays, Multiuser Session

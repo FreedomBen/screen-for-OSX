@@ -1705,6 +1705,90 @@ why features like color or the alternate charset don't work.
 .PP
 Shows a tabular listing of all currently connected user front-ends (displays).
 This is most useful for multiuser sessions.
+The following keys can be used in displays list:
+.br
+.in +4n
+.ti -2n
+\fBk\fP, \fBC-p\fP, or \fBup\fP Move up one line.
+.br
+.ti -2n
+\fBj\fP, \fBC-n\fP, or \fBdown\fP Move down one line.
+.br
+.ti -2n
+\fBC-a\fP or \fBhome\fP Move to the first line.
+.br
+.ti -2n
+\fBC-e\fP or \fBend\fP Move to the last line.
+.br
+.ti -2n
+\fBC-u\fP or \fBC-d\fP Move one half page up or down.
+.br
+.ti -2n
+\fBC-b\fP or \fBC-f\fP Move one full page up or down.
+.br
+.ti -2n
+\fBmouseclick\fP Move to the selected line. Available
+when \*Qmousetrack\*U is set to on.
+.br
+.ti -2n
+\fBspace\fP Refresh the list
+.br
+.ti -2n
+\fBd\fP Detach that display
+.br
+.ti -2n
+\fBD\fP Power detach that display
+.br
+.ti -2n
+\fBC-g\fP, \fBenter\fP, or \fBescape\fP Exit the list
+.br
+.ti -4n
+.PP
+The following is an example of what \*Qdisplays\*U could look like:
+.IP
+xterm 80x42 jnweiger@/dev/ttyp4     0(m11)   &rWx
+.br
+facit 80x24 mlschroe@/dev/ttyhf nb 11(tcsh)   rwx
+.br
+xterm 80x42 jnhollma@/dev/ttyp5     0(m11)   &R.x
+.br
+ (A)   (B)     (C)     (D)     (E) (F)(G)   (H)(I)
+.PP
+The legend is as follows:
+.br
+(A) The terminal type known by screen for this display.
+.br
+(B) Displays geometry as width x height.
+.br
+(C) Username who is logged in at the display.
+.br
+(D) Device name of the display or the attached device
+.br
+(E) Display is in blocking or nonblocking mode. The available modes are "nb", "NB",
+"Z<", "Z>", and "BL".
+.br
+(F) Number of the window
+.br
+(G) Name/title of window
+.br
+(H) Whether the window is shared
+.br
+(I) Window permissions. Made up of three characters:
+      (1st character)
+         ‘-’ : no read
+         ‘r’ : read
+         ‘R’ : read only due to foreign wlock
+      (2nd character)
+         ‘-’ : no write
+         ‘.’ : write suppressed by foreign wlock
+         ‘w’ : write
+         ‘W’ : own wlock
+      (3rd character)
+         ‘-’ : no execute
+         ‘x’ : execute
+
+\*QDisplays\*U needs a region size of at least 10 characters wide and 5 characters high in
+order to display.
 .sp
 .ne 3
 .BR "digraph " [ \fIpreset [ \fI unicode-value ] ]
