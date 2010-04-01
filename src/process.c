@@ -1271,14 +1271,22 @@ int key;
     case RC_HARDCOPY:
       {
 	int mode = DUMP_HARDCOPY;
+	char *file = NULL;
 
-	if (argc > 1 && !strcmp(*args, "-h"))
+	if (args[0])
 	  {
-	    mode = DUMP_SCROLLBACK;
-	    args++;
-	    argc--;
+	    if (!strcmp(*args, "-h"))
+	      {
+		mode = DUMP_SCROLLBACK;
+		file = args[1];
+	      }
+	    else if (!strcmp(*args, "--") && args[1])
+	      file = args[1];
+	    else
+	      file = args[0];
 	  }
-	if (*args && args[1])
+
+	if (args[0] && file == args[0] && args[1])
 	  {
 	    OutputMsg(0, "%s: hardcopy: too many arguments", rc_name);
 	    break;
@@ -1286,7 +1294,7 @@ int key;
         if (fore == 0 && *args == 0)
 	  OutputMsg(0, "%s: hardcopy: window required", rc_name);
         else
-          WriteFile(user, *args, mode);
+          WriteFile(user, file, mode);
       }
       break;
     case RC_DEFLOG:
