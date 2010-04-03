@@ -200,7 +200,7 @@ register struct win *p;
   p->w_cursorkeys = 0;
   p->w_top = 0;
   p->w_bot = p->w_height - 1;
-  p->w_saved = 0;
+  p->w_saved.on = 0;
   p->w_x = p->w_y = 0;
   p->w_state = LIT;
   p->w_StringType = NONE;
@@ -1435,7 +1435,7 @@ int c, intermediate;
 		  else
 		    LeaveAltScreen(curr);
 		  if (a1 == 47 && !i)
-		    curr->w_saved = 0;
+		    curr->w_saved.on = 0;
 		  LRefreshAll(&curr->w_layer, 0);
 		  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 		}
@@ -1757,14 +1757,14 @@ int n;
 static void
 SaveCursor()
 {
-  curr->w_saved = 1;
-  curr->w_Saved_x = curr->w_x;
-  curr->w_Saved_y = curr->w_y;
-  curr->w_SavedRend = curr->w_rend;
+  curr->w_saved.on = 1;
+  curr->w_saved.x = curr->w_x;
+  curr->w_saved.y = curr->w_y;
+  curr->w_saved.Rend = curr->w_rend;
 #ifdef FONT
-  curr->w_SavedCharset = curr->w_Charset;
-  curr->w_SavedCharsetR = curr->w_CharsetR;
-  bcopy((char *) curr->w_charsets, (char *) curr->w_SavedCharsets,
+  curr->w_saved.Charset = curr->w_Charset;
+  curr->w_saved.CharsetR = curr->w_CharsetR;
+  bcopy((char *) curr->w_charsets, (char *) curr->w_saved.Charsets,
 	4 * sizeof(int));
 #endif
 }
@@ -1772,17 +1772,17 @@ SaveCursor()
 static void
 RestoreCursor()
 {
-  if (!curr->w_saved)
+  if (!curr->w_saved.on)
     return;
-  LGotoPos(&curr->w_layer, curr->w_Saved_x, curr->w_Saved_y);
-  curr->w_x = curr->w_Saved_x;
-  curr->w_y = curr->w_Saved_y;
-  curr->w_rend = curr->w_SavedRend;
+  LGotoPos(&curr->w_layer, curr->w_saved.x, curr->w_saved.y);
+  curr->w_x = curr->w_saved.x;
+  curr->w_y = curr->w_saved.y;
+  curr->w_rend = curr->w_saved.Rend;
 #ifdef FONT
-  bcopy((char *) curr->w_SavedCharsets, (char *) curr->w_charsets,
+  bcopy((char *) curr->w_saved.Charsets, (char *) curr->w_charsets,
 	4 * sizeof(int));
-  curr->w_Charset = curr->w_SavedCharset;
-  curr->w_CharsetR = curr->w_SavedCharsetR;
+  curr->w_Charset = curr->w_saved.Charset;
+  curr->w_CharsetR = curr->w_saved.CharsetR;
   curr->w_ss = 0;
   curr->w_FontL = curr->w_charsets[curr->w_Charset];
   curr->w_FontR = curr->w_charsets[curr->w_CharsetR];

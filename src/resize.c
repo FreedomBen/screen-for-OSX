@@ -585,10 +585,10 @@ int wi;
 
 #ifdef COPY_PASTE
       RESET_LINES(p->w_hlines, p->w_histheight);
-      RESET_LINES(p->w_alt_hlines, p->w_alt_histheight);
+      RESET_LINES(p->w_alt.hlines, p->w_alt.histheight);
 #endif
 
-      RESET_LINES(p->w_alt_mlines, p->w_alt_height);
+      RESET_LINES(p->w_alt.mlines, p->w_alt.height);
     }
 }
 
@@ -957,8 +957,8 @@ int wi, he, hi;
 	}
     }
 
-  /* Change w_Saved_y - this is only an estimate... */
-  p->w_Saved_y += ncy - p->w_y;
+  /* Change w_saved.y - this is only an estimate... */
+  p->w_saved.y += ncy - p->w_y;
 
   p->w_x = ncx;
   p->w_y = ncy;
@@ -970,12 +970,12 @@ int wi, he, hi;
     p->w_x = wi;
   if (p->w_y >= he)
     p->w_y = he - 1;
-  if (p->w_Saved_x > wi)
-    p->w_Saved_x = wi;
-  if (p->w_Saved_y < 0)
-    p->w_Saved_y = 0;
-  if (p->w_Saved_y >= he)
-    p->w_Saved_y = he - 1;
+  if (p->w_saved.x > wi)
+    p->w_saved.x = wi;
+  if (p->w_saved.y < 0)
+    p->w_saved.y = 0;
+  if (p->w_saved.y >= he)
+    p->w_saved.y = he - 1;
 
   /* reset scrolling region */
   p->w_top = 0;
@@ -1034,28 +1034,28 @@ struct win *p;
 {
   int i;
 
-  if (p->w_alt_mlines)
+  if (p->w_alt.mlines)
     {
-      for (i = 0; i < p->w_alt_height; i++)
-        FreeMline(p->w_alt_mlines + i);
-      free(p->w_alt_mlines);
+      for (i = 0; i < p->w_alt.height; i++)
+        FreeMline(p->w_alt.mlines + i);
+      free(p->w_alt.mlines);
     }
-  p->w_alt_mlines = 0;
-  p->w_alt_width = 0;
-  p->w_alt_height = 0;
-  p->w_alt_x = 0;
-  p->w_alt_y = 0;
+  p->w_alt.mlines = 0;
+  p->w_alt.width = 0;
+  p->w_alt.height = 0;
+  p->w_alt.x = 0;
+  p->w_alt.y = 0;
 #ifdef COPY_PASTE
-  if (p->w_alt_hlines)
+  if (p->w_alt.hlines)
     {
-      for (i = 0; i < p->w_alt_histheight; i++)
-        FreeMline(p->w_alt_hlines + i);
-      free(p->w_alt_hlines);
+      for (i = 0; i < p->w_alt.histheight; i++)
+        FreeMline(p->w_alt.hlines + i);
+      free(p->w_alt.hlines);
     }
-  p->w_alt_hlines = 0;
-  p->w_alt_histidx = 0;
+  p->w_alt.hlines = 0;
+  p->w_alt.histidx = 0;
 #endif
-  p->w_alt_histheight = 0;
+  p->w_alt.histheight = 0;
 }
 
 static void
@@ -1065,7 +1065,7 @@ struct win *p;
   struct mline *ml;
   int t;
 
-#define SWAP(item, t) do { (t) = p->w_alt_##item; p->w_alt_##item = p->w_##item; p->w_##item = (t); } while (0)
+#define SWAP(item, t) do { (t) = p->w_alt. item; p->w_alt. item = p->w_##item; p->w_##item = (t); } while (0)
 
   SWAP(mlines, ml);
   SWAP(width, t);
@@ -1086,7 +1086,7 @@ EnterAltScreen(p)
 struct win *p;
 {
   int ox = p->w_x, oy = p->w_y;
-  if (!p->w_alt_current)
+  if (!p->w_alt.on)
     {
       /* If not already using the alternate screen buffer, then create
 	 a new one and swap it with the 'real' screen buffer. */
@@ -1100,20 +1100,20 @@ struct win *p;
       p->w_height = 0;
       p->w_histheight = 0;
     }
-  ChangeWindowSize(p, p->w_alt_width, p->w_alt_height, p->w_alt_histheight);
+  ChangeWindowSize(p, p->w_alt.width, p->w_alt.height, p->w_alt.histheight);
   p->w_x = ox;
   p->w_y = oy;
-  p->w_alt_current = 1;
+  p->w_alt.on = 1;
 }
 
 void
 LeaveAltScreen(p)
 struct win *p;
 {
-  if (!p->w_alt_current)
+  if (!p->w_alt.on)
     return;
   SwapAltScreen(p);
-  ChangeWindowSize(p, p->w_alt_width, p->w_alt_height, p->w_alt_histheight);
+  ChangeWindowSize(p, p->w_alt.width, p->w_alt.height, p->w_alt.histheight);
   FreeAltScreen(p);
-  p->w_alt_current = 0;
+  p->w_alt.on = 0;
 }

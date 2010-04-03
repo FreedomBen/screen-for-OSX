@@ -188,14 +188,16 @@ struct win
   int	 w_charsets[4];		/* Font = charsets[Charset] */
 #endif
   int	 w_ss;
-  int	 w_saved;
-  int	 w_Saved_x, w_Saved_y;
-  struct mchar w_SavedRend;
+  struct {
+    int on;
+    int	 x, y;
+    struct mchar Rend;
 #ifdef FONT
-  int	 w_SavedCharset;
-  int	 w_SavedCharsetR;
-  int	 w_SavedCharsets[4];
+    int	 Charset;
+    int	 CharsetR;
+    int	 Charsets[4];
 #endif
+  } w_saved;
   int	 w_top, w_bot;		/* scrollregion */
   int	 w_wrap;		/* autowrap */
   int	 w_origin;		/* origin mode */
@@ -276,16 +278,18 @@ struct win
   int    w_telsubidx;
   struct event w_telconnev;
 #endif
-  struct mline *w_alt_mlines;
-  int    w_alt_width;
-  int    w_alt_height;
-  int    w_alt_histheight;
-  int    w_alt_x, w_alt_y;
+  struct {
+    int    on;    /* Is the alternate buffer currently being used? */
+    struct mline *mlines;
+    int    width;
+    int    height;
+    int    histheight;
+    int    x, y;
 #ifdef COPY_PASTE
-  struct mline *w_alt_hlines;
-  int    w_alt_histidx;
+    struct mline *hlines;
+    int    histidx;
 #endif
-  int    w_alt_current;    /* Is the alternate buffer currently being used? */
+  } w_alt;
 
   struct event w_destroyev;	/* window destroy event */
 #ifdef BSDWAIT
