@@ -976,6 +976,10 @@ int wi, he, hi;
     p->w_saved.y = 0;
   if (p->w_saved.y >= he)
     p->w_saved.y = he - 1;
+  if (p->w_alt.cursor.x > wi)
+    p->w_alt.cursor.x = wi;
+  if (p->w_alt.cursor.y >= he)
+    p->w_alt.cursor.y = he - 1;
 
   /* reset scrolling region */
   p->w_top = 0;
@@ -1043,8 +1047,6 @@ struct win *p;
   p->w_alt.mlines = 0;
   p->w_alt.width = 0;
   p->w_alt.height = 0;
-  p->w_alt.x = 0;
-  p->w_alt.y = 0;
 #ifdef COPY_PASTE
   if (p->w_alt.hlines)
     {
@@ -1071,8 +1073,6 @@ struct win *p;
   SWAP(width, t);
   SWAP(height, t);
   SWAP(histheight, t);
-  SWAP(x, t);
-  SWAP(y, t);
 
 #ifdef COPY_PASTE
   SWAP(hlines, ml);
@@ -1085,7 +1085,6 @@ void
 EnterAltScreen(p)
 struct win *p;
 {
-  int ox = p->w_x, oy = p->w_y;
   if (!p->w_alt.on)
     {
       /* If not already using the alternate screen buffer, then create
@@ -1101,8 +1100,6 @@ struct win *p;
       p->w_histheight = 0;
     }
   ChangeWindowSize(p, p->w_alt.width, p->w_alt.height, p->w_alt.histheight);
-  p->w_x = ox;
-  p->w_y = oy;
   p->w_alt.on = 1;
 }
 

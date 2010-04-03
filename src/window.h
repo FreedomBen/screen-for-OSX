@@ -188,7 +188,7 @@ struct win
   int	 w_charsets[4];		/* Font = charsets[Charset] */
 #endif
   int	 w_ss;
-  struct {
+  struct cursor {
     int on;
     int	 x, y;
     struct mchar Rend;
@@ -284,10 +284,10 @@ struct win
     int    width;
     int    height;
     int    histheight;
-    int    x, y;
 #ifdef COPY_PASTE
     struct mline *hlines;
     int    histidx;
+    struct cursor cursor;
 #endif
   } w_alt;
 

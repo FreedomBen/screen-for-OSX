@@ -122,8 +122,8 @@ static void DesignateCharset __P((int, int));
 static void MapCharset __P((int));
 static void MapCharsetR __P((int));
 #endif
-static void SaveCursor __P((void));
-static void RestoreCursor __P((void));
+static void SaveCursor __P((struct cursor *));
+static void RestoreCursor __P((struct cursor *));
 static void BackSpace __P((void));
 static void Return __P((void));
 static void LineFeed __P((int));
@@ -987,10 +987,10 @@ int c, intermediate;
 	  Report("\033[?%d;%dc", 1, 2);
 	  break;
 	case '7':
-	  SaveCursor();
+	  SaveCursor(&curr->w_saved);
 	  break;
 	case '8':
-	  RestoreCursor();
+	  RestoreCursor(&curr->w_saved);
 	  break;
 	case 'c':
 	  ClearScreen();
@@ -1233,7 +1233,7 @@ int c, intermediate;
 	  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 	  break;
 	case 's':
-	  SaveCursor();
+	  SaveCursor(&curr->w_saved);
 	  break;
 	case 't':
 	  switch(a1)
@@ -1274,7 +1274,7 @@ int c, intermediate;
 	    }
 	  break;
 	case 'u':
-	  RestoreCursor();
+	  RestoreCursor(&curr->w_saved);
 	  break;
 	case 'I':
 	  if (!a1)
@@ -1431,14 +1431,27 @@ int c, intermediate;
 	      if (use_altscreen)
 		{
 		  if (i)
-		    EnterAltScreen(curr);
+		    {
+		      if (!curr->w_alt.on)
+			SaveCursor(&curr->w_alt.cursor);
+		      EnterAltScreen(curr);
+		    }
 		  else
-		    LeaveAltScreen(curr);
+		    {
+		      LeaveAltScreen(curr);
+		      RestoreCursor(&curr->w_alt.cursor);
+		    }
 		  if (a1 == 47 && !i)
 		    curr->w_saved.on = 0;
 		  LRefreshAll(&curr->w_layer, 0);
 		  LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 		}
+	      break;
+	    case 1048:
+	      if (i)
+		SaveCursor(&curr->w_saved);
+	      else
+		RestoreCursor(&curr->w_saved);
 	      break;
 	 /* case 66:	   NKM:  Numeric keypad appl mode */
 	 /* case 68:	   KBUM: Keyboard usage mode (data process) */
@@ -1755,34 +1768,36 @@ int n;
 #endif /* FONT */
 
 static void
-SaveCursor()
+SaveCursor(cursor)
+struct cursor *cursor;
 {
-  curr->w_saved.on = 1;
-  curr->w_saved.x = curr->w_x;
-  curr->w_saved.y = curr->w_y;
-  curr->w_saved.Rend = curr->w_rend;
+  cursor->on = 1;
+  cursor->x = curr->w_x;
+  cursor->y = curr->w_y;
+  cursor->Rend = curr->w_rend;
 #ifdef FONT
-  curr->w_saved.Charset = curr->w_Charset;
-  curr->w_saved.CharsetR = curr->w_CharsetR;
-  bcopy((char *) curr->w_charsets, (char *) curr->w_saved.Charsets,
+  cursor->Charset = curr->w_Charset;
+  cursor->CharsetR = curr->w_CharsetR;
+  bcopy((char *) curr->w_charsets, (char *) cursor->Charsets,
 	4 * sizeof(int));
 #endif
 }
 
 static void
-RestoreCursor()
+RestoreCursor(cursor)
+struct cursor *cursor;
 {
-  if (!curr->w_saved.on)
+  if (!cursor->on)
     return;
-  LGotoPos(&curr->w_layer, curr->w_saved.x, curr->w_saved.y);
-  curr->w_x = curr->w_saved.x;
-  curr->w_y = curr->w_saved.y;
-  curr->w_rend = curr->w_saved.Rend;
+  LGotoPos(&curr->w_layer, cursor->x, cursor->y);
+  curr->w_x = cursor->x;
+  curr->w_y = cursor->y;
+  curr->w_rend = cursor->Rend;
 #ifdef FONT
-  bcopy((char *) curr->w_saved.Charsets, (char *) curr->w_charsets,
+  bcopy((char *) cursor->Charsets, (char *) curr->w_charsets,
 	4 * sizeof(int));
-  curr->w_Charset = curr->w_saved.Charset;
-  curr->w_CharsetR = curr->w_saved.CharsetR;
+  curr->w_Charset = cursor->Charset;
+  curr->w_CharsetR = cursor->CharsetR;
   curr->w_ss = 0;
   curr->w_FontL = curr->w_charsets[curr->w_Charset];
   curr->w_FontR = curr->w_charsets[curr->w_CharsetR];
