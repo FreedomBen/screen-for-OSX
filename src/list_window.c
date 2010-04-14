@@ -427,6 +427,38 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
 	}
       break;
     default:
+      if (ch >= '0' && ch <= '9')
+	{
+	  struct ListRow *row = ldata->root;
+	  for (; row; row = row->next)
+	    {
+	      struct win *w = row->data;
+	      if (w->w_number == ch - '0')
+		{
+		  struct ListRow *old = ldata->selected;
+		  if (old == row)
+		    break;
+		  ldata->selected = row;
+		  if (ldata->selected->y == -1)
+		    {
+		      /* We need to list all the rows, since we are scrolling down. But first,
+		       * find the top of the visible list. */
+		      ldata->top = row;
+		      glist_display_all(ldata);
+		    }
+		  else
+		    {
+		      /* just redisplay the two lines. */
+		      ldata->list_fn->gl_printrow(ldata, old);
+		      ldata->list_fn->gl_printrow(ldata, ldata->selected);
+		      flayer->l_y = ldata->selected->y;
+		      LaySetCursor();
+		    }
+		  break;
+		}
+	    }
+	  break;
+	}
       --*inp;
       ++*len;
       return 0;
