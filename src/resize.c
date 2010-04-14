@@ -664,14 +664,6 @@ int wi, he, hi;
       he = 1000;
     }
 
-#ifdef COPY_PASTE
-  if (hi > 1000)
-    {
-      Msg(0, "Window history too big. Truncated to 1000.");
-      hi = 1000;
-    }
-#endif
-
   if (p->w_width == wi && p->w_height == he && p->w_histheight == hi)
     {
       debug("ChangeWindowSize: No change.\n");
