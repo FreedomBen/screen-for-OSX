@@ -1217,14 +1217,14 @@ AC_HEADER_DIRENT
 
 AC_MSG_CHECKING(for setenv)
 if test -z "$ac_setenv_args"; then
-    AC_TRY_COMPILE(
+    AC_TRY_LINK(
     [#include <stdlib.h>],
     [
         setenv((char *) 0, (char *) 0, 0);
     ], ac_setenv_args=3)
 fi
 if test -z "$ac_setenv_args"; then
-    AC_TRY_COMPILE(
+    AC_TRY_LINK(
     [#include <stdlib.h>],
     [
         setenv((char *) 0, (char *) 0);
