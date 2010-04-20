@@ -2183,7 +2183,7 @@ If no arguments are given, the current settings are displayed.
 .BR "ignorecase " [ on | off ]
 .PP
 Tell screen to ignore the case of characters in searches. Default is
-`off'.
+`off'. Without any options, the state of ignorecase is toggled.
 .sp
 .ne 3
 .B info
@@ -2479,11 +2479,11 @@ Like mapdefault, but don't even look in the default bindkey table.
 .sp
 .ne 3
 .B maptimeout
-.RI [ timo ]
+.RI [ timeout ]
 .PP
 Set the inter-character timer for input sequence detection to a timeout
 of
-.I timo
+.I timeout
 ms. The default timeout is 300ms. Maptimeout with no arguments shows
 the current setting.
 See also \*Qbindkey\*U.
@@ -2905,8 +2905,9 @@ See also chapter \*QWINDOW TYPES\*U.
 .PP
 Set the size of the scrollback buffer for the current windows to \fInum\fP 
 lines. The default scrollback is 100 lines.
-See also the \*Qdefscrollback\*U command and use \*QC-a i\*U to view the 
-current setting.
+See also the \*Qdefscrollback\*U command and use \*Qinfo\*U to view the
+current setting. To access and use the contents in the scrollback buffer,
+use the \*Qcopy\*U command.
 .sp
 .ne 3
 .BR "select " [ \fIWindowID ]
@@ -3206,7 +3207,7 @@ man page for more information on termcap definitions.
 .PP
 Uses the message line to display the time of day, the host name, and the load
 averages over 1, 5, and 15 minutes (if this is available on your system).
-For window specific information use \*Qinfo\*U.
+For window specific information, use \*Qinfo\*U.
 
 If a string is specified, it changes the format of the time report like it is
 described in the \*QSTRING ESCAPES\*U chapter. Screen uses a default of
@@ -3269,7 +3270,7 @@ Sets the visual bell message. \fImessage\fP is printed to the status line if
 the window receives a bell character (^G), vbell is set to \*Qon\*U, but the 
 terminal does not support a visual bell.
 The default message is \*QWuff, Wuff!!\*U.
-Without parameter, the current message is shown.
+Without a parameter, the current message is shown.
 .sp
 .ne 3
 .BI "vbellwait " sec
@@ -3284,7 +3285,7 @@ visual bell message. The default is 1 second.
 .PP
 If verbose is switched on, the command name is echoed, whenever a window
 is created (or resurrected from zombie state). Default is off.
-Without parameter, the current setting is shown.
+Without a parameter, the current setting is shown.
 .sp
 .ne 3
 .B version
@@ -3447,7 +3448,7 @@ When line-wrap is on, the second consecutive printable character output at
 the last column of a line will wrap to the start of the following line.
 As an added feature, backspace (^H) will also wrap through the left margin
 to the previous line.
-Default is `on'.
+Default is `on'. Without any options, the state of wrap is toggled.
 .sp
 .ne 3
 .B writebuf
@@ -3613,13 +3614,12 @@ Signals that are logical low (inactive) have their name preceded by
 an exclamation mark (!), otherwise the signal is logical high (active).
 Signals not supported by the hardware but available to the ioctl() interface
 are usually shown low. 
-.br
+.PP
 When the CLOCAL status bit is true, the whole set of modem signals is placed 
 inside curly braces ({ and }).
 When the CRTSCTS or TIOCSOFTCAR bit is set, the signals `CTS' or `CD' 
 are shown in parenthesis, respectively. 
-
-
+.PP
 For tty windows, the command
 .B break
 causes the Data transmission line (TxD) to go low for a specified period of
@@ -3628,6 +3628,7 @@ No data is sent and no modem control line is changed when a
 .B break
 is issued.
 .RE
+
 .IP \(bu
 If the first parameter is \*Q//telnet\*U, the second parameter is expected to
 be a host name, and an optional third parameter may specify a TCP port number
@@ -3692,7 +3693,7 @@ day number
 .IP D
 weekday name
 .IP f
-flags of the window
+flags of the window, see \*Qwindows\*U for meanings of the various flags
 .IP F
 sets %? to true if the window has the focus
 .IP h
@@ -4946,7 +4947,7 @@ Pablo Averbuj (pablo@averbuj.com).
 
 
 .SH VERSION
-This is version 4.0.2. Its roots are a merge of a custom version
+This is version 4.1.0. Its roots are a merge of a custom version
 2.3PR7 by Wayne Davison
 and several enhancements to Oliver Laumann's version 2.0. Note that all versions
 numbered 2.x are copyright by Oliver Laumann. 

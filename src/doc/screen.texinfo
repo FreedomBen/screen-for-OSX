@@ -1026,7 +1026,7 @@ Find previous command beginning @dots{}.  @xref{History}.
 Change the window's hardstatus line.  @xref{Hardstatus}.
 @item idle [@var{timeout} [@var{cmd} @var{args}]]
 Define a screen saver command.  @xref{Screen Saver}.
-@item ignorecase [@var{state}]
+@item ignorecase [on|off]
 Ignore character case in searches.  @xref{Searching}.
 @item info
 Display window settings.  @xref{Info}.
@@ -1222,7 +1222,7 @@ Set the width of the window.  @xref{Window Size}.
 Present a list of all windows for selection.  @xref{Windowlist}.
 @item windows
 List active windows.  @xref{Windows}.
-@item wrap [@var{state}]
+@item wrap [ on | off ]
 Control line-wrap behavior.  @xref{Wrap}.
 @item writebuf [-e @var{encoding}] [@var{filename}]
 Write paste buffer to screen-exchange file.  @xref{Screen Exchange}.
@@ -3278,13 +3278,14 @@ partial redraw mode.
 
 @kindex r
 @kindex C-r
-@deffn Command wrap state
+@deffn Command wrap [ on | off ]
 (@kbd{C-a r}, @kbd{C-a C-r}) @*
 Sets the line-wrap setting for the current window.  When line-wrap is
 on, the second consecutive printable character output at the last column
 of a line will wrap to the start of the following line.  As an added
 feature, backspace (^H) will also wrap through the left margin to the
-previous line.  Default is @samp{on}.
+previous line.  Default is @samp{on}. Without any options, the state of
+@code{wrap} is toggled.
 @end deffn
 
 @deffn Command defwrap state
@@ -3522,7 +3523,7 @@ to hold more useful lines in your scrollback buffer.
 @end deffn
 
 @node Copy Mode Keys, Movement, Scrollback, Copy
-@subsection markkeys
+@subsection Markkeys
 @deffn Command markkeys string
 (none)@*
 This is a method of changing the keymap used for copy/history mode.  The
@@ -3654,10 +3655,11 @@ will copy lines 11 to 15 into the paste buffer.
 @noindent
 @kbd{C-r} @code{emacs} style reverse i-search.
 
-@deffn Command ignorecase [state]
+@deffn Command ignorecase [on|off]
 (none)@*
 Tell screen to ignore the case of characters in searches. Default is
-@code{off}.
+@code{off}. Without any options, the state of @code{ignorecase}
+is toggled.
 @end deffn
 
 @noindent
