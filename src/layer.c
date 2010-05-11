@@ -335,7 +335,13 @@ int x, y;
 #endif
 
   if (l->l_pause.d)
-    LayPauseUpdateRegion(l, x, x, y, y);
+    LayPauseUpdateRegion(l, x,
+#ifdef DW_CHARS
+	x + (c->mbcs ? 1 : 0)
+#else
+	x
+#endif
+	, y, y);
 
   FOR_EACH_UNPAUSED_CANVAS(l,
     {
