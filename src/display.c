@@ -2524,7 +2524,7 @@ int from, to, y, bce;
       DisplayLine(oml, &mline_blank, y, from, to);
       return;
     }
-  bcechar = mchar_blank;
+  bcechar = mchar_null;
   rend_setbg(&bcechar, bce);
   for (x = from; x <= to; x++)
     copy_mchar2mline(&bcechar, &mline_old, x);
