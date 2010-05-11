@@ -1048,8 +1048,8 @@ struct win *p;
     }
   p->w_alt.hlines = 0;
   p->w_alt.histidx = 0;
-#endif
   p->w_alt.histheight = 0;
+#endif
 }
 
 static void
@@ -1064,9 +1064,9 @@ struct win *p;
   SWAP(mlines, ml);
   SWAP(width, t);
   SWAP(height, t);
-  SWAP(histheight, t);
 
 #ifdef COPY_PASTE
+  SWAP(histheight, t);
   SWAP(hlines, ml);
   SWAP(histidx, t);
 #endif

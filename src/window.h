@@ -283,12 +283,14 @@ struct win
     struct mline *mlines;
     int    width;
     int    height;
-    int    histheight;
 #ifdef COPY_PASTE
+    int    histheight;
     struct mline *hlines;
     int    histidx;
-    struct cursor cursor;
+#else
+    int histheight;	/* 0 */
 #endif
+    struct cursor cursor;
   } w_alt;
 
   struct event w_destroyev;	/* window destroy event */
