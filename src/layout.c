@@ -64,7 +64,7 @@ CreateLayout(title, startat)
 char *title;
 int startat;
 {
-  struct layout *lay;
+  struct layout *lay, **pl;
   int i;
 
   if (startat >= MAXLAY || startat < 0)
@@ -86,8 +86,12 @@ int startat;
   lay->lay_autosave = 1;
   lay->lay_number = i;
   laytab[i] = lay;
-  lay->lay_next = layouts;
-  layouts = lay;
+  lay->lay_next = 0;
+
+  pl = &layouts;
+  while (*pl)
+    pl = &(*pl)->lay_next;
+  *pl = lay;
   return lay;
 }
 
