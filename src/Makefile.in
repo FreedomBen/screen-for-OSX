@@ -25,7 +25,10 @@ SCREEN = screen-$(VERSION)
 GIT_REV = "`git describe --always 2>/dev/null`"
 DEFS = @DEFS@ -DGIT_REV=\"$(GIT_REV)\"
 
-ETCSCREENRC = $(prefix)/etc/screenrc
+ETCSCREENRC = @ETCSCREENRC@
+ifeq (${ETCSCREENRC}, )
+ETCSCREENRC=$(prefix)/etc/screenrc
+endif
 SCREENENCODINGS = $(datadir)/screen/utf8encodings
 
 CC = @CC@

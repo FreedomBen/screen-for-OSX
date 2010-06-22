@@ -1294,6 +1294,11 @@ test -n "$seqptx" && LIBS="-ltermcap -lc -lsocket -linet -lnsl -lsec -lseq"
 
 AC_TRY_RUN(main(){exit(0);},,AC_MSG_ERROR(Can't run the compiler - internal error. Sorry.))
 
+ETCSCREENRC=
+AC_MSG_CHECKING(for the global screenrc file)
+AC_ARG_WITH(sys-screenrc, [  --with-sys-screenrc=path to the global screenrc file], [ ETCSCREENRC="${withval}" ])
+AC_SUBST(ETCSCREENRC)
+
 AC_OUTPUT(Makefile doc/Makefile, [[
 # a hook for preserving undef directive in config.h
 mv config.h conftest
