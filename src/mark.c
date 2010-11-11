@@ -771,7 +771,7 @@ processchar:
             LGotoPos(flayer, cx, W2D(cy));
 	  break;
 	case '@':
-	  /* it may be usefull to have a key that does nothing */
+	  /* it may be useful to have a key that does nothing */
 	  break;
 	case '%':
 	  rep_cnt--;
