@@ -168,6 +168,8 @@ struct canvas *cv;
     FreeCanvas(D_canvas.c_slperp);
   D_cvlist = 0;
   D_forecv = lay->lay_forecv;
+  if (!D_forecv)
+    MakeDefaultCanvas();
   DupLayoutCv(&lay->lay_canvas, &D_canvas, 0);
   D_canvas.c_ye = D_height - 1 - ((D_canvas.c_slperp && D_canvas.c_slperp->c_slnext) || captionalways) - (D_has_hstatus == HSTATUS_LASTLINE);
   ResizeCanvas(&D_canvas);
@@ -201,7 +203,6 @@ int startat;
     }
   else
     {
-      /* TODO: Setup lay->lay_forecv somehow */
       layout_attach = lay;
     }
   lay->lay_autosave = 1;
