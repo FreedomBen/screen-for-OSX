@@ -1154,6 +1154,7 @@ int key;
   char ch;
   struct display *odisplay = display;
   struct acluser *user;
+  struct layout *layout;
 
   user = display ? D_user : users;
   if (nr == RC_ILLEGAL)
@@ -4246,8 +4247,22 @@ int key;
 	}
       break;
     case RC_LAYOUT:
+      // A number of the subcommands for "layout" are ignored, or not processed correctly when there
+      // is no attached display.
+
       if (!strcmp(args[0], "title"))
 	{
+          if (!display)
+            {
+	      if (!args[1])  // There is no display, and there is no new title. Ignore.
+		break;
+	      if (!layout_attach || layout_attach == &layout_last_marker)
+		layout_attach = CreateLayout(args[1], 0);
+	      else
+		RenameLayout(layout_attach, args[1]);
+	      break;
+	    }
+
 	  if (!D_layout)
 	    {
 	      OutputMsg(0, "not on a layout");
@@ -4258,13 +4273,17 @@ int key;
 	      OutputMsg(0, "current layout is %d (%s)", D_layout->lay_number, D_layout->lay_title);
 	      break;
 	    }
-	  free(D_layout->lay_title);
-	  D_layout->lay_title= SaveStr(args[1]);
+	  RenameLayout(D_layout, args[1]);
 	}
       else if (!strcmp(args[0], "number"))
 	{
-	  int old;
-	  struct layout *lay;
+	  if (!display)
+	    {
+	      if (args[1] && layout_attach && layout_attach != &layout_last_marker)
+		RenumberLayout(layout_attach, atoi(args[1]));
+	      break;
+	    }
+
 	  if (!D_layout)
 	    {
 	      OutputMsg(0, "not on a layout");
@@ -4275,20 +4294,23 @@ int key;
 	      OutputMsg(0, "This is layout %d (%s).\n", D_layout->lay_number, D_layout->lay_title);
 	      break;
 	    }
-	   old = D_layout->lay_number;
-	   n = atoi(args[1]);
-	   if (n < 0 || n >= MAXLAY)
-	     break;
-	   lay = laytab[n];
-	   laytab[n] = D_layout;
-	   D_layout->lay_number = n;
-	   laytab[old] = lay;
-	   if (lay)
-	     lay->lay_number = old;
+	   RenumberLayout(D_layout, atoi(args[1]));
 	   break;
 	}
       else if (!strcmp(args[0], "autosave"))
 	{
+	  if (!display)
+	    {
+	      if (args[1] && layout_attach && layout_attach != &layout_last_marker)
+		{
+		  if (!strcmp(args[1], "on"))
+		    layout_attach->lay_autosave = 1;
+		  else if (!strcmp(args[1], "off"))
+		    layout_attach->lay_autosave = 0;
+		}
+	      break;
+	    }
+
 	  if (!D_layout)
 	    {
 	      OutputMsg(0, "not on a layout");
@@ -4338,10 +4360,17 @@ int key;
 	      OutputMsg(0, "usage: layout save <name>");
 	      break;
 	    }
-	  SaveLayout(args[1], &D_canvas);
+	  if (display)
+	    SaveLayout(args[1], &D_canvas);
 	}
       else if (!strcmp(args[0], "select"))
 	{
+	  if (!display)
+	    {
+	      if (args[1])
+		layout_attach = FindLayout(args[1]);
+	      break;
+	    }
           if (!args[1])
 	    {
 	      Input("Switch to layout: ", 20, INP_COOKED, SelectLayoutFin, NULL, 0);
@@ -4351,6 +4380,12 @@ int key;
 	}
       else if (!strcmp(args[0], "next"))
 	{
+	  if (!display)
+	    {
+	      if (layout_attach && layout_attach != &layout_last_marker)
+		layout_attach = layout_attach->lay_next ? layout_attach->lay_next : layouts;;
+	      break;
+	    }
 	  struct layout *lay = D_layout;
 	  if (lay)
 	    lay = lay->lay_next ? lay->lay_next : layouts;
@@ -4368,14 +4403,22 @@ int key;
 	}
       else if (!strcmp(args[0], "prev"))
 	{
-	  struct layout *lay = D_layout;
+	  struct layout *lay = display ? D_layout : layout_attach;
+	  struct layout *target = lay;
 	  if (lay)
 	    {
-	      for (lay = layouts; lay->lay_next && lay->lay_next != D_layout; lay = lay->lay_next)
+	      for (lay = layouts; lay->lay_next && lay->lay_next != target; lay = lay->lay_next)
 		;
 	    }
 	  else
 	    lay = layouts;
+
+	  if (!display)
+	    {
+	      layout_attach = lay;
+	      break;
+	    }
+
 	  if (!lay)
 	    {
 	      OutputMsg(0, "no layout defined");
