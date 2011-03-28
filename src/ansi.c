@@ -2902,6 +2902,8 @@ struct win *p;
 int visual;
 {
   struct canvas *cv;
+  if (displays == NULL)
+    p->w_bell = BELL_DONE;
   for (display = displays; display; display = display->d_next)
     {
       for (cv = D_cvlist; cv; cv = cv->c_next)
