@@ -112,7 +112,9 @@ struct win **wtab;	/* window table */
 int VerboseCreate = 0;		/* XXX move this to user.h */
 
 char DefaultShell[] = "/bin/sh";
+#ifndef HAVE_EXECVPE
 static char DefaultPath[] = ":/usr/ucb:/bin:/usr/bin";
+#endif
 
 /* keep this in sync with the structure definition in window.h */
 struct NewWindow nwin_undef   = 

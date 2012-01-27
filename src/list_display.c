@@ -34,6 +34,7 @@
 #include "config.h"
 
 #include "screen.h"
+#include "extern.h"
 #include "list_generic.h"
 
 #ifdef MULTI
@@ -77,6 +78,7 @@ static int
 gl_Display_footer(struct ListData *ldata)
 {
   centerline("[Press Space to refresh; Return to end.]", flayer->l_height - 1);
+  return 1;
 }
 
 static int

@@ -1365,7 +1365,7 @@ int c, intermediate;
 		    break;
 # endif
 		  curr->w_charsets[0] = curr->w_charsets[1] =
-		    curr->w_charsets[2] = curr->w_charsets[2] =
+		    curr->w_charsets[2] = curr->w_charsets[3] =
 		    curr->w_FontL = curr->w_FontR = ASCII;
 		  curr->w_Charset = 0;
 		  curr->w_CharsetR = 2;

@@ -344,6 +344,7 @@ extern void  ReceiveMsg __P((void));
 extern void  SendCreateMsg __P((char *, struct NewWindow *));
 extern int   SendErrorMsg __P((char *, char *));
 extern int   SendAttachMsg __P((int, struct msg *, int));
+extern void  ReceiveRaw __P((int));
 
 /* misc.c */
 extern char *SaveStr __P((const char *));
@@ -452,6 +453,8 @@ extern void  LMsg __P(());
 extern void  KillLayerChain __P((struct layer *));
 extern int   InitOverlayPage __P((int, struct LayFuncs *, int));
 extern void  ExitOverlayPage __P((void));
+extern int   LayProcessMouse __P((struct layer *, unsigned char));
+extern void  LayProcessMouseSwitch __P((struct layer *, int));
 
 /* teln.c */
 #ifdef BUILTIN_TELNET

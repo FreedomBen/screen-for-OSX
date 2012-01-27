@@ -158,6 +158,7 @@ nextchar(int *xp, int *yp, int direction, char target, int num)
   debug("nextchar\n");
  
   x = *xp;
+  step = 1;
   adjust = 0;
   width = fore->w_width;
   displayed_line = (char *)WIN(*yp) -> image;

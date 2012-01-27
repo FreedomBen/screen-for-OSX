@@ -51,7 +51,6 @@ static void disp_writeev_eagain __P((struct event *, char *));
 static void disp_status_fn __P((struct event *, char *));
 static void disp_hstatus_fn __P((struct event *, char *));
 static void disp_blocked_fn __P((struct event *, char *));
-static void cv_winid_fn __P((struct event *, char *));
 #ifdef MAPKEYS
 static void disp_map_fn __P((struct event *, char *));
 #endif
@@ -2123,7 +2122,6 @@ static int
 strlen_onscreen(unsigned char *c, unsigned char *end)
 {
   int len = 0;
-  char *s = c;
   while (*c && (!end || c < end))
     {
       int v, dec = 0;
@@ -2155,7 +2153,7 @@ int start, max;
      probably take way more time. So this will have to do for now. */
   if (D_encoding == UTF8)
     {
-      int chars = strlen_onscreen(s + start, s + max);
+      int chars = strlen_onscreen((unsigned char *)(s + start), (unsigned char *)(s + max));
       D_encoding = 0;
       PutWinMsg(s, start, max);
       D_encoding = UTF8;

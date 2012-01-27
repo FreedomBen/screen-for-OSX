@@ -306,7 +306,7 @@ gl_Window_input(struct ListData *ldata, char **inp, int *len)
 	break;
 #ifdef MULTIUSER
       if (display && AclCheckPermWin(D_user, ACL_READ, win))
-	return;		/* Not allowed to switch to this window. */
+	return 0;		/* Not allowed to switch to this window. */
 #endif
       if (WLIST_FOR_GROUP(wdata))
 	SwitchWindow(win->w_number);

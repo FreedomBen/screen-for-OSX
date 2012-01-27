@@ -1197,7 +1197,7 @@ LayProcessMouse(struct layer *l, unsigned char ch)
   return (l->l_mouseevent.len == sizeof(l->l_mouseevent.buffer));
 }
 
-int
+void
 LayProcessMouseSwitch(struct layer *l, int s)
 {
   if ((l->l_mouseevent.start = s))

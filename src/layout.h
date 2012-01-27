@@ -52,6 +52,9 @@ extern void  SaveLayout __P((char *, struct canvas *));
 extern void  ShowLayouts __P((int));
 extern struct layout *FindLayout __P((char *));
 extern void  UpdateLayoutCanvas __P((struct canvas *, struct win *));
+extern struct layout *CreateLayout __P((char *, int));
+extern void  RemoveLayout __P((struct layout *));
+extern int   LayoutDumpCanvas __P((struct canvas *, char *));
 
 extern void RenameLayout __P((struct layout *, const char *));
 extern int RenumberLayout __P((struct layout *, int));
