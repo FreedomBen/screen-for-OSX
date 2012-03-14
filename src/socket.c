@@ -1715,6 +1715,13 @@ struct msg *mp;
       {
 	if (!display)
 	  display = fore->w_layer.l_cvlist ? fore->w_layer.l_cvlist->c_display : 0;
+
+	/* If the window is not visibile in any display, then do not use the originating window as
+	 * the foreground window for the command. This way, if there is an existing display, then
+	 * the command will execute from the foreground window of that display. This is necessary so
+	 * that commands that are relative to the window (e.g. 'next' etc.) do the right thing. */
+	if (!fore->w_layer.l_cvlist || !fore->w_layer.l_cvlist->c_display)
+	  fore = NULL;
 	break;
       }
   if (!display)
