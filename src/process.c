@@ -908,12 +908,19 @@ int ilen;
 	  if (slen)
 	    DoProcess(fore, &ibuf, &slen, 0);
 	  if (--ilen == 0)
-	    D_ESCseen = ktab;
+	    {
+	      D_ESCseen = ktab;
+	      WindowChanged(fore, 'E');
+	    }
 	}
       if (ilen <= 0)
         return;
       ktabp = D_ESCseen ? D_ESCseen : ktab;
-      D_ESCseen = 0;
+      if (D_ESCseen)
+        {
+          D_ESCseen = 0;
+          WindowChanged(fore, 'E');
+        }
       ch = (unsigned char)*s;
 
       /* 
@@ -1863,10 +1870,18 @@ int key;
 	    }
 	  if (D_ESCseen != ktab || ktabp != ktab)
 	    {
-	      D_ESCseen = ktabp;
+	      if (D_ESCseen != ktabp)
+	        {
+	          D_ESCseen = ktabp;
+	          WindowChanged(fore, 'E');
+	        }
 	      break;
 	    }
-	  D_ESCseen = 0;
+	  if (D_ESCseen)
+	    {
+	      D_ESCseen = 0;
+	      WindowChanged(fore, 'E');
+	    }
 	}
       /* FALLTHROUGH */
     case RC_OTHER:
@@ -6470,6 +6485,7 @@ int i;
       if (act->nr != RC_ILLEGAL)
 	{
 	  D_ESCseen = 0;
+	  WindowChanged(fore, 'E');
           DoAction(act, i + 256);
 	  return 0;
 	}
@@ -6495,7 +6511,11 @@ int i;
 
   if (discard && (!act || act->nr != RC_COMMAND))
     {
-      D_ESCseen = 0;
+      if (D_ESCseen)
+        {
+          D_ESCseen = 0;
+          WindowChanged(fore, 'E');
+        }
       return 0;
     }
   D_mapdefault = 0;

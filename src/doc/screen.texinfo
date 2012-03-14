@@ -5438,6 +5438,8 @@ current time @code{HH:MM} in 12h format
 day number
 @item D
 weekday name
+@item E
+sets %? to true if the escape character has been pressed.
 @item f
 flags of the window. @xref{Windows}, for meanings of the various flags.
 @item F

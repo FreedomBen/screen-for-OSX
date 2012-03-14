@@ -53,6 +53,8 @@ Version 4.1.0 (??/??/20??):
     '%+p' expands to the PID of the frontend (display).
   * '%S' in caption/hardstatus string expands to the session name.
   * '%P' in the caption string evaluates to true if the region is in copy mode.
+  * '%E' in the caption string evaluates to true if the escape character has
+    currently been pressed.
 
   Window List:
   * Nested views when there are window groups (with 'windowlist -g').
