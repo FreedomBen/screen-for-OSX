@@ -6472,6 +6472,7 @@ int i;
 {
   struct action *act;
   int discard = 0;
+  int keyno = i;
 
   debug1("StuffKey #%d", i);
 #ifdef DEBUG
@@ -6511,6 +6512,9 @@ int i;
 
   if (discard && (!act || act->nr != RC_COMMAND))
     {
+      /* if the input was just a single byte we let it through */
+      if (D_tcs[keyno + T_CAPS].str && strlen(D_tcs[keyno + T_CAPS].str) == 1)
+	return -1;
       if (D_ESCseen)
         {
           D_ESCseen = 0;
