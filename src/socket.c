@@ -1565,13 +1565,18 @@ int ilen;
       c = *(unsigned char *)ibuf++;
       if (c == '\r' || c == '\n')
 	{
+	  char *buf = NULL;
 	  up = D_user->u_password;
 	  pwdata->buf[l] = 0;
-	  if (strncmp(crypt(pwdata->buf, up), up, strlen(up)))
+	  buf = crypt(pwdata->buf, up);
+	  if (!buf || strncmp(buf, up, strlen(up)))
 	    {
 	      /* uh oh, user failed */
 	      bzero(pwdata->buf, sizeof(pwdata->buf));
-	      AddStr("\r\nPassword incorrect.\r\n");
+	      if (!buf)
+		AddStr("\r\ncrypt() failed.\r\n");
+	      else
+		AddStr("\r\nPassword incorrect.\r\n");
 	      D_processinputdata = 0;	/* otherwise freed by FreeDis */
 	      FreeDisplay();
 	      Msg(0, "Illegal reattach attempt from terminal %s.", pwdata->m.m_tty);

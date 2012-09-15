@@ -882,6 +882,12 @@ screen_builtin_lck()
       salt[1] = 'A' + (int)((time(0) >> 6) % 26);
       salt[2] = 0;
       pass = crypt(mypass, salt);
+      if (!pass)
+	{
+          fprintf(stderr, "crypt() error.\007\n");
+          sleep(2);
+          return;
+	}
       pass = ppp->pw_passwd = SaveStr(pass);
     }
 #endif
@@ -924,7 +930,8 @@ screen_builtin_lck()
       if (pam_error == PAM_SUCCESS)
 	break;
 #else
-      if (!strncmp(crypt(cp1, pass), pass, strlen(pass)))
+      char *buf = crypt(cp1, pass);
+      if (buf && !strncmp(buf, pass, strlen(pass)))
 	break;
 #endif
       debug("screen_builtin_lck: NO!!!!!\n");

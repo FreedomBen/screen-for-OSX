@@ -6360,6 +6360,12 @@ char *data;
       buf = crypt(u->u_password, salt);
       bzero(u->u_password, strlen(u->u_password));
       free((char *)u->u_password);
+      if (!buf)
+	{
+	  Msg(0, "[ crypt() error - no secure ]");
+	  u->u_password = NullStr;
+	  return;
+	}
       u->u_password = SaveStr(buf);
       bzero(buf, strlen(buf));
 #ifdef COPY_PASTE

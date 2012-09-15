@@ -455,6 +455,16 @@ int recursive;
   return gp;				/* *gp is NULL */
 }
 
+static int
+PasswordMatches(pw, password)
+const char *pw, *password;
+{
+  if (!*password)
+    return 0;
+  char *buf = crypt(pw, password);
+  return (buf && !strcmp(buf, password));
+}
+
 /* 
  * Returns nonzero if failed or already linked.
  * Both users are created on demand. 
@@ -544,8 +554,7 @@ char *name, *pw1, *pw2;
 
       if (pw2 && *pw2 && *pw2 != '\377')	/* provided a system password */
         {
-	  if (!*pass ||				/* but needed none */
-	      strcmp(crypt(pw2, pass), pass))
+	  if (!PasswordMatches(pw2, pass))
 	    {
 	      debug("System password mismatch\n");
 	      sorry++;
@@ -554,11 +563,10 @@ char *name, *pw1, *pw2;
       else					/* no pasword provided */
         if (*pass)				/* but need one */
 	  sorry++;
-#endif
+#endif /* CHECKLOGIN */
       if (pw1 && *pw1 && *pw1 != '\377')	/* provided a screen password */
 	{
-	  if (!*u->u_password ||		/* but needed none */
-	      strcmp(crypt(pw1, u->u_password), u->u_password))
+	  if (!PasswordMatches(pw1, u->u_password))
 	    {
 	      debug("screen password mismatch\n");
               sorry++;
