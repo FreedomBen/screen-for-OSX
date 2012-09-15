@@ -394,10 +394,12 @@ refuses to attach from within itself.
 But when cascading multiple screens, loops are not detected; take care.
 .TP 5
 .B \-X
-Send the specified command to a running screen session. You can use
-the \fB-d\fP or \fB-r\fP option to tell screen to look only for
-attached or detached screen sessions. Note that this command doesn't
-work if the session is password protected.
+Send the specified command to a running screen session. You may
+use the \fB-S\fP option to specify the screen session if you have
+several screen sessions running. You can use the \fB-d\fP or
+\fB-r\fP option to tell screen to look only for attached or
+detached screen sessions. Note that this command doesn't work if
+the session is password protected.
 
 .SH "DEFAULT KEY BINDINGS"
 .ta 12n 26n

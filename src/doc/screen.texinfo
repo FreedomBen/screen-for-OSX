@@ -458,10 +458,11 @@ But when cascading multiple screens, loops are not detected; take care.
 
 
 @item -X
-Send the specified command to a running screen session. You can use
-the @code{-d} or @code{-r} option to tell screen to look only for 
-attached or detached screen sessions. Note that this command doesn't
-work if the session is password protected.
+Send the specified command to a running screen session. You may use
+the @code{-S} option to specify the screen session if you have several
+running. You can use the @code{-d} or @code{-r} option to tell screen
+to look only for attached or detached screen sessions. Note that this
+command doesn't work if the session is password protected.
 
 @end table
 
