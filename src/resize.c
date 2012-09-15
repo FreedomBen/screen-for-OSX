@@ -966,14 +966,16 @@ int wi, he, hi;
     p->w_y = he - 1;
   if (p->w_saved.x > wi)
     p->w_saved.x = wi;
-  if (p->w_saved.y < 0)
-    p->w_saved.y = 0;
   if (p->w_saved.y >= he)
     p->w_saved.y = he - 1;
+  if (p->w_saved.y < 0)
+    p->w_saved.y = 0;
   if (p->w_alt.cursor.x > wi)
     p->w_alt.cursor.x = wi;
   if (p->w_alt.cursor.y >= he)
     p->w_alt.cursor.y = he - 1;
+  if (p->w_alt.cursor.y < 0)
+    p->w_alt.cursor.y = 0;
 
   /* reset scrolling region */
   p->w_top = 0;
