@@ -461,7 +461,7 @@ const char *pw, *password;
 {
   if (!*password)
     return 0;
-  char *buf = crypt(pw, password);
+  char *buf = crypt((char *)pw, (char *)password);
   return (buf && !strcmp(buf, password));
 }
 
