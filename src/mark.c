@@ -283,8 +283,8 @@ char *pt;
   unsigned char *im;
   struct mline *ml;
 #ifdef FONT
-  int cf, font;
-  unsigned char *fo;
+  int cf, cfx, font;
+  unsigned char *fo, *fox;
 #endif
 
   markdata->second = 0;
@@ -332,6 +332,7 @@ char *pt;
       im = ml->image + j;
 #ifdef FONT
       fo = ml->font + j;
+      fox = ml->fontx + j;
       font = ASCII;
 #endif
       for (; j <= to; j++)
@@ -339,10 +340,11 @@ char *pt;
 	  c = (unsigned char)*im++;
 #ifdef FONT
 	  cf = (unsigned char)*fo++;
+	  cfx = (unsigned char)*fox++;
 # ifdef UTF8
 	  if (fore->w_encoding == UTF8)
 	    {
-	      c |= cf << 8;
+	      c |= cf << 8 | cfx << 16;
 	      if (c == UCS_HIDDEN)
 		continue;
 	      c = ToUtf8_comb(pt, c);
@@ -1234,7 +1236,10 @@ int tx, ty, line;
 	      mc = mchar_so;
 #ifdef FONT
 	      if (pastefont)
-		mc.font = ml->font[x];
+		{
+		  mc.font = ml->font[x];
+		  mc.fontx = ml->fontx[x];
+		}
 #endif
 	      mc.image = ml->image[x];
 	    }
@@ -1354,7 +1359,10 @@ int isblank;
 	break;
 #ifdef FONT
       if (pastefont)
-	mchar_marked.font = ml->font[x];
+	{
+	  mchar_marked.font = ml->font[x];
+	  mchar_marked.fontx = ml->fontx[x];
+	}
 #endif
       mchar_marked.image = ml->image[x];
 #ifdef DW_CHARS
@@ -1433,7 +1441,10 @@ struct mchar *rend;
         {
 #ifdef FONT
 	  if (pastefont)
-	    mchar_marked.font = ml->font[x];
+	    {
+	      mchar_marked.font = ml->font[x];
+	      mchar_marked.fontx = ml->fontx[x];
+	    }
 #endif
 	  rend->image = mchar_marked.image;
 	  if (!cmp_mchar(rend, &mchar_marked))

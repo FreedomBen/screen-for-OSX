@@ -514,6 +514,8 @@ int from, to;
   if (rmc.font == 0)	/* latin1 is the same in unicode */
     return mc;
   c = rmc.image | (rmc.font << 8);
+  if (from == UTF8)
+    c |= rmc.fontx << 16;
 #ifdef DW_CHARS
   if (rmc.mbcs)
     {
@@ -526,6 +528,8 @@ int from, to;
     c = recode_char_to_encoding(c, to);
   rmc.image = c & 255;
   rmc.font = c >> 8 & 255;
+  if (to == UTF8)
+    rmc.fontx = c >> 16 & 255;
   return &rmc;
 }
 
@@ -542,7 +546,7 @@ int from, to;
 
   if (from == to || (from != UTF8 && to != UTF8) || w == 0)
     return ml;
-  if (ml->font == null && encodings[from].deffont == 0)
+  if (ml->font == null && ml->fontx == null && encodings[from].deffont == 0)
     return ml;
   if (w > maxlen)
     {
@@ -556,7 +560,11 @@ int from, to;
 	    rml[i].font = malloc(w);
 	  else
 	    rml[i].font = realloc(rml[i].font, w);
-	  if (rml[i].image == 0 || rml[i].font == 0)
+	  if (rml[i].fontx == 0)
+	    rml[i].fontx = malloc(w);
+	  else
+	    rml[i].fontx = realloc(rml[i].fontx, w);
+	  if (rml[i].image == 0 || rml[i].font == 0 || rml[i].fontx == 0)
 	    {
 	      maxlen = 0;
 	      return ml;	/* sorry */
@@ -578,6 +586,12 @@ int from, to;
   for (i = 0; i < w; i++)
     debug1("%c", "0123456789abcdef"[(ml->font[i]     ) & 15]);
   debug("\n");
+  for (i = 0; i < w; i++)
+    debug1("%c", "0123456789abcdef"[(ml->fontx[i] >> 4) & 15]);
+  debug("\n");
+  for (i = 0; i < w; i++)
+    debug1("%c", "0123456789abcdef"[(ml->fontx[i]     ) & 15]);
+  debug("\n");
 
   rl = rml + last;
   rl->attr = ml->attr;
@@ -590,6 +604,8 @@ int from, to;
   for (i = 0; i < w; i++)
     {
       c = ml->image[i] | (ml->font[i] << 8);
+      if (from == UTF8)
+	c |= ml->fontx[i] << 16;
       if (from != UTF8 && c < 256)
 	c |= encodings[from].deffont << 8;
 #ifdef DW_CHARS
@@ -603,6 +619,8 @@ int from, to;
 	      i++;
 	      c2 = ml->image[i] | (ml->font[i] << 8);
 	      c = recode_char_dw_to_encoding(c, &c2, to);
+	      if (to == UTF8)
+	        rl->fontx[i - 1]  = c >> 16 & 255;
 	      rl->font[i - 1]  = c >> 8 & 255;
 	      rl->image[i - 1] = c      & 255;
 	      c = c2;
@@ -613,6 +631,8 @@ int from, to;
         c = recode_char_to_encoding(c, to);
       rl->image[i] = c & 255;
       rl->font[i] = c >> 8 & 255;
+      if (to == UTF8)
+        rl->fontx[i] = c >> 16 & 255;
     }
   last ^= 1;
   debug("recode_mline: to\n");
@@ -628,14 +648,20 @@ int from, to;
   for (i = 0; i < w; i++)
     debug1("%c", "0123456789abcdef"[(rl->font[i]     ) & 15]);
   debug("\n");
+  for (i = 0; i < w; i++)
+    debug1("%c", "0123456789abcdef"[(rl->fontx[i] >> 4) & 15]);
+  debug("\n");
+  for (i = 0; i < w; i++)
+    debug1("%c", "0123456789abcdef"[(rl->fontx[i]     ) & 15]);
+  debug("\n");
   return rl;
 }
 
 struct combchar {
-  unsigned short c1;
-  unsigned short c2;
-  unsigned short next;
-  unsigned short prev;
+  unsigned int c1;
+  unsigned int c2;
+  unsigned int next;
+  unsigned int prev;
 };
 struct combchar **combchars;
 
@@ -649,10 +675,20 @@ int c;
       AddUtf8(combchars[c - 0xd800]->c1);
       c = combchars[c - 0xd800]->c2;
     }
+  if (c >= 0x10000)
+    {
+      if (c >= 0x200000)
+	{
+	  AddChar((c & 0x3000000) >> 12 ^ 0xf8);
+	  c = (c & 0xffffff) ^ ((0xf0 ^ 0x80) << 18);
+	}
+      AddChar((c & 0x1fc0000) >> 18 ^ 0xf0);
+      c = (c & 0x3ffff) ^ ((0xe0 ^ 0x80) << 12);
+    }
   if (c >= 0x800)
     {
-      AddChar((c & 0xf000) >> 12 | 0xe0);
-      c = (c & 0x0fff) | 0x1000; 
+      AddChar((c & 0x7f000) >> 12 ^ 0xe0);
+      c = (c & 0x0fff) ^ ((0xc0 ^ 0x80) << 6);
     }
   if (c >= 0x80)
     {
@@ -683,10 +719,24 @@ char *p;
 int c;
 {
   int l = 1;
+  if (c >= 0x10000)
+    {
+      if (c >= 0x200000)
+	{
+	  if (p)
+	    *p++ = (c & 0x3000000) >> 12 ^ 0xf8;
+	  l++;
+	  c = (c & 0xffffff) ^ ((0xf0 ^ 0x80) << 18);
+	}
+      if (p)
+        *p++ = (c & 0x1fc0000) >> 18 ^ 0xf0;
+      l++;
+      c = (c & 0x3ffff) ^ ((0xe0 ^ 0x80) << 12);
+    }
   if (c >= 0x800)
     {
       if (p)
-	*p++ = (c & 0xf000) >> 12 | 0xe0; 
+	*p++ = (c & 0x7f000) >> 12 ^ 0xe0; 
       l++;
       c = (c & 0x0fff) | 0x1000; 
     }
@@ -758,8 +808,13 @@ int c, *utf8charp;
   *utf8charp = utf8char = (c & 0x80000000) ? c : 0;
   if (utf8char)
     return -1;
+#if 0
   if (c & 0xffff0000)
     c = UCS_REPL;	/* sorry, only know 16bit Unicode */
+#else
+  if (c & 0xff800000)
+    c = UCS_REPL;	/* sorry, only know 23bit Unicode */
+#endif
   if (c >= 0xd800 && (c <= 0xdfff || c == 0xfffe || c == 0xffff))
     c = UCS_REPL;	/* illegal code */
   return c;
@@ -803,11 +858,13 @@ int encoding;
 #else
       ml = &p->w_mlines[j];
 #endif
-      if (ml->font == null && encodings[p->w_encoding].deffont == 0)
+      if (ml->font == null && ml->fontx == 0 && encodings[p->w_encoding].deffont == 0)
 	continue;
       for (i = 0; i < p->w_width; i++)
 	{
 	  c = ml->image[i] | (ml->font[i] << 8);
+	  if (p->w_encoding == UTF8)
+	    c |= ml->fontx[i] << 16;
 	  if (p->w_encoding != UTF8 && c < 256)
 	    c |= encodings[p->w_encoding].deffont << 8;
 	  if (c < 256)
@@ -829,8 +886,22 @@ int encoding;
 		{
 		  int c2;
 		  i++;
-		  c2 = ml->image[i] | (ml->font[i] << 8);
+		  c2 = ml->image[i] | (ml->font[i] << 8) | (ml->fontx[i] << 16);
 		  c = recode_char_dw_to_encoding(c, &c2, encoding);
+		  if (encoding == UTF8)
+		    {
+		      if (c > 0x10000 && ml->fontx == null)
+			{
+			  if ((ml->fontx = (unsigned char *)calloc(p->w_width + 1, 1)) == 0)
+			    {
+			      ml->fontx = null;
+			      break;
+			    }
+			}
+		      ml->fontx[i - 1]  = c >> 16 & 255;
+		    }
+		  else
+		    ml->fontx = 0;
 		  ml->font[i - 1]  = c >> 8 & 255;
 		  ml->image[i - 1] = c      & 255;
 		  c = c2;
@@ -841,6 +912,20 @@ int encoding;
 	    c = recode_char_to_encoding(c, encoding);
 	  ml->image[i] = c & 255;
 	  ml->font[i] = c >> 8 & 255;
+	  if (encoding == UTF8)
+	    {
+	      if (c > 0x10000 && ml->fontx == null)
+		{
+		  if ((ml->fontx = (unsigned char *)calloc(p->w_width + 1, 1)) == 0)
+		    {
+		      ml->fontx = null;
+		      break;
+		    }
+		}
+	      ml->fontx[i]  = c >> 16 & 255;
+	    }
+	  else
+	    ml->fontx = 0;
 	}
     }
   p->w_encoding = encoding;
@@ -1039,7 +1124,7 @@ struct mchar *mc;
   int root, i, c1;
   int isdouble;
 
-  c1 = mc->image | (mc->font << 8);
+  c1 = mc->image | (mc->font << 8) | mc->fontx << 16;
   isdouble = c1 >= 0x1100 && utf8_isdouble(c1);
   if (!combchars)
     {
@@ -1102,6 +1187,7 @@ struct mchar *mc;
   combchars[i]->c2 = c;
   mc->image = i & 0xff;
   mc->font  = (i >> 8) + 0xd8;
+  mc->fontx = 0;
   debug3("combinig char %x %x -> %x\n", c1, c, i + 0xd800);
   comb_tofront(root, i);
 }
@@ -1220,6 +1306,15 @@ struct win *p;
     p->w_c1 = 0;
 }
 
+/* decoded char: 32-bit <fontx><font><c2><c>
+ * fontx: non-bmp utf8
+ * c2: multi-byte character
+ * font is always zero for utf8
+ * returns: -1 need more bytes
+ *          -2 decode error
+ */
+
+
 int
 DecodeChar(c, encoding, statep)
 int c;
@@ -1231,7 +1326,12 @@ int *statep;
   debug2("Decoding char %02x for encoding %d\n", c, encoding);
 #ifdef UTF8
   if (encoding == UTF8)
-    return FromUtf8(c, statep);
+    {
+      c = FromUtf8(c, statep);
+      if (c >= 0x10000)
+	c = (c & 0x7f0000) << 8 | (c & 0xffff);
+      return c;
+    }
 #endif
   if (encoding == SJIS)
     {
@@ -1345,7 +1445,7 @@ int *fontp;
 	}
       return 3;
     }
-  f = c >> 16;
+  f = (c >> 16) & 0xff;
 
 #ifdef UTF8
   if (encoding == UTF8)
@@ -1368,8 +1468,10 @@ int *fontp;
         }
       return ToUtf8(bp, c);
     }
-  if ((c & 0xff00) && f == 0)	/* is_utf8? */
+  if (f == 0 && (c & 0x7f00ff00) != 0)	/* is_utf8? */
     {
+      if (c >= 0x10000)
+	c = (c & 0x7f0000) >> 8 | (c & 0xffff);
 # ifdef DW_CHARS
       if (utf8_isdouble(c))
 	{

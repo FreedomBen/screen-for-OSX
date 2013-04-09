@@ -683,6 +683,7 @@ register int len;
 		      mc.image = c;
 		      mc.mbcs = 0;
 		      mc.font = '0';
+		      mc.fontx = 0;
 		      mcp = recode_mchar(&mc, 0, UTF8);
 		      debug2("%02x %02x\n", mcp->image, mcp->font);
 		      c = mcp->image | mcp->font << 8;
@@ -708,7 +709,7 @@ register int len;
 		  if (oy < 0)
 		    oy = 0;
 		  copy_mline2mchar(&omc, &curr->w_mlines[oy], ox);
-		  if (omc.image == 0xff && omc.font == 0xff)
+		  if (omc.image == 0xff && omc.font == 0xff && omc.fontx == 0)
 		    {
 		      ox--;
 		      if (ox >= 0)
@@ -839,7 +840,10 @@ register int len;
 	      curr->w_rend.image = c;
 #ifdef UTF8
 	      if (curr->w_encoding == UTF8)
-		curr->w_rend.font = c >> 8;
+		{
+		  curr->w_rend.font = c >> 8;
+		  curr->w_rend.fontx = c >> 16;
+		}
 #endif
 #ifdef DW_CHARS
 	      curr->w_rend.mbcs = curr->w_mbcs;
@@ -2378,8 +2382,16 @@ struct mchar *mc;
 	  ml->font = null;
 	  p->w_FontL = p->w_charsets[p->w_ss ? p->w_ss : p->w_Charset] = 0;
 	  p->w_FontR = p->w_charsets[p->w_ss ? p->w_ss : p->w_CharsetR] = 0;
-	  mc->font = p->w_rend.font  = 0;
+	  mc->font = mc->fontx = p->w_rend.font  = 0;
 	  WMsg(p, 0, "Warning: no space for font - turned off");
+	}
+    }
+  if (mc->fontx && ml->fontx == null)
+    {
+      if ((ml->fontx = (unsigned char *)calloc(p->w_width + 1, 1)) == 0)
+	{
+	  ml->fontx = null;
+	  mc->fontx = 0;
 	}
     }
 #endif
@@ -2519,6 +2531,9 @@ int n, ys, ye, bce;
 	  if (ml->font != null)
 	    free(ml->font);
 	  ml->font = null;
+	  if (ml->fontx != null)
+	    free(ml->fontx);
+	  ml->fontx = null;
 #endif
 #ifdef COLOR
 	  if (ml->color != null)
@@ -2564,6 +2579,9 @@ int n, ys, ye, bce;
 	  if (ml->font != null)
 	    free(ml->font);
 	  ml->font = null;
+	  if (ml->fontx != null)
+	    free(ml->fontx);
+	  ml->fontx = null;
 #endif
 #ifdef COLOR
 	  if (ml->color != null)
@@ -2680,7 +2698,10 @@ int x, y;
       if (p->w_encoding != UTF8)
 	ml->font[x + 1] |= 0x80;
       else if (p->w_encoding == UTF8 && c->mbcs)
-	ml->font[x + 1] = c->mbcs;
+	{
+	  ml->font[x + 1] = c->mbcs;
+	  ml->fontx[x + 1] = 0;
+	}
 # else
       ml->font[x + 1] |= 0x80;
 # endif
@@ -2711,7 +2732,10 @@ int x, y;
       if (p->w_encoding != UTF8)
 	ml->font[x + 1] |= 0x80;
       else if (p->w_encoding == UTF8 && c->mbcs)
-	ml->font[x + 1] = c->mbcs;
+	{
+	  ml->font[x + 1] = c->mbcs;
+	  ml->fontx[x + 1] = 0;
+	}
 # else
       ml->font[x + 1] |= 0x80;
 # endif
@@ -2767,22 +2791,40 @@ int x, y;
   MKillDwRight(p, ml, x);
   MKillDwLeft(p, ml, x + n - 1);
   bcopy(s, (char *)ml->image + x, n);
-  b = ml->attr + x;
-  for (i = n; i-- > 0;)
-    *b++ = r->attr;
+  if (ml->attr != null)
+    {
+      b = ml->attr + x;
+      for (i = n; i-- > 0;)
+	*b++ = r->attr;
+    }
 #ifdef FONT
-  b = ml->font + x;
-  for (i = n; i-- > 0;)
-    *b++ = r->font;
+  if (ml->font != null)
+    {
+      b = ml->font + x;
+      for (i = n; i-- > 0;)
+	*b++ = r->font;
+    }
+  if (ml->fontx != null)
+    {
+      b = ml->fontx + x;
+      for (i = n; i-- > 0;)
+	*b++ = r->fontx;
+    }
 #endif
 #ifdef COLOR
-  b = ml->color + x;
-  for (i = n; i-- > 0;)
-    *b++ = r->color;
+  if (ml->color != null)
+    {
+      b = ml->color + x;
+      for (i = n; i-- > 0;)
+	*b++ = r->color;
+    }
 # ifdef COLORS256
-  b = ml->colorx + x;
-  for (i = n; i-- > 0;)
-    *b++ = r->colorx;
+  if (ml->colorx != null)
+    {
+      b = ml->colorx + x;
+      for (i = n; i-- > 0;)
+	*b++ = r->colorx;
+    }
 # endif
 #endif
 }
@@ -2840,6 +2882,9 @@ struct mline *ml;
   q = ml->font; o = hml->font; hml->font = q; ml->font = null;
   if (o != null)
     free(o);
+  q = ml->fontx; o = hml->fontx; hml->fontx = q; ml->fontx = null;
+  if (o != null)
+    free(o);
 #endif
 
 #ifdef COLOR
@@ -2880,6 +2925,15 @@ int ys, ye;
       if (ml->colorx != null && bcmp((char*)ml->colorx, null, p->w_width))
 	break;
 # endif
+#endif
+#ifdef UTF8
+      if (p->encoding == UTF8)
+	{
+	  if (ml->font != null && bcmp((char*)ml->font, null, p->w_width))
+	    break;
+	  if (ml->fontx != null && bcmp((char*)ml->fontx, null, p->w_width))
+	    break;
+	}
 #endif
     }
   debug1("MFindUsedLine returning  %d\n", y);

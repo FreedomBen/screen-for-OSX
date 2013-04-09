@@ -428,6 +428,8 @@ struct mline *ml;
 #ifdef FONT
   if (ml->font && ml->font != null)
     free(ml->font);
+  if (ml->fontx && ml->fontx != null)
+    free(ml->fontx);
 #endif
 #ifdef COLOR
   if (ml->color && ml->color != null)
@@ -449,6 +451,7 @@ int w;
   ml->attr  = null;
 #ifdef FONT
   ml->font  = null;
+  ml->fontx = null;
 #endif
 #ifdef COLOR
   ml->color = null;
@@ -485,6 +488,13 @@ int xf, xt, l, w;
     }
   if (mlt->font != null)
     bcopy((char *)mlf->font + xf, (char *)mlt->font + xt, l);
+  if (mlf->fontx != null && mlt->fontx == null)
+    {
+      if ((mlt->fontx = (unsigned char *)calloc(w, 1)) == 0)
+	mlt->fontx = null, r = -1;
+    }
+  if (mlt->fontx != null)
+    bcopy((char *)mlf->fontx + xf, (char *)mlt->fontx + xt, l);
 #endif
 #ifdef COLOR
   if (mlf->color != null && mlt->color == null)
@@ -531,6 +541,7 @@ int wi;
   mline_old.attr = (unsigned char *)xrealloc((char *)mline_old.attr, maxwidth);
 #ifdef FONT
   mline_old.font = (unsigned char *)xrealloc((char *)mline_old.font, maxwidth);
+  mline_old.fontx = (unsigned char *)xrealloc((char *)mline_old.fontx, maxwidth);
 #endif
 #ifdef COLOR
   mline_old.color = (unsigned char *)xrealloc((char *)mline_old.color, maxwidth);
@@ -538,7 +549,7 @@ int wi;
   mline_old.colorx = (unsigned char *)xrealloc((char *)mline_old.colorx, maxwidth);
 # endif
 #endif
-  if (!(blank && null && mline_old.image && mline_old.attr IFFONT(&& mline_old.font) IFCOLOR(&& mline_old.color) IFCOLORX(&& mline_old.colorx)))
+  if (!(blank && null && mline_old.image && mline_old.attr IFFONT(&& mline_old.font) IFFONTX(&& mline_old.fontx) IFCOLOR(&& mline_old.color) IFCOLORX(&& mline_old.colorx)))
     Panic(0, "%s", strnomem);
 
   MakeBlankLine(blank, maxwidth);
@@ -550,7 +561,9 @@ int wi;
   mline_null.attr  = null;
 #ifdef FONT
   mline_blank.font  = null;
-  mline_null.font  = null;
+  mline_null.font   = null;
+  mline_blank.fontx = null;
+  mline_null.fontx  = null;
 #endif
 #ifdef COLOR
   mline_blank.color = null;
@@ -571,6 +584,7 @@ int wi;
 	RESET_AFC(ml->image, blank); \
 	RESET_AFC(ml->attr, null); \
 	IFFONT(RESET_AFC(ml->font, null)); \
+	IFFONT(RESET_AFC(ml->fontx, null)); \
 	IFCOLOR(RESET_AFC(ml->color, null)); \
 	IFCOLORX(RESET_AFC(ml->colorx, null)); \
       } \
@@ -1017,7 +1031,7 @@ int wi, he, hi;
       if (p->w_encoding == UTF8)
 	{
 	  for (l = 0; l < p->w_width; l++)
-	    ASSERT(ml->image[l] >= ' ' || ml->font[l]);
+	    ASSERT(ml->image[l] >= ' ' || ml->font[l] || ml->fontx);
 	}
       else
 #endif

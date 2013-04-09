@@ -594,7 +594,7 @@ int c;
 # ifdef UTF8
   if (D_encoding == UTF8)
     {
-      c = (c & 255) | (unsigned char)D_rend.font << 8;
+      c = (c & 255) | (unsigned char)D_rend.font << 8 | (unsigned char)D_rend.fontx << 16;
 #  ifdef DW_CHARS
       if (D_mbcs)
 	{
@@ -1882,6 +1882,10 @@ struct mchar *mc;
 #ifdef FONT
   if (D_rend.font != mc->font)
     SetFont(mc->font);
+#ifdef UTF8
+  if (D_encoding == UTF8)
+    D_rend.fontx = mc->fontx;
+#endif
 #endif
 }
 
@@ -1934,6 +1938,10 @@ int x;
 #ifdef FONT
   if (D_rend.font != ml->font[x])
     SetFont(ml->font[x]);
+#ifdef UTF8
+  if (D_encoding == UTF8)
+    D_rend.fontx = ml->fontx[x];
+#endif
 #endif
 }
 

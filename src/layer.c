@@ -68,6 +68,7 @@ int off;
   mml.attr  = ml->attr  + off;
 #ifdef FONT
   mml.font  = ml->font  + off;
+  mml.fontx  = ml->fontx  + off;
 #endif
 #ifdef COLOR
   mml.color = ml->color + off;
@@ -409,7 +410,7 @@ int x, y;
 	SetRendition(r);
 	s2 = s + xs2 - x - vp->v_xoff;
 #ifdef UTF8
-	if (D_encoding == UTF8 && l->l_encoding != UTF8 && (r->font || l->l_encoding))
+	if (D_encoding == UTF8 && l->l_encoding != UTF8 && (r->font || r->fontx || l->l_encoding))
 	  {
 	    struct mchar mc;
 	    mc = *r;

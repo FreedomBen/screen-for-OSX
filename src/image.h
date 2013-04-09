@@ -33,8 +33,10 @@
 
 #ifdef FONT
 # define IFFONT(x) x
+# define IFFONTX(x) x
 #else
 # define IFFONT(x)
+# define IFFONTX(x)
 #endif
 
 #ifdef COLOR
@@ -59,6 +61,7 @@ struct mchar {
 	 unsigned char image;
 	 unsigned char attr;
 IFFONT(  unsigned char font; )
+IFFONTX( unsigned char fontx; )
 IFCOLOR( unsigned char color; )
 IFCOLORX(unsigned char colorx; )
 IFDWCHAR(unsigned char mbcs; )
@@ -68,6 +71,7 @@ struct mline {
 	 unsigned char *image;
 	 unsigned char *attr;
 IFFONT(  unsigned char *font; )
+IFFONTX( unsigned char *fontx; )
 IFCOLOR( unsigned char *color; )
 IFCOLORX(unsigned char *colorx; )
 };
@@ -78,6 +82,7 @@ IFCOLORX(unsigned char *colorx; )
 	 bcopy((char *)(ml)->image, (char *)mline_old.image, (n));	\
 	 bcopy((char *)(ml)->attr,  (char *)mline_old.attr,  (n));	\
 IFFONT(	 bcopy((char *)(ml)->font,  (char *)mline_old.font,  (n));    ) \
+IFFONTX( bcopy((char *)(ml)->fontx, (char *)mline_old.fontx, (n));    ) \
 IFCOLOR( bcopy((char *)(ml)->color, (char *)mline_old.color, (n));    ) \
 IFCOLORX(bcopy((char *)(ml)->colorx, (char *)mline_old.colorx, (n));  ) \
 } while (0)
@@ -86,6 +91,7 @@ IFCOLORX(bcopy((char *)(ml)->colorx, (char *)mline_old.colorx, (n));  ) \
 	 bcopy((char *)(ml)->image + (xf), (char *)(ml)->image + (xt), (n));   \
 	 bcopy((char *)(ml)->attr  + (xf), (char *)(ml)->attr  + (xt), (n));   \
 IFFONT(	 bcopy((char *)(ml)->font  + (xf), (char *)(ml)->font  + (xt), (n)); ) \
+IFFONTX( bcopy((char *)(ml)->fontx + (xf), (char *)(ml)->fontx + (xt), (n)); ) \
 IFCOLOR( bcopy((char *)(ml)->color + (xf), (char *)(ml)->color + (xt), (n)); ) \
 IFCOLORX(bcopy((char *)(ml)->colorx + (xf), (char *)(ml)->colorx + (xt), (n));) \
 } while (0)
@@ -94,6 +100,7 @@ IFCOLORX(bcopy((char *)(ml)->colorx + (xf), (char *)(ml)->colorx + (xt), (n));) 
 	 bclear((char *)(ml)->image + (x), (n));			       \
 	 if ((ml)->attr != null) bzero((char *)(ml)->attr  + (x), (n));	       \
 IFFONT(  if ((ml)->font != null) bzero((char *)(ml)->font  + (x), (n));      ) \
+IFFONTX( if ((ml)->fontx != null) bzero((char *)(ml)->fontx + (x), (n));      ) \
 IFCOLOR( if ((ml)->color!= null) bzero((char *)(ml)->color + (x), (n));      ) \
 IFCOLORX(if ((ml)->colorx!= null) bzero((char *)(ml)->colorx + (x), (n));    ) \
 } while (0)
@@ -102,6 +109,7 @@ IFCOLORX(if ((ml)->colorx!= null) bzero((char *)(ml)->colorx + (x), (n));    ) \
 	    (ml1)->image[x] == (ml2)->image[x]			\
 	 && (ml1)->attr[x]  == (ml2)->attr[x]			\
 IFFONT(	 && (ml1)->font[x]  == (ml2)->font[x]		      ) \
+IFFONTX( && (ml1)->fontx[x] == (ml2)->fontx[x]		      ) \
 IFCOLOR( && (ml1)->color[x] == (ml2)->color[x]		      ) \
 IFCOLORX(&& (ml1)->colorx[x] == (ml2)->colorx[x]	      ) \
 )
@@ -110,6 +118,7 @@ IFCOLORX(&& (ml1)->colorx[x] == (ml2)->colorx[x]	      ) \
 	    (mc1)->image == (mc2)->image			\
 	 && (mc1)->attr  == (mc2)->attr				\
 IFFONT(	 && (mc1)->font  == (mc2)->font			      ) \
+IFFONTX( && (mc1)->fontx == (mc2)->fontx		      ) \
 IFCOLOR( && (mc1)->color == (mc2)->color		      ) \
 IFCOLORX(&& (mc1)->colorx == (mc2)->colorx		      ) \
 )
@@ -118,6 +127,7 @@ IFCOLORX(&& (mc1)->colorx == (mc2)->colorx		      ) \
 	    (mc)->image == (ml)->image[x]			\
 	 && (mc)->attr  == (ml)->attr[x]			\
 IFFONT(	 && (mc)->font  == (ml)->font[x]		      ) \
+IFFONTX( && (mc)->fontx == (ml)->fontx[x]		      ) \
 IFCOLOR( && (mc)->color == (ml)->color[x]		      ) \
 IFCOLORX(&& (mc)->colorx == (ml)->colorx[x]		      ) \
 )
@@ -126,6 +136,7 @@ IFCOLORX(&& (mc)->colorx == (ml)->colorx[x]		      ) \
 	 (ml)->image[x] = (mc)->image;				\
 	 (ml)->attr[x]  = (mc)->attr;				\
 IFFONT(	 (ml)->font[x]  = (mc)->font;			      ) \
+IFFONTX( (ml)->fontx[x] = (mc)->fontx;			      ) \
 IFCOLOR( (ml)->color[x] = (mc)->color;			      ) \
 IFCOLORX((ml)->colorx[x] = (mc)->colorx;		      ) \
 } while (0)
@@ -134,6 +145,7 @@ IFCOLORX((ml)->colorx[x] = (mc)->colorx;		      ) \
 	 (mc)->image = (ml)->image[x];				\
 	 (mc)->attr  = (ml)->attr[x];				\
 IFFONT(	 (mc)->font  = (ml)->font[x];			      ) \
+IFFONTX( (mc)->fontx = (ml)->fontx[x];			      ) \
 IFCOLOR( (mc)->color = (ml)->color[x];			      ) \
 IFCOLORX((mc)->colorx = (ml)->colorx[x];		      ) \
 IFDWCHAR((mc)->mbcs  = 0;				      ) \
