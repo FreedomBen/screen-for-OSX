@@ -2927,7 +2927,7 @@ int ys, ye;
 # endif
 #endif
 #ifdef UTF8
-      if (p->encoding == UTF8)
+      if (p->w_encoding == UTF8)
 	{
 	  if (ml->font != null && bcmp((char*)ml->font, null, p->w_width))
 	    break;
