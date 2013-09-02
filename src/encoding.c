@@ -901,7 +901,7 @@ int encoding;
 		      ml->fontx[i - 1]  = c >> 16 & 255;
 		    }
 		  else
-		    ml->fontx = 0;
+		    ml->fontx = null;
 		  ml->font[i - 1]  = c >> 8 & 255;
 		  ml->image[i - 1] = c      & 255;
 		  c = c2;
@@ -925,7 +925,7 @@ int encoding;
 	      ml->fontx[i]  = c >> 16 & 255;
 	    }
 	  else
-	    ml->fontx = 0;
+	    ml->fontx = null;
 	}
     }
   p->w_encoding = encoding;
