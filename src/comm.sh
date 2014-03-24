@@ -80,6 +80,7 @@ $AWK < ${srcdir}/comm.c >> comm.h '
 	old = $2;
 	}
 '
+
 $CC -E -I. -I${srcdir} ${srcdir}/comm.c > comm.cpp
 sed < comm.cpp \
   -n \
