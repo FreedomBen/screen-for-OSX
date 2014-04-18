@@ -3185,6 +3185,10 @@ int key;
     case RC_NETHACK:
       (void)ParseOnOff(act, &nethackflag);
       break;
+#else
+    case RC_NETHACK:
+      Msg(0, "nethack disabled at build time");
+      break;
 #endif
     case RC_HARDCOPY_APPEND:
       (void)ParseOnOff(act, &hardcopy_append);
