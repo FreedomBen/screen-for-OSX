@@ -182,8 +182,9 @@ struct mode
  * 					 A few revisions after 8147d08 incorrectly
  * 					 carried version 1, but should have carried 2.
  * 2:	screen version 4.1.0devel	(revisions 8b46d8a upto YYYYYYY)
+ * 3:	screen version 4.2.0		(was incorrectly originally. Patched here)
  */
-#define MSG_VERSION	2
+#define MSG_VERSION	3
 
 #define MSG_REVISION	(('m'<<24) | ('s'<<16) | ('g'<<8) | MSG_VERSION)
 struct msg
