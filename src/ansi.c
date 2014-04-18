@@ -1436,14 +1436,17 @@ int c, intermediate;
 		{
 		  if (i)
 		    {
-		      if (!curr->w_alt.on)
+		      if (!curr->w_alt.on) {
 			SaveCursor(&curr->w_alt.cursor);
-		      EnterAltScreen(curr);
+			EnterAltScreen(curr);
+		      }
 		    }
 		  else
 		    {
-		      LeaveAltScreen(curr);
-		      RestoreCursor(&curr->w_alt.cursor);
+		      if (curr->w_alt.on) {
+		        LeaveAltScreen(curr);
+		        RestoreCursor(&curr->w_alt.cursor);
+		      }
 		    }
 		  if (a1 == 47 && !i)
 		    curr->w_saved.on = 0;
