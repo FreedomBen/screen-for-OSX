@@ -73,7 +73,7 @@ struct display
   struct win *d_other;		/* pointer to other window */
   int   d_nonblock;		/* -1 don't block if obufmax reached */
 				/* >0: block after nonblock secs */
-  char  d_termname[20 + 1];	/* $TERM */
+  char  d_termname[MAXTERMLEN + 1];	/* $TERM */
   char	*d_tentry;		/* buffer for tgetstr */
   char	d_tcinited;		/* termcap inited flag */
   int	d_width, d_height;	/* width/height of the screen */

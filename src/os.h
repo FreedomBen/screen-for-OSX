@@ -45,6 +45,14 @@
 #define NAME_MAX 14
 #endif
 
+#if !defined(MAXTERMLEN)
+# if !defined(HAVE_LONG_FILE_NAMES)
+#  define MAXTERMLEN 14
+# else
+#  define MAXTERMLEN 32
+# endif
+#endif
+
 #ifdef ISC
 # ifdef ENAMETOOLONG
 #  undef ENAMETOOLONG
