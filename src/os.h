@@ -521,3 +521,9 @@ typedef struct fd_set { int fds_bits[1]; } fd_set;
  */
 #define IOSIZE		4096
 
+/* Changing those you won't be able to attach to your old sessions
+ * when changing those values in official tree don't forget to bump
+ * MSG_VERSION */
+#define MAXTERMLEN	32
+#define MAXLOGINLEN	256
+

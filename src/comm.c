@@ -36,6 +36,7 @@
  */
 
 #include "config.h"
+#include "os.h"
 #include "acls.h"
 #include "comm.h"
 

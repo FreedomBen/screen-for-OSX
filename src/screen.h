@@ -203,32 +203,32 @@ struct msg
 	  int nargs;
 	  char line[MAXPATHLEN];
 	  char dir[MAXPATHLEN];
-	  char screenterm[32];	/* is screen really "screen" ? */
+	  char screenterm[MAXTERMLEN];	/* is screen really "screen" ? */
 	}
       create;
       struct
 	{
-	  char auser[32 + 1];	/* username */
+	  char auser[MAXLOGINLEN + 1];	/* username */
 	  int apid;		/* pid of frontend */
 	  int adaptflag;	/* adapt window size? */
 	  int lines, columns;	/* display size */
 	  char preselect[20];
 	  int esc;		/* his new escape character unless -1 */
 	  int meta_esc;		/* his new meta esc character unless -1 */
-	  char envterm[32 + 1];	/* terminal type */
+	  char envterm[MAXTERMLEN + 1];	/* terminal type */
 	  int encoding;		/* encoding of display */
 	  int detachfirst;      /* whether to detach remote sessions first */
 	}
       attach;
       struct 
 	{
-	  char duser[32 + 1];	/* username */
+	  char duser[MAXLOGINLEN + 1];	/* username */
 	  int dpid;		/* pid of frontend */
 	}
       detach;
       struct 
 	{
-	  char auser[32 + 1];	/* username */
+	  char auser[MAXLOGINLEN + 1];	/* username */
 	  int nargs;
 	  char cmd[MAXPATHLEN];	/* command */
 	  int apid;		/* pid of frontend */
