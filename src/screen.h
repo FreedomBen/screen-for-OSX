@@ -203,7 +203,7 @@ struct msg
 	  int nargs;
 	  char line[MAXPATHLEN];
 	  char dir[MAXPATHLEN];
-	  char screenterm[20];	/* is screen really "screen" ? */
+	  char screenterm[32];	/* is screen really "screen" ? */
 	}
       create;
       struct
@@ -215,7 +215,7 @@ struct msg
 	  char preselect[20];
 	  int esc;		/* his new escape character unless -1 */
 	  int meta_esc;		/* his new meta esc character unless -1 */
-	  char envterm[20 + 1];	/* terminal type */
+	  char envterm[32 + 1];	/* terminal type */
 	  int encoding;		/* encoding of display */
 	  int detachfirst;      /* whether to detach remote sessions first */
 	}
