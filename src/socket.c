@@ -1528,7 +1528,7 @@ static void PasswordProcessInput __P((char *, int));
 
 struct pwdata {
   int l;
-  char buf[20 + 1];
+  char buf[32 + 1];
   struct msg m;
 };
 

@@ -182,7 +182,7 @@ struct acluser **up;
 #endif
   (*up)->u_Esc = DefaultEsc;
   (*up)->u_MetaEsc = DefaultMetaEsc;
-  strncpy((*up)->u_name, name, 20);
+  strncpy((*up)->u_name, name, 32);
   (*up)->u_password = NULL;
   if (pass)
     (*up)->u_password = SaveStr(pass);

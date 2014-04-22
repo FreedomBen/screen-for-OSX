@@ -208,7 +208,7 @@ struct msg
       create;
       struct
 	{
-	  char auser[20 + 1];	/* username */
+	  char auser[32 + 1];	/* username */
 	  int apid;		/* pid of frontend */
 	  int adaptflag;	/* adapt window size? */
 	  int lines, columns;	/* display size */
@@ -222,13 +222,13 @@ struct msg
       attach;
       struct 
 	{
-	  char duser[20 + 1];	/* username */
+	  char duser[32 + 1];	/* username */
 	  int dpid;		/* pid of frontend */
 	}
       detach;
       struct 
 	{
-	  char auser[20 + 1];	/* username */
+	  char auser[32 + 1];	/* username */
 	  int nargs;
 	  char cmd[MAXPATHLEN];	/* command */
 	  int apid;		/* pid of frontend */
