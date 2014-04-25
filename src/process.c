@@ -2097,7 +2097,7 @@ int key;
 	ChangeAKA(fore, *args, strlen(*args));
       break;
     case RC_COLON:
-      Input(":", 100, INP_EVERY, Colonfin, NULL, 0);
+      Input(":", MAXSTR, INP_EVERY, Colonfin, NULL, 0);
       if (*args && **args)
 	{
 	  s = *args;

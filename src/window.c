@@ -2237,7 +2237,7 @@ int len;
       return;
     }
   flayer = &p->w_layer;
-  Input(":", 100, INP_COOKED, zmodem_fin, NULL, 0);
+  Input(":", MAXSTR, INP_COOKED, zmodem_fin, NULL, 0);
   s = send ? zmodem_sendcmd : zmodem_recvcmd;
   n = strlen(s);
   LayProcess(&s, &n);

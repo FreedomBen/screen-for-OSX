@@ -43,7 +43,7 @@ extern struct mchar mchar_blank, mchar_so;
 
 struct inpline
 {
-  char  buf[101];	/* text buffer */
+  char  buf[MAXSTR+1];	/* text buffer */
   int  len;		/* length of the editible string */
   int  pos;		/* cursor position in editable string */
   struct inpline *next, *prev;
@@ -58,7 +58,7 @@ static struct inpline inphist;
 struct inpdata
 {
   struct inpline inp;
-  int  inpmaxlen;	/* 100, or less, if caller has shorter buffer */
+  int  inpmaxlen;	/* MAXSTR, or less, if caller has shorter buffer */
   char *inpstring;	/* the prompt */
   int  inpstringlen;	/* length of the prompt */
   int  inpmode;		/* INP_NOECHO, INP_RAW, INP_EVERY */
@@ -134,8 +134,8 @@ int data;
   if (!flayer)
     return;
 
-  if (len > 100)
-    len = 100;
+  if (len > MAXSTR)
+    len = MAXSTR;
   if (!(mode & INP_NOECHO))
     {
       maxlen = flayer->l_width - 1 - strlen(istr);

@@ -91,7 +91,7 @@
 
 #define Ctrl(c) ((c)&037)
 
-#define MAXSTR		512
+#define MAXSTR		768
 #define MAXARGS 	64
 #define MSGWAIT 	5
 #define MSGMINWAIT 	1
