@@ -478,6 +478,8 @@ int *val;
 
 char *noargs[1];
 
+int enter_window_name_mode = 0;
+
 void
 InitKeytab()
 {
@@ -5748,6 +5750,8 @@ char *data;	/* dummy */
   ASSERT(display);
   if (len && fore)
     ChangeAKA(fore, buf, strlen(buf));
+
+  enter_window_name_mode = 0;
 }
 
 static void
@@ -5755,6 +5759,11 @@ InputAKA()
 {
   char *s, *ss;
   int n;
+
+  if (enter_window_name_mode == 1) return;
+
+  enter_window_name_mode = 1;
+
   Input("Set window's title to: ", sizeof(fore->w_akabuf) - 1, INP_COOKED, AKAfin, NULL, 0);
   s = fore->w_title;
   if (!s)
