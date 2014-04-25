@@ -1115,7 +1115,7 @@ char **av;
 	  sprintf(SockPath, "%s/S-%s", SockDir, LoginName);
 	  if (access(SockPath, F_OK))
 	    {
-	      if (mkdir(SockPath, 0700) == -1)
+	      if (mkdir(SockPath, 0700) == -1 && errno != EEXIST)
 		Panic(errno, "Cannot make directory '%s'", SockPath);
 	      (void) chown(SockPath, real_uid, real_gid);
 	    }
