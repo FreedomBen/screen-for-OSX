@@ -847,11 +847,15 @@ screen_builtin_lck()
 #ifdef USE_PAM
   pam_handle_t *pamh = 0;
   int pam_error;
-#else
-  char *pass, mypass[16 + 1], salt[3];
 #endif
+  char *pass, mypass[16 + 1], salt[3];
+  int using_pam = 1;
 
-#ifndef USE_PAM
+#ifdef USE_PAM
+  if (!ppp->pw_uid)
+    {
+#endif
+  using_pam = 0;
   pass = ppp->pw_passwd;
   if (pass == 0 || *pass == 0)
     {
@@ -890,6 +894,8 @@ screen_builtin_lck()
 	}
       pass = ppp->pw_passwd = SaveStr(pass);
     }
+#ifdef USE_PAM
+    }
 #endif
 
   debug("screen_builtin_lck looking in gcos field\n");
@@ -919,6 +925,8 @@ screen_builtin_lck()
           AttacherFinit(SIGARG);
           /* NOTREACHED */
         }
+      if (using_pam)
+        {
 #ifdef USE_PAM
       PAM_conversation.appdata_ptr = cp1;
       pam_error = pam_start("screen", ppp->pw_name, &PAM_conversation, &pamh);
@@ -929,11 +937,14 @@ screen_builtin_lck()
       PAM_conversation.appdata_ptr = 0;
       if (pam_error == PAM_SUCCESS)
 	break;
-#else
-      char *buf = crypt(cp1, pass);
-      if (buf && !strncmp(buf, pass, strlen(pass)))
-	break;
 #endif
+        }
+      else
+	{
+          char *buf = crypt(cp1, pass);
+          if (buf && !strncmp(buf, pass, strlen(pass)))
+	    break;
+	}
       debug("screen_builtin_lck: NO!!!!!\n");
       bzero(cp1, strlen(cp1));
     }
