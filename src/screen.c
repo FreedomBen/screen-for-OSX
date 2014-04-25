@@ -655,6 +655,8 @@ char **av;
 		    }
 		  break;
 		case 'w':
+		  if (strcmp(ap+1, "ipe"))
+		    exit_with_usage(myname, "Unknown option %s", --ap);
 		  lsflag = 1;
 		  wipeflag = 1;
 		  if (ac > 1 && !SockMatch)
