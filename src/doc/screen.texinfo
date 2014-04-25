@@ -792,7 +792,7 @@ Write out a @file{.termcap} file.  @xref{Dump Termcap}.
 (help)@*
 Show key bindings.  @xref{Help}.
 
-@item @kbd{C-a C-\}
+@item @kbd{C-a \}
 (quit)@*
 Kill all windows and terminate @code{screen}.  @xref{Quit}.
 
@@ -2032,13 +2032,10 @@ being able to do job control.
 
 @node Quit,  , Suspend, Session Management
 @section Quit
-@kindex C-\
+@kindex \
 @deffn Command quit
-(@kbd{C-a C-\})@*
-Kill all windows and terminate @code{screen}.  Note that on VT100-style
-terminals the keys @kbd{C-4} and @kbd{C-\} are identical.  So be careful
-not to type @kbd{C-a C-4} when selecting window no. 4.  Use the empty
-bind command (as in @code{bind "^\"}) to remove a key binding
+(@kbd{C-a \})@*
+Kill all windows and terminate @code{screen}.
 (@pxref{Key Binding}).
 @end deffn
 
