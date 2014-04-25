@@ -106,6 +106,7 @@ extern void  tputs __P((char *, int, int (*)(int)));
 extern char *tgoto __P((char *, int, int));
 
 #ifdef POSIX
+#include <string.h>
 extern int   setsid __P((void));
 extern int   setpgid __P((int, int));
 extern int   tcsetpgrp __P((int, int));
