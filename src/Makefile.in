@@ -350,7 +350,7 @@ layout.o: layout.h viewport.h canvas.h layout.c config.h screen.h os.h osdef.h a
 viewport.o: layout.h viewport.h canvas.h viewport.c config.h screen.h os.h osdef.h ansi.h acls.h \
  comm.h layer.h term.h image.h display.h window.h extern.h \
  braille.h
-list_generic.o: list_generic.h list_generic.c layer.h
-list_display.o: list_generic.h list_display.c layer.h
-list_window.o: list_generic.h list_window.c window.h layer.h
+list_generic.o: list_generic.h list_generic.c layer.h screen.h osdef.h
+list_display.o: list_generic.h list_display.c layer.h screen.h osdef.h
+list_window.o: list_generic.h list_window.c window.h layer.h screen.h osdef.h
 
