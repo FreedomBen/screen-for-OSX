@@ -1164,8 +1164,12 @@ char **av;
 #endif
       SET_GUID();
       i = FindSocket((int *)NULL, &fo, &oth, SockMatch);
-      if (quietflag)
-        exit(8 + (fo ? ((oth || i) ? 2 : 1) : 0) + i);
+      if (quietflag) {
+        if (rflag)
+          exit(10 + i);
+        else
+          exit(9 + (fo || oth ? 1 : 0) + fo);
+      }
       if (fo == 0)
         Panic(0, "No Sockets found in %s.\n", SockPath);
       Panic(0, "%d Socket%s in %s.\n", fo, fo > 1 ? "s" : "", SockPath);
