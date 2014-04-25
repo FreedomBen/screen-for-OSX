@@ -143,7 +143,8 @@ whole screen session is detached from the user's terminal.
 When a program terminates, @code{screen} (per default) kills the window
 that contained it.  If this window was in the foreground, the display
 switches to the previously displayed window; if none are left,
-@code{screen} exits.
+@code{screen} exits. Shells usually distinguish between running as login-shell or sub-shell.
+Screen runs them as sub-shells, unless told otherwise (See @code{shell} .screenrc command).
 
 Everything you type is sent to the program running in the current
 window.  The only exception to this is the one keystroke that is used to
@@ -154,7 +155,8 @@ Character}) and all the key bindings (@pxref{Key Binding}) can be fully
 customized to be anything you like, though they are always two
 characters in length.
 
-@code{Screen} does not understand the prefix @kbd{C-} to mean control.
+@code{Screen} does not understand the prefix @kbd{C-} to mean control, although
+this notation is used in this manual for readability.
 Please use the caret notation (@kbd{^A} instead of @kbd{C-a}) as arguments
 to e.g. the @code{escape} command or the @code{-e} option. @code{Screen}
 will also print out control characters in caret notation.
@@ -417,7 +419,7 @@ For combinations with the
 Set the default shell to be @var{program}.  By default, @code{screen}
 uses the value of the environment variable @code{$SHELL}, or
 @file{/bin/sh} if it is not defined.  This option is equivalent to the
-@code{shell} command (@pxref{Shell}).
+@code{shell} command (@pxref{Shell}). See also there.
 
 @item -S @var{sessionname}
 Set the name of the new session to @var{sessionname}.  This option can
@@ -1343,10 +1345,12 @@ Unset an environment variable.
 Set the command to be used to create a new shell.  This overrides the
 value of the environment variable @code{$SHELL}.  This is useful if
 you'd like to run a tty-enhancer which is expecting to execute the
-program specified in @code{$SHELL}.  If the command begins with
-a @samp{-} character, the shell will be started as a login-shell.
+program specified in @code{$SHELL}.  
+If the command begins with a @samp{-} character, the shell will be started as a
+login-shell. Typical shells do only minimal initialization when not started as a login-shell.
+E.g. Bash will not read your @file{~/.bashrc} unless it is a login-shell.
 
-@code{defshell} is currently a synonym to the @code{shell} command.
+@code{defshell} is currently a synonym to the @code{shell} .screenrc command.
 @end deffn
 
 @deffn Command shelltitle title
@@ -1725,7 +1729,7 @@ password checking.
 Mainly the same as @code{detach}, but also sends a HANGUP signal
 to the parent process of @code{screen}.@*
 @emph{Caution}: This will result in a
-logout if @code{screen} was started from your login shell.
+logout if @code{screen} was started from your login-shell.
 @end deffn
 
 @deffn Command pow_detach_msg [message]
@@ -5638,6 +5642,7 @@ Alternate user screenrc file.
 
 @item SHELL
 Default shell program for opening windows (default @file{/bin/sh}).
+See also @code{shell} .screenrc command.
 
 @item STY
 Alternate socket name. If @code{screen} is invoked, and the environment variable

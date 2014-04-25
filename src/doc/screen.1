@@ -59,7 +59,8 @@ session is detached from the user's terminal.  When a program terminates,
 If this window was in the foreground, the display switches to the previous
 window; if none are left,
 .I screen
-exits.
+exits. Shells usually distinguish between running as login-shell or sub-shell.
+Screen runs them as sub-shells, unless told otherwise (See \*Qshell\*U .screenrc command).
 .PP
 Everything you type is sent to the program running in the current window.
 The only exception to this is the one keystroke that is used to initiate
@@ -70,7 +71,8 @@ The command character and all the key bindings can be fully customized
 to be anything you like, though they are always two characters in length.
 .PP
 .I Screen
-does not understand the prefix \*QC-\*U to mean control. 
+does not understand the prefix \*QC-\*U to mean control, although this notation is 
+used in this manual for readability. 
 Please use the caret notation (\*Q^A\*U instead of \*QC-a\*U) as arguments
 to e.g. the 
 .I escape
@@ -355,6 +357,7 @@ For combinations with the \fB\-d\fP/\fB\-D\fP option see there.
 sets the default shell to the program specified, instead of the value
 in the environment variable $SHELL (or \*Q/bin/sh\*U if not defined).
 This can also be defined through the \*Qshell\*U .screenrc command.
+See also there.
 .TP 5
 .BI "\-S " sessionname
 When creating a new session, this option can be used to specify a
@@ -1636,7 +1639,7 @@ windows is changed. Initial setting is 100.
 .ne 3
 .BI "defshell " command
 .PP
-Synonym to the \fBshell\fP command. See there.
+Synonym to the \fBshell\fP .screenrc command. See there.
 .sp
 .ne 3
 .BR "defsilence on" | off
@@ -2705,7 +2708,7 @@ the parent process of
 .IR screen .
 CAUTION: This will result in a logout, when 
 .I screen
-was started from your login shell.
+was started from your login-shell.
 .sp
 .ne 3
 .B pow_detach_msg
@@ -2964,8 +2967,10 @@ only in rare circumstances.
 Set the command to be used to create a new shell.
 This overrides the value of the environment variable $SHELL.
 This is useful if you'd like to run a tty-enhancer which is expecting to
-execute the program specified in $SHELL. If the command begins with
-a '\-' character, the shell will be started as a login-shell.
+execute the program specified in $SHELL. 
+If the command begins with a '\-' character, the shell will be started as a
+login-shell. Typical shells do only minimal initialization when not started as a login-shell.
+E.g. Bash will not read your \*Q~/.bashrc\*U unless it is a login-shell.
 .sp
 .ne 3
 .B "shelltitle \fItitle\fP"
@@ -4827,6 +4832,7 @@ Alternate socket directory.
 Alternate user screenrc file.
 .IP SHELL
 Default shell program for opening windows (default \*Q/bin/sh\*U).
+See also \*Qshell\*U .screenrc command.
 .IP STY
 Alternate socket name.
 .IP SYSSCREENRC
