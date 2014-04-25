@@ -185,8 +185,8 @@ int how;
 	  if (ret == SIG_POWER_BYE)
 	    {
 	      int ppid;
-	      setgid(real_gid);
-	      setuid(real_uid);
+	      if (setgid(real_gid) || setuid(real_uid))
+		Panic(errno, "setuid/gid");
 	      if ((ppid = getppid()) > 1)
 		Kill(ppid, SIGHUP);
 	      exit(0);
@@ -282,7 +282,10 @@ int how;
 #ifdef MULTIUSER
   if (!multiattach)
 #endif
-    setuid(real_uid);
+    {
+      if (setuid(real_uid))
+        Panic(errno, "setuid");
+    }
 #if defined(MULTIUSER) && defined(USE_SETEUID)
   else
     {
@@ -290,7 +293,8 @@ int how;
       xseteuid(real_uid); /* multi_uid, allow backend to send signals */
     }
 #endif
-  setgid(real_gid);
+  if (setgid(real_gid))
+    Panic(errno, "setgid");
   eff_uid = real_uid;
   eff_gid = real_gid;
 
@@ -486,7 +490,8 @@ AttacherFinit SIGDEFARG
 #ifdef MULTIUSER
   if (tty_oldmode >= 0)
     {
-      setuid(own_uid);
+      if (setuid(own_uid))
+        Panic(errno, "setuid");
       chmod(attach_tty, tty_oldmode);
     }
 #endif
@@ -504,11 +509,14 @@ AttacherFinitBye SIGDEFARG
   if (multiattach)
     exit(SIG_POWER_BYE);
 #endif
-  setgid(real_gid);
+  if (setgid(real_gid))
+    Panic(errno, "setgid");
 #ifdef MULTIUSER
-  setuid(own_uid);
+  if (setuid(own_uid))
+    Panic(errno, "setuid");
 #else
-  setuid(real_uid);
+  if (setuid(real_uid))
+    Panic(errno, "setuid");
 #endif
   /* we don't want to disturb init (even if we were root), eh? jw */
   if ((ppid = getppid()) > 1)
@@ -679,11 +687,14 @@ static sigret_t
 LockHup SIGDEFARG
 {
   int ppid = getppid();
-  setgid(real_gid);
+  if (setgid(real_gid))
+    Panic(errno, "setgid");
 #ifdef MULTIUSER
-  setuid(own_uid);
+  if (setuid(own_uid))
+    Panic(errno, "setuid");
 #else
-  setuid(real_uid);
+  if (setuid(real_uid))
+    Panic(errno, "setuid");
 #endif
   if (ppid > 1)
     Kill(ppid, SIGHUP);
@@ -710,11 +721,14 @@ LockTerminal()
       if ((pid = fork()) == 0)
         {
           /* Child */
-          setgid(real_gid);
+          if (setgid(real_gid))
+            Panic(errno, "setgid");
 #ifdef MULTIUSER
-          setuid(own_uid);
+          if (setuid(own_uid))
+            Panic(errno, "setuid");
 #else
-          setuid(real_uid);	/* this should be done already */
+          if (setuid(real_uid))   /* this should be done already */
+            Panic(errno, "setuid");
 #endif
           closeallfiles(0);	/* important: /etc/shadow may be open */
           execl(prg, "SCREEN-LOCK", NULL);
@@ -847,6 +861,7 @@ screen_builtin_lck()
 #ifdef USE_PAM
   pam_handle_t *pamh = 0;
   int pam_error;
+  char *tty_name;
 #endif
   char *pass = 0, mypass[16 + 1], salt[3];
   int using_pam = 1;
@@ -932,6 +947,15 @@ screen_builtin_lck()
       pam_error = pam_start("screen", ppp->pw_name, &PAM_conversation, &pamh);
       if (pam_error != PAM_SUCCESS)
 	AttacherFinit(SIGARG);		/* goodbye */
+
+      if (strncmp(attach_tty, "/dev/", 5) == 0)
+	tty_name = attach_tty + 5;
+      else
+	tty_name = attach_tty;
+      pam_error = pam_set_item(pamh, PAM_TTY, tty_name);
+      if (pam_error != PAM_SUCCESS)
+	AttacherFinit(SIGARG);		/* goodbye */
+
       pam_error = pam_authenticate(pamh, 0);
       pam_end(pamh, pam_error);
       PAM_conversation.appdata_ptr = 0;

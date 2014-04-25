@@ -361,7 +361,7 @@ RemoveLoginSlot()
       char *tty;
       debug("couln't zap slot -> do mesg n\n");
       D_loginttymode = 0;
-      if ((tty = ttyname(D_userfd)) && stat(tty, &stb) == 0 && (int)stb.st_uid == real_uid && ((int)stb.st_mode & 0777) != 0666)
+      if ((tty = ttyname(D_userfd)) && stat(tty, &stb) == 0 && (int)stb.st_uid == real_uid && !CheckTtyname(tty) && ((int)stb.st_mode & 0777) != 0666)
 	{
 	  D_loginttymode = (int)stb.st_mode & 0777;
 	  chmod(D_usertty, stb.st_mode & 0600);
@@ -387,7 +387,7 @@ RestoreLoginSlot()
     }
   UT_CLOSE;
   D_loginslot = (slot_t)0;
-  if (D_loginttymode && (tty = ttyname(D_userfd)))
+  if (D_loginttymode && (tty = ttyname(D_userfd)) && !CheckTtyname(tty))
     chmod(tty, D_loginttymode);
 }
 
@@ -575,7 +575,7 @@ struct win *wi;
     return ut_delete_user(slot, u.ut_pid, 0, 0) != 0;
 #endif
 #ifdef HAVE_UTEMPTER
-  if (eff_uid && wi->w_ptyfd != -1)
+  if (eff_uid && wi && wi->w_ptyfd != -1)
     {
       /* sigh, linux hackers made the helper functions void */
       if (SLOT_USED(u))
@@ -853,7 +853,7 @@ getlogin()
 
   for (fd = 0; fd <= 2 && (tty = ttyname(fd)) == NULL; fd++)
     ;
-  if ((tty == NULL) || ((fd = open(UTMP_FILE, O_RDONLY)) < 0))
+  if ((tty == NULL) || CheckTtyname(tty) || ((fd = open(UTMP_FILE, O_RDONLY)) < 0))
     return NULL;
   tty = stripdev(tty);
   retbuf[0] = '\0';
