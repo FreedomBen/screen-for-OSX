@@ -848,7 +848,7 @@ screen_builtin_lck()
   pam_handle_t *pamh = 0;
   int pam_error;
 #endif
-  char *pass, mypass[16 + 1], salt[3];
+  char *pass = 0, mypass[16 + 1], salt[3];
   int using_pam = 1;
 
 #ifdef USE_PAM
