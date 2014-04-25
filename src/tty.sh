@@ -808,18 +808,11 @@ int fd;
 
   mypid = getpid();
 
-  /* The next lines should be obsolete. Can anybody check if they
-   * are really needed on the BSD platforms?
-   *
-   * this is to avoid the message:
-   *	fgtty: Not a typewriter (25)
+  /*
+   * Under BSD we have to set the controlling terminal again explicitly.
    */
-# if defined(__osf__) || (BSD >= 199103) || defined(ISC)
-  if (separate_sids)
-    setsid();	/* should be already done */
-#  ifdef TIOCSCTTY
+# if (defined(__FreeBSD_kernel__) || defined(__GNU__)) && defined(TIOCSCTTY)
   ioctl(fd, TIOCSCTTY, (char *)0);
-#  endif
 # endif
 
 # ifdef POSIX
