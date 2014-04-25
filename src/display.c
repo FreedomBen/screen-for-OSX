@@ -2600,7 +2600,7 @@ int from, to, y;
       if (x || D_x != D_width || D_y != y - 1)
 #endif
         {
-	  if (x < to || x != D_width - 1 || ml->image[x + 1])
+	  if (ml != NULL && (x < to || x != D_width - 1 || ml->image[x + 1]))
 	    if (cmp_mline(oml, ml, x))
 	      continue;
 	  GotoPos(x, y);
@@ -3737,6 +3737,7 @@ char **cmdv;
       Msg(errno, "fork");
       close(D_blankerev.fd);
       D_blankerev.fd = -1;
+      close(slave);
       return;
     case 0:
       displays = 0;
@@ -3790,6 +3791,7 @@ char **cmdv;
   evenq(&D_blankerev);
   D_blocked = 4;
   ClearAll();
+  close(slave);
 }
 
 #endif /* BLANKER_PRG */
