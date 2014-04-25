@@ -136,7 +136,7 @@ int f;
 {
   if (f < 0)
     return;
-#if defined(I_PUSH) && defined(HAVE_SVR4_PTYS) && !defined(sgi) && !defined(linux) && !defined(__osf__) && !defined(M_UNIX)
+#if defined(I_PUSH) && defined(HAVE_SVR4_PTYS) && !defined(sgi) && !defined(linux) && !defined(__GLIBC__) && !defined(__osf__) && !defined(M_UNIX)
   if (ioctl(f, I_PUSH, "ptem"))
     Panic(errno, "InitPTY: cannot I_PUSH ptem");
   if (ioctl(f, I_PUSH, "ldterm"))
@@ -260,7 +260,7 @@ char **ttyn;
   sigret_t (*sigcld)__P(SIGPROTOARG);
 
   strcpy(PtyName, "/dev/ptmx");
-#if defined(HAVE_GETPT) && defined(linux)
+#if defined(HAVE_GETPT) && (defined(linux) || defined(__GLIBC__))
   if ((f = getpt()) == -1)
 #else
   if ((f = open(PtyName, O_RDWR | O_NOCTTY)) == -1)
