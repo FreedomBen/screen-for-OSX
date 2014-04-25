@@ -82,12 +82,14 @@ char *myname, *message, *arg;
 #if defined(LOGOUTOK) && defined(UTMPOK)
   printf("-l            Login mode on (update %s), -ln = off.\n", UTMPFILE);
 #endif
-  printf("-ls [match]   or -list. Do nothing, just list our SockDir [on possible matches].\n");
+  printf("-ls [match]   or\n");
+  printf("-list         Do nothing, just list our SockDir [on possible matches].\n");
   printf("-L            Turn on output logging.\n");
   printf("-m            ignore $STY variable, do create a new screen session.\n");
   printf("-O            Choose optimal output rather than exact vt100 emulation.\n");
   printf("-p window     Preselect the named window if it exists.\n");
   printf("-q            Quiet startup. Exits with non-zero return code if unsuccessful.\n");
+  printf("-Q            Commands will send the response to the stdout of the querying process.\n");
   printf("-r [session]  Reattach to a detached screen process.\n");
   printf("-R            Reattach if possible, otherwise start a new session.\n");
   printf("-s shell      Shell to execute rather than $SHELL.\n");
