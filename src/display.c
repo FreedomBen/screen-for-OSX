@@ -603,7 +603,7 @@ int c;
 	    D_x += D_AM ? 1 : -1;
 	  D_mbcs = 0;
 	}
-      else if (utf8_isdouble(c) || (c >= 0xd800 && c < 0xe000))
+      else if (utf8_isdouble(c))
 	{
 	  D_mbcs = c;
 	  D_x++;

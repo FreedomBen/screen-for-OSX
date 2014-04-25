@@ -726,10 +726,6 @@ register int len;
 		      LPutChar(&curr->w_layer, &omc, ox, oy);
 		      LGotoPos(&curr->w_layer, curr->w_x, curr->w_y);
 		    }
-	          if (curr->w_mbcs)
-		    {
-		      curr->w_rend.mbcs = curr->w_mbcs = 0;
-		    }
 		  break;
 		}
 	      font = curr->w_rend.font;
