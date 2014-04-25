@@ -1218,7 +1218,7 @@ main() {
 AC_SYS_LONG_FILE_NAMES
 
 AC_MSG_CHECKING(for vsprintf)
-AC_TRY_LINK(,[vsprintf(0,0,0);], AC_MSG_RESULT(yes);AC_DEFINE(USEVARARGS), AC_MSG_RESULT(no))
+AC_TRY_LINK([#include <stdarg.h>],[va_list valist; vsprintf(0,0,valist);], AC_MSG_RESULT(yes);AC_DEFINE(USEVARARGS), AC_MSG_RESULT(no))
 
 AC_HEADER_DIRENT
 
