@@ -621,7 +621,7 @@ Attacher()
         {
 	  fcntl(0, F_SETFL, 0);
 	  SetTTY(0, &attach_Mode);
-	  printf("\nSuddenly the Dungeon collapses!! - You die...\n");
+	  printf("\nError: Cannot find master process to attach to!\n");
 	  eexit(1);
         }
 #ifdef BSDJOBS
