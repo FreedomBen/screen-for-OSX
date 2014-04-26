@@ -1506,11 +1506,21 @@ CheckTtyname (tty)
 char *tty;
 {
   struct stat st;
+  char * real;
+  int rc;
 
-  if (lstat(tty, &st) || !S_ISCHR(st.st_mode) ||
-     (st.st_nlink > 1 && strncmp(tty, "/dev/", 5)))
+  real = realpath(tty, NULL);
+  if (!real)
     return -1;
-  return 0;
+
+  if (lstat(real, &st) || !S_ISCHR(st.st_mode) ||
+    (st.st_nlink > 1 && strncmp(real, "/dev/", 5)))
+    rc = -1;
+  else
+    rc = 0;
+
+  free(real);
+  return rc;
 }
 
 /*
