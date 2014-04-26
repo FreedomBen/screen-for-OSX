@@ -127,7 +127,6 @@ display_status_tsi()
   r = read(bd.bd_fd,ibuf,1);
   if (r != 1)
     return -1;
-  if (r != -1)
   if (ibuf[0] == 'V')
     r = read(bd.bd_fd, ibuf, 3);
   else
