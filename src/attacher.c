@@ -847,6 +847,7 @@ screen_builtin_lck()
 #ifdef USE_PAM
   pam_handle_t *pamh = 0;
   int pam_error;
+  char *tty_name;
 #endif
   char *pass = 0, mypass[16 + 1], salt[3];
   int using_pam = 1;
@@ -932,6 +933,15 @@ screen_builtin_lck()
       pam_error = pam_start("screen", ppp->pw_name, &PAM_conversation, &pamh);
       if (pam_error != PAM_SUCCESS)
 	AttacherFinit(SIGARG);		/* goodbye */
+
+      if (strncmp(attach_tty, "/dev/", 5) == 0)
+	tty_name = attach_tty + 5;
+      else
+	tty_name = attach_tty;
+      pam_error = pam_set_item(pamh, PAM_TTY, tty_name);
+      if (pam_error != PAM_SUCCESS)
+	AttacherFinit(SIGARG);		/* goodbye */
+
       pam_error = pam_authenticate(pamh, 0);
       pam_end(pamh, pam_error);
       PAM_conversation.appdata_ptr = 0;
