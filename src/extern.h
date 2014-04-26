@@ -110,6 +110,7 @@ extern void  brktty __P((int));
 extern struct baud_values *lookup_baud __P((int bps));
 extern int   SetBaud __P((struct mode *, int, int));
 extern int   SttyMode __P((struct mode *, char *));
+extern int   CheckTtyname __P((char *));
 
 
 /* mark.c */
