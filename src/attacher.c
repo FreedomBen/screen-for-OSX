@@ -185,8 +185,8 @@ int how;
 	  if (ret == SIG_POWER_BYE)
 	    {
 	      int ppid;
-	      setgid(real_gid);
-	      setuid(real_uid);
+	      if (setgid(real_gid) || setuid(real_uid))
+		Panic(errno, "setuid/gid");
 	      if ((ppid = getppid()) > 1)
 		Kill(ppid, SIGHUP);
 	      exit(0);
@@ -282,7 +282,10 @@ int how;
 #ifdef MULTIUSER
   if (!multiattach)
 #endif
-    setuid(real_uid);
+    {
+      if (setuid(real_uid))
+        Panic(errno, "setuid");
+    }
 #if defined(MULTIUSER) && defined(USE_SETEUID)
   else
     {
@@ -290,7 +293,8 @@ int how;
       xseteuid(real_uid); /* multi_uid, allow backend to send signals */
     }
 #endif
-  setgid(real_gid);
+  if (setgid(real_gid))
+    Panic(errno, "setgid");
   eff_uid = real_uid;
   eff_gid = real_gid;
 
@@ -486,7 +490,8 @@ AttacherFinit SIGDEFARG
 #ifdef MULTIUSER
   if (tty_oldmode >= 0)
     {
-      setuid(own_uid);
+      if (setuid(own_uid))
+        Panic(errno, "setuid");
       chmod(attach_tty, tty_oldmode);
     }
 #endif
@@ -504,11 +509,14 @@ AttacherFinitBye SIGDEFARG
   if (multiattach)
     exit(SIG_POWER_BYE);
 #endif
-  setgid(real_gid);
+  if (setgid(real_gid))
+    Panic(errno, "setgid");
 #ifdef MULTIUSER
-  setuid(own_uid);
+  if (setuid(own_uid))
+    Panic(errno, "setuid");
 #else
-  setuid(real_uid);
+  if (setuid(real_uid))
+    Panic(errno, "setuid");
 #endif
   /* we don't want to disturb init (even if we were root), eh? jw */
   if ((ppid = getppid()) > 1)
@@ -679,11 +687,14 @@ static sigret_t
 LockHup SIGDEFARG
 {
   int ppid = getppid();
-  setgid(real_gid);
+  if (setgid(real_gid))
+    Panic(errno, "setgid");
 #ifdef MULTIUSER
-  setuid(own_uid);
+  if (setuid(own_uid))
+    Panic(errno, "setuid");
 #else
-  setuid(real_uid);
+  if (setuid(real_uid))
+    Panic(errno, "setuid");
 #endif
   if (ppid > 1)
     Kill(ppid, SIGHUP);
@@ -710,11 +721,14 @@ LockTerminal()
       if ((pid = fork()) == 0)
         {
           /* Child */
-          setgid(real_gid);
+          if (setgid(real_gid))
+            Panic(errno, "setgid");
 #ifdef MULTIUSER
-          setuid(own_uid);
+          if (setuid(own_uid))
+            Panic(errno, "setuid");
 #else
-          setuid(real_uid);	/* this should be done already */
+          if (setuid(real_uid))   /* this should be done already */
+            Panic(errno, "setuid");
 #endif
           closeallfiles(0);	/* important: /etc/shadow may be open */
           execl(prg, "SCREEN-LOCK", NULL);
