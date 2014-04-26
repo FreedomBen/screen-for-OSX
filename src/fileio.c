@@ -80,6 +80,8 @@ register char *str1, *str2;
     }
   else
     {
+      if (len1 == 0)
+	return 0;
       if ((cp = malloc((unsigned) len1 + add_colon + 1)) == NULL)
 	Panic(0, "%s", strnomem);
       cp[len1 + add_colon] = '\0';

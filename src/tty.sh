@@ -60,7 +60,6 @@ exit 0
 #include <sys/types.h>
 #include <signal.h>
 #include <fcntl.h>
-#include <sys/stat.h>
 #ifndef sgi
 # include <sys/file.h>
 #endif
@@ -1497,19 +1496,6 @@ int ibaud, obaud;
   if (op) m->m_ttyb.sg_ospeed = op->idx;
 # endif /* TERMIO */
 #endif /* POSIX */
-  return 0;
-}
-
-
-int
-CheckTtyname (tty)
-char *tty;
-{
-  struct stat st;
-
-  if (lstat(tty, &st) || !S_ISCHR(st.st_mode) ||
-     (st.st_nlink > 1 && strncmp(tty, "/dev/", 5)))
-    return -1;
   return 0;
 }
 
