@@ -911,6 +911,8 @@ Synonym to @code{aclchg}. @xref{Multiuser Session}.
 Change character set slot designation.  @xref{Character Processing}.
 @item chdir [@var{directory}]
 Change the current directory for future windows.  @xref{Chdir}.
+@item cjkwidth
+Treat ambiguous width characters as full/half width.  @xref{Character Processing}.
 @item clear
 Clear the window screen.  @xref{Clear}.
 @item colon
@@ -3436,6 +3438,7 @@ terminal.
 @end deffn
 
 @deffn Command defcharset [set]
+(none)@*
 Like the @samp{charset} command except that the default setting for
 new windows is changed. Shows current default if called without
 argument.
@@ -3447,6 +3450,14 @@ Same as the @samp{utf8} command except that the default setting for new
 windows is changed. Initial setting is @code{on} if screen was started
 with @samp{-U}, otherwise @code{off}.
 @end deffn
+
+@deffn Command cjkwidth [state]
+(none)@*
+Toggle how ambiguoous characters are treated. If cjkwidth is on screen
+interprets them as double (full) width characters. If off then they are seen
+as one cell (half) width characters.
+@end deffn
+
 
 @node Copy and Paste, Subprocess Execution, Virtual Terminal, Top
 @chapter Copy and Paste
