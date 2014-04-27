@@ -1,4 +1,10 @@
-Version 4.1.0 (??/??/20??):
+Version 4.2.1 (28/04/2014):
+  * allow for terminal with long $TERM (up to 32 characters)
+  * allow to use long logins
+  * documentation fixes
+  * runtime fixes
+
+Version 4.2.0 (17/04/2014):
   New Commands:
   * 'unbindall' to unbind all commands
   * 'up', 'down', 'left', 'right' sub-commands for 'focus'
