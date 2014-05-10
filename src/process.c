@@ -6282,7 +6282,7 @@ char *data;
   else
     { strcpy(p = i->pw2, "\377"); l = sizeof(i->pw2) - 1; }
   if (buf && len)
-    strncpy(p, buf, 1 + (l < len) ? l : len);
+    strncpy(p, buf, 1 + ((l < len) ? l : len));
   if (!*i->name)
     Input("Screen User: ", sizeof(i->name) - 1, INP_COOKED, su_fin, (char *)i, 0);
   else if (!*i->pw1)
