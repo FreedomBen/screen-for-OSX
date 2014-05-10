@@ -31,8 +31,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #if !defined(NAMEDPIPE)
-#include <sys/socket.h>
-#include <sys/un.h>
+# include <sys/socket.h>
+# ifdef _OpenBSD_
+#  include <sys/uio.h>
+# endif
+# include <sys/un.h>
 #endif
 
 #ifndef SIGINT
