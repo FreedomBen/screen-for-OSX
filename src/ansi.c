@@ -1444,8 +1444,8 @@ int c, intermediate;
 		  else
 		    {
 		      if (curr->w_alt.on) {
-		        LeaveAltScreen(curr);
 		        RestoreCursor(&curr->w_alt.cursor);
+		        LeaveAltScreen(curr);
 		      }
 		    }
 		  if (a1 == 47 && !i)
