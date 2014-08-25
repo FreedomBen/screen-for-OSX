@@ -17,4 +17,7 @@ cd src
 ./autogen.sh
 ./configure --prefix=/usr/local
 make
+
+echo ""
+echo "Now using sudo to install (You may be asked for your sudo password)"
 sudo make install
