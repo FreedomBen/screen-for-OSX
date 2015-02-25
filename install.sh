@@ -15,7 +15,7 @@ fi
 set -e
 cd src
 ./autogen.sh
-./configure --prefix=/usr/local
+./configure --prefix=/usr/local --enable-colors256
 make
 
 echo ""
