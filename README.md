@@ -16,7 +16,7 @@ Installation
 
 *Note: This requires developer tools to be installed in order to build successfully*
 
-The following commands will download, build and install screen into `/usr/local/bin/screen`.  *This does not replace the default `screen` in `/usr/bin/`*.  Make sure to read the section on "Post installation" below.
+The following commands will download, build, and install `screen` into `/usr/local/bin/screen`.  *Note that this does not replace the default `screen` which is located in `/usr/bin/`*.  Make sure to read the section on "Post installation" below in order to use the newly installed screen instead of the old one.
 
 Separate steps:
 
@@ -49,5 +49,5 @@ Differences from real Screen
 These are the things I did to this that make it vary from what you would get if you downloaded the official screen source code:
 
 1. Applied all of the [Apple patches](https://www.opensource.apple.com/source/screen/screen-16/patches/) for `screen`
-2. Downloaded and included the required Apple header file [vproc_priv.h](http://www.opensource.apple.com/source/launchd/launchd-328/launchd/src/vproc_priv.h) into the repo so it matches the source here.  **Note: This file is not usually included with distributions of screen because its license is incompatible with the GPLv3.  It's license is Apple Apache**
+2. Downloaded and included the required Apple header file [vproc_priv.h](http://www.opensource.apple.com/source/launchd/launchd-328/launchd/src/vproc_priv.h) into the repo so it matches the source here.  **Note: This file is not usually included with distributions of screen because its license (Apple Apache) is incompatible with the GPLv3**
 3. Added an install script to make the build and install process easier
