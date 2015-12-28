@@ -14,7 +14,7 @@ A version of screen that supports vertical splitting (Shortcut key `Ctrl+A |`), 
 Installation
 ============
 
-*Note: This requires developer tools to be installed in order to build successfully*
+*Note: This requires developer tools to be installed in order to build successfully.  You might need to `brew install automake` if you're still missing `autoreconf` for some reason*
 
 The following commands will download, build, and install `screen` into `/usr/local/bin/screen`.  *Note that this does not replace the default `screen` which is located in `/usr/bin/`*.  Make sure to read the section on "Post installation" below in order to use the newly installed screen instead of the old one.
 
